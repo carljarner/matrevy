@@ -65,7 +65,9 @@ function buildSlots(startTime, endTime, segmentMinutes) {
 async function loadScenes() {
   if (state.allScenes.length) return;
   // CUSTOM_SCENES first so they sort above "Akt 1" in the act-grouped lists.
-  state.allScenes = [...CUSTOM_SCENES, ...SCENES_DATA]; // SCENES_DATA defined in scenes-data.js
+  // getEffectiveScenesData() (manus-data.js) returns the manus-import override
+  // from localStorage if present, else falls back to SCENES_DATA (scenes-data.js).
+  state.allScenes = [...CUSTOM_SCENES, ...getEffectiveScenesData()];
 }
 
 // ── Build grid ────────────────────────────────────────────
@@ -503,7 +505,7 @@ function renderRekvisittenCastList() {
     if (cell) getCellCastNames(cell).forEach(n => occupied.add(n));
   }
 
-  const names = typeof CAST_DATA !== 'undefined' ? CAST_DATA.map(c => c.name) : [];
+  const names = getEffectiveCastData().map(c => c.name);
 
   for (const name of names) {
     const isOccupied = occupied.has(name);

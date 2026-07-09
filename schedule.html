@@ -68,6 +68,10 @@
         </div>
       </section>
 
+      <section class="sched-panel import-panel">
+        <button class="btn-primary" id="btn-manus">Rediger Manus</button>
+      </section>
+
     </aside>
 
     <!-- ── RIGHT: Grid ── -->
@@ -109,11 +113,32 @@
     </div>
   </div>
 
+  <!-- Manus edit modal -->
+  <div id="import-overlay" class="picker-overlay import-overlay" style="display:none">
+    <div class="picker-modal import-modal">
+      <div class="picker-header">
+        <span>Rediger manus</span>
+        <button class="picker-close" id="import-close">✕</button>
+      </div>
+      <div class="import-toolbar">
+        <button class="btn-secondary" id="import-add-manual">+ Tilføj scene manuelt</button>
+        <label class="btn-secondary" for="input-tex-upload">Upload .tex-filer…</label>
+        <input type="file" id="input-tex-upload" accept=".tex" multiple style="display:none" />
+      </div>
+      <div id="import-list" class="import-list"></div>
+      <div class="picker-footer">
+        <button class="btn-primary" id="import-apply">Opdater</button>
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">
     Matematikrevyen 2025 · Intern side
   </footer>
 
   <script src="scenes-data.js"></script>
+  <script src="manus-data.js"></script>
   <script src="schedule.js"></script>
+  <script src="import.js"></script>
 </body>
 </html>
