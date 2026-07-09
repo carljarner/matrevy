@@ -5,8 +5,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const scenesPath = path.join(__dirname, '../site/data/scenes.json');
-const outPath    = path.join(__dirname, '../site/scenes-data.js');
+const scenesPath = path.join(__dirname, '../data/scenes.json');
+const outPath    = path.join(__dirname, '../scenes-data.js');
 
 const scenes = JSON.parse(fs.readFileSync(scenesPath, 'utf8'));
 const allScenes = [];

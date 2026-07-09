@@ -2,35 +2,53 @@
 
 Internal website for cast and crew of Matematikrevyen.
 
+Live at: **matematikrevyen.dk**
+
 ## Project Structure
 
 ```
-site/
+/
 ├── index.html          Landing page (coordinator messages + general info)
 ├── manus.html          Script/manus page
 ├── schedule.html       Rehearsal scheduling tool
-├── page-template.html  Copy this to add a new page
+├── schedule.js         Scheduling tool logic
+├── schedule.css        Scheduling tool styles
+├── scenes-data.js      Embedded scene data (auto-generated — do not edit directly)
 ├── style.css           Shared stylesheet
-└── data/
-    ├── scenes.json     Scene and cast data (update each production)
-    └── cast.json       Full cast list and role code definitions
+├── page-template.html  Copy this to add a new page
+├── CNAME               Custom domain for GitHub Pages
+├── data/
+│   ├── scenes.json     Scene and cast data (source of truth — edit this)
+│   └── cast.json       Full cast list and role code definitions
+└── scripts/
+    └── embed-scenes.js Regenerates scenes-data.js from data/scenes.json
 ```
 
 ## Adding a New Page
 
-1. Copy `site/page-template.html` to a new file, e.g. `site/gallery.html`.
+1. Copy `page-template.html` to a new file, e.g. `gallery.html`.
 2. Replace `Sidetitel` with your page title.
 3. Add a nav link (`<a href="gallery.html">Galleri</a>`) to the `<nav>` block in **all** existing pages.
 4. Mark the link `class="active"` only on the new page itself.
 
 ## Updating Scene Data for a New Production
 
-1. Open `site/data/scenes.json` and replace the content with the new production's scenes.
-2. The schema is documented inside the file.
-3. Open `site/data/cast.json` and update the cast list.
+1. Edit `data/scenes.json` with the new scenes and cast.
+2. Run `node scripts/embed-scenes.js` to regenerate `scenes-data.js`.
+3. Commit and push both files.
 
 ## Deployment
 
-The site is hosted via GitHub Pages. Push changes to the `main` branch and they go live automatically within a minute or two.
+The site is hosted via GitHub Pages (root `/` folder, `main` branch).
+Push changes to `main` and they go live automatically within a minute or two.
+
+### DNS setup (Simply.com)
+The apex domain `matematikrevyen.dk` uses four A records pointing to GitHub Pages:
+```
+185.199.108.153
+185.199.109.153
+185.199.110.153
+185.199.111.153
+```
 
 See `matrevy-plan.md` at the repo root for the full project plan.
