@@ -2,7 +2,7 @@
 
 Internal website for cast and crew of Matematikrevyen.
 
-Live at: **matematikrevyen.dk**
+Live at: **matematikrevy.dk**
 
 ## Project Structure
 
@@ -43,7 +43,7 @@ The site is hosted via GitHub Pages (root `/` folder, `main` branch).
 Push changes to `main` and they go live automatically within a minute or two.
 
 ### DNS setup (Simply.com)
-The apex domain `matematikrevyen.dk` uses four A records pointing to GitHub Pages:
+The apex domain `matematikrevy.dk` uses four A records pointing to GitHub Pages:
 ```
 185.199.108.153
 185.199.109.153
