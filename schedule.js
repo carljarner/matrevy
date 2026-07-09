@@ -9,24 +9,31 @@ let state = {
   rooms: [],
   slots: [],        // [{ label, startMinutes }]
   absentees: [],    // [name, ...]
-  // grid[slotIdx][roomIdx] = { sceneId, autoPlaced } | null
+  // grid[slotIdx][roomIdx] = { sceneId, customCast? } | null
   grid: [],
-  scenes: [],       // schedulable scenes with priority
+  scenes: [],       // schedulable scenes
   allScenes: [],    // all scenes from JSON
 };
+
+// ── Custom scenes ─────────────────────────────────────────
+// Tool-level utility "scenes" that aren't part of the production's script.
+// Kept here (not in data/scenes.json) so they survive being replaced each production.
+const SCENEMODE_ID    = 'custom-scenemode';
+const REKVISITTEN_ID  = 'custom-rekvisitten';
+const CUSTOM_SCENES = [
+  { id: SCENEMODE_ID,   name: 'Scenemøde',   actLabel: 'Diverse', duration_minutes: 30, schedulable: true, priority: 0, cast: [], custom: true },
+  { id: REKVISITTEN_ID, name: 'Rekvisitten', actLabel: 'Diverse', duration_minutes: 30, schedulable: true, priority: 0, cast: [], custom: true },
+];
 
 // ── Boot ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-build').addEventListener('click', buildGrid);
   document.getElementById('btn-export').addEventListener('click', () => window.print());
-  document.getElementById('btn-autoplace').addEventListener('click', autoPlace);
-  document.getElementById('btn-clear-auto').addEventListener('click', clearAutoPlaced);
-  document.getElementById('scene-search').addEventListener('input', renderSceneSidebar);
   document.getElementById('picker-close').addEventListener('click', closePicker);
   document.getElementById('picker-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closePicker();
   });
-  document.getElementById('picker-search').addEventListener('input', renderPickerList);
+  document.getElementById('picker-confirm').addEventListener('click', confirmPicker);
 
   // Restore from localStorage if available
   restoreState();
@@ -42,12 +49,12 @@ function minutesToTime(m) {
   const min = m % 60;
   return String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
 }
-function buildSlots(startTime, endTime) {
+function buildSlots(startTime, endTime, segmentMinutes) {
   const start = timeToMinutes(startTime);
   const end   = timeToMinutes(endTime);
   const slots = [];
-  for (let t = start; t + 30 <= end; t += 35) {
-    slots.push({ label: minutesToTime(t) + ' – ' + minutesToTime(t + 30), startMinutes: t });
+  for (let t = start; t + segmentMinutes - 5 <= end; t += segmentMinutes) {
+    slots.push({ label: minutesToTime(t) + ' – ' + minutesToTime(t + segmentMinutes), startMinutes: t });
   }
   return slots;
 }
@@ -57,7 +64,8 @@ function buildSlots(startTime, endTime) {
 // fetch() failing on file:// protocol when opened locally.
 async function loadScenes() {
   if (state.allScenes.length) return;
-  state.allScenes = SCENES_DATA; // defined in scenes-data.js
+  // CUSTOM_SCENES first so they sort above "Akt 1" in the act-grouped lists.
+  state.allScenes = [...CUSTOM_SCENES, ...SCENES_DATA]; // SCENES_DATA defined in scenes-data.js
 }
 
 // ── Build grid ────────────────────────────────────────────
@@ -66,7 +74,7 @@ async function buildGrid() {
 
   const startTime = document.getElementById('input-start').value || '10:00';
   const endTime   = document.getElementById('input-end').value   || '17:00';
-  const dateVal   = document.getElementById('input-date').value;
+  const segmentMinutes = parseInt(document.getElementById('input-segment').value, 10) || 30;
 
   const roomLines = document.getElementById('input-rooms').value
     .split('\n').map(r => r.trim()).filter(Boolean);
@@ -79,7 +87,7 @@ async function buildGrid() {
   }
 
   // Preserve existing grid assignments if rooms/slots match
-  const newSlots = buildSlots(startTime, endTime);
+  const newSlots = buildSlots(startTime, endTime, segmentMinutes);
   const slotsMatch = JSON.stringify(newSlots) === JSON.stringify(state.slots);
   const roomsMatch = JSON.stringify(roomLines) === JSON.stringify(state.rooms);
 
@@ -91,12 +99,9 @@ async function buildGrid() {
   const prevPriorities = {};
   for (const sc of state.scenes) prevPriorities[sc.id] = sc.priority;
 
-  const prevOverrides = {};
-  for (const sc of state.scenes) prevOverrides[sc.id] = sc.override;
-
   state.scenes = state.allScenes
     .filter(s => s.schedulable)
-    .map(s => ({ ...s, priority: prevPriorities[s.id] ?? s.priority ?? 0, override: prevOverrides[s.id] ?? false }));
+    .map(s => ({ ...s, priority: prevPriorities[s.id] ?? s.priority ?? 0 }));
 
   // Reset grid only if layout changed
   if (!slotsMatch || !roomsMatch) {
@@ -109,12 +114,7 @@ async function buildGrid() {
     );
   }
 
-  // Title
-  const title = dateVal
-    ? 'Øveplan · ' + new Date(dateVal + 'T12:00:00').toLocaleDateString('da-DK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    : 'Øveplan';
-  document.getElementById('sched-grid-title').textContent = title;
-
+  document.getElementById('sched-grid-title').textContent = 'Øveplan';
   document.getElementById('sched-empty-state').style.display = 'none';
   document.getElementById('sched-grid-container').style.display = 'block';
   document.getElementById('scene-sidebar').style.display = 'block';
@@ -139,10 +139,12 @@ function renderGrid() {
   tbody.innerHTML = '';
   state.slots.forEach((slot, si) => {
     const tr = document.createElement('tr');
-    // Time cell
+    // Time cell — clicking it opens the picker for this slot
     const timeTd = document.createElement('td');
-    timeTd.className = 'col-time';
+    timeTd.className = 'col-time col-time-clickable';
     timeTd.textContent = slot.label;
+    timeTd.title = 'Klik for at tilføje scener til dette tidspunkt';
+    timeTd.onclick = () => openPicker(si);
     tr.appendChild(timeTd);
 
     // Room cells
@@ -177,12 +179,11 @@ function renderCell(td, si, ri) {
     inner.ondrop = e => { e.preventDefault(); handleDrop(si, ri); };
   } else {
     const scene = getSceneById(assignment.sceneId);
-    const conflicts = getConflicts(si, ri, assignment.sceneId);
+    const conflicts = getConflicts(si, ri, assignment);
     inner.classList.add('cell-filled');
-    if (assignment.autoPlaced) inner.classList.add('is-autoplace');
     if (conflicts.length) inner.classList.add('has-conflict');
     inner.draggable = true;
-    inner.ondragstart = () => startDrag(assignment.sceneId, si, ri);
+    inner.ondragstart = () => startDrag(assignment.sceneId, si, ri, assignment.customCast || null);
     inner.ondragover  = e => { e.preventDefault(); highlightDrop(td, si, ri); };
     inner.ondragleave = () => clearDropHighlight(td);
     inner.ondrop      = e => { e.preventDefault(); handleDrop(si, ri); };
@@ -194,7 +195,23 @@ function renderCell(td, si, ri) {
     inner.appendChild(nameEl);
 
     // Cast list
-    if (scene && scene.cast.length) {
+    if (scene && scene.id === SCENEMODE_ID) {
+      const castEl = document.createElement('div');
+      castEl.className = 'cell-cast-list';
+      castEl.textContent = 'Alle';
+      inner.appendChild(castEl);
+    } else if (scene && scene.id === REKVISITTEN_ID) {
+      const names = assignment.customCast || [];
+      if (names.length) {
+        const castEl = document.createElement('div');
+        castEl.className = 'cell-cast-list';
+        castEl.innerHTML = names.map(n => {
+          const absent = state.absentees.includes(n);
+          return `<span class="${absent ? 'absent' : ''}">${escHtml(n)}</span>`;
+        }).join(', ');
+        inner.appendChild(castEl);
+      }
+    } else if (scene && scene.cast.length) {
       const castEl = document.createElement('div');
       castEl.className = 'cell-cast-list';
       castEl.innerHTML = scene.cast.map(c => {
@@ -225,53 +242,55 @@ function renderCell(td, si, ri) {
 }
 
 // ── Conflict detection ────────────────────────────────────
-function getConflicts(si, ri, sceneId) {
-  const scene = getSceneById(sceneId);
-  if (!scene || !scene.cast.length) return [];
-  const castNames = scene.cast.map(c => c.name);
+// Rekvisitten's cast is picked per-placement (cell.customCast), not fixed on
+// the scene definition, so conflict checks resolve cast names per-cell.
+function getCellCastNames(cell) {
+  if (!cell) return [];
+  if (cell.customCast) return cell.customCast;
+  const scene = getSceneById(cell.sceneId);
+  return scene ? scene.cast.map(c => c.name) : [];
+}
+
+function getConflicts(si, ri, cell) {
+  const castNames = getCellCastNames(cell);
+  if (!castNames.length) return [];
   const conflicts = [];
   state.rooms.forEach((_, otherRi) => {
     if (otherRi === ri) return;
     const other = state.grid[si][otherRi];
     if (!other) return;
-    const otherScene = getSceneById(other.sceneId);
-    if (!otherScene) return;
-    const otherCast = otherScene.cast.map(c => c.name);
+    const otherCast = getCellCastNames(other);
     const clash = castNames.filter(n => otherCast.includes(n) && !state.absentees.includes(n));
     if (clash.length) conflicts.push(...clash);
   });
   return [...new Set(conflicts)];
 }
 
-function castConflictsAt(si, sceneId, excludeRi = -1) {
-  // Returns true if placing sceneId at slotSi would create a cast conflict
-  const scene = getSceneById(sceneId);
-  if (!scene || !scene.cast.length) return false;
-  const castNames = new Set(scene.cast.map(c => c.name).filter(n => !state.absentees.includes(n)));
+function castConflictsAtNames(si, castNames, excludeRi = -1) {
+  // Returns true if placing a scene with these cast names at slot si would create a conflict
+  if (!castNames.length) return false;
+  const names = new Set(castNames.filter(n => !state.absentees.includes(n)));
   for (let ri = 0; ri < state.rooms.length; ri++) {
     if (ri === excludeRi) continue;
     const other = state.grid[si][ri];
     if (!other) continue;
-    const otherScene = getSceneById(other.sceneId);
-    if (!otherScene) continue;
-    for (const c of otherScene.cast) {
-      if (castNames.has(c.name)) return true;
+    for (const n of getCellCastNames(other)) {
+      if (names.has(n)) return true;
     }
   }
   return false;
 }
 
-function hasAbsentBlocker(sceneId) {
+function castConflictsAt(si, sceneId, excludeRi = -1) {
   const scene = getSceneById(sceneId);
-  if (!scene) return false;
-  return scene.cast.some(c => state.absentees.includes(c.name));
+  return scene ? castConflictsAtNames(si, scene.cast.map(c => c.name), excludeRi) : false;
 }
 
 // ── Drag & drop ───────────────────────────────────────────
-let dragState = null; // { sceneId, fromSlot, fromRoom }
+let dragState = null; // { sceneId, fromSlot, fromRoom, customCast }
 
-function startDrag(sceneId, fromSlot, fromRoom) {
-  dragState = { sceneId, fromSlot: fromSlot ?? null, fromRoom: fromRoom ?? null };
+function startDrag(sceneId, fromSlot, fromRoom, customCast = null) {
+  dragState = { sceneId, fromSlot: fromSlot ?? null, fromRoom: fromRoom ?? null, customCast };
   // Mark chip as dragging
   const chip = document.querySelector(`.scene-chip[data-id="${sceneId}"]`);
   if (chip) chip.classList.add('dragging');
@@ -280,7 +299,8 @@ function startDrag(sceneId, fromSlot, fromRoom) {
 function highlightDrop(td, si, ri) {
   clearAllDropHighlights();
   if (!dragState) return;
-  const wouldConflict = castConflictsAt(si, dragState.sceneId,
+  const castNames = getCellCastNames(dragState);
+  const wouldConflict = castConflictsAtNames(si, castNames,
     dragState.fromSlot === si ? dragState.fromRoom : -1);
   td.querySelector('.cell-inner').classList.add(wouldConflict ? 'cell-drop-blocked' : 'cell-drop-target');
 }
@@ -299,7 +319,7 @@ function clearAllDropHighlights() {
 function handleDrop(toSlot, toRoom) {
   clearAllDropHighlights();
   if (!dragState) return;
-  const { sceneId, fromSlot, fromRoom } = dragState;
+  const { sceneId, fromSlot, fromRoom, customCast } = dragState;
   dragState = null;
 
   // Remove chip dragging style
@@ -315,9 +335,9 @@ function handleDrop(toSlot, toRoom) {
 
   // Place in target (swap if occupied)
   const existing = state.grid[toSlot][toRoom];
-  state.grid[toSlot][toRoom] = { sceneId, autoPlaced: false };
+  state.grid[toSlot][toRoom] = customCast ? { sceneId, customCast } : { sceneId };
   if (existing && fromSlot !== null && fromRoom !== null) {
-    state.grid[fromSlot][fromRoom] = { ...existing, autoPlaced: false };
+    state.grid[fromSlot][fromRoom] = existing;
   }
 
   renderGrid();
@@ -336,21 +356,15 @@ function removeFromCell(si, ri) {
 
 // ── Scene sidebar ─────────────────────────────────────────
 function renderSceneSidebar() {
-  const query = (document.getElementById('scene-search').value || '').toLowerCase();
   const placed = getPlacedSceneIds();
-
-  // Count unplaced
-  const unplaced = state.scenes.filter(s => !placed.has(s.id));
-  document.getElementById('scene-count-label').textContent =
-    `(${unplaced.length} tilbage af ${state.scenes.length})`;
 
   const container = document.getElementById('scene-list');
   container.innerHTML = '';
 
-  // Group by act
+  // Group by act (custom scenes never show in this sidebar)
   const byAct = {};
   for (const scene of state.scenes) {
-    if (query && !scene.name.toLowerCase().includes(query)) continue;
+    if (scene.custom) continue;
     if (!byAct[scene.actLabel]) byAct[scene.actLabel] = [];
     byAct[scene.actLabel].push(scene);
   }
@@ -366,7 +380,7 @@ function renderSceneSidebar() {
       const chip = document.createElement('div');
       chip.className = 'scene-chip' + (isPlaced ? ' placed' : '');
       chip.dataset.id = scene.id;
-      chip.draggable = !isPlaced;
+      chip.draggable = true;
       chip.ondragstart = () => startDrag(scene.id, null, null);
 
       // Priority badge + selector
@@ -396,56 +410,200 @@ function renderSceneSidebar() {
       nameSpan.className = 'chip-name';
       nameSpan.textContent = scene.name;
 
-      // Override toggle (allow placement despite absent cast)
-      const overrideLabel = document.createElement('label');
-      overrideLabel.className = 'chip-override';
-      overrideLabel.title = 'Tillad auto-placering selvom nogen mangler';
-      const overrideCheck = document.createElement('input');
-      overrideCheck.type = 'checkbox';
-      overrideCheck.checked = !!scene.override;
-      overrideCheck.onchange = e => {
-        e.stopPropagation();
-        scene.override = e.target.checked;
-        saveState();
-      };
-      overrideCheck.ondragstart = e => e.stopPropagation();
-      overrideLabel.appendChild(overrideCheck);
-      overrideLabel.insertAdjacentText('beforeend', ' ↩');
-
       chip.appendChild(prioSpan);
       chip.appendChild(nameSpan);
       chip.appendChild(prioSel);
-      chip.appendChild(overrideLabel);
       container.appendChild(chip);
     }
   }
 }
 
 // ── Scene picker modal ────────────────────────────────────
-let pickerTarget = null; // { si, ri }
+let pickerSlot = null;        // slot index (si) the picker is open for
+let pickerRoom = null;        // room index (ri) that was clicked to open the picker, if any
+let pickerSelected = new Set(); // set of sceneIds currently selected
+let pickerMode = 'list';      // 'list' | 'rekvisitten' (cast-selection sub-view)
+let rekvisittenCastSelected = new Set(); // cast names selected in the Rekvisitten sub-view
 
-function openPicker(si, ri) {
-  pickerTarget = { si, ri };
-  document.getElementById('picker-search').value = '';
+function openPicker(si, ri = null) {
+  pickerSlot = si;
+  pickerRoom = ri;
+  pickerMode = 'list';
+  pickerSelected = new Set();
+  rekvisittenCastSelected = new Set();
+  document.getElementById('picker-title').textContent = 'Vælg scener';
+  _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
   renderPickerList();
-  document.getElementById('picker-search').focus();
 }
 
 function closePicker() {
   document.getElementById('picker-overlay').style.display = 'none';
-  pickerTarget = null;
+  pickerSlot = null;
+  pickerRoom = null;
+  pickerMode = 'list';
+  pickerSelected = new Set();
+  rekvisittenCastSelected = new Set();
+}
+
+function confirmPicker() {
+  if (pickerMode === 'rekvisitten') { confirmRekvisitten(); return; }
+  if (pickerSlot === null || !pickerSelected.size) return;
+  const toPlace = [...pickerSelected];
+
+  // A single scene goes straight into the room that was clicked, if any.
+  if (toPlace.length === 1 && pickerRoom !== null && !state.grid[pickerSlot][pickerRoom]) {
+    state.grid[pickerSlot][pickerRoom] = { sceneId: toPlace[0] };
+  } else {
+    // Multiple scenes: find empty rooms in this slot, fill left-to-right.
+    const emptyRooms = [];
+    for (let ri = 0; ri < state.rooms.length; ri++) {
+      if (!state.grid[pickerSlot][ri]) emptyRooms.push(ri);
+    }
+    toPlace.forEach((sceneId, idx) => {
+      if (idx >= emptyRooms.length) return;
+      state.grid[pickerSlot][emptyRooms[idx]] = { sceneId };
+    });
+  }
+
+  renderGrid();
+  renderSceneSidebar();
+  saveState();
+  closePicker();
+}
+
+// ── Rekvisitten: pick the cast working props for this slot ─
+function openRekvisittenCastPicker() {
+  pickerMode = 'rekvisitten';
+  rekvisittenCastSelected = new Set();
+  document.getElementById('picker-title').textContent = 'Vælg hold til Rekvisitten';
+  _updatePickerFooter();
+  renderRekvisittenCastList();
+}
+
+function renderRekvisittenCastList() {
+  const container = document.getElementById('picker-list');
+  container.innerHTML = '';
+
+  const back = document.createElement('div');
+  back.className = 'picker-back';
+  back.textContent = '← Tilbage til scener';
+  back.onclick = () => {
+    pickerMode = 'list';
+    document.getElementById('picker-title').textContent = 'Vælg scener';
+    _updatePickerFooter();
+    renderPickerList();
+  };
+  container.appendChild(back);
+
+  // Cast already occupied elsewhere in this slot can't also work Rekvisitten
+  const occupied = new Set();
+  for (let ri = 0; ri < state.rooms.length; ri++) {
+    const cell = state.grid[pickerSlot][ri];
+    if (cell) getCellCastNames(cell).forEach(n => occupied.add(n));
+  }
+
+  const names = typeof CAST_DATA !== 'undefined' ? CAST_DATA.map(c => c.name) : [];
+
+  for (const name of names) {
+    const isOccupied = occupied.has(name);
+    const isSelected = rekvisittenCastSelected.has(name);
+
+    let cls = 'picker-item';
+    if (isSelected) cls += ' picker-selected';
+    if (isOccupied) cls += ' picker-at-cap';
+
+    const item = document.createElement('div');
+    item.className = cls;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.style.flex = '1';
+    nameSpan.textContent = name + (isOccupied ? ' (optaget)' : '');
+    item.appendChild(nameSpan);
+
+    if (!isOccupied) {
+      item.onclick = () => {
+        if (rekvisittenCastSelected.has(name)) rekvisittenCastSelected.delete(name);
+        else rekvisittenCastSelected.add(name);
+        _updatePickerFooter();
+        renderRekvisittenCastList();
+      };
+    }
+
+    container.appendChild(item);
+  }
+}
+
+function confirmRekvisitten() {
+  if (pickerSlot === null || !rekvisittenCastSelected.size) return;
+
+  let targetRoom = (pickerRoom !== null && !state.grid[pickerSlot][pickerRoom]) ? pickerRoom : null;
+  if (targetRoom === null) {
+    for (let ri = 0; ri < state.rooms.length; ri++) {
+      if (!state.grid[pickerSlot][ri]) { targetRoom = ri; break; }
+    }
+  }
+  if (targetRoom === null) { closePicker(); return; }
+
+  state.grid[pickerSlot][targetRoom] = { sceneId: REKVISITTEN_ID, customCast: [...rekvisittenCastSelected] };
+
+  renderGrid();
+  renderSceneSidebar();
+  saveState();
+  closePicker();
+}
+
+function _emptyRoomCount(si) {
+  return state.rooms.reduce((n, _, ri) => n + (state.grid[si][ri] ? 0 : 1), 0);
+}
+
+function _updatePickerFooter() {
+  const confirmBtn = document.getElementById('picker-confirm');
+  if (pickerMode === 'rekvisitten') {
+    const n = rekvisittenCastSelected.size;
+    confirmBtn.disabled = n === 0;
+    confirmBtn.textContent = n > 0 ? `Placer Rekvisitten (${n})` : 'Placer Rekvisitten';
+    return;
+  }
+  const n = pickerSelected.size;
+  confirmBtn.disabled = n === 0;
+  confirmBtn.textContent = n > 0 ? `Placer ${n} scene${n !== 1 ? 'r' : ''}` : 'Placer valgte scener';
+}
+
+// Returns conflicting cast member names for sceneId at slot si,
+// also counting any other scenes already selected in the picker.
+function getPickerConflictNames(si, sceneId) {
+  const scene = getSceneById(sceneId);
+  if (!scene || !scene.cast.length) return [];
+
+  const occupiedCast = new Set();
+  // Cast already in grid cells at this slot
+  for (let ri = 0; ri < state.rooms.length; ri++) {
+    const cell = state.grid[si][ri];
+    if (!cell) continue;
+    getCellCastNames(cell).forEach(n => occupiedCast.add(n));
+  }
+  // Cast from other currently-selected scenes in the picker
+  for (const selId of pickerSelected) {
+    if (selId === sceneId) continue;
+    const sel = getSceneById(selId);
+    if (sel) sel.cast.forEach(c => occupiedCast.add(c.name));
+  }
+
+  return scene.cast
+    .map(c => c.name)
+    .filter(n => !state.absentees.includes(n) && occupiedCast.has(n));
 }
 
 function renderPickerList() {
-  const query = (document.getElementById('picker-search').value || '').toLowerCase();
   const placed = getPlacedSceneIds();
   const container = document.getElementById('picker-list');
   container.innerHTML = '';
 
+  const max = pickerSlot !== null ? _emptyRoomCount(pickerSlot) : 0;
+
   const byAct = {};
   for (const scene of state.scenes) {
-    if (query && !scene.name.toLowerCase().includes(query)) continue;
     if (!byAct[scene.actLabel]) byAct[scene.actLabel] = [];
     byAct[scene.actLabel].push(scene);
   }
@@ -457,113 +615,66 @@ function renderPickerList() {
     container.appendChild(header);
 
     for (const scene of scenes) {
-      const isPlaced = placed.has(scene.id);
+      // Custom scenes (Scenemøde, Rekvisitten) can be used in multiple slots per day
+      const isPlaced = !scene.custom && placed.has(scene.id);
+      const isSelected = pickerSelected.has(scene.id);
+      const conflictNames = pickerSlot !== null
+        ? getPickerConflictNames(pickerSlot, scene.id)
+        : [];
+      const hasConflict = conflictNames.length > 0;
+      // Disable selecting more once we've hit the room cap (unless already selected)
+      const atCap = !isSelected && pickerSelected.size >= max;
+
+      let cls = 'picker-item';
+      if (isSelected) cls += ' picker-selected';
+      if (isPlaced)   cls += ' picker-placed';
+      if (atCap)      cls += ' picker-at-cap';
+
       const item = document.createElement('div');
-      item.className = 'picker-item' + (isPlaced ? ' picker-placed' : '');
+      item.className = cls;
 
-      const badge = document.createElement('span');
-      badge.className = `chip-priority prio-${scene.priority}`;
-      badge.textContent = scene.priority;
+      const prioSpan = document.createElement('span');
+      prioSpan.className = `chip-priority prio-${scene.priority}`;
+      prioSpan.textContent = scene.priority;
+      item.appendChild(prioSpan);
 
-      const name = document.createElement('span');
-      name.textContent = scene.name + (isPlaced ? ' (placeret)' : '');
+      // Name + inline conflict tag
+      const nameSpan = document.createElement('span');
+      nameSpan.style.flex = '1';
+      nameSpan.textContent = scene.name + (isPlaced ? ' (placeret)' : '');
+      if (hasConflict) {
+        const tag = document.createElement('span');
+        tag.className = 'picker-conflict-tag';
+        tag.textContent = 'rollekonflikt';
+        nameSpan.appendChild(tag);
+      }
+      // If selected AND has conflict, show the names below
+      if (isSelected && hasConflict) {
+        const conflictEl = document.createElement('div');
+        conflictEl.className = 'picker-conflict-names';
+        conflictEl.textContent = conflictNames.join(', ');
+        nameSpan.appendChild(conflictEl);
+      }
 
-      item.appendChild(badge);
-      item.appendChild(name);
+      item.appendChild(nameSpan);
 
-      if (!isPlaced) {
+      if (scene.id === REKVISITTEN_ID) {
+        item.onclick = () => openRekvisittenCastPicker();
+      } else if (!atCap) {
         item.onclick = () => {
-          if (!pickerTarget) return;
-          state.grid[pickerTarget.si][pickerTarget.ri] = { sceneId: scene.id, autoPlaced: false };
-          const td = document.querySelector(`td[data-slot="${pickerTarget.si}"][data-room="${pickerTarget.ri}"]`);
-          if (td) renderCell(td, pickerTarget.si, pickerTarget.ri);
-          renderSceneSidebar();
-          saveState();
-          closePicker();
+          if (pickerSelected.has(scene.id)) {
+            pickerSelected.delete(scene.id);
+          } else {
+            pickerSelected.add(scene.id);
+          }
+          _updatePickerFooter();
+          renderPickerList();
         };
       }
+
       container.appendChild(item);
     }
   }
-}
-
-// ── Auto-place algorithm ──────────────────────────────────
-function autoPlace() {
-  const placed = getPlacedSceneIds();
-  // Collect unplaced priority-3 scenes, sort hardest (most cast) first
-  const candidates = state.scenes
-    .filter(s => s.priority === 3 && !placed.has(s.id))
-    .sort((a, b) => b.cast.length - a.cast.length);
-
-  if (!candidates.length) {
-    showAutoplaceSummary('Ingen uplacerede prioritet-3 scener fundet.', 0, 0);
-    return;
-  }
-
-  let placedCount = 0;
-  const blocked = [];
-
-  for (const scene of candidates) {
-    // Absent blocker — skip unless coordinator overrode
-    if (hasAbsentBlocker(scene.id) && !scene.override) {
-      blocked.push(`${scene.name} (fraværende)`);
-      continue;
-    }
-    // Try every slot × room, pick first free cell without cast clash
-    let didPlace = false;
-    outer:
-    for (let si = 0; si < state.slots.length; si++) {
-      for (let ri = 0; ri < state.rooms.length; ri++) {
-        if (state.grid[si][ri] !== null) continue;
-        if (castConflictsAt(si, scene.id)) continue;
-        state.grid[si][ri] = { sceneId: scene.id, autoPlaced: true };
-        placedCount++;
-        didPlace = true;
-        break outer;
-      }
-    }
-    if (!didPlace) blocked.push(`${scene.name} (ingen ledig plads)`);
-  }
-
-  renderGrid();
-  renderSceneSidebar();
-  saveState();
-
-  const total = candidates.length + blocked.filter(b => b.includes('fraværende')).length;
-  const blockedMsg = blocked.length ? ' Ikke placeret: ' + blocked.join(', ') + '.' : '';
-  showAutoplaceSummary(
-    `Placerede ${placedCount} prioritet-3 scene${placedCount !== 1 ? 'r' : ''}.` + blockedMsg,
-    placedCount,
-    blocked.length
-  );
-}
-
-function clearAutoPlaced() {
-  let count = 0;
-  for (let si = 0; si < state.grid.length; si++) {
-    for (let ri = 0; ri < state.grid[si].length; ri++) {
-      if (state.grid[si][ri]?.autoPlaced) {
-        state.grid[si][ri] = null;
-        count++;
-      }
-    }
-  }
-  renderGrid();
-  renderSceneSidebar();
-  saveState();
-  showAutoplaceSummary(
-    count ? `Fjernede ${count} auto-placerede scene${count !== 1 ? 'r' : ''}.` : 'Ingen auto-placerede scener at fjerne.',
-    0, 0
-  );
-}
-
-function showAutoplaceSummary(msg, placed, blocked) {
-  const el = document.getElementById('autoplace-summary');
-  el.style.display = 'block';
-  el.className = 'autoplace-summary' + (blocked > 0 ? ' has-blocked' : placed > 0 ? ' has-placed' : '');
-  el.textContent = msg;
-  clearTimeout(el._hideTimer);
-  el._hideTimer = setTimeout(() => { el.style.display = 'none'; }, 8000);
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -590,10 +701,9 @@ function saveState() {
       absentees: state.absentees,
       grid: state.grid,
       priorities: Object.fromEntries(state.scenes.map(s => [s.id, s.priority])),
-      overrides:  Object.fromEntries(state.scenes.map(s => [s.id, !!s.override])),
-      date: document.getElementById('input-date').value,
       startTime: document.getElementById('input-start').value,
       endTime: document.getElementById('input-end').value,
+      segmentMinutes: document.getElementById('input-segment').value,
       roomsRaw: document.getElementById('input-rooms').value,
       absentRaw: document.getElementById('input-absent').value,
     };
@@ -607,9 +717,9 @@ async function restoreState() {
     if (!raw) return;
     const snap = JSON.parse(raw);
     // Restore form fields
-    if (snap.date)      document.getElementById('input-date').value    = snap.date;
     if (snap.startTime) document.getElementById('input-start').value   = snap.startTime;
     if (snap.endTime)   document.getElementById('input-end').value     = snap.endTime;
+    if (snap.segmentMinutes) document.getElementById('input-segment').value = snap.segmentMinutes;
     if (snap.roomsRaw)  document.getElementById('input-rooms').value   = snap.roomsRaw;
     if (snap.absentRaw) document.getElementById('input-absent').value  = snap.absentRaw;
     // Restore grid state
@@ -621,13 +731,9 @@ async function restoreState() {
       state.grid     = snap.grid;
       state.scenes   = state.allScenes
         .filter(s => s.schedulable)
-        .map(s => ({ ...s, priority: snap.priorities?.[s.id] ?? 0, override: snap.overrides?.[s.id] ?? false }));
+        .map(s => ({ ...s, priority: snap.priorities?.[s.id] ?? 0 }));
 
-      const dateVal = snap.date;
-      const title = dateVal
-        ? 'Øveplan · ' + new Date(dateVal + 'T12:00:00').toLocaleDateString('da-DK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-        : 'Øveplan';
-      document.getElementById('sched-grid-title').textContent = title;
+      document.getElementById('sched-grid-title').textContent = 'Øveplan';
       document.getElementById('sched-empty-state').style.display = 'none';
       document.getElementById('sched-grid-container').style.display = 'block';
       document.getElementById('scene-sidebar').style.display = 'block';

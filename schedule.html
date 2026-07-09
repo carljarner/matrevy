@@ -25,19 +25,26 @@
       <section class="sched-panel">
         <h2>Dagens opsætning</h2>
 
-        <label class="field-label">Dato
-          <input type="date" id="input-date" />
-        </label>
-
         <label class="field-label">Starttidspunkt
-          <input type="time" id="input-start" value="10:00" step="1800" />
+          <input type="time" id="input-start" value="10:00" step="900" />
         </label>
 
         <label class="field-label">Sluttidspunkt
-          <input type="time" id="input-end" value="17:00" step="1800" />
+          <input type="time" id="input-end" value="17:00" step="900" />
         </label>
 
-        <label class="field-label">Lokaler <span class="hint">(ét per linje)</span>
+        <label class="field-label">Segmentlængde
+          <select id="input-segment">
+            <option value="15">15 min</option>
+            <option value="20">20 min</option>
+            <option value="25">25 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </label>
+
+        <label class="field-label">Lokaler
           <textarea id="input-rooms" rows="5" placeholder="Lille UP1&#10;Store UP1&#10;Biblioteket&#10;A101&#10;Bandet">
             Lille UP1
             Store UP1
@@ -46,19 +53,19 @@
           </textarea>
         </label>
 
-        <label class="field-label">Fraværende hele dagen <span class="hint">(ét navn per linje)</span>
-          <textarea id="input-absent" rows="4" placeholder="Navn&#10;Navn"></textarea>
-        </label>
-
         <button class="btn-primary" id="btn-build">Byg øveplan</button>
       </section>
 
-      <section class="sched-panel" id="scene-sidebar" style="display:none">
-        <h2>Scener <span id="scene-count-label" class="hint"></span></h2>
-        <div class="scene-filter-row">
-          <input type="search" id="scene-search" placeholder="Søg scene…" />
+      <section class="sched-panel constr-panel">
+        <h2>Dagens ønsker</h2>
+
+        <label class="field-label">Fraværende revyster
+          <textarea id="input-absent" rows="4" placeholder="Navn, 12-14"></textarea>
+        </label>
+
+        <div id="scene-sidebar" style="display:none">
+          <div id="scene-list"></div>
         </div>
-        <div id="scene-list"></div>
       </section>
 
     </aside>
@@ -73,11 +80,8 @@
           <div class="sched-grid-header">
             <div id="sched-grid-title" class="sched-grid-title"></div>
             <div class="sched-grid-actions">
-              <button class="btn-autoplace" id="btn-autoplace">⚡ Auto-placer prioritet 3</button>
-              <button class="btn-secondary" id="btn-clear-auto">Ryd auto-placerede</button>
               <button class="btn-secondary" id="btn-export">Udskriv / Gem PDF</button>
             </div>
-            <div id="autoplace-summary" class="autoplace-summary" style="display:none"></div>
           </div>
           <div class="sched-table-scroll">
             <table id="sched-table" class="sched-table">
@@ -95,11 +99,13 @@
   <div id="picker-overlay" class="picker-overlay" style="display:none">
     <div class="picker-modal">
       <div class="picker-header">
-        <span id="picker-title">Vælg scene</span>
+        <span id="picker-title">Vælg scener</span>
         <button class="picker-close" id="picker-close">✕</button>
       </div>
-      <input type="search" id="picker-search" placeholder="Søg…" />
       <div id="picker-list" class="picker-list"></div>
+      <div class="picker-footer">
+        <button class="btn-primary" id="picker-confirm" disabled>Placer valgte scener</button>
+      </div>
     </div>
   </div>
 

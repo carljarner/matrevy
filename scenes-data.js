@@ -1,4 +1,5 @@
-// Auto-generated from data/scenes.json — re-run scripts/embed-scenes.js to update
+// Auto-generated from data/scenes.json and data/cast.json
+// Run scripts/embed-scenes.js to regenerate after editing either file
 const SCENES_DATA = [
   {
     "id": "1-1",
@@ -1299,5 +1300,191 @@ const SCENES_DATA = [
       }
     ],
     "actLabel": "Ekstranumre"
+  }
+];
+const CAST_DATA = [
+  {
+    "name": "Adam",
+    "index": 0
+  },
+  {
+    "name": "Alberte C",
+    "index": 1
+  },
+  {
+    "name": "Alberte F",
+    "index": 2
+  },
+  {
+    "name": "Anna",
+    "index": 3
+  },
+  {
+    "name": "Anni",
+    "index": 4
+  },
+  {
+    "name": "Baldur",
+    "index": 5
+  },
+  {
+    "name": "Christian",
+    "index": 6
+  },
+  {
+    "name": "Conrad",
+    "index": 7
+  },
+  {
+    "name": "Daniel",
+    "index": 8
+  },
+  {
+    "name": "Elinborg",
+    "index": 9
+  },
+  {
+    "name": "Elmer",
+    "index": 10
+  },
+  {
+    "name": "Emil",
+    "index": 11
+  },
+  {
+    "name": "Emma",
+    "index": 12
+  },
+  {
+    "name": "Flemming",
+    "index": 13
+  },
+  {
+    "name": "Frederikke",
+    "index": 14
+  },
+  {
+    "name": "Freja",
+    "index": 15
+  },
+  {
+    "name": "Frigg",
+    "index": 16
+  },
+  {
+    "name": "Hugo",
+    "index": 17
+  },
+  {
+    "name": "Johan P",
+    "index": 18
+  },
+  {
+    "name": "Johan R",
+    "index": 19
+  },
+  {
+    "name": "Julius",
+    "index": 20
+  },
+  {
+    "name": "KE",
+    "index": 21
+  },
+  {
+    "name": "Katrine",
+    "index": 22
+  },
+  {
+    "name": "Kisser",
+    "index": 23
+  },
+  {
+    "name": "Klejne",
+    "index": 24
+  },
+  {
+    "name": "Lea",
+    "index": 25
+  },
+  {
+    "name": "Linea",
+    "index": 26
+  },
+  {
+    "name": "Lise",
+    "index": 27
+  },
+  {
+    "name": "Louie",
+    "index": 28
+  },
+  {
+    "name": "Louise",
+    "index": 29
+  },
+  {
+    "name": "Markus",
+    "index": 30
+  },
+  {
+    "name": "Mathilde",
+    "index": 31
+  },
+  {
+    "name": "Monrad",
+    "index": 32
+  },
+  {
+    "name": "Nadja",
+    "index": 33
+  },
+  {
+    "name": "Niklas",
+    "index": 34
+  },
+  {
+    "name": "Oliver",
+    "index": 35
+  },
+  {
+    "name": "Pernille",
+    "index": 36
+  },
+  {
+    "name": "Ronja",
+    "index": 37
+  },
+  {
+    "name": "Sirius",
+    "index": 38
+  },
+  {
+    "name": "Snow",
+    "index": 39
+  },
+  {
+    "name": "Sommer",
+    "index": 40
+  },
+  {
+    "name": "Thais",
+    "index": 41
+  },
+  {
+    "name": "Thor",
+    "index": 42
+  },
+  {
+    "name": "Vibe",
+    "index": 43
+  },
+  {
+    "name": "Viktor",
+    "index": 44
+  },
+  {
+    "name": "Vitus",
+    "index": 45
   }
 ];
