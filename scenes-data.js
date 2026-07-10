@@ -4,46 +4,41 @@ const SCENES_DATA = [
   {
     "id": "1-1",
     "number": 1,
-    "name": "Hej",
-    "duration_minutes": 3,
+    "name": "Matrevy Sound",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Alberte C",
-        "role": "S2"
-      },
-      {
-        "name": "Alberte F",
-        "role": "D1"
-      },
-      {
-        "name": "Anna",
-        "role": "D3"
-      },
-      {
-        "name": "Anni",
-        "role": "S3"
-      },
-      {
-        "name": "Baldur",
-        "role": "YD"
-      },
-      {
-        "name": "Christian",
-        "role": "D4"
-      },
-      {
-        "name": "Conrad",
+        "name": "Nadja",
         "role": "I"
       },
       {
-        "name": "Daniel",
-        "role": "S1"
+        "name": "Thais",
+        "role": "S"
       },
       {
-        "name": "Elinborg",
+        "name": "Johan",
+        "role": "B"
+      },
+      {
+        "name": "Lea",
+        "role": "YD"
+      },
+      {
+        "name": "Emma",
+        "role": "D1"
+      },
+      {
+        "name": "Sara",
         "role": "D2"
+      },
+      {
+        "name": "Nadja",
+        "role": "D3"
       }
     ],
     "actLabel": "Akt 1"
@@ -51,34 +46,36 @@ const SCENES_DATA = [
   {
     "id": "1-2",
     "number": 2,
-    "name": "Moderne bevisførelse",
-    "duration_minutes": 5,
+    "name": "Forskønnelsen",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Adam",
-        "role": "S1"
-      },
-      {
-        "name": "Anni",
-        "role": "C"
-      },
-      {
-        "name": "Baldur",
-        "role": "S3"
-      },
-      {
-        "name": "Christian",
-        "role": "F"
-      },
-      {
-        "name": "Conrad",
-        "role": "S2"
-      },
-      {
-        "name": "Daniel",
+        "name": "Sommer",
         "role": "I"
+      },
+      {
+        "name": "Hugo",
+        "role": "A"
+      },
+      {
+        "name": "Niklas",
+        "role": "P"
+      },
+      {
+        "name": "Louie",
+        "role": "I"
+      },
+      {
+        "name": "Philip",
+        "role": "N"
+      },
+      {
+        "name": "Frederikke",
+        "role": "N"
       }
     ],
     "actLabel": "Akt 1"
@@ -86,56 +83,78 @@ const SCENES_DATA = [
   {
     "id": "1-3",
     "number": 3,
-    "name": "Video: På KU i weekenden",
-    "duration_minutes": 0,
-    "schedulable": false,
+    "name": "Forklar for mig",
+    "types": [
+      "sang",
+      "dans"
+    ],
+    "schedulable": true,
     "priority": 0,
-    "cast": [],
+    "cast": [
+      {
+        "name": "Stine",
+        "role": "I"
+      },
+      {
+        "name": "Inga",
+        "role": "S1"
+      },
+      {
+        "name": "Thea",
+        "role": "S2"
+      },
+      {
+        "name": "Katrine",
+        "role": "YD"
+      },
+      {
+        "name": "Augusta",
+        "role": "D1"
+      },
+      {
+        "name": "Kisser",
+        "role": "D2"
+      },
+      {
+        "name": "Anni",
+        "role": "D3"
+      },
+      {
+        "name": "Hanna",
+        "role": "D4"
+      },
+      {
+        "name": "Emilia",
+        "role": "D5"
+      },
+      {
+        "name": "Johan",
+        "role": "M"
+      }
+    ],
     "actLabel": "Akt 1"
   },
   {
     "id": "1-4",
     "number": 4,
-    "name": "Har ikk' spist siden 12",
-    "duration_minutes": 3,
+    "name": "En instruktor siger op",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Adam",
-        "role": "R"
-      },
-      {
-        "name": "Alberte F",
-        "role": "D5"
-      },
-      {
-        "name": "Anna",
-        "role": "D4"
-      },
-      {
-        "name": "Anni",
-        "role": "S"
-      },
-      {
-        "name": "Baldur",
-        "role": "Y"
-      },
-      {
-        "name": "Christian",
-        "role": "D1"
-      },
-      {
-        "name": "Conrad",
-        "role": "D2"
-      },
-      {
-        "name": "Daniel",
+        "name": "Snow",
         "role": "I"
       },
       {
-        "name": "Elinborg",
-        "role": "D3"
+        "name": "Christian",
+        "role": "I"
+      },
+      {
+        "name": "Baldur",
+        "role": "F"
       }
     ],
     "actLabel": "Akt 1"
@@ -143,26 +162,28 @@ const SCENES_DATA = [
   {
     "id": "1-5",
     "number": 5,
-    "name": "Forelæsningen vil ikke blive optaget",
-    "duration_minutes": 3,
+    "name": "Hos numerologen",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Flemming",
-        "role": "F"
-      },
-      {
-        "name": "Frederikke",
-        "role": "DS2"
-      },
-      {
-        "name": "Freja",
+        "name": "KE",
         "role": "I"
       },
       {
+        "name": "Minh",
+        "role": "N"
+      },
+      {
         "name": "Frigg",
-        "role": "DS1"
+        "role": "K"
+      },
+      {
+        "name": "Emma",
+        "role": "Ni"
       }
     ],
     "actLabel": "Akt 1"
@@ -170,81 +191,44 @@ const SCENES_DATA = [
   {
     "id": "1-6",
     "number": 6,
-    "name": "Fuck SU",
-    "duration_minutes": 4,
-    "schedulable": true,
-    "priority": 0,
-    "cast": [
-      {
-        "name": "Anna",
-        "role": "D3"
-      },
-      {
-        "name": "Anni",
-        "role": "D2"
-      },
-      {
-        "name": "Baldur",
-        "role": "S"
-      },
-      {
-        "name": "Christian",
-        "role": "R1"
-      },
-      {
-        "name": "Conrad",
-        "role": "D1"
-      },
-      {
-        "name": "Daniel",
-        "role": "R2"
-      },
-      {
-        "name": "Elinborg",
-        "role": "YD"
-      },
-      {
-        "name": "Elmer",
-        "role": "I"
-      }
+    "name": "Video: Matrus",
+    "types": [
+      "video"
     ],
+    "schedulable": false,
+    "priority": 0,
+    "cast": [],
     "actLabel": "Akt 1"
   },
   {
     "id": "1-7",
     "number": 7,
-    "name": "The Cafe?",
-    "duration_minutes": 3,
+    "name": "1612",
+    "types": [
+      "sang"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Emil",
-        "role": "P"
-      },
-      {
-        "name": "Emma",
-        "role": "B"
-      },
-      {
-        "name": "Flemming",
-        "role": "S2"
-      },
-      {
-        "name": "Frederikke",
-        "role": "S1"
-      },
-      {
-        "name": "Freja",
-        "role": "G1"
-      },
-      {
-        "name": "Frigg",
+        "name": "Stine",
         "role": "I"
       },
       {
-        "name": "Hugo",
-        "role": "G2"
+        "name": "Christian",
+        "role": "S"
+      },
+      {
+        "name": "Snow",
+        "role": "P"
+      },
+      {
+        "name": "Thor",
+        "role": "St1"
+      },
+      {
+        "name": "Elinborg",
+        "role": "St2"
       }
     ],
     "actLabel": "Akt 1"
@@ -252,68 +236,61 @@ const SCENES_DATA = [
   {
     "id": "1-8",
     "number": 8,
-    "name": "Band jingle: Bauhaus",
-    "duration_minutes": 0,
-    "schedulable": false,
+    "name": "Kaffebarista",
+    "types": [
+      "sketch"
+    ],
+    "schedulable": true,
     "priority": 0,
-    "cast": [],
+    "cast": [
+      {
+        "name": "KE",
+        "role": "I"
+      },
+      {
+        "name": "Lise",
+        "role": "K"
+      },
+      {
+        "name": "Thor",
+        "role": "S1"
+      },
+      {
+        "name": "Louise",
+        "role": "S2"
+      },
+      {
+        "name": "Elinborg",
+        "role": "S3"
+      },
+      {
+        "name": "Minh",
+        "role": "S4"
+      }
+    ],
     "actLabel": "Akt 1"
   },
   {
     "id": "1-9",
     "number": 9,
-    "name": "Decimaler af pi",
-    "duration_minutes": 3,
+    "name": "Dygtig vejleder",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Johan P",
-        "role": "DJ"
-      },
-      {
-        "name": "Johan R",
-        "role": "St6"
-      },
-      {
-        "name": "Julius",
-        "role": "St3"
-      },
-      {
-        "name": "KE",
-        "role": "St1"
-      },
-      {
-        "name": "Katrine",
-        "role": "S2"
-      },
-      {
-        "name": "Kisser",
-        "role": "St4"
-      },
-      {
-        "name": "Klejne",
-        "role": "St7"
-      },
-      {
-        "name": "Lea",
-        "role": "S1"
-      },
-      {
-        "name": "Linea",
-        "role": "St5"
-      },
-      {
-        "name": "Lise",
-        "role": "St2"
+        "name": "Stine",
+        "role": "I"
       },
       {
         "name": "Louie",
-        "role": "St8"
+        "role": "S"
       },
       {
-        "name": "Louise",
-        "role": "I"
+        "name": "Hugo",
+        "role": "V"
       }
     ],
     "actLabel": "Akt 1"
@@ -321,101 +298,144 @@ const SCENES_DATA = [
   {
     "id": "1-10",
     "number": 10,
-    "name": "KUnet Wrapped",
-    "duration_minutes": 0,
-    "schedulable": true,
-    "priority": 0,
-    "cast": [
-      {
-        "name": "Markus",
-        "role": "A"
-      },
-      {
-        "name": "Mathilde",
-        "role": "I"
-      },
-      {
-        "name": "Monrad",
-        "role": "J"
-      }
+    "name": "Video: Instruktørfilm",
+    "types": [
+      "video"
     ],
+    "schedulable": false,
+    "priority": 0,
+    "cast": [],
     "actLabel": "Akt 1"
   },
   {
     "id": "1-11",
     "number": 11,
-    "name": "En sang om at dumpe",
-    "duration_minutes": 4,
+    "name": "Whist",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Nadja",
-        "role": "K4"
+        "name": "Sommer",
+        "role": "I"
       },
       {
         "name": "Niklas",
-        "role": "K6"
+        "role": "S1"
       },
       {
-        "name": "Oliver",
-        "role": "K5"
+        "name": "Baldur",
+        "role": "S2"
       },
       {
-        "name": "Pernille",
+        "name": "Nadja",
+        "role": "YD"
+      },
+      {
+        "name": "Maya",
+        "role": "D1"
+      },
+      {
+        "name": "Lea",
+        "role": "D2"
+      },
+      {
+        "name": "Philip",
         "role": "D3"
       },
       {
-        "name": "Ronja",
-        "role": "K1"
+        "name": "Hanna",
+        "role": "D4"
       },
       {
-        "name": "Sirius",
-        "role": "D2/K7"
-      },
-      {
-        "name": "Snow",
-        "role": "K2"
-      },
+        "name": "Emilia",
+        "role": "D5"
+      }
+    ],
+    "actLabel": "Akt 1"
+  },
+  {
+    "id": "1-12",
+    "number": 12,
+    "name": "Hvorfor er der 2 af dem?",
+    "types": [
+      "sketch"
+    ],
+    "schedulable": true,
+    "priority": 0,
+    "cast": [
       {
         "name": "Sommer",
-        "role": "Y"
+        "role": "I"
       },
       {
         "name": "Thais",
         "role": "S1"
       },
       {
-        "name": "Thor",
-        "role": "K11"
-      },
-      {
-        "name": "Vibe",
-        "role": "K3"
-      },
-      {
-        "name": "Viktor",
-        "role": "K8"
-      },
-      {
-        "name": "Vitus",
-        "role": "K9"
-      },
-      {
-        "name": "Markus",
-        "role": "D1"
-      },
-      {
-        "name": "Mathilde",
+        "name": "Lise",
         "role": "S2"
       },
       {
-        "name": "Monrad",
+        "name": "Emma",
+        "role": "U"
+      }
+    ],
+    "actLabel": "Akt 1"
+  },
+  {
+    "id": "1-13",
+    "number": 13,
+    "name": "IT Konsulent Baby",
+    "types": [
+      "sang",
+      "dans"
+    ],
+    "schedulable": true,
+    "priority": 0,
+    "cast": [
+      {
+        "name": "KE",
         "role": "I"
       },
       {
-        "name": "Nadja",
-        "role": "K10"
+        "name": "Snow",
+        "role": "S1"
+      },
+      {
+        "name": "Johan",
+        "role": "S2"
+      },
+      {
+        "name": "Augusta",
+        "role": "YD"
+      },
+      {
+        "name": "Lisa",
+        "role": "D1"
+      },
+      {
+        "name": "Maya",
+        "role": "D2"
+      },
+      {
+        "name": "Hanna",
+        "role": "D3"
+      },
+      {
+        "name": "Emilia",
+        "role": "D4"
+      },
+      {
+        "name": "Frederikke",
+        "role": "D5"
+      },
+      {
+        "name": "Sara",
+        "role": "A"
       }
     ],
     "actLabel": "Akt 1"
@@ -423,42 +443,37 @@ const SCENES_DATA = [
   {
     "id": "2-1",
     "number": 1,
-    "name": "Hovsa",
-    "duration_minutes": 3,
+    "name": "Ah-Ah",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
+        "name": "Nadja",
+        "role": "YDI"
+      },
+      {
         "name": "Snow",
-        "role": "S2"
+        "role": "S"
       },
       {
-        "name": "Sommer",
-        "role": "Y"
+        "name": "Sara",
+        "role": "D1"
       },
       {
-        "name": "Thais",
-        "role": "S1"
-      },
-      {
-        "name": "Thor",
+        "name": "Lea",
         "role": "D2"
       },
       {
-        "name": "Vibe",
-        "role": "D4"
-      },
-      {
-        "name": "Viktor",
-        "role": "I"
-      },
-      {
-        "name": "Vitus",
+        "name": "Anni",
         "role": "D3"
       },
       {
-        "name": "Adam",
-        "role": "D1"
+        "name": "Katrine",
+        "role": "D4"
       }
     ],
     "actLabel": "Akt 2"
@@ -466,44 +481,102 @@ const SCENES_DATA = [
   {
     "id": "2-2",
     "number": 2,
-    "name": "Video: American Psycho",
-    "duration_minutes": 0,
-    "schedulable": false,
+    "name": "χ-faktor",
+    "types": [
+      "sketch"
+    ],
+    "schedulable": true,
     "priority": 0,
-    "cast": [],
+    "cast": [
+      {
+        "name": "Stine",
+        "role": "I"
+      },
+      {
+        "name": "Inga",
+        "role": "V"
+      },
+      {
+        "name": "Baldur",
+        "role": "S"
+      },
+      {
+        "name": "Christian",
+        "role": "D1"
+      },
+      {
+        "name": "Louise",
+        "role": "D2"
+      },
+      {
+        "name": "Thais",
+        "role": "D3"
+      }
+    ],
     "actLabel": "Akt 2"
   },
   {
     "id": "2-3",
     "number": 3,
-    "name": "Bogklubben",
-    "duration_minutes": 5,
+    "name": "Kærlighed på Matematik",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Alberte C",
-        "role": "A"
-      },
-      {
-        "name": "Alberte F",
-        "role": "D"
-      },
-      {
-        "name": "Anna",
-        "role": "L"
-      },
-      {
-        "name": "Anni",
-        "role": "B"
-      },
-      {
-        "name": "Baldur",
-        "role": "K"
-      },
-      {
-        "name": "Christian",
+        "name": "Stine",
         "role": "I"
+      },
+      {
+        "name": "Louie",
+        "role": "S1"
+      },
+      {
+        "name": "Olivia",
+        "role": "S2"
+      },
+      {
+        "name": "Lea",
+        "role": "Y"
+      },
+      {
+        "name": "Emilia",
+        "role": "D1"
+      },
+      {
+        "name": "Hanna",
+        "role": "D2"
+      },
+      {
+        "name": "Lise",
+        "role": "D3"
+      },
+      {
+        "name": "Maya",
+        "role": "D4"
+      },
+      {
+        "name": "Emma",
+        "role": "St1"
+      },
+      {
+        "name": "Sara",
+        "role": "St2"
+      },
+      {
+        "name": "Thea",
+        "role": "St3"
+      },
+      {
+        "name": "Frederikke",
+        "role": "St4"
+      },
+      {
+        "name": "Hugo",
+        "role": "St5"
       }
     ],
     "actLabel": "Akt 2"
@@ -511,84 +584,78 @@ const SCENES_DATA = [
   {
     "id": "2-4",
     "number": 4,
-    "name": "Band jingle: Put your records on",
-    "duration_minutes": 0,
-    "schedulable": false,
+    "name": "En Imponerende Rekvisit",
+    "types": [
+      "sketch"
+    ],
+    "schedulable": true,
     "priority": 0,
-    "cast": [],
+    "cast": [
+      {
+        "name": "Stine",
+        "role": "I"
+      },
+      {
+        "name": "Niklas",
+        "role": "I"
+      },
+      {
+        "name": "Kisser",
+        "role": "S"
+      },
+      {
+        "name": "Hugo",
+        "role": "N"
+      },
+      {
+        "name": "Philip",
+        "role": "N"
+      },
+      {
+        "name": "Thea",
+        "role": "N"
+      }
+    ],
     "actLabel": "Akt 2"
   },
   {
     "id": "2-5",
     "number": 5,
-    "name": "Den bedste halvleg",
-    "duration_minutes": 4,
+    "name": "Omdrejningsfladen",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Conrad",
-        "role": "D3"
-      },
-      {
-        "name": "Daniel",
-        "role": "S2"
-      },
-      {
-        "name": "Elinborg",
-        "role": "C1"
-      },
-      {
-        "name": "Elmer",
-        "role": "S1"
-      },
-      {
-        "name": "Emil",
-        "role": "D2"
-      },
-      {
-        "name": "Emma",
-        "role": "F"
-      },
-      {
-        "name": "Flemming",
-        "role": "Y2"
-      },
-      {
-        "name": "Frederikke",
-        "role": "D7"
-      },
-      {
-        "name": "Freja",
-        "role": "C2"
-      },
-      {
-        "name": "Frigg",
-        "role": "Y1"
-      },
-      {
-        "name": "Hugo",
-        "role": "D4"
-      },
-      {
-        "name": "Johan P",
+        "name": "Nadja",
         "role": "I"
       },
       {
-        "name": "Johan R",
-        "role": "C3"
+        "name": "Frigg",
+        "role": "S"
       },
       {
-        "name": "Julius",
+        "name": "Augusta",
+        "role": "YD"
+      },
+      {
+        "name": "Louise",
         "role": "D1"
       },
       {
-        "name": "KE",
-        "role": "D5"
+        "name": "Minh",
+        "role": "D2"
       },
       {
-        "name": "Katrine",
-        "role": "D6"
+        "name": "Mads",
+        "role": "D3"
+      },
+      {
+        "name": "Baldur",
+        "role": "St"
       }
     ],
     "actLabel": "Akt 2"
@@ -596,77 +663,69 @@ const SCENES_DATA = [
   {
     "id": "2-6",
     "number": 6,
-    "name": "Mest Ondt",
-    "duration_minutes": 5,
-    "schedulable": true,
-    "priority": 0,
-    "cast": [
-      {
-        "name": "Kisser",
-        "role": "R"
-      },
-      {
-        "name": "Klejne",
-        "role": "A"
-      },
-      {
-        "name": "Lea",
-        "role": "K"
-      },
-      {
-        "name": "Linea",
-        "role": "D2"
-      },
-      {
-        "name": "Lise",
-        "role": "D1"
-      },
-      {
-        "name": "Louie",
-        "role": "I"
-      }
+    "name": "Video: Døre på Nørre Campus",
+    "types": [
+      "video"
     ],
+    "schedulable": false,
+    "priority": 0,
+    "cast": [],
     "actLabel": "Akt 2"
   },
   {
     "id": "2-7",
     "number": 7,
-    "name": "Barda",
-    "duration_minutes": 3,
+    "name": "Første Arbejdsdag",
+    "types": [
+      "sketch",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Louise",
-        "role": "S2"
-      },
-      {
-        "name": "Markus",
-        "role": "S1"
-      },
-      {
-        "name": "Mathilde",
-        "role": "F"
-      },
-      {
-        "name": "Monrad",
-        "role": "N1"
-      },
-      {
         "name": "Nadja",
-        "role": "I"
+        "role": "YD1"
       },
       {
-        "name": "Niklas",
-        "role": "N2"
+        "name": "Snow",
+        "role": "YD2"
       },
       {
-        "name": "Oliver",
-        "role": "In"
-      },
-      {
-        "name": "Pernille",
+        "name": "Thor",
         "role": "N"
+      },
+      {
+        "name": "Augusta",
+        "role": "D1"
+      },
+      {
+        "name": "Emma",
+        "role": "D2"
+      },
+      {
+        "name": "Frederikke",
+        "role": "D3"
+      },
+      {
+        "name": "Katrine",
+        "role": "D4"
+      },
+      {
+        "name": "Kisser",
+        "role": "D5"
+      },
+      {
+        "name": "Lea",
+        "role": "D6"
+      },
+      {
+        "name": "Lise",
+        "role": "D7"
+      },
+      {
+        "name": "Sara",
+        "role": "D8"
       }
     ],
     "actLabel": "Akt 2"
@@ -674,34 +733,32 @@ const SCENES_DATA = [
   {
     "id": "2-8",
     "number": 8,
-    "name": "von Neumann",
-    "duration_minutes": 3,
+    "name": "Den Matemagiske Familie",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Ronja",
-        "role": "D1"
-      },
-      {
-        "name": "Sirius",
-        "role": "S2/Y"
-      },
-      {
-        "name": "Snow",
-        "role": "D3"
-      },
-      {
         "name": "Sommer",
-        "role": "D2"
-      },
-      {
-        "name": "Thais",
         "role": "I"
       },
       {
-        "name": "Thor",
-        "role": "S1"
+        "name": "Inga",
+        "role": "Y"
+      },
+      {
+        "name": "Philip",
+        "role": "S"
+      },
+      {
+        "name": "Thais",
+        "role": "G"
+      },
+      {
+        "name": "Elinborg",
+        "role": "T"
       }
     ],
     "actLabel": "Akt 2"
@@ -709,34 +766,65 @@ const SCENES_DATA = [
   {
     "id": "2-9",
     "number": 9,
-    "name": "Et Knækket Kridt",
-    "duration_minutes": 0,
+    "name": "Check ind",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Vibe",
-        "role": "In"
+        "name": "Snow",
+        "role": "YDI"
       },
       {
-        "name": "Viktor",
-        "role": "R"
-      },
-      {
-        "name": "Vitus",
-        "role": "T2"
-      },
-      {
-        "name": "Adam",
+        "name": "Emma",
         "role": "S"
       },
       {
-        "name": "Alberte C",
-        "role": "I"
+        "name": "Olivia",
+        "role": "K"
       },
       {
-        "name": "Alberte F",
-        "role": "T1"
+        "name": "Inga",
+        "role": "X"
+      },
+      {
+        "name": "Katrine",
+        "role": "F"
+      },
+      {
+        "name": "Thea",
+        "role": "D1"
+      },
+      {
+        "name": "Thor",
+        "role": "D2"
+      },
+      {
+        "name": "Anni",
+        "role": "D3"
+      },
+      {
+        "name": "Maya",
+        "role": "D4"
+      },
+      {
+        "name": "Baldur",
+        "role": "N"
+      },
+      {
+        "name": "Lea",
+        "role": "N"
+      },
+      {
+        "name": "Minh",
+        "role": "N"
+      },
+      {
+        "name": "Johan",
+        "role": "N"
       }
     ],
     "actLabel": "Akt 2"
@@ -744,64 +832,126 @@ const SCENES_DATA = [
   {
     "id": "2-10",
     "number": 10,
-    "name": "Video: Vandautomat",
-    "duration_minutes": 0,
-    "schedulable": false,
+    "name": "Kender du det?",
+    "types": [
+      "sang"
+    ],
+    "schedulable": true,
     "priority": 0,
-    "cast": [],
+    "cast": [
+      {
+        "name": "Sommer",
+        "role": "I"
+      },
+      {
+        "name": "Hugo",
+        "role": "L"
+      },
+      {
+        "name": "Minh",
+        "role": "St"
+      },
+      {
+        "name": "Kisser",
+        "role": "St"
+      }
+    ],
     "actLabel": "Akt 2"
   },
   {
     "id": "2-11",
     "number": 11,
-    "name": "Tavle og et kridt",
-    "duration_minutes": 4,
+    "name": "Den Store Klagedyst",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Anna",
-        "role": "D2"
-      },
-      {
-        "name": "Anni",
-        "role": "S1"
-      },
-      {
-        "name": "Baldur",
-        "role": "D5"
-      },
-      {
-        "name": "Christian",
-        "role": "D3"
-      },
-      {
-        "name": "Conrad",
+        "name": "Sommer",
         "role": "I"
       },
       {
-        "name": "Daniel",
+        "name": "Frigg",
+        "role": "T"
+      },
+      {
+        "name": "Thor",
+        "role": "X"
+      },
+      {
+        "name": "Niklas",
         "role": "Y"
       },
       {
-        "name": "Elinborg",
-        "role": "S3"
+        "name": "Thea",
+        "role": "S"
+      }
+    ],
+    "actLabel": "Akt 2"
+  },
+  {
+    "id": "2-12",
+    "number": 12,
+    "name": "Hvad nu hvis",
+    "types": [
+      "sang"
+    ],
+    "schedulable": true,
+    "priority": 0,
+    "cast": [
+      {
+        "name": "KE",
+        "role": "I"
       },
       {
-        "name": "Elmer",
-        "role": "R"
+        "name": "Louise",
+        "role": "S1"
       },
       {
-        "name": "Emil",
-        "role": "D1"
-      },
-      {
-        "name": "Emma",
-        "role": "D4"
-      },
-      {
-        "name": "Flemming",
+        "name": "Christian",
         "role": "S2"
+      },
+      {
+        "name": "Frigg",
+        "role": "Nik"
+      },
+      {
+        "name": "Lise",
+        "role": "Jay"
+      },
+      {
+        "name": "Sara",
+        "role": "St1"
+      },
+      {
+        "name": "Johan",
+        "role": "St2"
+      },
+      {
+        "name": "Louie",
+        "role": "St3"
+      },
+      {
+        "name": "Augusta",
+        "role": "St4"
+      },
+      {
+        "name": "Snow",
+        "role": "St5"
+      },
+      {
+        "name": "Nadja",
+        "role": "St6"
+      },
+      {
+        "name": "Katrine",
+        "role": "St7"
+      },
+      {
+        "name": "Mads",
+        "role": "St8"
       }
     ],
     "actLabel": "Akt 2"
@@ -809,38 +959,49 @@ const SCENES_DATA = [
   {
     "id": "3-1",
     "number": 1,
-    "name": "12-tals pige",
-    "duration_minutes": 3,
+    "name": "Ernsts Hus",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Frederikke",
-        "role": "D2"
-      },
-      {
-        "name": "Freja",
-        "role": "D1"
-      },
-      {
-        "name": "Frigg",
-        "role": "YD1"
-      },
-      {
-        "name": "Hugo",
-        "role": "YD2"
-      },
-      {
-        "name": "Johan P",
-        "role": "R1"
-      },
-      {
-        "name": "Johan R",
+        "name": "KE",
         "role": "I"
       },
       {
-        "name": "Julius",
+        "name": "Johan",
+        "role": "R1"
+      },
+      {
+        "name": "Niklas",
         "role": "R2"
+      },
+      {
+        "name": "Philip",
+        "role": "E"
+      },
+      {
+        "name": "Baldur",
+        "role": "YD"
+      },
+      {
+        "name": "Mads",
+        "role": "D1"
+      },
+      {
+        "name": "Sara",
+        "role": "D2"
+      },
+      {
+        "name": "Frederikke",
+        "role": "D3"
+      },
+      {
+        "name": "Thais",
+        "role": "Ni"
       }
     ],
     "actLabel": "Akt 3"
@@ -848,26 +1009,24 @@ const SCENES_DATA = [
   {
     "id": "3-2",
     "number": 2,
-    "name": "Flirt med eksamensvagte",
-    "duration_minutes": 0,
+    "name": "Matematiker ved himlens porte",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "KE",
-        "role": "V"
-      },
-      {
-        "name": "Katrine",
+        "name": "Sommer",
         "role": "I"
       },
       {
-        "name": "Kisser",
+        "name": "Frigg",
         "role": "S"
       },
       {
-        "name": "Klejne",
-        "role": "E"
+        "name": "Inga",
+        "role": "P"
       }
     ],
     "actLabel": "Akt 3"
@@ -875,8 +1034,10 @@ const SCENES_DATA = [
   {
     "id": "3-3",
     "number": 3,
-    "name": "Video: Hagoromo",
-    "duration_minutes": 0,
+    "name": "Video: Rytteriet",
+    "types": [
+      "video"
+    ],
     "schedulable": false,
     "priority": 0,
     "cast": [],
@@ -885,42 +1046,41 @@ const SCENES_DATA = [
   {
     "id": "3-4",
     "number": 4,
-    "name": "Der burde ikke være minus der",
-    "duration_minutes": 3,
+    "name": "Spørg om Hjælp",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Lea",
-        "role": "D3"
+        "name": "Stine",
+        "role": "I"
       },
       {
-        "name": "Linea",
+        "name": "Christian",
         "role": "S1"
       },
       {
-        "name": "Lise",
-        "role": "YD"
+        "name": "Louie",
+        "role": "S2"
       },
       {
-        "name": "Louie",
+        "name": "Nadja",
+        "role": "Y"
+      },
+      {
+        "name": "Mads",
         "role": "D1"
       },
       {
         "name": "Louise",
-        "role": "S2"
-      },
-      {
-        "name": "Markus",
-        "role": "I"
-      },
-      {
-        "name": "Mathilde",
         "role": "D2"
       },
       {
-        "name": "Monrad",
-        "role": "D4"
+        "name": "Minh",
+        "role": "D3"
       }
     ],
     "actLabel": "Akt 3"
@@ -928,38 +1088,28 @@ const SCENES_DATA = [
   {
     "id": "3-5",
     "number": 5,
-    "name": "Matematikkens historie",
-    "duration_minutes": 3,
+    "name": "Fluer i S01",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Nadja",
-        "role": "S2"
-      },
-      {
-        "name": "Niklas",
-        "role": "S1"
-      },
-      {
-        "name": "Oliver",
-        "role": "St1"
-      },
-      {
-        "name": "Pernille",
+        "name": "KE",
         "role": "I"
       },
       {
-        "name": "Ronja",
-        "role": "St2"
+        "name": "Hugo",
+        "role": "F1"
       },
       {
-        "name": "Sirius",
-        "role": "F"
+        "name": "Kisser",
+        "role": "F2"
       },
       {
-        "name": "Snow",
-        "role": "St3"
+        "name": "Thea",
+        "role": "F3"
       }
     ],
     "actLabel": "Akt 3"
@@ -967,56 +1117,89 @@ const SCENES_DATA = [
   {
     "id": "3-6",
     "number": 6,
-    "name": "Video: Instruktørfilm",
-    "duration_minutes": 0,
-    "schedulable": false,
+    "name": "Er der nogen spørgsmål?",
+    "types": [
+      "sketch"
+    ],
+    "schedulable": true,
     "priority": 0,
-    "cast": [],
+    "cast": [
+      {
+        "name": "Stine",
+        "role": "I"
+      },
+      {
+        "name": "Johan",
+        "role": "M"
+      },
+      {
+        "name": "Anni",
+        "role": "S1"
+      },
+      {
+        "name": "Elinborg",
+        "role": "S2"
+      },
+      {
+        "name": "Inga",
+        "role": "St1"
+      },
+      {
+        "name": "Lise",
+        "role": "St2"
+      },
+      {
+        "name": "Niklas",
+        "role": "St3"
+      },
+      {
+        "name": "Lea",
+        "role": "St4"
+      }
+    ],
     "actLabel": "Akt 3"
   },
   {
     "id": "3-7",
     "number": 7,
-    "name": "The Rizzler",
-    "duration_minutes": 3,
+    "name": "Malene",
+    "types": [
+      "sang"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
         "name": "Sommer",
-        "role": "St"
-      },
-      {
-        "name": "Thais",
-        "role": "S"
-      },
-      {
-        "name": "Thor",
-        "role": "St"
-      },
-      {
-        "name": "Vibe",
-        "role": "St"
-      },
-      {
-        "name": "Viktor",
-        "role": "St"
-      },
-      {
-        "name": "Vitus",
-        "role": "St"
-      },
-      {
-        "name": "Adam",
-        "role": "R2"
-      },
-      {
-        "name": "Alberte C",
         "role": "I"
       },
       {
-        "name": "Alberte F",
-        "role": "R1"
+        "name": "Inga",
+        "role": "S"
+      },
+      {
+        "name": "Johan",
+        "role": "F"
+      },
+      {
+        "name": "Thais",
+        "role": "N1"
+      },
+      {
+        "name": "Minh",
+        "role": "N2"
+      },
+      {
+        "name": "Emma",
+        "role": "N"
+      },
+      {
+        "name": "Niklas",
+        "role": "N"
+      },
+      {
+        "name": "Sara",
+        "role": "N"
       }
     ],
     "actLabel": "Akt 3"
@@ -1024,18 +1207,28 @@ const SCENES_DATA = [
   {
     "id": "3-8",
     "number": 8,
-    "name": "Lille regnefejl",
-    "duration_minutes": 3,
+    "name": "Start med en trekant",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Anna",
-        "role": "S"
+        "name": "KE",
+        "role": "I"
       },
       {
-        "name": "Anni",
-        "role": "I"
+        "name": "Philip",
+        "role": "S1"
+      },
+      {
+        "name": "Kisser",
+        "role": "S2"
+      },
+      {
+        "name": "Louise",
+        "role": "S3"
       }
     ],
     "actLabel": "Akt 3"
@@ -1043,124 +1236,56 @@ const SCENES_DATA = [
   {
     "id": "3-9",
     "number": 9,
-    "name": "Band jingle: Hus",
-    "duration_minutes": 0,
-    "schedulable": false,
-    "priority": 0,
-    "cast": [],
-    "actLabel": "Akt 3"
-  },
-  {
-    "id": "3-10",
-    "number": 10,
-    "name": "Restaurant Dumpet",
-    "duration_minutes": 0,
-    "schedulable": true,
-    "priority": 0,
-    "cast": [
-      {
-        "name": "Baldur",
-        "role": "S1"
-      },
-      {
-        "name": "Christian",
-        "role": "I"
-      },
-      {
-        "name": "Conrad",
-        "role": "S2"
-      },
-      {
-        "name": "Daniel",
-        "role": "T"
-      }
+    "name": "SS SS",
+    "types": [
+      "sang",
+      "dans"
     ],
-    "actLabel": "Akt 3"
-  },
-  {
-    "id": "3-11",
-    "number": 11,
-    "name": "Video: Rytteriet vender tilbage",
-    "duration_minutes": 0,
-    "schedulable": false,
-    "priority": 0,
-    "cast": [],
-    "actLabel": "Akt 3"
-  },
-  {
-    "id": "3-12",
-    "number": 12,
-    "name": "Hilberts Hotel",
-    "duration_minutes": 2.5,
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Elinborg",
-        "role": "D3"
-      },
-      {
-        "name": "Elmer",
-        "role": "D7"
-      },
-      {
-        "name": "Emil",
-        "role": "YD"
-      },
-      {
-        "name": "Emma",
-        "role": "D5"
-      },
-      {
-        "name": "Flemming",
-        "role": "R3"
-      },
-      {
-        "name": "Frederikke",
-        "role": "D4"
-      },
-      {
-        "name": "Freja",
-        "role": "D6"
+        "name": "Snow",
+        "role": "YDI"
       },
       {
         "name": "Frigg",
-        "role": "D2"
+        "role": "S1"
       },
       {
-        "name": "Hugo",
-        "role": "R2"
+        "name": "Elinborg",
+        "role": "S2"
       },
       {
-        "name": "Johan P",
+        "name": "Nadja",
         "role": "D1"
       },
       {
-        "name": "Johan R",
-        "role": "I"
+        "name": "Anni",
+        "role": "D2"
       },
       {
-        "name": "Julius",
-        "role": "R1"
+        "name": "Augusta",
+        "role": "D3"
+      },
+      {
+        "name": "Thor",
+        "role": "D4"
+      },
+      {
+        "name": "Baldur",
+        "role": "D5"
       }
     ],
-    "actLabel": "Akt 3"
-  },
-  {
-    "id": "3-13",
-    "number": 13,
-    "name": "Video: Rulletekster",
-    "duration_minutes": 0,
-    "schedulable": false,
-    "priority": 0,
-    "cast": [],
     "actLabel": "Akt 3"
   },
   {
     "id": "E-1",
     "number": 1,
-    "name": "Video: Sammenholdsfilm",
-    "duration_minutes": 0,
+    "name": "Video: Sammenholdet film",
+    "types": [
+      "video"
+    ],
     "schedulable": false,
     "priority": 0,
     "cast": [],
@@ -1169,46 +1294,45 @@ const SCENES_DATA = [
   {
     "id": "E-2",
     "number": 2,
-    "name": "Hindbær-lakrids-bolsjer",
-    "duration_minutes": 3,
+    "name": "Hun skriver på den",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "KE",
-        "role": "N"
+        "name": "Nadja",
+        "role": "IY"
       },
       {
-        "name": "Katrine",
+        "name": "Thais",
         "role": "S"
       },
       {
-        "name": "Kisser",
-        "role": "B"
-      },
-      {
-        "name": "Klejne",
-        "role": "R"
-      },
-      {
-        "name": "Lea",
-        "role": "I"
-      },
-      {
-        "name": "Linea",
-        "role": "YD"
-      },
-      {
-        "name": "Lise",
+        "name": "Hanna",
         "role": "D1"
       },
       {
-        "name": "Louie",
+        "name": "Emilia",
+        "role": "D2"
+      },
+      {
+        "name": "Philip",
         "role": "D3"
       },
       {
-        "name": "Louise",
-        "role": "D2"
+        "name": "Mads",
+        "role": "D4"
+      },
+      {
+        "name": "Sara",
+        "role": "D5"
+      },
+      {
+        "name": "Thea",
+        "role": "D6"
       }
     ],
     "actLabel": "Ekstranumre"
@@ -1216,87 +1340,66 @@ const SCENES_DATA = [
   {
     "id": "E-3",
     "number": 3,
-    "name": "Band jingle: Dark Room",
-    "duration_minutes": 0,
-    "schedulable": false,
-    "priority": 0,
-    "cast": [],
-    "actLabel": "Ekstranumre"
-  },
-  {
-    "id": "E-4",
-    "number": 4,
-    "name": "En Sketchy Sketch",
-    "duration_minutes": 2,
+    "name": "KuMail",
+    "types": [
+      "sketch"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Markus",
-        "role": "S"
-      },
-      {
-        "name": "Mathilde",
+        "name": "KE",
         "role": "I"
       },
       {
-        "name": "Monrad",
-        "role": "D"
+        "name": "Lise",
+        "role": "K"
+      },
+      {
+        "name": "Hugo",
+        "role": "V"
       }
     ],
     "actLabel": "Ekstranumre"
   },
   {
-    "id": "E-5",
-    "number": 5,
-    "name": "Snullet",
-    "duration_minutes": 3,
+    "id": "E-4",
+    "number": 4,
+    "name": "Venter til i morgen",
+    "types": [
+      "sang",
+      "dans"
+    ],
     "schedulable": true,
     "priority": 0,
     "cast": [
       {
-        "name": "Nadja",
-        "role": "R2"
+        "name": "Snow",
+        "role": "I"
       },
       {
-        "name": "Niklas",
-        "role": "YD"
-      },
-      {
-        "name": "Oliver",
-        "role": "D3"
-      },
-      {
-        "name": "Pernille",
-        "role": "D2"
-      },
-      {
-        "name": "Ronja",
-        "role": "S2"
-      },
-      {
-        "name": "Sirius",
+        "name": "Baldur",
         "role": "R1"
       },
       {
-        "name": "Snow",
-        "role": "S1"
+        "name": "Emma",
+        "role": "R2"
       },
       {
-        "name": "Sommer",
-        "role": "I2"
+        "name": "Katrine",
+        "role": "YD"
       },
       {
-        "name": "Thais",
-        "role": "R3"
-      },
-      {
-        "name": "Thor",
+        "name": "Lea",
         "role": "D1"
       },
       {
-        "name": "Vibe",
-        "role": "I1"
+        "name": "Frederikke",
+        "role": "D2"
+      },
+      {
+        "name": "Maya",
+        "role": "D3"
       }
     ],
     "actLabel": "Ekstranumre"
@@ -1304,187 +1407,143 @@ const SCENES_DATA = [
 ];
 const CAST_DATA = [
   {
-    "name": "Adam",
+    "name": "Anni",
     "index": 0
   },
   {
-    "name": "Alberte C",
+    "name": "Augusta",
     "index": 1
   },
   {
-    "name": "Alberte F",
+    "name": "Baldur",
     "index": 2
   },
   {
-    "name": "Anna",
+    "name": "Christian",
     "index": 3
   },
   {
-    "name": "Anni",
+    "name": "Elinborg",
     "index": 4
   },
   {
-    "name": "Baldur",
+    "name": "Emilia",
     "index": 5
   },
   {
-    "name": "Christian",
+    "name": "Emma",
     "index": 6
   },
   {
-    "name": "Conrad",
+    "name": "Frederikke",
     "index": 7
   },
   {
-    "name": "Daniel",
+    "name": "Frigg",
     "index": 8
   },
   {
-    "name": "Elinborg",
+    "name": "Hanna",
     "index": 9
   },
   {
-    "name": "Elmer",
+    "name": "Hugo",
     "index": 10
   },
   {
-    "name": "Emil",
+    "name": "Inga",
     "index": 11
   },
   {
-    "name": "Emma",
+    "name": "Johan",
     "index": 12
   },
   {
-    "name": "Flemming",
+    "name": "KE",
     "index": 13
   },
   {
-    "name": "Frederikke",
+    "name": "Katrine",
     "index": 14
   },
   {
-    "name": "Freja",
+    "name": "Kisser",
     "index": 15
   },
   {
-    "name": "Frigg",
+    "name": "Lea",
     "index": 16
   },
   {
-    "name": "Hugo",
+    "name": "Lisa",
     "index": 17
   },
   {
-    "name": "Johan P",
+    "name": "Lise",
     "index": 18
   },
   {
-    "name": "Johan R",
+    "name": "Louie",
     "index": 19
   },
   {
-    "name": "Julius",
+    "name": "Louise",
     "index": 20
   },
   {
-    "name": "KE",
+    "name": "Mads",
     "index": 21
   },
   {
-    "name": "Katrine",
+    "name": "Maya",
     "index": 22
   },
   {
-    "name": "Kisser",
+    "name": "Minh",
     "index": 23
   },
   {
-    "name": "Klejne",
+    "name": "Nadja",
     "index": 24
   },
   {
-    "name": "Lea",
+    "name": "Niklas",
     "index": 25
   },
   {
-    "name": "Linea",
+    "name": "Olivia",
     "index": 26
   },
   {
-    "name": "Lise",
+    "name": "Philip",
     "index": 27
   },
   {
-    "name": "Louie",
+    "name": "Sara",
     "index": 28
   },
   {
-    "name": "Louise",
+    "name": "Snow",
     "index": 29
   },
   {
-    "name": "Markus",
+    "name": "Sommer",
     "index": 30
   },
   {
-    "name": "Mathilde",
+    "name": "Stine",
     "index": 31
   },
   {
-    "name": "Monrad",
+    "name": "Thais",
     "index": 32
   },
   {
-    "name": "Nadja",
+    "name": "Thea",
     "index": 33
   },
   {
-    "name": "Niklas",
-    "index": 34
-  },
-  {
-    "name": "Oliver",
-    "index": 35
-  },
-  {
-    "name": "Pernille",
-    "index": 36
-  },
-  {
-    "name": "Ronja",
-    "index": 37
-  },
-  {
-    "name": "Sirius",
-    "index": 38
-  },
-  {
-    "name": "Snow",
-    "index": 39
-  },
-  {
-    "name": "Sommer",
-    "index": 40
-  },
-  {
-    "name": "Thais",
-    "index": 41
-  },
-  {
     "name": "Thor",
-    "index": 42
-  },
-  {
-    "name": "Vibe",
-    "index": 43
-  },
-  {
-    "name": "Viktor",
-    "index": 44
-  },
-  {
-    "name": "Vitus",
-    "index": 45
+    "index": 34
   }
 ];

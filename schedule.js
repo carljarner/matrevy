@@ -22,8 +22,8 @@ let state = {
 const SCENEMODE_ID    = 'custom-scenemode';
 const REKVISITTEN_ID  = 'custom-rekvisitten';
 const CUSTOM_SCENES = [
-  { id: SCENEMODE_ID,   name: 'Scenemøde',   actLabel: 'Diverse', duration_minutes: 30, schedulable: true, priority: 0, cast: [], custom: true },
-  { id: REKVISITTEN_ID, name: 'Rekvisitten', actLabel: 'Diverse', duration_minutes: 30, schedulable: true, priority: 0, cast: [], custom: true },
+  { id: SCENEMODE_ID,   name: 'Scenemøde',   actLabel: 'Diverse', schedulable: true, priority: 0, cast: [], custom: true },
+  { id: REKVISITTEN_ID, name: 'Rekvisitten', actLabel: 'Diverse', schedulable: true, priority: 0, cast: [], custom: true },
 ];
 
 // ── Dance/actor split scenes ───────────────────────────────
@@ -34,7 +34,18 @@ const CUSTOM_SCENES = [
 // re-merges them into one placement (see collapseDanceSplitPairs). Purely a
 // runtime derivation — data/scenes.json, cast.json, import.js are untouched.
 const DANCE_SPLIT_SUFFIX = '::dans'; // scene ids are "act-number" (e.g. "1-3"); ':' never appears, collision-safe.
-const DANCE_CAST_ROLES = ['Dans', 'Koreograf']; // choreographer grouped with the dance half.
+
+// A cast entry counts as the dance half if its role is already a classified
+// category (Dans/Koreograf, as the manus tool's Apply flow writes) or, for
+// raw script codes (as committed data/scenes.json actually stores), contains
+// a Y (koreograf) or D (danser) — same signal import.js's classifyRoleCode
+// uses per-cast-member, applied here directly to the whole scene's split.
+function isDanceCastRole(role) {
+  const r = (role || '').trim();
+  if (r === 'Dans' || r === 'Koreograf') return true;
+  const c = r.toUpperCase();
+  return c.includes('Y') || c.includes('D');
+}
 
 function isDanceSplitCandidate(scene) {
   return !scene.custom
@@ -52,7 +63,7 @@ function splitDanceScene(scene) {
     // A cast entry with no recognized role (e.g. legacy un-normalized data)
     // defaults to the main/acting half — the same place it'd be if the
     // scene had never been split, so nobody silently vanishes.
-    (DANCE_CAST_ROLES.includes(c.role) ? danceCast : mainCast).push(c);
+    (isDanceCastRole(c.role) ? danceCast : mainCast).push(c);
   }
   const danceId = scene.id + DANCE_SPLIT_SUFFIX;
   const mainPart = { ...scene, cast: mainCast, danceCounterpartId: danceId };
@@ -297,7 +308,7 @@ function renderCell(td, si, ri) {
       castEl.textContent = assignment.customText || 'Alle';
       inner.appendChild(castEl);
     } else if (scene) {
-      const names = getCellCastNames(assignment);
+      const names = getDisplayCastNames(assignment);
       if (names.length) {
         const castEl = document.createElement('div');
         castEl.className = 'cell-cast-list';
@@ -334,6 +345,36 @@ function getCellCastNames(cell) {
   if (cell.customCast) return cell.customCast;
   const scene = getSceneById(cell.sceneId);
   return scene ? scene.cast.map(c => c.name) : [];
+}
+
+// Cast names actually shown/pre-selected by default for a placement — never
+// Statist, and for an unmerged song/dance-half, narrowed further to the
+// roles relevant to that half. Purely a display default: once cell.customCast
+// exists (a merged placement, or anything the coordinator has explicitly
+// edited via the cell editor) it's returned verbatim, never re-filtered, so
+// an explicit choice always sticks.
+// Statists remain in the real scene cast for conflict detection either way —
+// getCellCastNames() (used by getConflicts/getPickerConflictNames) is
+// unaffected by this filter.
+function getDisplayCastNames(cell) {
+  if (!cell) return [];
+  if (cell.customCast) return cell.customCast;
+  const scene = getSceneById(cell.sceneId);
+  if (!scene || scene.custom) return getCellCastNames(cell);
+
+  const isSong = !!(scene.types && scene.types.includes('sang'));
+  const isDans = !!(scene.types && scene.types.includes('dans'));
+  const isDansHalf = !!scene.mainCounterpartId;
+
+  return scene.cast
+    .filter(c => {
+      const category = classifyOrKeep(c.role, isSong, isDans);
+      if (category === 'Statist' || category === 'Ninja') return false;
+      if (isDansHalf) return category === 'Dans' || category === 'Koreograf' || category === 'Instruktør';
+      if (isSong) return category === 'Sang/Rap' || category === 'Kor' || category === 'Instruktør';
+      return true; // sketch (or a sketch+dans combo's sketch half, placed alone)
+    })
+    .map(c => c.name);
 }
 
 // Builds cast-list HTML as one <span> per name with the separator embedded
@@ -653,6 +694,7 @@ function openPicker(si, ri = null) {
   _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
   renderPickerList();
+  document.getElementById('picker-list').scrollTop = 0;
 }
 
 function closePicker() {
@@ -681,9 +723,19 @@ function collapseDanceSplitPairs(sceneIds) {
       const danceId = scene.danceCounterpartId ? counterpartId : id;
       const mainScene  = getSceneById(mainId);
       const danceScene = getSceneById(danceId);
+      // A merged main+dance placement shows everyone but Statist/Ninja by
+      // default, same as a plain sketch — filtered here so a fresh merge
+      // already satisfies that without a manual cell-editor edit.
+      const isSong = !!(mainScene.types && mainScene.types.includes('sang'));
+      const mergedCast = [...mainScene.cast, ...danceScene.cast]
+        .filter(c => {
+          const category = classifyOrKeep(c.role, isSong, true);
+          return category !== 'Statist' && category !== 'Ninja';
+        })
+        .map(c => c.name);
       placements.push({
         sceneId: mainId,
-        customCast: [...mainScene.cast.map(c => c.name), ...danceScene.cast.map(c => c.name)],
+        customCast: mergedCast,
         pairedSceneId: danceId,
       });
       consumed.add(mainId); consumed.add(danceId);
@@ -815,35 +867,67 @@ function confirmRekvisitten() {
 }
 
 // ── Per-cell cast editor: cross out present cast or add extras ─
+let cellEditorRolesOpen = true;   // "Roller" (scene's own cast) — open by default
+let cellEditorOthersOpen = false; // "Andre revyster" (rest of the roster) — closed by default
+
 function openCellEditor(si, ri) {
   pickerSlot = si;
   pickerRoom = ri;
   pickerMode = 'edit-cell';
   const cell = state.grid[si][ri];
-  cellEditCastSelected = new Set(getCellCastNames(cell));
+  cellEditCastSelected = new Set(getDisplayCastNames(cell));
   const scene = cell ? getSceneById(cell.sceneId) : null;
+  cellEditorRolesOpen = true;
+  // Rekvisitten has no fixed cast — "Roller" would be empty, so open "Andre
+  // revyster" by default there instead of making the coordinator expand it.
+  cellEditorOthersOpen = !!(scene && scene.id === REKVISITTEN_ID);
   document.getElementById('picker-title').textContent =
-    'Rediger rollebesætning' + (scene ? ' – ' + scene.name : '');
+    'Rediger' + (scene ? ' – ' + scene.name : '');
   _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
   renderCellEditorList();
+}
+
+// Cast belonging to a scene, each with its classified role category — the
+// "Roller" section. For a scene split into a main and a "(Dans)" part, this
+// always includes BOTH halves' cast, regardless of whether this particular
+// cell holds just one half or the merged placement — they're still one
+// larger scene, so the full cast belongs in "Roller" either way.
+function getSceneCastWithRoles(scene) {
+  const isSong = !!(scene.types && scene.types.includes('sang'));
+  const isDans = !!(scene.types && scene.types.includes('dans'));
+  const all = [...scene.cast];
+  const counterpartId = getDanceCounterpartId(scene);
+  if (counterpartId) {
+    const counterpart = getSceneById(counterpartId);
+    if (counterpart) all.push(...counterpart.cast);
+  }
+  const seen = new Set();
+  const result = [];
+  for (const c of all) {
+    if (seen.has(c.name)) continue;
+    seen.add(c.name);
+    result.push({ name: c.name, category: classifyOrKeep(c.role, isSong, isDans) });
+  }
+  return result;
 }
 
 function renderCellEditorList() {
   const container = document.getElementById('picker-list');
   container.innerHTML = '';
 
+  const cell = state.grid[pickerSlot][pickerRoom];
+  const scene = cell ? getSceneById(cell.sceneId) : null;
+
   // Cast occupied in OTHER cells of this slot (not the cell being edited).
   const occupied = new Set();
   for (let ri2 = 0; ri2 < state.rooms.length; ri2++) {
     if (ri2 === pickerRoom) continue;
-    const cell = state.grid[pickerSlot][ri2];
-    if (cell) getCellCastNames(cell).forEach(n => occupied.add(n));
+    const other = state.grid[pickerSlot][ri2];
+    if (other) getCellCastNames(other).forEach(n => occupied.add(n));
   }
 
-  const names = getEffectiveCastData().map(c => c.name);
-
-  for (const name of names) {
+  const makeRow = (name, roleLabel) => {
     const isOccupied = occupied.has(name);
     const isAbsent = isPersonAbsentAtSlot(name, pickerSlot);
     const isSelected = cellEditCastSelected.has(name);
@@ -861,7 +945,8 @@ function renderCellEditorList() {
 
     const nameSpan = document.createElement('span');
     nameSpan.style.flex = '1';
-    nameSpan.textContent = name + (isOccupied ? ' (optaget)' : isAbsent ? ' (fraværende)' : '');
+    const suffix = isOccupied ? ' (optaget)' : isAbsent ? ' (fraværende)' : '';
+    nameSpan.textContent = name + (roleLabel ? ` (${roleLabel})` : '') + suffix;
     item.appendChild(nameSpan);
 
     if (!isUnavailable) {
@@ -872,9 +957,46 @@ function renderCellEditorList() {
         renderCellEditorList();
       };
     }
+    return item;
+  };
 
-    container.appendChild(item);
-  }
+  const sceneCast = scene ? getSceneCastWithRoles(scene) : [];
+  const sceneNames = new Set(sceneCast.map(c => c.name));
+  const otherNames = getEffectiveCastData().map(c => c.name).filter(n => !sceneNames.has(n));
+
+  const renderSection = (title, open, setOpen, count, renderBody) => {
+    const section = document.createElement('div');
+    section.className = 'import-act-section';
+
+    const header = document.createElement('div');
+    header.className = 'import-act-header';
+    header.onclick = () => { setOpen(!open); renderCellEditorList(); };
+
+    const chevron = document.createElement('span');
+    chevron.className = 'import-chevron';
+    chevron.textContent = open ? '▾' : '▸';
+    header.appendChild(chevron);
+
+    const label = document.createElement('span');
+    label.className = 'picker-act-label';
+    label.textContent = title;
+    header.appendChild(label);
+
+    const countEl = document.createElement('span');
+    countEl.className = 'import-act-count';
+    countEl.textContent = count;
+    header.appendChild(countEl);
+
+    section.appendChild(header);
+    if (open) renderBody(section);
+    container.appendChild(section);
+  };
+
+  renderSection('Roller', cellEditorRolesOpen, v => { cellEditorRolesOpen = v; }, sceneCast.length,
+    section => { for (const c of sceneCast) section.appendChild(makeRow(c.name, c.category)); });
+
+  renderSection('Andre revyster', cellEditorOthersOpen, v => { cellEditorOthersOpen = v; }, otherNames.length,
+    section => { for (const name of otherNames) section.appendChild(makeRow(name, null)); });
 }
 
 function confirmCellEditor() {
@@ -954,8 +1076,11 @@ function _emptyRoomCount(si) {
 }
 
 function _updatePickerFooter() {
+  const modal = document.querySelector('#picker-overlay .picker-modal');
+  if (modal) modal.classList.toggle('picker-modal-fixed-height', pickerMode !== 'edit-scenemode');
+
   const confirmBtn = document.getElementById('picker-confirm');
-  confirmBtn.textContent = 'Placer';
+  confirmBtn.textContent = (pickerMode === 'edit-cell' || pickerMode === 'edit-scenemode') ? 'Opdater' : 'Placer';
   if (pickerMode === 'rekvisitten') {
     confirmBtn.disabled = rekvisittenCastSelected.size === 0;
     return;

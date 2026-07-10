@@ -38,25 +38,36 @@ const NON_SCHEDULABLE_TYPES = new Set(['bandsang', 'video']);
 const UNPLACED_ACT = { code: '', label: 'Ikke placeret', open: true };
 
 // Cast role codes get normalized into one of these on import/parse — see classifyRoleCode().
-const ROLE_CATEGORIES = ['Instruktør', 'Koreograf', 'Skuespil', 'Sang/Rap', 'Dans', 'Kor', 'Statist'];
+const ROLE_CATEGORIES = ['Instruktør', 'Koreograf', 'Skuespil', 'Sang/Rap', 'Dans', 'Kor', 'Statist', 'Ninja'];
 
 // Simple rules that work ~99% of the time, given by the coordinator. Only ever run on a
 // raw script code (not an already-classified category — see classifyOrKeep()), and only
 // once, at parse time; scenes don't get retroactively reclassified if their type changes later.
-// The pattern codes (I/Y/D/K/St) are code-shape-only and apply regardless of scene type;
+// The pattern codes (I/Y/D/K/St/N) are code-shape-only and apply regardless of scene type;
 // only the final ambiguous fallback needs to know sketch vs. song (isSong).
-function classifyRoleCode(code, isSong) {
-  const c = code.trim().toUpperCase();
-  if (c === 'I') return 'Instruktør';
-  if (c === 'Y') return 'Koreograf';
-  if (c.includes('D')) return 'Dans';
-  if (c.startsWith('K')) return 'Kor';
+function classifyRoleCode(code, isSong, isDans) {
+  const raw = code.trim();
+  const c = raw.toUpperCase();
+  // Case-sensitive: only a literal uppercase "I" counts, so codes like "Ni"
+  // (Ninja) aren't caught here just because they contain a lowercase "i".
+  if (raw.includes('I')) return 'Instruktør';
+  if (c.includes('Y')) return 'Koreograf';
   if (c.startsWith('ST')) return 'Statist';
-  return isSong ? 'Sang/Rap' : 'Skuespil';
+  if (isSong) {
+    if (c.includes('D')) return 'Dans';
+    if (c.startsWith('K')) return 'Kor';
+    if (c.includes('N')) return 'Ninja';
+    return 'Sang/Rap';
+  }
+  // A sketch combined with a dance number (types includes both 'sketch' and
+  // 'dans', e.g. "Første Arbejdsdag") still uses D-coded cast for dancers.
+  if (isDans && c.includes('D')) return 'Dans';
+  if (c.includes('N')) return 'Ninja';
+  return 'Skuespil';
 }
 
-function classifyOrKeep(code, isSong) {
-  return ROLE_CATEGORIES.includes(code) ? code : classifyRoleCode(code, isSong);
+function classifyOrKeep(code, isSong, isDans) {
+  return ROLE_CATEGORIES.includes(code) ? code : classifyRoleCode(code, isSong, isDans);
 }
 
 // Force an act section open so a just-added/just-updated scene inside it is actually visible.
@@ -100,12 +111,13 @@ function initImportStateFromCurrentData() {
   importState.scenes = data.map(sc => {
     const types = sc.types && sc.types.length ? sc.types.slice() : (sc.schedulable ? ['sketch'] : ['video']);
     const isSong = types.includes('sang') || types.includes('bandsang');
+    const isDans = types.includes('dans');
     const actCode = sc.id.split('-')[0];
     return {
       key: nextImportKey(),
       fileName: null,
       name: sc.name,
-      cast: sc.cast.map(c => ({ code: classifyOrKeep(c.role, isSong), name: c.name })),
+      cast: sc.cast.map(c => ({ code: classifyOrKeep(c.role, isSong, isDans), name: c.name })),
       unassigned: [],
       hasTitle: true,
       hasRoles: true,
@@ -203,7 +215,8 @@ function handleTexUpload(e) {
 
         if (existing) {
           existing.name = parsed.name;
-          existing.cast = parsed.cast.map(c => ({ code: classifyRoleCode(c.code, isSong), name: c.name }));
+          const existingIsDans = existing.types.includes('dans');
+          existing.cast = parsed.cast.map(c => ({ code: classifyRoleCode(c.code, isSong, existingIsDans), name: c.name }));
           existing.unassigned = parsed.unassigned;
           existing.hasTitle = parsed.hasTitle;
           existing.hasRoles = parsed.hasRoles;
@@ -605,7 +618,6 @@ function applyImport() {
         id: `${act.code}-${number}`,
         number,
         name: f.name.trim(),
-        duration_minutes: 0,
         schedulable: isSchedulable(f.types),
         priority: 0,
         types: f.types.slice(),

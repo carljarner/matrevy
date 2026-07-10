@@ -423,6 +423,11 @@
   box-shadow: 0 8px 32px rgba(0,0,0,0.18);
   overflow: hidden;
 }
+/* Fixed height for the scene picker / cell editor / Rekvisitten cast list,
+   so switching between short and tall content doesn't resize the dialog.
+   The Scenemøde text editor (just two short inputs) is excluded, keeping
+   its original content-hugging height. */
+.picker-modal.picker-modal-fixed-height { height: 80vh; }
 .picker-header {
   display: flex;
   align-items: center;
