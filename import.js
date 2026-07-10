@@ -43,23 +43,20 @@ const ROLE_CATEGORIES = ['Instruktør', 'Koreograf', 'Skuespil', 'Sang/Rap', 'Da
 // Simple rules that work ~99% of the time, given by the coordinator. Only ever run on a
 // raw script code (not an already-classified category — see classifyOrKeep()), and only
 // once, at parse time; scenes don't get retroactively reclassified if their type changes later.
-function classifyRoleCode(code, types) {
+// The pattern codes (I/Y/D/K/St) are code-shape-only and apply regardless of scene type;
+// only the final ambiguous fallback needs to know sketch vs. song (isSong).
+function classifyRoleCode(code, isSong) {
   const c = code.trim().toUpperCase();
   if (c === 'I') return 'Instruktør';
-  const isSong = types.includes('sang') || types.includes('bandsang');
-  if (isSong) {
-    if (c === 'Y') return 'Koreograf';
-    if (c.includes('D')) return 'Dans';
-    if (c.startsWith('K')) return 'Kor';
-    if (c.startsWith('ST')) return 'Statist';
-    return 'Sang/Rap';
-  }
+  if (c === 'Y') return 'Koreograf';
+  if (c.includes('D')) return 'Dans';
+  if (c.startsWith('K')) return 'Kor';
   if (c.startsWith('ST')) return 'Statist';
-  return 'Skuespil';
+  return isSong ? 'Sang/Rap' : 'Skuespil';
 }
 
-function classifyOrKeep(code, types) {
-  return ROLE_CATEGORIES.includes(code) ? code : classifyRoleCode(code, types);
+function classifyOrKeep(code, isSong) {
+  return ROLE_CATEGORIES.includes(code) ? code : classifyRoleCode(code, isSong);
 }
 
 // Force an act section open so a just-added/just-updated scene inside it is actually visible.
@@ -102,12 +99,13 @@ function initImportStateFromCurrentData() {
 
   importState.scenes = data.map(sc => {
     const types = sc.types && sc.types.length ? sc.types.slice() : (sc.schedulable ? ['sketch'] : ['video']);
+    const isSong = types.includes('sang') || types.includes('bandsang');
     const actCode = sc.id.split('-')[0];
     return {
       key: nextImportKey(),
       fileName: null,
       name: sc.name,
-      cast: sc.cast.map(c => ({ code: classifyOrKeep(c.role, types), name: c.name })),
+      cast: sc.cast.map(c => ({ code: classifyOrKeep(c.role, isSong), name: c.name })),
       unassigned: [],
       hasTitle: true,
       hasRoles: true,
@@ -159,7 +157,12 @@ function extractSceneFromScope(scopeText, hasTitle, name) {
     }
   }
 
-  return { name, cast, unassigned, hasTitle, hasRoles: !!rolesBlockMatch };
+  // Every scene document wraps its content in \begin{sketch} or \begin{song} — that
+  // tells us sketch vs. song directly, without waiting for the user to set a type pill.
+  const envMatch = scopeText.match(/\\begin\{(sketch|song)\}/);
+  const envType = envMatch ? envMatch[1] : null;
+
+  return { name, cast, unassigned, hasTitle, hasRoles: !!rolesBlockMatch, envType };
 }
 
 function readFileAsText(file) {
@@ -193,13 +196,18 @@ function handleTexUpload(e) {
           : files[i].name;
         const norm = parsed.name.trim().toLowerCase();
         const existing = importState.scenes.find(s => s.name.trim().toLowerCase() === norm);
+        // The freshly parsed \begin{sketch}/\begin{song} wrapper is the authoritative
+        // signal for what this cast list's codes mean — used for classification only;
+        // it never overwrites an existing scene's already-configured type pills.
+        const isSong = parsed.envType === 'song';
 
         if (existing) {
           existing.name = parsed.name;
-          existing.cast = parsed.cast.map(c => ({ code: classifyRoleCode(c.code, existing.types), name: c.name }));
+          existing.cast = parsed.cast.map(c => ({ code: classifyRoleCode(c.code, isSong), name: c.name }));
           existing.unassigned = parsed.unassigned;
           existing.hasTitle = parsed.hasTitle;
           existing.hasRoles = parsed.hasRoles;
+          existing.hasEnvType = !!parsed.envType;
           existing.fileName = label;
           existing.pendingActCode = existing.actCode;
           existing.open = autoOpen;
@@ -210,13 +218,14 @@ function handleTexUpload(e) {
             key: nextImportKey(),
             fileName: label,
             name: parsed.name,
-            cast: parsed.cast.map(c => ({ code: classifyRoleCode(c.code, []), name: c.name })),
+            cast: parsed.cast.map(c => ({ code: classifyRoleCode(c.code, isSong), name: c.name })),
             unassigned: parsed.unassigned,
             hasTitle: parsed.hasTitle,
             hasRoles: parsed.hasRoles,
+            hasEnvType: !!parsed.envType,
             actCode: '',
             pendingActCode: '',
-            types: [],
+            types: [parsed.envType === 'song' ? 'sang' : 'sketch'],
             open: autoOpen,
           });
         }
@@ -441,6 +450,7 @@ function renderSceneBody(f) {
 
   if (!f.hasTitle) body.appendChild(importWarning('Ingen \\title fundet — udfyld scenenavn manuelt.'));
   if (!f.hasRoles) body.appendChild(importWarning('Ingen \\begin{roles}-blok fundet — tilføj rollefordeling manuelt.'));
+  if (f.fileName && f.hasEnvType === false) body.appendChild(importWarning('Ingen \\begin{sketch}/\\begin{song} fundet — tjek type og rollefordeling manuelt.'));
   if (f.unassigned.length) body.appendChild(importWarning(`Ikke-tildelte rollekoder sprunget over: ${f.unassigned.join(', ')}`));
 
   const nameRow = document.createElement('div');

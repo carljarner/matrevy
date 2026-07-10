@@ -59,9 +59,28 @@
       <section class="sched-panel constr-panel">
         <h2>Dagens ønsker</h2>
 
-        <label class="field-label">Fraværende revyster
-          <textarea id="input-absent" rows="4" placeholder="Navn, 12-14"></textarea>
-        </label>
+        <div class="field-label">Fraværende revyster</div>
+        <div id="absent-list" class="absent-list"></div>
+
+        <button class="btn-secondary" id="btn-add-absent">+ Tilføj fravær</button>
+
+        <div id="absent-form" class="absent-form" style="display:none">
+          <label class="field-label">Navn
+            <select id="absent-form-name"></select>
+          </label>
+          <div class="absent-form-times">
+            <label class="field-label">Fra
+              <input type="time" id="absent-form-start" step="900" />
+            </label>
+            <label class="field-label">Til
+              <input type="time" id="absent-form-end" step="900" />
+            </label>
+          </div>
+          <div class="absent-form-actions">
+            <button class="btn-primary" id="absent-form-confirm">Tilføj</button>
+            <button class="btn-secondary" id="absent-form-cancel">Annuller</button>
+          </div>
+        </div>
 
         <div id="scene-sidebar" style="display:none">
           <div id="scene-list"></div>
@@ -82,9 +101,10 @@
         </div>
         <div id="sched-grid-container" style="display:none">
           <div class="sched-grid-header">
-            <div id="sched-grid-title" class="sched-grid-title"></div>
+            <div id="sched-grid-title" class="sched-grid-title" contenteditable="true" spellcheck="false" title="Klik for at omdøbe"></div>
             <div class="sched-grid-actions">
-              <button class="btn-secondary" id="btn-export">Udskriv / Gem PDF</button>
+              <button class="btn-secondary" id="btn-export">Download</button>
+              <button class="btn-secondary" id="btn-clear-schedule">Ryd skema</button>
             </div>
           </div>
           <div class="sched-table-scroll">
@@ -108,7 +128,7 @@
       </div>
       <div id="picker-list" class="picker-list"></div>
       <div class="picker-footer">
-        <button class="btn-primary" id="picker-confirm" disabled>Placer valgte scener</button>
+        <button class="btn-primary" id="picker-confirm" disabled>Placer</button>
       </div>
     </div>
   </div>

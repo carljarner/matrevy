@@ -128,7 +128,7 @@
   color: #1f2328;
   transition: background 0.1s, border-color 0.1s;
 }
-.scene-chip:hover { background: #f0f6ff; }
+.scene-chip:hover { background: #f3f4f6; }
 .scene-chip.placed { opacity: 0.4; }
 .scene-chip.dragging { opacity: 0.5; }
 
@@ -166,6 +166,54 @@
   border-color: #d0d7de;
 }
 
+/* ── Absentee list & form ───────────────────────────────── */
+.absent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+.absent-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 5px;
+  background: #fff;
+  font-size: 0.8rem;
+  color: #1f2328;
+}
+.absent-row-name { font-weight: 500; flex-shrink: 0; }
+.absent-row-time { color: #57606a; flex: 1; }
+.absent-remove-btn {
+  background: none;
+  border: none;
+  color: #b0b7be;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.absent-remove-btn:hover { color: #ef4444; }
+
+#btn-add-absent { width: 100%; margin-bottom: 0.75rem; }
+
+.absent-form {
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 0.6rem 0.6rem 0.7rem;
+  margin-bottom: 0.75rem;
+  background: #fff;
+}
+.absent-form .field-label { margin-bottom: 0.5rem; }
+.absent-form-times { display: flex; gap: 0.5rem; }
+.absent-form-times .field-label { flex: 1; }
+.absent-form-actions { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
+.absent-form-actions .btn-primary,
+.absent-form-actions .btn-secondary { width: auto; flex: 1; margin-top: 0; }
+
 /* ── Grid header ────────────────────────────────────────── */
 .sched-grid-header {
   display: flex;
@@ -178,6 +226,11 @@
   font-size: 1rem;
   font-weight: 600;
   color: #1f2328;
+  outline: none;
+}
+.sched-grid-title:focus {
+  outline: none;
+  box-shadow: none;
 }
 .sched-grid-actions {
   display: flex;
@@ -232,6 +285,12 @@
   width: 160px;
   min-width: 160px;
   max-width: 160px;
+  /* A td's auto height isn't "explicit" for percentage-height children to
+     resolve against (per CSS2.1 §10.5) — table layout still expands the
+     row to fit the tallest cell regardless of this, but the explicit
+     (if tiny) height here is what makes .cell-inner's height:100% resolve
+     against the cell's actual rendered height instead of collapsing. */
+  height: 1px;
 }
 .sched-table td.col-time {
   background: #f7f8fa;
@@ -257,6 +316,7 @@
 /* ── Cell states ────────────────────────────────────────── */
 .cell-inner {
   width: 100%;
+  height: 100%;
   min-height: 72px;
   padding: 0.3rem 0.4rem;
   box-sizing: border-box;
@@ -268,7 +328,7 @@
   cursor: pointer;
   transition: background 0.1s;
 }
-.cell-empty:hover { background: #f0f6ff; }
+.cell-empty:hover { background: #f3f4f6; }
 
 .cell-empty .cell-plus {
   color: #d0d7de;
@@ -396,10 +456,19 @@
   gap: 0.5rem;
   color: #1f2328;
 }
-.picker-item:hover { background: #f0f6ff; }
-.picker-item.picker-selected { background: #f3f4f6; }
+.picker-item:hover { background: #f3f4f6; }
+.picker-item.picker-selected { background: #dcfce7; }
 .picker-item.picker-placed { color: #b0b7be; }
+.picker-item.picker-selected.picker-placed { color: #166534; }
 .picker-item.picker-at-cap { opacity: 0.4; cursor: default; }
+.picker-pair-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.picker-item.picker-item-half {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .picker-conflict-tag {
   display: inline-block;
   font-size: 0.72rem;
@@ -416,6 +485,22 @@
   color: #dc2626;
   margin-top: 2px;
 }
+.picker-absent-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  background: #eef0f2;
+  color: #57606a;
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.picker-absent-names {
+  font-size: 0.78rem;
+  color: #57606a;
+  margin-top: 2px;
+}
 .picker-footer {
   padding: 0.75rem 1rem;
   border-top: 1px solid #e5e7eb;
@@ -430,6 +515,20 @@
   color: #57606a;
   padding: 0.5rem 0.6rem 0.2rem;
 }
+.picker-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: calc(1.25rem + 50px);
+  font-size: 0.78rem;
+  color: #57606a;
+  padding: 0.2rem 0.6rem 0.5rem;
+}
+.picker-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
 .picker-back {
   font-size: 0.8rem;
   font-weight: 500;
@@ -440,6 +539,8 @@
   transition: opacity 0.1s;
 }
 .picker-back:hover { opacity: 1; }
+
+.picker-text-editor { padding: 0.6rem 0.1rem; }
 
 /* ── Import panel & modal ───────────────────────────────── */
 .import-panel .hint { display: block; margin-bottom: 0.6rem; }
@@ -646,108 +747,79 @@
 
 /* ── Print styles ───────────────────────────────────────── */
 @media print {
-  @page { size: A4 landscape; margin: 10mm 8mm; }
+  @page { size: A4 landscape; margin: 10mm 20px; }
 
   .site-header, .site-footer, .sched-sidebar, .sched-grid-actions,
-  .cell-remove, .picker-overlay,
+  .cell-remove, .cell-empty .cell-plus, .picker-overlay,
   .conflict-badge { display: none !important; }
 
   body { background: #fff; }
 
   .sched-layout { display: block; }
-  .sched-main   { padding: 0; }
+  /* Some browsers (notably Safari) only respect `size` in the @page rule
+     above, not `margin` — real in-flow padding guarantees the white
+     margin regardless of @page support. */
+  .sched-main   { padding: 0 20px; }
   .sched-grid-wrapper { padding: 0; }
   .sched-table-scroll { overflow: visible; }
 
-  /* Print title */
-  .sched-grid-title {
-    font-size: 11pt;
-    font-weight: 700;
-    margin-bottom: 4pt;
-    display: block;
-  }
+  /* .sched-grid-actions is hidden above, leaving the title as the only
+     visible child — center it now that it's alone in the header row. */
+  .sched-grid-header { justify-content: center; }
 
-  /* Table */
-  .sched-table {
-    font-size: 7.5pt;
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: auto;
-  }
+  /* Scale the existing rem-based on-screen type sizes down uniformly for
+     print, instead of hand-restating every element's font-size in pt. */
+  html { font-size: 12px; }
 
+  /* Typewriter look: plain monospace font, cascades to scene names / cast
+     lists / headers via inheritance. */
+  .sched-table { font-family: "Courier New", Courier, monospace; }
+
+  /* Fixed column widths (matches the on-screen grid's fixed-width
+     behaviour), flexible row height. table-layout:fixed takes column
+     widths from the first row's cells; a column with no explicit width
+     shares the table's remaining width equally with the other unsized
+     columns once at least one column (.col-time) IS explicitly sized. */
+  .sched-table { table-layout: fixed; width: 100%; }
+  .sched-table th, .sched-table td { width: auto; min-width: 0; max-width: none; }
+  /* Wider than the screen equivalent — Courier New renders "10:00 – 10:30"
+     noticeably wider than the on-screen sans-serif font; a narrower column
+     let the time label overflow its cell and overlap the next column. */
+  .sched-table th.col-time, .sched-table td.col-time { width: 64pt; min-width: 64pt; white-space: normal; }
+
+  /* Plain black/white ruled table — explicit overrides (not relying on the
+     browser's "print backgrounds" toggle being off), since PDF export via
+     Chrome/Playwright can force printBackground:true regardless of that
+     setting. .col-time needs its own override lines below: its base rules
+     have higher selector specificity than a general th/td override and
+     would otherwise still show through. */
   .sched-table th {
-    background: #1f2328 !important;
-    color: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    font-size: 7.5pt;
-    padding: 3pt 4pt;
-    border: 0.5pt solid #555;
-    text-align: center;
+    background: #fff;
+    color: #000;
+    border: 1px solid #000;
   }
-  .sched-table th.col-time {
-    background: #32383f !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    width: 52pt;
-    min-width: 52pt;
-  }
+  .sched-table th.col-time { background: #fff; }
+  .sched-table td { border: 1px solid #000; }
+  .sched-table td.col-time { background: #fff; color: #000; }
 
-  .sched-table td {
-    border: 0.5pt solid #ccc;
-    padding: 0;
-    vertical-align: top;
-    height: auto;
-  }
-  .sched-table td.col-time {
-    background: #f5f5f5 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    font-size: 7pt;
-    font-weight: 600;
-    text-align: center;
-    vertical-align: middle;
-    white-space: nowrap;
-    padding: 2pt 3pt;
-  }
-
-  .cell-inner {
-    min-height: 0;
-    padding: 2pt 3pt;
-    border-left: none !important;
-  }
-
-  /* Empty cells: plain white, no + sign */
-  .cell-empty { background: #fff !important; }
-  .cell-empty .cell-plus { display: none; }
-
-  /* Filled cells: light background, no colour tints */
+  /* Drop the blue/orange fill + accent bar; the td's own black border
+     already rules every cell edge — .has-conflict needs its own override
+     too since its base rule is more specific than .cell-filled alone. */
   .cell-filled,
   .cell-filled.has-conflict {
-    background: #fff !important;
-    border-left: 2pt solid #1f2328 !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+    background: none;
+    border-left: none;
   }
 
-  .cell-scene-name {
-    font-size: 7.5pt;
-    font-weight: 700;
-    color: #000;
-    margin-bottom: 1pt;
-  }
+  /* Match the reference's uniform black text (not the on-screen dark-grey
+     scene-name / mid-grey cast-list shades). */
+  .cell-scene-name,
+  .cell-cast-list { color: #000; }
 
-  /* Cast list: one name per line in print */
-  .cell-cast-list {
-    font-size: 6.5pt;
-    color: #222;
-    line-height: 1.35;
-  }
-  .cell-cast-list span { display: block; }
-  .cell-cast-list .absent {
-    text-decoration: line-through;
-    color: #999;
-  }
+  /* Screen reserves space per cell for hover/drag affordance; collapse
+     that so empty/short cells don't waste page space. Row height still
+     grows freely with content — no max-height anywhere. */
+  .cell-inner { min-height: 0; }
 
   /* Avoid page breaks inside a row */
   tr { page-break-inside: avoid; }
