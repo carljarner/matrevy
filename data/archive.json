@@ -1,3 +1,15 @@
 {
-  "years": []
+    "years": [
+        {
+            "year": 2026,
+            "title": "2025",
+            "manusPdf": "arkiv/2025/manus.pdf",
+            "videos": [
+                {
+                    "label": "Etiket",
+                    "url": "https://www.youtube.com/watch?v=Dp76DZvBoMo"
+                }
+            ]
+        }
+    ]
 }
