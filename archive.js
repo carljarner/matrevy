@@ -1,8 +1,11 @@
 /* =========================================================
    Matematikrevyen – Arkiv (arkiv.html)
    Renders ARCHIVE_DATA (embedded from data/archive.json) as a
-   poster grid: one card per previous year with a cover photo,
-   a YouTube link, and a manuscript PDF link. Admins add/edit/
+   poster grid: one clickable card per previous year with a cover
+   photo, a centered title, and PDF/YouTube icon buttons. Clicking
+   a card opens the admin edit form, or a read-only detail overlay
+   (cover, title, icon buttons, and a Sketches/Sange/Andet
+   materiale toggle list) for everyone else. Admins add/edit/
    delete years directly through the browser — cover photos,
    manuscripts, and individual sketch/song/other-material files
    are uploaded here and committed to the repo under
@@ -45,50 +48,30 @@ function renderArchive() {
   for (const entry of years) {
     const card = document.createElement('article');
     card.className = 'arkiv-card';
+    card.setAttribute('role', 'button');
+    card.setAttribute('tabindex', '0');
+    card.setAttribute('aria-label', entry.name);
     card.appendChild(buildPoster(entry));
 
     const body = document.createElement('div');
     body.className = 'arkiv-card-body';
 
-    const head = document.createElement('div');
-    head.className = 'arkiv-card-head';
     const h2 = document.createElement('h2');
+    h2.className = 'arkiv-card-title';
     h2.textContent = entry.name;
-    head.appendChild(h2);
-    if (isAdmin) {
-      const editBtn = document.createElement('button');
-      editBtn.className = 'btn-small';
-      editBtn.textContent = 'Rediger';
-      editBtn.addEventListener('click', () => openYearEditor(entry));
-      head.appendChild(editBtn);
-    }
-    body.appendChild(head);
+    body.appendChild(h2);
 
-    const manus = document.createElement('p');
-    if (entry.manusPdf) {
-      const a = document.createElement('a');
-      a.href = entry.manusPdf;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.textContent = 'Manus (PDF)';
-      manus.appendChild(a);
-    } else {
-      manus.textContent = 'Intet manus uploadet endnu.';
-    }
-    body.appendChild(manus);
-
-    if (entry.youtubeUrl) {
-      const p = document.createElement('p');
-      const a = document.createElement('a');
-      a.href = entry.youtubeUrl;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.textContent = 'Se video (YouTube)';
-      p.appendChild(a);
-      body.appendChild(p);
-    }
+    const iconRow = buildIconRow(entry);
+    if (iconRow.children.length > 0) body.appendChild(iconRow);
 
     card.appendChild(body);
+
+    const openThis = () => { if (isAdmin) openYearEditor(entry); else openYearDetail(entry); };
+    card.addEventListener('click', openThis);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openThis(); }
+    });
+
     list.appendChild(card);
   }
 
@@ -129,6 +112,196 @@ function buildPlaceholder(entry) {
   ph.className = 'arkiv-poster-placeholder';
   ph.textContent = String(entry.year);
   return ph;
+}
+
+// ── Icon buttons (PDF / YouTube) ──────────────────────────────
+// Built via SVG DOM methods, never innerHTML, per the page's no-innerHTML rule.
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const key in attrs) el.setAttribute(key, attrs[key]);
+  return el;
+}
+
+function buildPdfIcon() {
+  const svg = svgEl('svg', {
+    viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  });
+  svg.appendChild(svgEl('path', { d: 'M6 2h9l5 5v15H6z' }));
+  svg.appendChild(svgEl('path', { d: 'M15 2v5h5' }));
+  return svg;
+}
+
+function buildPlayIcon() {
+  const svg = svgEl('svg', {
+    viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  });
+  svg.appendChild(svgEl('circle', { cx: '12', cy: '12', r: '10' }));
+  svg.appendChild(svgEl('path', { d: 'M10 8.5l6 3.5-6 3.5z', fill: 'currentColor', stroke: 'none' }));
+  return svg;
+}
+
+function buildIconButton(href, label, iconEl) {
+  const a = document.createElement('a');
+  a.className = 'arkiv-icon-btn';
+  a.href = href;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  a.setAttribute('aria-label', label);
+  a.title = label;
+  a.appendChild(iconEl);
+  a.addEventListener('click', (e) => e.stopPropagation());
+  return a;
+}
+
+function buildIconRow(entry) {
+  const row = document.createElement('div');
+  row.className = 'arkiv-icon-row';
+  if (entry.manusPdf) row.appendChild(buildIconButton(entry.manusPdf, 'Åbn manus (PDF)', buildPdfIcon()));
+  if (entry.youtubeUrl) row.appendChild(buildIconButton(entry.youtubeUrl, 'Se video på YouTube', buildPlayIcon()));
+  return row;
+}
+
+// ── Read-only detail overlay ──────────────────────────────────
+// Groups a file list ({filename, path}[]) by filename stem so e.g.
+// "Scene1.pdf" and "Scene1.tex" render as one tagged row.
+function groupArchiveFiles(fileList) {
+  const order = [];
+  const byStem = new Map();
+  for (const f of fileList || []) {
+    const dot = f.filename.lastIndexOf('.');
+    const stem = dot === -1 ? f.filename : f.filename.slice(0, dot);
+    const ext = dot === -1 ? '' : f.filename.slice(dot + 1).toLowerCase();
+    if (!byStem.has(stem)) {
+      byStem.set(stem, { stem, hasPdf: false, hasTex: false });
+      order.push(stem);
+    }
+    const g = byStem.get(stem);
+    if (ext === 'pdf') g.hasPdf = true;
+    if (ext === 'tex') g.hasTex = true;
+  }
+  return order.map((s) => byStem.get(s)).sort((a, b) => a.stem.localeCompare(b.stem, 'da'));
+}
+
+// Collapsible section (Sketches/Sange/Andet materiale) styled after Øveplan's
+// Akt-toggle pattern (import-act-header/-section/-chevron/-count in
+// schedule.css) — reimplemented with arkiv-* classes since this page doesn't
+// load schedule.css. Open state is local to this call, so it resets each
+// time the detail overlay is opened.
+function buildToggleSection(label, fileList) {
+  const groups = groupArchiveFiles(fileList);
+  let open = false;
+
+  const section = document.createElement('div');
+  section.className = 'arkiv-toggle-section';
+
+  function render() {
+    section.textContent = '';
+
+    const header = document.createElement('div');
+    header.className = 'arkiv-toggle-header';
+    header.addEventListener('click', () => { open = !open; render(); });
+
+    const chevron = document.createElement('span');
+    chevron.className = 'arkiv-toggle-chevron';
+    chevron.textContent = open ? '▾' : '▸';
+    header.appendChild(chevron);
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'arkiv-toggle-label';
+    labelEl.textContent = label;
+    header.appendChild(labelEl);
+
+    const count = document.createElement('span');
+    count.className = 'arkiv-toggle-count';
+    count.textContent = String(groups.length);
+    header.appendChild(count);
+
+    section.appendChild(header);
+
+    if (open) {
+      if (groups.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'arkiv-toggle-empty';
+        empty.textContent = 'Intet materiale uploadet endnu.';
+        section.appendChild(empty);
+      } else {
+        for (const g of groups) {
+          const row = document.createElement('div');
+          row.className = 'arkiv-scene-row';
+
+          const nameEl = document.createElement('span');
+          nameEl.className = 'arkiv-scene-name';
+          nameEl.textContent = g.stem;
+          row.appendChild(nameEl);
+
+          const tags = document.createElement('span');
+          tags.className = 'arkiv-scene-tags';
+          if (g.hasPdf) {
+            const t = document.createElement('span');
+            t.className = 'arkiv-file-tag';
+            t.textContent = 'PDF';
+            tags.appendChild(t);
+          }
+          if (g.hasTex) {
+            const t = document.createElement('span');
+            t.className = 'arkiv-file-tag';
+            t.textContent = 'TEX';
+            tags.appendChild(t);
+          }
+          row.appendChild(tags);
+          section.appendChild(row);
+        }
+      }
+    }
+  }
+
+  render();
+  return section;
+}
+
+function openYearDetail(entry) {
+  const overlay = document.createElement('div');
+  overlay.className = 'login-overlay';
+
+  function close() { overlay.remove(); }
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  const modal = document.createElement('div');
+  modal.className = 'login-modal arkiv-detail-modal';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'arkiv-detail-close';
+  closeBtn.textContent = '✕';
+  closeBtn.setAttribute('aria-label', 'Luk');
+  closeBtn.addEventListener('click', close);
+  modal.appendChild(closeBtn);
+
+  const cover = document.createElement('div');
+  cover.className = 'arkiv-detail-cover';
+  cover.appendChild(buildPoster(entry));
+  modal.appendChild(cover);
+
+  const body = document.createElement('div');
+  body.className = 'arkiv-detail-body';
+
+  const title = document.createElement('h2');
+  title.className = 'arkiv-detail-title';
+  title.textContent = entry.name;
+  body.appendChild(title);
+
+  const iconRow = buildIconRow(entry);
+  if (iconRow.children.length > 0) body.appendChild(iconRow);
+
+  body.appendChild(buildToggleSection('Sketches', entry.sketches));
+  body.appendChild(buildToggleSection('Sange', entry.songs));
+  body.appendChild(buildToggleSection('Andet materiale', entry.andet));
+
+  modal.appendChild(body);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 }
 
 // ── Name -> folder/year helpers ──────────────────────────────
@@ -523,10 +696,15 @@ function openYearEditor(existing) {
       : current.concat([entryDraft]);
 
     const result = await saveYears(next);
-    save.disabled = false;
-    save.textContent = 'Gem';
-    if (result.ok) close();
-    else error.textContent = result.message;
+    if (result.ok) {
+      progress.textContent = 'Gemt! Det kan tage et par minutter, før ændringen er synlig for andre eller efter en genindlæsning.';
+      save.textContent = 'Gemt';
+      setTimeout(close, 1400);
+    } else {
+      save.disabled = false;
+      save.textContent = 'Gem';
+      error.textContent = result.message;
+    }
   });
 
   nameInput.focus();
