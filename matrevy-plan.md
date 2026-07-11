@@ -117,10 +117,14 @@ first revyst-level write, deserves its own session).
 - PDFs committed under `arkiv/<year>/`.
 - Archive page (revyst-level), admin-editable via an `archive` resource.
 
-**Status**: [x] done 2026-07-11 — `arkiv.html` (revyst) ships with empty data (per
-planning); per-year cards with manus-PDF link + external video links, admin year editor
-in-page, `archive` resource. PDFs are committed manually under `arkiv/<year>/` — the
-tool only stores the path.
+**Status**: [x] done 2026-07-11 — `arkiv.html` (revyst) renders a poster-grid of years
+(cover photo, YouTube link, manuscript PDF), admin-editable via an add-tile in the grid.
+Redesigned same day: admins upload cover photos, manuscript PDFs, and individual
+sketch/song/other-material files directly through the browser — no manual git step.
+Files commit to `archive/<folder>/...` via new `upload`/`delete` actions in
+`server/update-data.php` (GitHub Contents API, path allow-listed server-side since
+`GITHUB_TOKEN` has whole-repo write access); metadata still saves through the `archive`
+resource. See `data/README.md` for the schema and upload flow.
 
 ---
 

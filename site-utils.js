@@ -58,16 +58,26 @@ function siteUtilsSetCachedPin(pin) {
   try { sessionStorage.setItem(SITE_UTILS_PIN_KEY, pin); } catch (e) { /* ignore */ }
 }
 
-// Returns { ok: true } or { ok: false, message } — message is ''
-// when the user cancelled the password prompt (silent no-op).
-async function siteSaveResource(resource, payload) {
+// Returns { password, fromLogin } or null if the user cancelled the
+// password prompt — shared by siteSaveResource/siteUploadFile/siteDeleteFile
+// so the prompt/cache dance only lives in one place.
+function siteResolvePassword() {
   const siteAuth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
   const fromLogin = siteAuth && siteAuth.level === 'admin' && siteAuth.password;
   let password = fromLogin ? siteAuth.password : siteUtilsGetCachedPin();
   if (!password) {
     password = (prompt('Indtast admin-adgangskoden for at gemme ændringer globalt:') || '').trim();
-    if (!password) return { ok: false, message: '' };
+    if (!password) return null;
   }
+  return { password, fromLogin };
+}
+
+// Returns { ok: true } or { ok: false, message } — message is ''
+// when the user cancelled the password prompt (silent no-op).
+async function siteSaveResource(resource, payload) {
+  const resolved = siteResolvePassword();
+  if (!resolved) return { ok: false, message: '' };
+  const { password, fromLogin } = resolved;
 
   let res;
   try {
@@ -93,6 +103,51 @@ async function siteSaveResource(resource, payload) {
 
   if (!fromLogin) siteUtilsSetCachedPin(password);
   return { ok: true };
+}
+
+// Shared request logic for the file-upload/delete actions — same error
+// mapping as siteSaveResource, plus a 413 (too-large) case.
+async function siteFileAction(action, extraBody) {
+  const resolved = siteResolvePassword();
+  if (!resolved) return { ok: false, message: '' };
+  const { password, fromLogin } = resolved;
+
+  let res;
+  try {
+    res = await fetch(SITE_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, password, ...extraBody }),
+    });
+  } catch (e) {
+    return { ok: false, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    siteUtilsSetCachedPin('');
+    return { ok: false, message: 'Forkert eller utilstrækkelig adgangskode. Log ind som admin og prøv igen.' };
+  }
+  if (res.status === 409) {
+    return { ok: false, message: 'En anden har lige gemt en fil med samme navn. Prøv igen.' };
+  }
+  if (res.status === 413) {
+    return { ok: false, message: 'Filen er for stor. Maks. 5 MB.' };
+  }
+  if (!res.ok) {
+    return { ok: false, message: 'Kunne ikke gemme filen (serverfejl). Prøv igen senere.' };
+  }
+
+  if (!fromLogin) siteUtilsSetCachedPin(password);
+  return { ok: true };
+}
+
+// contentBase64 is raw base64 (no "data:...;base64," prefix).
+function siteUploadFile(path, contentBase64) {
+  return siteFileAction('upload', { path, contentBase64 });
+}
+
+function siteDeleteFile(path) {
+  return siteFileAction('delete', { path });
 }
 
 // ── Edit modal ───────────────────────────────────────────────

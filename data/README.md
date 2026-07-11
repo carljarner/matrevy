@@ -110,16 +110,35 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 {
   "years": [
     {
-      "year": 2025,
-      "title": "Revyens titel (valgfri)",
-      "manusPdf": "arkiv/2025/manus.pdf",
-      "videos": [
-        { "label": "Hele forestillingen", "url": "https://..." }
-      ]
+      "year": 2024,
+      "name": "MatRevy 2024",
+      "folder": "MatRevy_2024",
+      "coverImage": "archive/MatRevy_2024/cover.jpg",
+      "youtubeUrl": "https://youtube.com/watch?v=...",
+      "manusPdf": "archive/MatRevy_2024/manus.pdf",
+      "sketches": [
+        { "filename": "Scene1.pdf", "path": "archive/MatRevy_2024/sketches/Scene1.pdf" }
+      ],
+      "songs": [],
+      "andet": []
     }
   ]
 }
 ```
 
-- `year` — integer, unique; the archive page sorts newest first.
-- `manusPdf` — repo-relative path or `""`. **The PDF file itself is committed manually under `arkiv/<year>/` via git** (never uploaded via the admin tool — it only stores the path). Videos are external links only (never video files in the repo).
+- `year` — integer, unique; auto-detected from `name` when creating a new entry (still editable); the archive page sorts newest first.
+- `name` — required free-text display name, e.g. `"MatRevy 2024"`.
+- `folder` — the repo-relative folder slug (`archive/<folder>/...`), derived once from `name` when the entry is created (spaces → `_`, Danish `æøå` transliterated, everything else stripped) and **never recomputed** — editing `name` later must not change `folder`, or every already-uploaded file would orphan.
+- `coverImage`/`manusPdf` — repo-relative paths (`archive/<folder>/cover.jpg` / `archive/<folder>/manus.pdf`) or `""`. **Uploaded directly through the Arkiv admin UI** (no manual git step) — the browser reads the file, the site's PHP endpoint (`server/update-data.php`'s `upload` action) commits it to the repo via the GitHub Contents API. Cover photos are always re-encoded to JPEG client-side (canvas-resized, max ~1600px wide) before upload, so the filename/extension never changes across re-uploads.
+- `sketches` / `songs` / `andet` — arrays of `{ filename, path }`, one entry per individually uploaded `.pdf`/`.tex` file, growing over time as an admin adds material via the same in-app uploader.
+- Uploads are capped at ~5 MB each (client- and server-side) — Simply.com's actual PHP upload limits aren't documented, so this is a conservative guess.
+
+## Adding a year to the archive
+
+No manual git steps needed — everything happens in the browser:
+
+1. Open `arkiv.html`, log in as admin.
+2. Click the grey **+** tile at the end of the grid.
+3. Fill in the Navn (required — e.g. "MatRevy 2024"; Årstal auto-fills from a year in the name), optionally a cover photo, a YouTube link, and the manuscript PDF.
+4. Optionally upload individual sketch/song/other-material files further down — these can also be added later at any time via **Rediger** on the year's card.
+5. Click **Gem** — files upload first (one at a time, with a progress indicator), then the year's metadata saves to `data/archive.json` via `server/update-data.php`; a GitHub Action then regenerates `archive-data.js` automatically.

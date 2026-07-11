@@ -1,0 +1,136 @@
+/* =========================================================
+   Matematikrevyen – Arkiv page styles (arkiv.html only)
+   Page-scoped like calendar.css/schedule.css; shared shell
+   styles (.card, .btn-small, .edit-field, ...) live in style.css.
+   ========================================================= */
+
+.arkiv-hero {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.arkiv-hero h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.arkiv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.5rem;
+}
+
+.arkiv-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #57606a;
+}
+
+.arkiv-card {
+  background: #f7f8fa;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.arkiv-poster,
+.arkiv-poster-placeholder {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  display: block;
+}
+
+.arkiv-poster {
+  object-fit: cover;
+}
+
+.arkiv-poster-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e5e7eb;
+  color: #57606a;
+  font-weight: 600;
+  font-size: 1.6rem;
+}
+
+.arkiv-card-body {
+  padding: 1rem 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.arkiv-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.arkiv-card-head h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.arkiv-add-tile {
+  aspect-ratio: 16 / 9;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f4f6;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  font-size: 2.5rem;
+  color: #9ca3af;
+  cursor: pointer;
+}
+
+.arkiv-add-tile:hover,
+.arkiv-add-tile:focus-visible {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+  outline: none;
+}
+
+.arkiv-edit-preview {
+  display: block;
+  max-width: 100%;
+  max-height: 160px;
+  margin-top: 0.5rem;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.arkiv-edit-current-link {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.arkiv-pending-row {
+  color: #57606a;
+  font-style: italic;
+}
+
+.arkiv-upload-buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.arkiv-edit-progress {
+  font-size: 0.9rem;
+  color: #57606a;
+}
+
+@media (max-width: 420px) {
+  .arkiv-grid {
+    grid-template-columns: 1fr;
+  }
+}

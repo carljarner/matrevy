@@ -82,6 +82,13 @@ $action = $body['action'] ?? '';
 if ($action === 'login') {
   respond(200, ['ok' => true, 'level' => $level]);
 }
+if ($action === 'upload' || $action === 'delete') {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK['admin']) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  if ($action === 'upload') handle_upload($body);
+  else handle_delete($body);
+}
 if ($action !== 'save') {
   respond(400, ['error' => 'unknown_action']);
 }
@@ -139,6 +146,80 @@ function update_file($filePath, $mutate, $commitMessage) {
   if ($putStatus < 200 || $putStatus >= 300) {
     respond(502, ['error' => 'github_write_failed', 'file' => $filePath, 'status' => $putStatus]);
   }
+}
+
+// ── Archive file uploads (binary content at admin-chosen paths) ─
+// GITHUB_TOKEN has whole-repo write access, so this regex is the
+// only thing standing between an arbitrary "path" in the request
+// body and overwriting any file in the repo. Keep it strict.
+const ARCHIVE_PATH_RE =
+  '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf|(sketches|songs|andet)/[A-Za-z0-9_.-]+\.(pdf|tex))$#';
+
+function assert_allowed_archive_path($path) {
+  if (!is_string($path) || !preg_match(ARCHIVE_PATH_RE, $path)) {
+    respond(400, ['error' => 'bad_path']);
+  }
+}
+
+// Creates $filePath if absent, otherwise overwrites it in place.
+function put_file($filePath, $contentBase64, $commitMessage) {
+  [$getStatus, $current] = github_api('GET', 'contents/' . $filePath);
+  if ($getStatus !== 200 && $getStatus !== 404) {
+    respond(502, ['error' => 'github_read_failed', 'file' => $filePath, 'status' => $getStatus]);
+  }
+  $payload = ['message' => $commitMessage, 'content' => $contentBase64];
+  if ($getStatus === 200) {
+    $payload['sha'] = $current['sha']; // update existing file
+  }
+  [$putStatus, ] = github_api('PUT', 'contents/' . $filePath, $payload);
+  if ($putStatus === 409) {
+    respond(409, ['error' => 'conflict', 'file' => $filePath]);
+  }
+  if ($putStatus < 200 || $putStatus >= 300) {
+    respond(502, ['error' => 'github_write_failed', 'file' => $filePath, 'status' => $putStatus]);
+  }
+}
+
+function delete_file($filePath, $commitMessage) {
+  [$getStatus, $current] = github_api('GET', 'contents/' . $filePath);
+  if ($getStatus === 404) return; // already gone, treat as success
+  if ($getStatus !== 200) {
+    respond(502, ['error' => 'github_read_failed', 'file' => $filePath, 'status' => $getStatus]);
+  }
+  [$delStatus, ] = github_api('DELETE', 'contents/' . $filePath, [
+    'message' => $commitMessage,
+    'sha' => $current['sha'],
+  ]);
+  if ($delStatus < 200 || $delStatus >= 300) {
+    respond(502, ['error' => 'github_delete_failed', 'file' => $filePath, 'status' => $delStatus]);
+  }
+}
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+function handle_upload($body) {
+  $path = $body['path'] ?? '';
+  assert_allowed_archive_path($path);
+  $contentBase64 = $body['contentBase64'] ?? '';
+  if (!is_string($contentBase64) || $contentBase64 === '') {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $raw = base64_decode($contentBase64, true);
+  if ($raw === false) {
+    respond(400, ['error' => 'bad_base64']);
+  }
+  if (strlen($raw) > MAX_UPLOAD_BYTES) {
+    respond(413, ['error' => 'too_large']);
+  }
+  put_file($path, $contentBase64, 'Upload ' . $path . ' via arkivet');
+  respond(200, ['ok' => true, 'path' => $path]);
+}
+
+function handle_delete($body) {
+  $path = $body['path'] ?? '';
+  assert_allowed_archive_path($path);
+  delete_file($path, 'Slet ' . $path . ' via arkivet');
+  respond(200, ['ok' => true, 'path' => $path]);
 }
 
 // ── Resource savers ──────────────────────────────────────────
@@ -228,29 +309,46 @@ function save_calendar($payload) {
   }, 'Opdater calendar.json via kalenderen');
 }
 
+function validate_archive_file_ref($f, $folder) {
+  if (!is_array($f)
+      || !isset($f['filename'], $f['path'])
+      || !is_string($f['filename']) || $f['filename'] === ''
+      || !is_string($f['path']) || !preg_match(ARCHIVE_PATH_RE, $f['path'])) {
+    return false;
+  }
+  // The path's folder segment must match this entry's own folder, or one
+  // entry's payload could otherwise reference another entry's files.
+  return preg_match('#^archive/' . preg_quote($folder, '#') . '/#', $f['path']) === 1;
+}
+
 function save_archive($payload) {
   $years = $payload['years'] ?? null;
   if (!is_array($years)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  $seen = [];
+  $seenYear = [];
+  $seenFolder = [];
   foreach ($years as $y) {
     if (!is_array($y)
-        || !isset($y['year'], $y['title'], $y['manusPdf'], $y['videos'])
+        || !isset($y['year'], $y['name'], $y['folder'], $y['coverImage'], $y['youtubeUrl'], $y['manusPdf'], $y['sketches'], $y['songs'], $y['andet'])
         || !is_int($y['year']) || $y['year'] < 1900 || $y['year'] > 2100
-        || isset($seen[$y['year']])
-        || !is_string($y['title'])
-        || !is_string($y['manusPdf'])
-        || !is_array($y['videos'])) {
+        || isset($seenYear[$y['year']])
+        || !is_string($y['name']) || $y['name'] === ''
+        || !is_string($y['folder']) || !preg_match('#^[A-Za-z0-9_-]+$#', $y['folder'])
+        || isset($seenFolder[$y['folder']])
+        || !is_string($y['coverImage']) || ($y['coverImage'] !== '' && !preg_match(ARCHIVE_PATH_RE, $y['coverImage']))
+        || !is_string($y['youtubeUrl']) || ($y['youtubeUrl'] !== '' && !preg_match('#^https://(www\.)?(youtube\.com|youtu\.be)/#', $y['youtubeUrl']))
+        || !is_string($y['manusPdf']) || ($y['manusPdf'] !== '' && !preg_match(ARCHIVE_PATH_RE, $y['manusPdf']))
+        || !is_array($y['sketches']) || !is_array($y['songs']) || !is_array($y['andet'])) {
       respond(400, ['error' => 'invalid_years_shape']);
     }
-    $seen[$y['year']] = true;
-    foreach ($y['videos'] as $v) {
-      if (!is_array($v)
-          || !isset($v['label'], $v['url'])
-          || !is_string($v['label']) || $v['label'] === ''
-          || !is_string($v['url']) || !preg_match('#^https?://#', $v['url'])) {
-        respond(400, ['error' => 'invalid_videos_shape']);
+    $seenYear[$y['year']] = true;
+    $seenFolder[$y['folder']] = true;
+    foreach (['sketches', 'songs', 'andet'] as $key) {
+      foreach ($y[$key] as $f) {
+        if (!validate_archive_file_ref($f, $y['folder'])) {
+          respond(400, ['error' => 'invalid_files_shape']);
+        }
       }
     }
   }
