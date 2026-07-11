@@ -61,10 +61,12 @@ can register with.
 - `scripts/embed-scenes.js` made table-driven (`EMBEDS`); workflow triggers on
   `data/*.json`.
 
-**Status**: [x] built 2026-07-11 — pending the manual deploy step: fill real
-`REVYST_PASSWORD`/`ADMIN_PASSWORD` into `server/config.php` and re-upload
-`update-data.php` + `config.php` to Simply.com, then verify login + a manus save
-end-to-end on the live site.
+**Status**: [x] done — live and verified end-to-end 2026-07-11: PHP redeployed to
+Simply.com with real passwords, login verified for both levels (plus 403/400 save
+rejections), and a real manus save went through the new request shape with the widened
+workflow regenerating the embeds. Post-launch adjustment: Øveplan is **admin**-level,
+not revyst — the schedule tool serves coordinators only, which also keeps the
+"Rediger Manus" button out of revyst view.
 
 ---
 
