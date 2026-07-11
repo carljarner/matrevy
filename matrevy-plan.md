@@ -135,18 +135,15 @@ infrastructure like Cloudflare Workers.
   the same so those call sites keep working unchanged.
 - Out of scope: real user accounts/login — the PIN is a deliberate stopgap only.
 
-**Status**: [x] implemented in code (`server/update-data.php`, `server/config.example.php`,
-`.github/workflows/embed-scenes.yml`, rewritten `manus-data.js`/`import.js`). Deployed: a
-`manus.matematikrevy.dk` subdomain (CNAME + `www.manus` CNAME, both to
-`matematikrevy.dk.linux32.unoeuro-server.com`) was created on the Simply.com hosting account,
-issued a free Let's Encrypt certificate, and now serves `update-data.php`/`config.php` — verified
-reachable over HTTPS with a matching cert, and `import.js`'s `MANUS_SAVE_ENDPOINT` now points at
-`https://manus.matematikrevy.dk/update-data.php`. Remaining before an actual "Opdater" save will
-succeed: `server/config.php` on that server still needs its placeholder `GITHUB_TOKEN` (a
-fine-grained PAT scoped to just this repo, Contents: read & write) and `SHARED_PIN` filled in
-with real values — until then the endpoint responds correctly to a bad/missing PIN but can't yet
-commit to GitHub. Also note: Simply.com's Website Application Firewall serves a JS proof-of-work
-challenge to traffic it deems suspicious (confirmed via testing) — it did not trigger for a
-real browser's direct GET to the endpoint, but hasn't yet been confirmed against an actual
-cross-origin `fetch()` POST from `matematikrevy.dk`; if "Opdater" ever silently fails, check
-whether the response body is HTML (a challenge page) rather than JSON.
+**Status**: [x] done — live and verified end-to-end. `server/update-data.php` is deployed at
+`https://manus.matematikrevy.dk/update-data.php` (a subdomain created on the Simply.com hosting
+account specifically for this, since `matematikrevy.dk`'s own DNS points at GitHub Pages, which
+can't run PHP — two CNAMEs, `manus` and `www.manus`, both to
+`matematikrevy.dk.linux32.unoeuro-server.com`, were needed for Let's Encrypt's free-cert
+validation), with a real `GITHUB_TOKEN`/`SHARED_PIN` filled into `server/config.php` on that
+server (gitignored, never committed). A real "Opdater" save was tested end-to-end on
+2026-07-11: the PIN prompt, the PHP proxy, both GitHub commits (`data/scenes.json` and
+`data/cast.json`), and the `embed-scenes.yml` Action's automatic `scenes-data.js` regeneration
+all worked. See CLAUDE.md's "Manus edit tool" section for the deploy gotchas discovered along
+the way (the subdomain requirement, Simply.com's WAF bot-challenge behavior, and the
+4-space-vs-2-space JSON indentation diff quirk).
