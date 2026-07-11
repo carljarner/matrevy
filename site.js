@@ -23,7 +23,7 @@ const SITE_AUTH_KEY = 'matrevy-auth';
 const SITE_PAGES = [
   { href: 'index.html',    label: 'Forside', level: 'public' },
   { href: 'manus.html',    label: 'Manus',   level: 'revyst' },
-  { href: 'schedule.html', label: 'Øveplan', level: 'revyst' },
+  { href: 'schedule.html', label: 'Øveplan', level: 'admin' },
 ];
 
 const SITE_LEVEL_RANK = { public: 0, revyst: 1, admin: 2 };
