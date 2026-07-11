@@ -1,0 +1,243 @@
+/* =========================================================
+   Matematikrevyen – Shared site shell: nav + login
+   Renders the header nav on every page from one central page
+   registry, and handles the shared-password login (revyst/admin).
+
+   Access model (deliberate trade-off, see CLAUDE.md):
+   - Reads are gated client-side only — the repo is public, so
+     nothing here is secret; the gate is usability, not security.
+   - Writes are genuinely validated server-side by
+     server/update-data.php against the same stored password.
+   ========================================================= */
+
+'use strict';
+
+// ── Configuration ────────────────────────────────────────────
+const SITE_API_ENDPOINT = 'https://manus.matematikrevy.dk/update-data.php';
+const SITE_AUTH_KEY = 'matrevy-auth';
+
+// The one place a page is registered. level:
+//   'public' — always visible
+//   'revyst' — greyed-out in nav until revyst/admin login
+//   'admin'  — omitted from nav entirely until admin login
+const SITE_PAGES = [
+  { href: 'index.html',    label: 'Forside', level: 'public' },
+  { href: 'manus.html',    label: 'Manus',   level: 'revyst' },
+  { href: 'schedule.html', label: 'Øveplan', level: 'revyst' },
+];
+
+const SITE_LEVEL_RANK = { public: 0, revyst: 1, admin: 2 };
+
+// ── Auth state ───────────────────────────────────────────────
+// Over file:// the login endpoint is unreachable (CORS) and
+// localStorage is a different origin, so the gate is bypassed
+// entirely — preserves the schedule tool's offline use case.
+// Writes still require the real password (import.js prompts).
+function siteIsFileProtocol() {
+  return location.protocol === 'file:';
+}
+
+function getSiteAuth() {
+  if (siteIsFileProtocol()) return { level: 'admin', password: '' };
+  try {
+    const raw = localStorage.getItem(SITE_AUTH_KEY);
+    if (!raw) return null;
+    const auth = JSON.parse(raw);
+    if (auth && (auth.level === 'revyst' || auth.level === 'admin')) return auth;
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+function siteHasLevel(required) {
+  const auth = getSiteAuth();
+  const have = auth ? SITE_LEVEL_RANK[auth.level] : 0;
+  return have >= SITE_LEVEL_RANK[required];
+}
+
+function siteLogout() {
+  try { localStorage.removeItem(SITE_AUTH_KEY); } catch (e) { /* ignore */ }
+  location.reload();
+}
+
+// ── Header / nav rendering ───────────────────────────────────
+function siteCurrentPage() {
+  return location.pathname.split('/').pop() || 'index.html';
+}
+
+function renderSiteHeader() {
+  const header = document.querySelector('.site-header');
+  if (!header) return;
+  header.textContent = '';
+
+  const title = document.createElement('div');
+  title.className = 'site-title';
+  title.textContent = 'Matematikrevyen';
+  header.appendChild(title);
+
+  const nav = document.createElement('nav');
+  nav.className = 'site-nav';
+  const current = siteCurrentPage();
+  for (const page of SITE_PAGES) {
+    if (page.level === 'admin' && !siteHasLevel('admin')) continue;
+    if (page.level === 'revyst' && !siteHasLevel('revyst')) {
+      const locked = document.createElement('span');
+      locked.className = 'site-nav-locked';
+      locked.textContent = page.label;
+      locked.title = 'Log ind for at se denne side';
+      nav.appendChild(locked);
+      continue;
+    }
+    const a = document.createElement('a');
+    a.href = page.href;
+    a.textContent = page.label;
+    if (page.href === current) a.className = 'active';
+    nav.appendChild(a);
+  }
+  header.appendChild(nav);
+
+  if (siteIsFileProtocol()) return; // no login UI offline
+
+  const authBox = document.createElement('div');
+  authBox.className = 'site-auth';
+  const btn = document.createElement('button');
+  btn.className = 'site-login-btn';
+  const auth = getSiteAuth();
+  if (auth) {
+    btn.textContent = `Log ud (${auth.level})`;
+    btn.addEventListener('click', siteLogout);
+  } else {
+    btn.textContent = 'Log ind';
+    btn.addEventListener('click', openLoginModal);
+  }
+  authBox.appendChild(btn);
+  header.appendChild(authBox);
+}
+
+// ── Login modal ──────────────────────────────────────────────
+function openLoginModal() {
+  if (document.getElementById('login-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'login-overlay';
+  overlay.id = 'login-overlay';
+
+  const modal = document.createElement('div');
+  modal.className = 'login-modal';
+
+  const heading = document.createElement('h2');
+  heading.textContent = 'Log ind';
+  modal.appendChild(heading);
+
+  const hint = document.createElement('p');
+  hint.textContent = 'Indtast den fælles adgangskode (revyst eller admin).';
+  modal.appendChild(hint);
+
+  const input = document.createElement('input');
+  input.type = 'password';
+  input.id = 'login-password';
+  input.autocomplete = 'current-password';
+  modal.appendChild(input);
+
+  const error = document.createElement('div');
+  error.className = 'login-error';
+  modal.appendChild(error);
+
+  const actions = document.createElement('div');
+  actions.className = 'login-actions';
+  const submit = document.createElement('button');
+  submit.className = 'site-btn-primary';
+  submit.textContent = 'Log ind';
+  const cancel = document.createElement('button');
+  cancel.className = 'site-btn-secondary';
+  cancel.textContent = 'Annuller';
+  actions.appendChild(submit);
+  actions.appendChild(cancel);
+  modal.appendChild(actions);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  function close() { overlay.remove(); }
+  cancel.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit.click(); });
+
+  submit.addEventListener('click', async () => {
+    const password = input.value.trim();
+    if (!password) return;
+    submit.disabled = true;
+    submit.textContent = 'Logger ind…';
+    error.textContent = '';
+    try {
+      const res = await fetch(SITE_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login', password }),
+      });
+      if (res.status === 401) {
+        error.textContent = 'Forkert adgangskode. Prøv igen.';
+        return;
+      }
+      if (!res.ok) {
+        error.textContent = 'Serverfejl. Prøv igen senere.';
+        return;
+      }
+      const data = await res.json();
+      if (!data || (data.level !== 'revyst' && data.level !== 'admin')) {
+        error.textContent = 'Uventet svar fra serveren.';
+        return;
+      }
+      try {
+        localStorage.setItem(SITE_AUTH_KEY, JSON.stringify({ level: data.level, password }));
+      } catch (e) { /* ignore */ }
+      location.reload();
+    } catch (e) {
+      error.textContent = 'Kunne ikke kontakte serveren. Tjek din internetforbindelse.';
+    } finally {
+      submit.disabled = false;
+      submit.textContent = 'Log ind';
+    }
+  });
+
+  input.focus();
+}
+
+// ── Page-level gate ──────────────────────────────────────────
+// Hides the page's <main> and shows a login prompt instead when
+// the visitor's level is insufficient. Cosmetic only (the data is
+// in the public repo anyway) — writes are validated server-side.
+function applyPageGate() {
+  const current = siteCurrentPage();
+  const page = SITE_PAGES.find(p => p.href === current);
+  if (!page || siteHasLevel(page.level)) return;
+
+  const main = document.querySelector('main');
+  if (main) main.style.display = 'none';
+
+  const gate = document.createElement('main');
+  gate.className = 'page-content';
+  const card = document.createElement('section');
+  card.className = 'card site-gate-card';
+  const h = document.createElement('h2');
+  h.textContent = 'Log ind for at se denne side';
+  const p = document.createElement('p');
+  p.textContent = 'Denne side er for revyens medlemmer. Tryk på "Log ind" og indtast den fælles adgangskode.';
+  const btn = document.createElement('button');
+  btn.className = 'site-login-btn site-gate-login';
+  btn.textContent = 'Log ind';
+  btn.addEventListener('click', openLoginModal);
+  card.appendChild(h);
+  card.appendChild(p);
+  card.appendChild(btn);
+  gate.appendChild(card);
+
+  const footer = document.querySelector('.site-footer');
+  if (footer) document.body.insertBefore(gate, footer);
+  else document.body.appendChild(gate);
+}
+
+// ── Init ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  renderSiteHeader();
+  applyPageGate();
+});

@@ -1,149 +1,151 @@
-# Matematikrevyen – Website & Rehearsal Scheduling Tool Plan
+# Matematikrevyen – Website Roadmap
 
 ## Top-Level Overview
 
-Build a modern internal website for Matematikrevyen cast and crew, centred around a rehearsal scheduling tool. The site will live on a GitHub repository and be served via the existing domain on Simply.com. The scheduling tool is the primary feature for this production cycle; other pages (manus, messages, etc.) form the wider site shell.
+The site is graduating from a single-tool experiment into the internal website for
+Matematikrevyen, easing the coordinators' yearly administrative workload: dashboard,
+calendar, archive of previous years, manus selection, budget, and more — on the same
+zero-dependency stack (static GitHub Pages + Simply.com PHP write proxy +
+GitHub-repo-as-database).
 
-The site is intentionally internal-facing. A login wall will be added at a later phase; the first version is open but not publicly promoted.
+**How this file is used**: it is the living master roadmap. Each phase below is executed
+in its own working session ("implement Phase N from matrevy-plan.md"): plan the details,
+build, verify manually, mark the Status line, and update CLAUDE.md so the next session
+inherits accurate architecture docs. CLAUDE.md documents *how the code works now*; this
+file documents *what's next and why*.
 
 ---
 
 ## Architecture Decisions
 
-- **Tech stack**: Plain HTML + CSS + JavaScript (no framework). Simple to deploy anywhere, no build step needed.
-- **Data**: Scene/cast data is stored in a JSON file derived from the LaTeX appendix table. This is the single source of truth for the scheduling tool.
-- **PDF export**: Generated client-side using a print-to-PDF stylesheet (CSS `@media print`), matching the layout of the existing schedule.
-- **Hosting**: Files are committed to GitHub. The Simply.com domain points to GitHub Pages (or the repo is deployed manually — TBD with user).
-- **Multi-production**: The site has a permanent shell (nav, main page, manus page). The scheduling data JSON is replaced each production cycle.
+- **Tech stack**: Plain HTML + CSS + JS, no framework, no build step. Node only for
+  `scripts/embed-scenes.js`. Hosted on GitHub Pages at `matematikrevy.dk`.
+- **Access model** (three levels: public / revyst / admin): public landing page; top-right
+  login with two shared passwords handed out verbally. Revyst pages are greyed out in the
+  nav until login; admin pages are hidden from the nav until admin login. Client-side
+  gating for *reads* is a deliberate, accepted trade-off (the repo is public — nothing on
+  the site is secret); **writes are genuinely validated server-side** by
+  `server/update-data.php` (two password levels, `hash_equals`).
+- **Data**: every feature stores its data as JSON in `data/`, committed via the PHP proxy →
+  GitHub Contents API pattern proven by the manus tool. `.github/workflows/embed-scenes.yml`
+  regenerates the embedded `*-data.js` globals on any `data/*.json` push.
+- **Videos**: external links only (YouTube/Drive/…) — never video files in the repo
+  (GitHub's 100 MB file limit; repo stays lean).
+- **Multi-production**: permanent site shell; the `data/` files are replaced each
+  production cycle.
 
 ---
 
-## Sub-Tasks
+## Phases
+
+### Phase 0 — Foundation: login, shared nav, generalized write endpoint
+
+**Intent**: everything later phases depend on — the access-level system, a single central
+page registry instead of hand-copied nav blocks, and a write endpoint that new resources
+can register with.
+
+**What was built**
+- `site.js`: central `SITE_PAGES` registry (`{href, label, level}`), JS-rendered header
+  nav (revyst pages greyed when logged out, admin pages omitted), login modal (verifies
+  against the server, stores `{level, password}` in `localStorage` key `matrevy-auth`),
+  logout, and a per-page gate that hides `<main>` behind a "Log ind" card when the level
+  is insufficient. Over `file://` the gate is bypassed entirely (login is unreachable
+  there) so the schedule tool's offline use keeps working.
+- `server/update-data.php` generalized: `{action:'login'|'save', password, resource,
+  payload}`; `REVYST_PASSWORD`/`ADMIN_PASSWORD` in `config.php` (legacy `SHARED_PIN`
+  still accepted as admin); per-resource table (`$RESOURCES`) with minimum level +
+  validator — currently just `manus` (admin). Legacy `{pin, scenes, cast}` body still
+  accepted.
+- `import.js` sends the new shape and prefers the site login's stored admin password over
+  the old per-tab PIN prompt (which remains as fallback).
+- `scripts/embed-scenes.js` made table-driven (`EMBEDS`); workflow triggers on
+  `data/*.json`.
+
+**Status**: [x] built 2026-07-11 — pending the manual deploy step: fill real
+`REVYST_PASSWORD`/`ADMIN_PASSWORD` into `server/config.php` and re-upload
+`update-data.php` + `config.php` to Simply.com, then verify login + a manus save
+end-to-end on the live site.
 
 ---
 
-### Sub-Task 4 — Scheduling Tool: Auto-Place Algorithm
+### Phase 1 — Dashboard + announcements
 
-**Intent**
-Implement the optimization step: automatically distribute all scenes with priority score 3 across the grid, respecting hard constraints (no cast overlap, no absent cast members).
+**Intent**: Forside becomes a real dashboard and the first admin-editable content.
 
-**Expected Outcomes**
-- A "Auto-place priority scenes" button in the schedule UI.
-- Clicking it fills the grid with priority-3 scenes, one scene per room-slot cell, maximising the number of scenes placed.
-- Hard constraints respected:
-  - A cast member cannot be in two rooms at the same time.
-  - A scene is not placed if a required cast member is fully absent (unless coordinator has marked the scene as override-OK).
-- Cells placed by the algorithm are visually distinguished from manually placed ones (e.g. a subtle colour tint).
-- The coordinator can re-run the algorithm at any time (it replaces only algorithm-placed cells, not manual ones).
+**Expected outcomes**
+- `data/announcements.json` (+ embedded `announcements-data.js`, new `EMBEDS` entry and
+  workflow `git add` line).
+- Announcements listed on Forside (public sees them all, or possibly a public/revyst
+  split — decide at planning); admins get add/edit/delete controls in-page.
+- New `announcements` resource (admin) in `server/update-data.php`'s `$RESOURCES`.
+- General info + quick links section.
 
-**Todo List**
-1. Implement a greedy placement algorithm: iterate time slots, for each slot iterate rooms, place highest-priority unplaced scene that has no cast conflict and no absent-member block.
-2. Track which cells were auto-placed vs manually placed.
-3. Add an "override absent member" toggle per scene in the sidebar.
-4. Add a "Clear auto-placed" button.
-5. Show a summary after auto-placement: how many priority-3 scenes were placed vs left unplaced and why.
-
-**Relevant Context**
-- A scene spans one 30-minute slot by default; if its duration > 30 min it occupies consecutive slots in the same room.
-- The algorithm should place scenes "across the whole day" (not top-to-bottom per room) — fill the highest-need scenes first across all available slots.
-
-**Status**: implemented, then removed — deliberately deferred for a future redesign (see CLAUDE.md's scheduling-tool notes on scene priority: priority 0–3 is currently just a manual-placement aid with no automatic placement behind it).
+**Status**: [ ] not started
 
 ---
 
-## Open Questions / Future Phases
+### Phase 2 — Calendar
 
-- **Login / access control**: Some pages will eventually be behind a login form. This is explicitly out of scope for the current build and will be a separate phase. Still not implemented.
-- **Manus page content**: The content for the manus page has not been described yet — to be filled in when ready. Still a placeholder ("Manussiden er under opbygning").
-- **Additional pages**: The user noted there will be more pages. These can be added using `page-template.html`.
-- **New productions**: The JSON data files in `data/` are replaced each cycle. A LaTeX-to-JSON parser now partially exists — the manus edit tool (`import.js`/`manus-data.js`) already parses `.tex` sketch files into scene/cast data, but only writes to `localStorage`; promoting a browser's edits into the committed `data/scenes.json`/`cast.json` is still a manual step.
+**Intent**: rehearsal/show/deadline calendar, admin-editable, revyst-visible.
+
+**Expected outcomes**
+- `data/calendar.json` with events (date, time, title, category, note).
+- Calendar page (month and/or list view, Danish), registered as revyst-level.
+- Admin editing in-page; `calendar` resource in `$RESOURCES`.
+- Later possibility (own sub-task): revyster register absences per rehearsal day, feeding
+  the schedule tool's "Fraværende revyster" — first revyst-level write.
+
+**Status**: [ ] not started
 
 ---
 
-### Sub-Task — Make Manus Tool Data Global (not per-browser localStorage)
+### Phase 3 — Archive (previous years)
 
-**Intent**
-Replace the manus edit tool's `localStorage`-only save (`import.js`'s `applyImport()`,
-`manus-data.js`'s `MANUS_OVERRIDE_KEY`/`getManusOverride()`) with a genuinely global write,
-so one coordinator's "Opdater" is visible to everyone instead of only their own browser.
-Real admin login is explicitly deferred to a later phase; a shared PIN is a deliberate
-interim stopgap.
+**Intent**: previous years' manus and videos in one place.
 
-**Architecture**
-```
-schedule.html (Rediger Manus modal)
-   │ user clicks "Opdater"
-   ▼
-import.js: applyImport()
-   │ POST { pin, scenes, cast } over HTTPS
-   ▼
-Simply.com PHP proxy (server/update-data.php)
-   │ checks PIN, validates JSON shape
-   │ calls GitHub Contents API with a server-side-only PAT
-   ▼
-GitHub repo: commits data/scenes.json + data/cast.json to main
-   │ push triggers
-   ▼
-New GitHub Action (.github/workflows/embed-scenes.yml)
-   │ runs node scripts/embed-scenes.js, commits regenerated scenes-data.js
-   ▼
-GitHub Pages rebuilds (~1-2 min) — everyone sees the change
-```
-This uses the user's existing Simply.com hosting plan (which includes PHP) as the
-server-side piece holding the GitHub write credential, rather than introducing new
-infrastructure like Cloudflare Workers.
+**Expected outcomes**
+- `data/archive.json`: per year — manus PDF path + video links (external only).
+- PDFs committed under `arkiv/<year>/`.
+- Archive page (revyst-level), admin-editable via an `archive` resource.
 
-**Expected Outcomes**
-- A save in the manus tool updates the real `data/scenes.json`/`data/cast.json` in the repo
-  for everyone, not just the saving browser.
-- `scenes-data.js` regenerates automatically (via a new GitHub Action) — no manual
-  `node scripts/embed-scenes.js` step needed for this flow.
-- The write endpoint is gated by a single shared PIN, easy to remove once real login exists.
-- Concurrent-edit conflicts (stale GitHub file `sha`) are surfaced clearly, never silently
-  overwritten.
+**Status**: [ ] not started
 
-**Todo List**
-1. Generate a fine-grained GitHub PAT scoped to just this repo, **Contents: read & write**
-   only. Never commit it — store only in the PHP proxy's server-side config.
-2. Build `server/update-data.php` (committed to the repo for review, deployed by hand to
-   Simply.com): validates the PIN and JSON shape, then for each of
-   `data/scenes.json`/`data/cast.json` does GET (fetch current `sha`) → PUT (commit new
-   base64 content) via GitHub's Contents API; returns a clear conflict error on `409`.
-3. Add `server/config.example.php` (committed, documents required constants: `GITHUB_TOKEN`,
-   `GITHUB_OWNER`, `GITHUB_REPO`, `SHARED_PIN`) and `server/config.php` (gitignored, holds
-   the real secrets, lives only on the Simply.com server).
-4. Add `.github/workflows/embed-scenes.yml`: on push to `main` touching
-   `data/scenes.json`/`data/cast.json`, run `node scripts/embed-scenes.js` and commit the
-   regenerated `scenes-data.js` back to `main`.
-5. Rewrite `manus-data.js`: remove the `localStorage` override entirely;
-   `getEffectiveScenesData()`/`getEffectiveCastData()` read `SCENES_DATA`/`CAST_DATA`,
-   optionally shadowed by an in-memory (not persisted) "just saved this tab" value for
-   instant same-tab feedback.
-6. Rewrite `import.js`'s `applyImport()`: prompt for the PIN once per tab (cached in
-   `sessionStorage`), POST `{ pin, scenes, cast }` to the proxy, spinner on "Opdater" while
-   in flight, success closes the modal with a brief confirmation, failure (bad PIN, network,
-   conflict) shows an inline error (reuse the existing `importWarning()` pattern) and keeps
-   the modal open so edits aren't lost.
-7. Update CLAUDE.md's "Manus edit tool" section (currently says this is explicitly "local,
-   not the publishing pipeline") and `data/README.md` to describe the new global-save flow.
+---
 
-**Relevant Context**
-- Current write point: `import.js` lines ~588-634 (`applyImport()`), ending in
-  `localStorage.setItem(MANUS_OVERRIDE_KEY, ...); location.reload();`.
-- `getEffectiveScenesData()`/`getEffectiveCastData()` (`manus-data.js`) are read by
-  `schedule.js` in several places (`loadScenes()`, cast-name lookups) — signatures must stay
-  the same so those call sites keep working unchanged.
-- Out of scope: real user accounts/login — the PIN is a deliberate stopgap only.
+### Phase 4 — Manus selection tool
 
-**Status**: [x] done — live and verified end-to-end. `server/update-data.php` is deployed at
-`https://manus.matematikrevy.dk/update-data.php` (a subdomain created on the Simply.com hosting
-account specifically for this, since `matematikrevy.dk`'s own DNS points at GitHub Pages, which
-can't run PHP — two CNAMEs, `manus` and `www.manus`, both to
-`matematikrevy.dk.linux32.unoeuro-server.com`, were needed for Let's Encrypt's free-cert
-validation), with a real `GITHUB_TOKEN`/`SHARED_PIN` filled into `server/config.php` on that
-server (gitignored, never committed). A real "Opdater" save was tested end-to-end on
-2026-07-11: the PIN prompt, the PHP proxy, both GitHub commits (`data/scenes.json` and
-`data/cast.json`), and the `embed-scenes.yml` Action's automatic `scenes-data.js` regeneration
-all worked. See CLAUDE.md's "Manus edit tool" section for the deploy gotchas discovered along
-the way (the subdomain requirement, Simply.com's WAF bot-challenge behavior, and the
-4-space-vs-2-space JSON indentation diff quirk).
+**Intent**: tool for shortlisting/voting which sketches make the current year's manus.
+Requirements gathered in its own planning session — likely the first real revyst-level
+write (voting).
+
+**Status**: [ ] not started — needs requirements
+
+---
+
+### Later / parked
+
+- **Budget tool** — help coordinators track the production budget. Requirements TBD.
+- **Auto-place algorithm (schedule tool)** — implemented once, then deliberately removed
+  for a future redesign. Original spec: greedy placement of priority scenes respecting
+  cast conflicts and absences, auto-placed cells visually distinct, re-runnable, with a
+  placement summary. Priority 0–3 in the sidebar is currently a manual aid only.
+- **Real per-user login** — only if the shared-password model ever stops being enough.
+
+---
+
+## History (completed sub-tasks)
+
+### Scheduling tool (core) — done
+Grid-based rehearsal planner (`schedule.html`/`schedule.js`): rooms × time slots,
+scene picker with conflict/absence tags, per-cell cast editor, custom scenes
+(Scenemøde/Rekvisitten), dance/actor splits, absences, print stylesheet,
+localStorage persistence. See CLAUDE.md for the full architecture.
+
+### Manus edit tool with global save — done (2026-07-11)
+"Rediger Manus" modal (`import.js`) edits the whole catalog (manual + `.tex` upload,
+role classification) and saves globally: POST to `server/update-data.php` on
+`https://manus.matematikrevy.dk` (Simply.com — GitHub Pages can't run PHP), which
+commits `data/*.json` via the GitHub Contents API; `embed-scenes.yml` regenerates
+`scenes-data.js`; the saving tab sees its change immediately via an in-memory shadow
+(`manus-data.js`). Deploy gotchas (subdomain + double CNAME for Let's Encrypt,
+Simply.com WAF challenges, PHP 4-space JSON reindentation) are documented in CLAUDE.md.

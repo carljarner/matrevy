@@ -6,6 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Static HTML/CSS/JS site for Matematikrevyen (Danish student revue), hosted via GitHub Pages at `matematikrevy.dk`. No build step, no package manager, no framework, no test suite, no linter — validation is entirely manual. Node is only used for the one codegen script below.
 
+The long-term roadmap (phases, feature backlog, architecture decisions) lives in `matrevy-plan.md` — this file documents how the code works *now*; that file documents what's next and why. When finishing a phase, update both.
+
+## Site shell & access levels (`site.js`)
+
+Three access levels: **public / revyst / admin**, unlocked by two shared passwords (handed out verbally — deliberately not real per-user auth). The model is a conscious trade-off: the repo is public, so *reads* are only gated client-side for usability (nothing on the site is secret); *writes* are genuinely validated server-side (see "Manus edit tool" below).
+
+- `site.js` renders the header nav on every page from the central `SITE_PAGES` registry (`{href, label, level}`) — the **only** place a page is registered. Revyst-level pages render as greyed, unclickable `.site-nav-locked` spans until login; admin-level pages are omitted from the nav entirely unless admin. Every page's `<header class="site-header">` contains only the static site title; `site.js` rebuilds it on `DOMContentLoaded`.
+- **Login**: top-right button → modal → POST `{action:'login', password}` to the PHP endpoint, which answers with the matching level. `{level, password}` is stored in `localStorage` key `matrevy-auth` (the password is kept so later writes can send it). Logout just removes the key. Both reload the page.
+- **Page gate**: `applyPageGate()` looks the current page up in `SITE_PAGES`; if the visitor's level is insufficient it hides `<main>` and shows a "Log ind for at se denne side" card instead. Cosmetic only, by design.
+- **`file://` bypass**: over `file://` the login endpoint is unreachable (CORS) and `localStorage` is a different origin, so `getSiteAuth()` returns a synthetic admin level (with an empty password — writes still prompt). This preserves the schedule tool's offline use case; the trade-off is that gating simply doesn't exist offline.
+- `import.js` reads `getSiteAuth()` cross-file (same load-order safety argument as its `classifyOrKeep` usage — only called from event handlers).
+
 ## The one command you must know
 
 `scenes-data.js` is **auto-generated** and must never be edited directly. After changing `data/scenes.json` or `data/cast.json`, regenerate it:
@@ -16,7 +28,9 @@ node scripts/embed-scenes.js
 
 Commit `data/scenes.json`, `data/cast.json`, and `scenes-data.js` together.
 
-This step only matters when you edit those JSON files by hand. A manus-tool save (see "Manus edit tool" below) pushes straight to `main` via the GitHub API, which triggers `.github/workflows/embed-scenes.yml` to run this same script and commit the regenerated `scenes-data.js` automatically.
+This step only matters when you edit those JSON files by hand. A manus-tool save (see "Manus edit tool" below) pushes straight to `main` via the GitHub API, which triggers `.github/workflows/embed-scenes.yml` (fires on any `data/*.json` push) to run this same script and commit the regenerated `scenes-data.js` automatically.
+
+The script is table-driven (`EMBEDS` in `scripts/embed-scenes.js`): a future data file (announcements, calendar, …) gets an entry there, its generated `*-data.js` file added to the workflow's `git add` line, and a `<script src>` tag on the pages that need it.
 
 `fetch()`-based data loading was intentionally replaced with embedded globals (`SCENES_DATA` and `CAST_DATA`, injected via `<script src="scenes-data.js">`) so the scheduling tool works when opened directly from the filesystem (`file://`), where `fetch()` fails. The `async` wrapper on `loadScenes()` in `schedule.js` is vestigial — the data is always synchronously available.
 
@@ -57,7 +71,9 @@ Print (`@media print` in `schedule.css`, triggered by the "Download" button → 
 
 `manus-data.js` + `import.js` add a "Upload manus" / "Opdater manus" button at the bottom of the scheduling tool's left sidebar for building up the scene/cast list without hand-editing JSON — either by typing scenes in directly or by uploading the production's actual `.tex` sketch sources (avoids the kind of role-code transcription errors that hand-editing `data/scenes.json` has produced before).
 
-**"Opdater" writes globally, for every coordinator, not just the saving browser.** It POSTs `{ pin, scenes, cast }` to `server/update-data.php`, live at `https://manus.matematikrevy.dk/update-data.php` (see `import.js`'s `MANUS_SAVE_ENDPOINT`), which validates a shared PIN and the payload shape, then commits `data/scenes.json`/`data/cast.json` to the repo via the GitHub Contents API using a server-side-only fine-grained PAT (Contents: read & write only, scoped to just this repo). A push to `main` touching those files triggers `.github/workflows/embed-scenes.yml`, which runs `node scripts/embed-scenes.js` and commits the regenerated `scenes-data.js` back to `main` — so the manual `node scripts/embed-scenes.js` step is only needed if you edit the JSON files by hand directly, not after a manus-tool save. The PIN is a deliberate interim stopgap (checked via `sessionStorage`-cached prompt in `import.js`, gated server-side with `hash_equals`) until real coordinator login exists — it is **not** real authentication and should be treated accordingly. Concurrent-edit conflicts (a stale GitHub file `sha` at PUT time) come back as a `409` and are surfaced as an inline error, never silently overwritten.
+**"Opdater" writes globally, for every coordinator, not just the saving browser.** It POSTs `{ action:'save', password, resource:'manus', payload:{ scenes, cast } }` to `server/update-data.php`, live at `https://manus.matematikrevy.dk/update-data.php` (see `import.js`'s `MANUS_SAVE_ENDPOINT`; `site.js`'s login uses the same URL as `SITE_API_ENDPOINT`), which validates the password and payload shape, then commits `data/scenes.json`/`data/cast.json` to the repo via the GitHub Contents API using a server-side-only fine-grained PAT (Contents: read & write only, scoped to just this repo). A push to `main` touching those files triggers `.github/workflows/embed-scenes.yml`, which runs `node scripts/embed-scenes.js` and commits the regenerated `scenes-data.js` back to `main` — so the manual `node scripts/embed-scenes.js` step is only needed if you edit the JSON files by hand directly, not after a manus-tool save. Concurrent-edit conflicts (a stale GitHub file `sha` at PUT time) come back as a `409` and are surfaced as an inline error, never silently overwritten.
+
+**The endpoint is the general write path for the whole site**, not just the manus tool: `action:'login'` maps a password to a level (`revyst`/`admin`, `hash_equals` against `REVYST_PASSWORD`/`ADMIN_PASSWORD` in the server-side `config.php`; the legacy `SHARED_PIN` is still accepted as admin, as is the legacy `{pin, scenes, cast}` body shape); `action:'save'` dispatches through the `$RESOURCES` table (per-resource minimum level + validator + commit) — new features (announcements, calendar, …) register a resource there. The save password comes from the site login (`getSiteAuth().password` when admin) with a per-tab `prompt()` fallback (`sessionStorage`-cached) for `file://` or not-logged-in use. Shared passwords are still **not** real authentication and should be treated accordingly. Any change to `server/update-data.php`/`config.php` requires a manual re-upload to Simply.com — the deployed copy does not update on git push.
 
 Since the Action's rebuild takes ~1-2 minutes, a successful save also sets an in-memory-only shadow (`manus-data.js`'s `setManusSavedOverride()`, cleared on reload) so the saving tab sees its own change immediately via `schedule.js`'s `refreshScenesFromSource()`, without waiting for `scenes-data.js` to regenerate.
 
@@ -78,7 +94,7 @@ Since the Action's rebuild takes ~1-2 minutes, a successful save also sets an in
 
 ## Adding a new page
 
-Copy `page-template.html`. Add a nav `<a>` to **all** existing pages. Mark `class="active"` only on the new page.
+Copy `page-template.html`, then register the page **once** in `site.js`'s `SITE_PAGES` array with its access level (`public`/`revyst`/`admin`). The nav (including the active-page highlight and any login gating) renders automatically on every page — no per-page nav edits.
 
 ## Code style
 

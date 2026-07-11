@@ -8,15 +8,17 @@
    a scene sits in and its position within it. New scenes (manual
    add, or an uploaded .tex that doesn't name-match anything) land
    in a staging "Ikke placeret" section until dragged into an act.
-   Applying POSTs { pin, scenes, cast } to a PHP proxy
-   (server/update-data.php) which commits data/scenes.json and
-   data/cast.json to the repo via the GitHub Contents API — a global
-   save visible to every coordinator, not just this browser. A
-   GitHub Action then regenerates scenes-data.js; in the meantime
-   this tab shows the new data immediately via an in-memory shadow
-   (manus-data.js's setManusSavedOverride()) rather than reloading.
-   Gated by a shared PIN (see CLAUDE.md) — a deliberate stopgap until
-   real coordinator login exists.
+   Applying POSTs { action:'save', password, resource:'manus',
+   payload:{ scenes, cast } } to a PHP proxy (server/update-data.php)
+   which commits data/scenes.json and data/cast.json to the repo via
+   the GitHub Contents API — a global save visible to every
+   coordinator, not just this browser. A GitHub Action then
+   regenerates scenes-data.js; in the meantime this tab shows the new
+   data immediately via an in-memory shadow (manus-data.js's
+   setManusSavedOverride()) rather than reloading.
+   Admin-gated: the password comes from site.js's stored login
+   (getSiteAuth()) when an admin is logged in; otherwise (file://,
+   or not logged in) a per-tab prompt asks for it, like the old PIN.
    Only \title{} and \begin{roles}...\end{roles} are parsed out of
    uploaded .tex files; everything else (props, sketch body, \says,
    stage directions) is deliberately ignored.
@@ -668,10 +670,14 @@ async function applyImport() {
   // only for this tab's in-memory shadow (manus-data.js).
   const flatScenes = acts.flatMap(act => act.scenes.map(s => ({ ...s, actLabel: act.label })));
 
-  let pin = getCachedPin();
-  if (!pin) {
-    pin = (prompt('Indtast PIN-kode for at gemme ændringer globalt:') || '').trim();
-    if (!pin) return;
+  // Prefer the site login's stored admin password; fall back to the
+  // per-tab prompt (file:// use, or an admin who hasn't logged in).
+  const siteAuth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
+  const fromLogin = siteAuth && siteAuth.level === 'admin' && siteAuth.password;
+  let password = fromLogin ? siteAuth.password : getCachedPin();
+  if (!password) {
+    password = (prompt('Indtast admin-adgangskoden for at gemme ændringer globalt:') || '').trim();
+    if (!password) return;
   }
 
   clearApplyError();
@@ -680,12 +686,12 @@ async function applyImport() {
     const res = await fetch(MANUS_SAVE_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, scenes: acts, cast: castRoster }),
+      body: JSON.stringify({ action: 'save', password, resource: 'manus', payload: { scenes: acts, cast: castRoster } }),
     });
 
-    if (res.status === 401) {
+    if (res.status === 401 || res.status === 403) {
       setCachedPin('');
-      showApplyError('Forkert PIN-kode. Prøv igen.');
+      showApplyError('Forkert eller utilstrækkelig adgangskode. Log ind som admin og prøv igen.');
       return;
     }
     if (res.status === 409) {
@@ -697,7 +703,7 @@ async function applyImport() {
       return;
     }
 
-    setCachedPin(pin);
+    if (!fromLogin) setCachedPin(password);
     setManusSavedOverride({ scenes: flatScenes, cast: castRoster });
     refreshScenesFromSource();
     closeImportModal();

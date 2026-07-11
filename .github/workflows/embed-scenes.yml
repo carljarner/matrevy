@@ -1,11 +1,10 @@
-name: Regenerate scenes-data.js
+name: Regenerate embedded data files
 
 on:
   push:
     branches: [main]
     paths:
-      - 'data/scenes.json'
-      - 'data/cast.json'
+      - 'data/*.json'
 
 permissions:
   contents: write
@@ -24,10 +23,11 @@ jobs:
 
       - run: node scripts/embed-scenes.js
 
-      - name: Commit regenerated scenes-data.js
+      - name: Commit regenerated data files
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # List every generated *-data.js output here (see scripts/embed-scenes.js's EMBEDS)
           git add scenes-data.js
-          git diff --staged --quiet || git commit -m "Regenerate scenes-data.js"
+          git diff --staged --quiet || git commit -m "Regenerate embedded data files"
           git push

@@ -1,11 +1,24 @@
 <?php
-// Manus-tool global save proxy.
-// Receives { pin, scenes, cast } from import.js's applyImport(), validates
-// the PIN and payload shape, then commits data/scenes.json + data/cast.json
-// to GitHub via the Contents API using a server-side-only PAT.
+// Matematikrevyen API: login check + resource saves.
 //
-// Deploy this file + a real config.php (see config.example.php) to the
-// Simply.com PHP hosting. Never commit config.php.
+// Request shape (POST JSON):
+//   { "action": "login", "password": "..." }
+//     -> { "ok": true, "level": "revyst" | "admin" }
+//   { "action": "save", "password": "...", "resource": "manus",
+//     "payload": { ... resource-specific ... } }
+//     -> { "ok": true }
+//
+// Passwords are the two shared site passwords (REVYST_PASSWORD /
+// ADMIN_PASSWORD in config.php). Saves commit JSON files in data/
+// to GitHub via the Contents API using a server-side-only PAT; a
+// push to main triggers the embed-scenes.yml Action which
+// regenerates the embedded *-data.js globals.
+//
+// Legacy shape { pin, scenes, cast } (the original manus-tool save)
+// is still accepted and mapped onto action=save/resource=manus.
+//
+// Deploy this file + a real config.php (see config.example.php) to
+// the Simply.com PHP hosting. Never commit config.php.
 
 require __DIR__ . '/config.php';
 
@@ -36,27 +49,44 @@ if (!is_array($body)) {
   respond(400, ['error' => 'invalid_json']);
 }
 
-$pin = $body['pin'] ?? '';
-if (!is_string($pin) || $pin === '' || !hash_equals(SHARED_PIN, $pin)) {
-  respond(401, ['error' => 'invalid_pin']);
+// Legacy manus-tool shape -> new shape.
+if (isset($body['pin']) && !isset($body['action'])) {
+  $body = [
+    'action' => 'save',
+    'password' => $body['pin'],
+    'resource' => 'manus',
+    'payload' => ['scenes' => $body['scenes'] ?? null, 'cast' => $body['cast'] ?? null],
+  ];
 }
 
-$scenesActs = $body['scenes'] ?? null;
-$castList = $body['cast'] ?? null;
-if (!is_array($scenesActs) || !is_array($castList)) {
-  respond(400, ['error' => 'invalid_shape']);
-}
-foreach ($scenesActs as $act) {
-  if (!is_array($act) || !isset($act['act'], $act['label'], $act['scenes']) || !is_array($act['scenes'])) {
-    respond(400, ['error' => 'invalid_scenes_shape']);
-  }
-}
-foreach ($castList as $c) {
-  if (!is_array($c) || !isset($c['name'], $c['index'])) {
-    respond(400, ['error' => 'invalid_cast_shape']);
-  }
+// ── Authentication: shared password -> level ────────────────
+function password_level($pw) {
+  if (!is_string($pw) || $pw === '') return null;
+  if (defined('ADMIN_PASSWORD') && hash_equals(ADMIN_PASSWORD, $pw)) return 'admin';
+  // Legacy: the old manus PIN keeps working as an admin credential
+  // until it's removed from config.php.
+  if (defined('SHARED_PIN') && hash_equals(SHARED_PIN, $pw)) return 'admin';
+  if (defined('REVYST_PASSWORD') && hash_equals(REVYST_PASSWORD, $pw)) return 'revyst';
+  return null;
 }
 
+$level = password_level($body['password'] ?? '');
+if ($level === null) {
+  respond(401, ['error' => 'invalid_password']);
+}
+
+$LEVEL_RANK = ['revyst' => 1, 'admin' => 2];
+
+$action = $body['action'] ?? '';
+
+if ($action === 'login') {
+  respond(200, ['ok' => true, 'level' => $level]);
+}
+if ($action !== 'save') {
+  respond(400, ['error' => 'unknown_action']);
+}
+
+// ── GitHub Contents API helpers ──────────────────────────────
 function github_api($method, $path, $payload = null) {
   $ch = curl_init('https://api.github.com/repos/' . GITHUB_OWNER . '/' . GITHUB_REPO . '/' . $path);
   curl_setopt_array($ch, [
@@ -111,17 +141,58 @@ function update_file($filePath, $mutate, $commitMessage) {
   }
 }
 
-$today = date('Y-m-d');
+// ── Resource savers ──────────────────────────────────────────
+// Each resource: minimum level + a validate-and-commit function.
+// Later phases (announcements, calendar, ...) register here.
 
-update_file('data/scenes.json', function ($json) use ($scenesActs, $today) {
-  $json['acts'] = $scenesActs;
-  $json['version'] = $today;
-  return $json;
-}, 'Opdater scenes.json via manus-værktøj');
+function save_manus($payload) {
+  $scenesActs = $payload['scenes'] ?? null;
+  $castList = $payload['cast'] ?? null;
+  if (!is_array($scenesActs) || !is_array($castList)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($scenesActs as $act) {
+    if (!is_array($act) || !isset($act['act'], $act['label'], $act['scenes']) || !is_array($act['scenes'])) {
+      respond(400, ['error' => 'invalid_scenes_shape']);
+    }
+  }
+  foreach ($castList as $c) {
+    if (!is_array($c) || !isset($c['name'], $c['index'])) {
+      respond(400, ['error' => 'invalid_cast_shape']);
+    }
+  }
 
-update_file('data/cast.json', function ($json) use ($castList) {
-  $json['cast'] = $castList;
-  return $json;
-}, 'Opdater cast.json via manus-værktøj');
+  $today = date('Y-m-d');
+
+  update_file('data/scenes.json', function ($json) use ($scenesActs, $today) {
+    $json['acts'] = $scenesActs;
+    $json['version'] = $today;
+    return $json;
+  }, 'Opdater scenes.json via manus-værktøj');
+
+  update_file('data/cast.json', function ($json) use ($castList) {
+    $json['cast'] = $castList;
+    return $json;
+  }, 'Opdater cast.json via manus-værktøj');
+}
+
+$RESOURCES = [
+  'manus' => ['level' => 'admin', 'save' => 'save_manus'],
+];
+
+$resource = $body['resource'] ?? '';
+if (!isset($RESOURCES[$resource])) {
+  respond(400, ['error' => 'unknown_resource']);
+}
+if ($LEVEL_RANK[$level] < $LEVEL_RANK[$RESOURCES[$resource]['level']]) {
+  respond(403, ['error' => 'insufficient_level']);
+}
+
+$payload = $body['payload'] ?? null;
+if (!is_array($payload)) {
+  respond(400, ['error' => 'invalid_payload']);
+}
+
+($RESOURCES[$resource]['save'])($payload);
 
 respond(200, ['ok' => true]);

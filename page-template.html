@@ -5,22 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <!--
     PAGE TITLE: Replace "Sidetitel" with the name of this page.
-    NAV LINK:   Add a matching <a href="this-page.html"> in all other pages'
-                <nav> blocks, and mark this one class="active".
+    NAV LINK:   Register the page ONCE in site.js's SITE_PAGES array
+                with { href, label, level: 'public' | 'revyst' | 'admin' }.
+                The nav (and any login gating) is rendered automatically
+                on every page — no per-page nav edits needed.
   -->
-  <title>Sidetitel · Matematikrevyen 2025</title>
+  <title>Sidetitel · Matematikrevyen</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Nav + login rendered by site.js from its central page registry -->
   <header class="site-header">
-    <div class="site-title">Matematikrevyen 2025</div>
-    <nav class="site-nav">
-      <a href="index.html">Forside</a>
-      <a href="manus.html">Manus</a>
-      <a href="schedule.html">Øveplan</a>
-      <!-- Add more nav links here -->
-      <a href="this-page.html" class="active">Sidetitel</a>
-    </nav>
+    <div class="site-title">Matematikrevyen</div>
   </header>
 
   <main class="page-content">
@@ -35,7 +31,9 @@
   </main>
 
   <footer class="site-footer">
-    Matematikrevyen 2025 · Intern side
+    Matematikrevyen · Intern side
   </footer>
+
+  <script src="site.js"></script>
 </body>
 </html>
