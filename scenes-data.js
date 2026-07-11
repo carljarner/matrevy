@@ -46,7 +46,7 @@ const SCENES_DATA = [
   {
     "id": "1-2",
     "number": 2,
-    "name": "Forskønnelse",
+    "name": "Forskønnelsen",
     "schedulable": true,
     "priority": 0,
     "types": [
