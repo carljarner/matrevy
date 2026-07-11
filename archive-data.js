@@ -7,7 +7,7 @@ const ARCHIVE_DATA = [
     "manusPdf": "arkiv/2025/manus.pdf",
     "videos": [
       {
-        "label": "Etiket",
+        "label": "Test",
         "url": "https://www.youtube.com/watch?v=Dp76DZvBoMo"
       }
     ]
