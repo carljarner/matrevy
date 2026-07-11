@@ -21,9 +21,11 @@ const SITE_AUTH_KEY = 'matrevy-auth';
 //   'revyst' — greyed-out in nav until revyst/admin login
 //   'admin'  — omitted from nav entirely until admin login
 const SITE_PAGES = [
-  { href: 'index.html',    label: 'Forside', level: 'public' },
-  { href: 'manus.html',    label: 'Manus',   level: 'revyst' },
-  { href: 'schedule.html', label: 'Øveplan', level: 'admin' },
+  { href: 'index.html',    label: 'Forside',  level: 'public' },
+  { href: 'kalender.html', label: 'Kalender', level: 'revyst' },
+  { href: 'manus.html',    label: 'Manus',    level: 'revyst' },
+  { href: 'arkiv.html',    label: 'Arkiv',    level: 'revyst' },
+  { href: 'schedule.html', label: 'Øveplan',  level: 'admin' },
 ];
 
 const SITE_LEVEL_RANK = { public: 0, revyst: 1, admin: 2 };

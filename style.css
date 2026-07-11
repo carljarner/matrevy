@@ -220,6 +220,92 @@ body {
   margin-bottom: 1.25rem;
 }
 
+.card ul {
+  padding-left: 1.2rem;
+}
+
+/* --- Edit modal (site-utils.js siteOpenEditModal) --------- */
+.edit-modal {
+  width: min(480px, 92vw);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.edit-field {
+  margin-bottom: 0.75rem;
+}
+
+.edit-field label {
+  display: block;
+  font-size: 0.8rem;
+  color: #57606a;
+  margin-bottom: 0.25rem;
+}
+
+.edit-field input,
+.edit-field textarea,
+.edit-field select {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #ffffff;
+  color: #1f2328;
+}
+
+.edit-field textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.edit-field-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.edit-field-row > .edit-field {
+  flex: 1;
+}
+
+.edit-actions-left {
+  margin-right: auto;
+}
+
+/* --- Card header + small admin buttons -------------------- */
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.card-head h2 {
+  margin-bottom: 0;
+}
+
+.btn-small {
+  background: #ffffff;
+  color: #1f2328;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-small:hover { background: #f0f2f5; }
+
+.btn-small-danger {
+  color: #c0392b;
+  border-color: #e0b4ae;
+}
+
+.btn-small-danger:hover { background: #fbf1f0; }
+
 /* --- Messages -------------------------------------------- */
 .message-list {
   display: flex;
@@ -236,6 +322,19 @@ body {
   font-size: 0.8rem;
   color: #57606a;
   margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.message-badge {
+  background: #eaf1fb;
+  color: #2f6cb3;
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 /* --- Footer ---------------------------------------------- */

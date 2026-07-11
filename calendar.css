@@ -1,0 +1,236 @@
+/* =========================================================
+   Matematikrevyen – Calendar page styles (kalender.html only)
+   Page-scoped like schedule.css; shared shell styles live in
+   style.css.
+   ========================================================= */
+
+/* --- Toolbar ---------------------------------------------- */
+.cal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.cal-view-toggle {
+  display: flex;
+}
+
+.cal-view-toggle button {
+  background: #ffffff;
+  color: #1f2328;
+  border: 1px solid #d0d7de;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cal-view-toggle button:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.cal-view-toggle button:last-child {
+  border-radius: 0 6px 6px 0;
+  border-left: none;
+}
+
+.cal-view-toggle button.active {
+  background: #3b82d4;
+  border-color: #3b82d4;
+  color: #ffffff;
+}
+
+.cal-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cal-month-nav button {
+  background: #ffffff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.cal-month-nav button:hover { background: #f0f2f5; }
+
+#cal-month-label {
+  font-weight: 600;
+  min-width: 9.5rem;
+  text-align: center;
+}
+
+#cal-admin {
+  margin-left: auto;
+}
+
+/* --- Month grid ------------------------------------------- */
+.cal-grid-wrap {
+  overflow-x: auto;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  min-width: 560px;
+  border-top: 1px solid #e5e7eb;
+  border-left: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.cal-weekday {
+  padding: 0.3rem 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #57606a;
+  text-align: center;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f7f8fa;
+}
+
+.cal-day {
+  min-height: 84px;
+  padding: 0.25rem 0.3rem;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.78rem;
+}
+
+.cal-day-blank {
+  background: #fafbfc;
+}
+
+.cal-day-num {
+  font-size: 0.75rem;
+  color: #57606a;
+  margin-bottom: 0.15rem;
+}
+
+.cal-today .cal-day-num {
+  display: inline-block;
+  background: #3b82d4;
+  color: #ffffff;
+  border-radius: 999px;
+  min-width: 1.4em;
+  text-align: center;
+  padding: 0 0.25em;
+}
+
+.cal-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #f7f8fa;
+  border: none;
+  border-left: 3px solid #57606a;
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  margin-bottom: 0.15rem;
+  font-size: 0.74rem;
+  font-family: inherit;
+  color: #1f2328;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-chip:hover { background: #eef1f5; }
+
+/* --- Category colors (chip border + list dot) -------------- */
+.cal-cat-ove           { border-left-color: #3b82d4; }
+.cal-cat-forestilling  { border-left-color: #c0392b; }
+.cal-cat-deadline      { border-left-color: #d97706; }
+.cal-cat-andet         { border-left-color: #57606a; }
+
+.cal-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: #57606a;
+}
+
+.cal-dot.cal-cat-ove          { background: #3b82d4; }
+.cal-dot.cal-cat-forestilling { background: #c0392b; }
+.cal-dot.cal-cat-deadline     { background: #d97706; }
+.cal-dot.cal-cat-andet        { background: #57606a; }
+
+/* --- List view --------------------------------------------- */
+.cal-list-month {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.cal-list-month:first-child {
+  margin-top: 0;
+}
+
+.cal-list-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.88rem;
+  flex-wrap: wrap;
+}
+
+.cal-list-row .cal-dot {
+  align-self: center;
+}
+
+.cal-list-date {
+  color: #57606a;
+  min-width: 8.5rem;
+}
+
+.cal-list-time {
+  color: #57606a;
+  min-width: 6.5rem;
+}
+
+.cal-list-title {
+  font-weight: 500;
+}
+
+.cal-list-cat {
+  color: #57606a;
+  font-size: 0.78rem;
+}
+
+.cal-list-note {
+  flex-basis: 100%;
+  color: #57606a;
+  font-size: 0.8rem;
+  padding-left: 1.2rem;
+}
+
+.cal-list-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.35rem;
+}
+
+/* --- Read-only detail modal -------------------------------- */
+.cal-detail-row {
+  margin-bottom: 0.4rem;
+  font-size: 0.9rem;
+}
+
+.cal-detail-label {
+  color: #57606a;
+  font-size: 0.8rem;
+  margin-right: 0.4rem;
+}

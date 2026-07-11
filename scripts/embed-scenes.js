@@ -34,6 +34,33 @@ const EMBEDS = [
       return { SCENES_DATA: allScenes, CAST_DATA: cast.cast };
     },
   },
+  {
+    out: 'announcements-data.js',
+    sources: 'data/announcements.json',
+    globals: () => {
+      const announcements = readJson('data/announcements.json').announcements;
+      console.log(`  ${announcements.length} announcements`);
+      return { ANNOUNCEMENTS_DATA: announcements };
+    },
+  },
+  {
+    out: 'calendar-data.js',
+    sources: 'data/calendar.json',
+    globals: () => {
+      const events = readJson('data/calendar.json').events;
+      console.log(`  ${events.length} calendar events`);
+      return { CALENDAR_DATA: events };
+    },
+  },
+  {
+    out: 'archive-data.js',
+    sources: 'data/archive.json',
+    globals: () => {
+      const years = readJson('data/archive.json').years;
+      console.log(`  ${years.length} archive years`);
+      return { ARCHIVE_DATA: years };
+    },
+  },
 ];
 
 for (const embed of EMBEDS) {

@@ -82,7 +82,10 @@ not revyst — the schedule tool serves coordinators only, which also keeps the
 - New `announcements` resource (admin) in `server/update-data.php`'s `$RESOURCES`.
 - General info + quick links section.
 
-**Status**: [ ] not started
+**Status**: [x] done 2026-07-11 — per-announcement `level` (public/revyst) chosen at
+planning; Forside renders from `announcements-data.js` via `announcements.js`, admins
+add/edit/delete in-page (modal from the new shared `site-utils.js`); the old hardcoded
+welcome message became the seed record. General info card now links Kalender/Manus/Arkiv.
 
 ---
 
@@ -97,7 +100,11 @@ not revyst — the schedule tool serves coordinators only, which also keeps the
 - Later possibility (own sub-task): revyster register absences per rehearsal day, feeding
   the schedule tool's "Fraværende revyster" — first revyst-level write.
 
-**Status**: [ ] not started
+**Status**: [x] done 2026-07-11 — `kalender.html` (revyst) with month-grid + list toggle
+(view choice persisted, list default on mobile), four event categories with ASCII keys
+(`ove`/`forestilling`/`deadline`/`andet`), admin editing in-page, `calendar` resource.
+The absence-registration sub-task remains **parked** (deliberately deferred at planning —
+first revyst-level write, deserves its own session).
 
 ---
 
@@ -110,7 +117,10 @@ not revyst — the schedule tool serves coordinators only, which also keeps the
 - PDFs committed under `arkiv/<year>/`.
 - Archive page (revyst-level), admin-editable via an `archive` resource.
 
-**Status**: [ ] not started
+**Status**: [x] done 2026-07-11 — `arkiv.html` (revyst) ships with empty data (per
+planning); per-year cards with manus-PDF link + external video links, admin year editor
+in-page, `archive` resource. PDFs are committed manually under `arkiv/<year>/` — the
+tool only stores the path.
 
 ---
 

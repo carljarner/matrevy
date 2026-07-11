@@ -15,19 +15,20 @@
   <main class="page-content">
     <h1>Forside</h1>
 
+    <!-- Announcements rendered by announcements.js from announcements-data.js -->
     <section class="card">
-      <h2>Beskeder fra koordinatorerne</h2>
-      <div class="message-list">
-        <article class="message">
-          <div class="message-meta">27. november 2025 · Koordinatorerne</div>
-          <p>Velkommen til Matematikrevyens interne side. Her finder du øveplaner, manus og vigtige beskeder.</p>
-        </article>
+      <div class="card-head">
+        <h2>Beskeder fra koordinatorerne</h2>
+        <span id="announcement-admin"></span>
       </div>
+      <div class="message-list" id="announcement-list"></div>
     </section>
 
     <section class="card">
       <h2>Generel information</h2>
-      <p>Siden er under opbygning. Flere sider og funktioner tilføjes løbende.</p>
+      <p>Her finder du alt det praktiske omkring Matematikrevyen: se datoer og deadlines i
+        <a href="kalender.html">kalenderen</a>, læs årets <a href="manus.html">manus</a>,
+        og gense tidligere års forestillinger i <a href="arkiv.html">arkivet</a>.</p>
     </section>
   </main>
 
@@ -36,5 +37,8 @@
   </footer>
 
   <script src="site.js"></script>
+  <script src="site-utils.js"></script>
+  <script src="announcements-data.js"></script>
+  <script src="announcements.js"></script>
 </body>
 </html>

@@ -176,8 +176,96 @@ function save_manus($payload) {
   }, 'Opdater cast.json via manus-værktøj');
 }
 
+function save_announcements($payload) {
+  $list = $payload['announcements'] ?? null;
+  if (!is_array($list)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($list as $a) {
+    if (!is_array($a)
+        || !isset($a['id'], $a['date'], $a['text'], $a['level'], $a['author'])
+        || !is_string($a['id']) || $a['id'] === ''
+        || !is_string($a['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $a['date'])
+        || !is_string($a['text']) || $a['text'] === ''
+        || !in_array($a['level'], ['public', 'revyst'], true)
+        || !is_string($a['author'])) {
+      respond(400, ['error' => 'invalid_announcements_shape']);
+    }
+  }
+
+  update_file('data/announcements.json', function ($json) use ($list) {
+    $json['announcements'] = $list;
+    return $json;
+  }, 'Opdater announcements.json via forsiden');
+}
+
+function save_calendar($payload) {
+  $events = $payload['events'] ?? null;
+  if (!is_array($events)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($events as $ev) {
+    if (!is_array($ev)) {
+      respond(400, ['error' => 'invalid_events_shape']);
+    }
+    $start = $ev['start'] ?? '';
+    $end = $ev['end'] ?? '';
+    if (!isset($ev['id'], $ev['date'], $ev['title'], $ev['category'], $ev['note'])
+        || !is_string($ev['id']) || $ev['id'] === ''
+        || !is_string($ev['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ev['date'])
+        || !is_string($ev['title']) || $ev['title'] === ''
+        || !in_array($ev['category'], ['ove', 'forestilling', 'deadline', 'andet'], true)
+        || !is_string($start) || ($start !== '' && !preg_match('/^\d{2}:\d{2}$/', $start))
+        || !is_string($end) || ($end !== '' && !preg_match('/^\d{2}:\d{2}$/', $end))
+        || !is_string($ev['note'])) {
+      respond(400, ['error' => 'invalid_events_shape']);
+    }
+  }
+
+  update_file('data/calendar.json', function ($json) use ($events) {
+    $json['events'] = $events;
+    return $json;
+  }, 'Opdater calendar.json via kalenderen');
+}
+
+function save_archive($payload) {
+  $years = $payload['years'] ?? null;
+  if (!is_array($years)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $seen = [];
+  foreach ($years as $y) {
+    if (!is_array($y)
+        || !isset($y['year'], $y['title'], $y['manusPdf'], $y['videos'])
+        || !is_int($y['year']) || $y['year'] < 1900 || $y['year'] > 2100
+        || isset($seen[$y['year']])
+        || !is_string($y['title'])
+        || !is_string($y['manusPdf'])
+        || !is_array($y['videos'])) {
+      respond(400, ['error' => 'invalid_years_shape']);
+    }
+    $seen[$y['year']] = true;
+    foreach ($y['videos'] as $v) {
+      if (!is_array($v)
+          || !isset($v['label'], $v['url'])
+          || !is_string($v['label']) || $v['label'] === ''
+          || !is_string($v['url']) || !preg_match('#^https?://#', $v['url'])) {
+        respond(400, ['error' => 'invalid_videos_shape']);
+      }
+    }
+  }
+
+  update_file('data/archive.json', function ($json) use ($years) {
+    $json['years'] = $years;
+    return $json;
+  }, 'Opdater archive.json via arkivet');
+}
+
 $RESOURCES = [
-  'manus' => ['level' => 'admin', 'save' => 'save_manus'],
+  'manus'         => ['level' => 'admin', 'save' => 'save_manus'],
+  'announcements' => ['level' => 'admin', 'save' => 'save_announcements'],
+  'calendar'      => ['level' => 'admin', 'save' => 'save_calendar'],
+  'archive'       => ['level' => 'admin', 'save' => 'save_archive'],
 ];
 
 $resource = $body['resource'] ?? '';
