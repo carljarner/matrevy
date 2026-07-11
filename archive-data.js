@@ -38,5 +38,27 @@ const ARCHIVE_DATA = [
         "path": "archive/MateRevy_2024/andet/DaJegVarRUS.tex"
       }
     ]
+  },
+  {
+    "year": 2025,
+    "name": "MatRevy 2025",
+    "folder": "MatRevy_2025",
+    "coverImage": "",
+    "youtubeUrl": "",
+    "manusPdf": "",
+    "sketches": [],
+    "songs": [],
+    "andet": []
+  },
+  {
+    "year": 2023,
+    "name": "MatRevy 2023",
+    "folder": "MatRevy_2023",
+    "coverImage": "",
+    "youtubeUrl": "",
+    "manusPdf": "",
+    "sketches": [],
+    "songs": [],
+    "andet": []
   }
 ];
