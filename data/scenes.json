@@ -1,1397 +1,1397 @@
 {
-  "_schema": "scenes for Matematikrevyen 2024",
-  "_note": "Replace each production. 'schedulable' is false for videos and band jingles with no rehearsable cast. 'cast' maps each person in the scene to their role code from the script.",
-  "production": "Matematikrevyen 2024",
-  "version": "2026-07-10",
-  "acts": [
-    {
-      "act": "1",
-      "label": "Akt 1",
-      "scenes": [
+    "_schema": "scenes for Matematikrevyen 2024",
+    "_note": "Replace each production. 'schedulable' is false for videos and band jingles with no rehearsable cast. 'cast' maps each person in the scene to their role code from the script.",
+    "production": "Matematikrevyen 2024",
+    "version": "2026-07-11",
+    "acts": [
         {
-          "id": "1-1",
-          "number": 1,
-          "name": "Matrevy Sound",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Nadja",
-              "role": "I"
-            },
-            {
-              "name": "Thais",
-              "role": "S"
-            },
-            {
-              "name": "Johan",
-              "role": "B"
-            },
-            {
-              "name": "Lea",
-              "role": "YD"
-            },
-            {
-              "name": "Emma",
-              "role": "D1"
-            },
-            {
-              "name": "Sara",
-              "role": "D2"
-            },
-            {
-              "name": "Nadja",
-              "role": "D3"
-            }
-          ]
+            "act": "1",
+            "label": "Akt 1",
+            "scenes": [
+                {
+                    "id": "1-1",
+                    "number": 1,
+                    "name": "Matrevy Sound",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Nadja",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Thais",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Nadja",
+                            "role": "Dans"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-2",
+                    "number": 2,
+                    "name": "Forskønnelse",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Hugo",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Niklas",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Louie",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Philip",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Frederikke",
+                            "role": "Ninja"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-3",
+                    "number": 3,
+                    "name": "Forklar for mig",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Inga",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Thea",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Katrine",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Augusta",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Kisser",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Anni",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Hanna",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Emilia",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Sang/Rap"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-4",
+                    "number": 4,
+                    "name": "En instruktor siger op",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Snow",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Christian",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-5",
+                    "number": 5,
+                    "name": "Hos numerologen",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Minh",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Frigg",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Ninja"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-6",
+                    "number": 6,
+                    "name": "Video: Matrus",
+                    "schedulable": false,
+                    "priority": 0,
+                    "types": [
+                        "video"
+                    ],
+                    "cast": []
+                },
+                {
+                    "id": "1-7",
+                    "number": 7,
+                    "name": "1612",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Christian",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Snow",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Thor",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Elinborg",
+                            "role": "Statist"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-8",
+                    "number": 8,
+                    "name": "Kaffebarista",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Lise",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Thor",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Louise",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Elinborg",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Minh",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-9",
+                    "number": 9,
+                    "name": "Dygtig vejleder",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Louie",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Hugo",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-10",
+                    "number": 10,
+                    "name": "Video: Instruktørfilm",
+                    "schedulable": false,
+                    "priority": 0,
+                    "types": [
+                        "video"
+                    ],
+                    "cast": []
+                },
+                {
+                    "id": "1-11",
+                    "number": 11,
+                    "name": "Whist",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Niklas",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Nadja",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Maya",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Philip",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Hanna",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Emilia",
+                            "role": "Dans"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-12",
+                    "number": 12,
+                    "name": "Hvorfor er der 2 af dem?",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Thais",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Lise",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "1-13",
+                    "number": 13,
+                    "name": "IT Konsulent Baby",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Snow",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Augusta",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Lisa",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Maya",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Hanna",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Emilia",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Frederikke",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Sang/Rap"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "id": "1-2",
-          "number": 2,
-          "name": "Forskønnelsen",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Hugo",
-              "role": "A"
-            },
-            {
-              "name": "Niklas",
-              "role": "P"
-            },
-            {
-              "name": "Louie",
-              "role": "I"
-            },
-            {
-              "name": "Philip",
-              "role": "N"
-            },
-            {
-              "name": "Frederikke",
-              "role": "N"
-            }
-          ]
+            "act": "2",
+            "label": "Akt 2",
+            "scenes": [
+                {
+                    "id": "2-1",
+                    "number": 1,
+                    "name": "Ah-Ah",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Nadja",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Snow",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Anni",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Katrine",
+                            "role": "Dans"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-2",
+                    "number": 2,
+                    "name": "χ-faktor",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Inga",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Christian",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Louise",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Thais",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-3",
+                    "number": 3,
+                    "name": "Kærlighed på Matematik",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Louie",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Olivia",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Emilia",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Hanna",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Lise",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Maya",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Thea",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Frederikke",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Hugo",
+                            "role": "Statist"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-4",
+                    "number": 4,
+                    "name": "En Imponerende Rekvisit",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Niklas",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Kisser",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Hugo",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Philip",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Thea",
+                            "role": "Ninja"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-5",
+                    "number": 5,
+                    "name": "Omdrejningsfladen",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Nadja",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Frigg",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Augusta",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Louise",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Minh",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Mads",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Statist"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-6",
+                    "number": 6,
+                    "name": "Video: Døre på Nørre Campus",
+                    "schedulable": false,
+                    "priority": 0,
+                    "types": [
+                        "video"
+                    ],
+                    "cast": []
+                },
+                {
+                    "id": "2-7",
+                    "number": 7,
+                    "name": "Første Arbejdsdag",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Nadja",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Snow",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Thor",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Augusta",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Frederikke",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Katrine",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Kisser",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Lise",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Dans"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-8",
+                    "number": 8,
+                    "name": "Den Matemagiske Familie",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Inga",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Philip",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Thais",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Elinborg",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-9",
+                    "number": 9,
+                    "name": "Check ind",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Snow",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Olivia",
+                            "role": "Kor"
+                        },
+                        {
+                            "name": "Inga",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Katrine",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Thea",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Thor",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Anni",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Maya",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Minh",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Ninja"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-10",
+                    "number": 10,
+                    "name": "Kender du det?",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Hugo",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Minh",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Kisser",
+                            "role": "Statist"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-11",
+                    "number": 11,
+                    "name": "Den Store Klagedyst",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Frigg",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Thor",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Niklas",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Thea",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "2-12",
+                    "number": 12,
+                    "name": "Hvad nu hvis",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Louise",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Christian",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Frigg",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Lise",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Louie",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Augusta",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Snow",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Nadja",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Katrine",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Mads",
+                            "role": "Statist"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "id": "1-3",
-          "number": 3,
-          "name": "Forklar for mig",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Inga",
-              "role": "S1"
-            },
-            {
-              "name": "Thea",
-              "role": "S2"
-            },
-            {
-              "name": "Katrine",
-              "role": "YD"
-            },
-            {
-              "name": "Augusta",
-              "role": "D1"
-            },
-            {
-              "name": "Kisser",
-              "role": "D2"
-            },
-            {
-              "name": "Anni",
-              "role": "D3"
-            },
-            {
-              "name": "Hanna",
-              "role": "D4"
-            },
-            {
-              "name": "Emilia",
-              "role": "D5"
-            },
-            {
-              "name": "Johan",
-              "role": "M"
-            }
-          ]
+            "act": "3",
+            "label": "Akt 3",
+            "scenes": [
+                {
+                    "id": "3-1",
+                    "number": 1,
+                    "name": "Ernsts Hus",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Niklas",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Philip",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Mads",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Frederikke",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Thais",
+                            "role": "Ninja"
+                        }
+                    ]
+                },
+                {
+                    "id": "3-2",
+                    "number": 2,
+                    "name": "Matematiker ved himlens porte",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Frigg",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Inga",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "3-3",
+                    "number": 3,
+                    "name": "Video: Rytteriet",
+                    "schedulable": false,
+                    "priority": 0,
+                    "types": [
+                        "video"
+                    ],
+                    "cast": []
+                },
+                {
+                    "id": "3-4",
+                    "number": 4,
+                    "name": "Spørg om Hjælp",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Christian",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Louie",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Nadja",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Mads",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Louise",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Minh",
+                            "role": "Dans"
+                        }
+                    ]
+                },
+                {
+                    "id": "3-5",
+                    "number": 5,
+                    "name": "Fluer i S01",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Hugo",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Kisser",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Thea",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "3-6",
+                    "number": 6,
+                    "name": "Er der nogen spørgsmål?",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Stine",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Anni",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Elinborg",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Inga",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Lise",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Niklas",
+                            "role": "Statist"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Statist"
+                        }
+                    ]
+                },
+                {
+                    "id": "3-7",
+                    "number": 7,
+                    "name": "Malene",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Sommer",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Inga",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Johan",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Thais",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Minh",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Niklas",
+                            "role": "Ninja"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Ninja"
+                        }
+                    ]
+                },
+                {
+                    "id": "3-8",
+                    "number": 8,
+                    "name": "Start med en trekant",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Philip",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Kisser",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Louise",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "3-9",
+                    "number": 9,
+                    "name": "SS SS",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Snow",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Frigg",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Elinborg",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Nadja",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Anni",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Augusta",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Thor",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Dans"
+                        }
+                    ]
+                }
+            ]
         },
         {
-          "id": "1-4",
-          "number": 4,
-          "name": "En instruktor siger op",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Snow",
-              "role": "I"
-            },
-            {
-              "name": "Christian",
-              "role": "I"
-            },
-            {
-              "name": "Baldur",
-              "role": "F"
-            }
-          ]
-        },
-        {
-          "id": "1-5",
-          "number": 5,
-          "name": "Hos numerologen",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Minh",
-              "role": "N"
-            },
-            {
-              "name": "Frigg",
-              "role": "K"
-            },
-            {
-              "name": "Emma",
-              "role": "Ni"
-            }
-          ]
-        },
-        {
-          "id": "1-6",
-          "number": 6,
-          "name": "Video: Matrus",
-          "types": [
-            "video"
-          ],
-          "schedulable": false,
-          "priority": 0,
-          "cast": []
-        },
-        {
-          "id": "1-7",
-          "number": 7,
-          "name": "1612",
-          "types": [
-            "sang"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Christian",
-              "role": "S"
-            },
-            {
-              "name": "Snow",
-              "role": "P"
-            },
-            {
-              "name": "Thor",
-              "role": "St1"
-            },
-            {
-              "name": "Elinborg",
-              "role": "St2"
-            }
-          ]
-        },
-        {
-          "id": "1-8",
-          "number": 8,
-          "name": "Kaffebarista",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Lise",
-              "role": "K"
-            },
-            {
-              "name": "Thor",
-              "role": "S1"
-            },
-            {
-              "name": "Louise",
-              "role": "S2"
-            },
-            {
-              "name": "Elinborg",
-              "role": "S3"
-            },
-            {
-              "name": "Minh",
-              "role": "S4"
-            }
-          ]
-        },
-        {
-          "id": "1-9",
-          "number": 9,
-          "name": "Dygtig vejleder",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Louie",
-              "role": "S"
-            },
-            {
-              "name": "Hugo",
-              "role": "V"
-            }
-          ]
-        },
-        {
-          "id": "1-10",
-          "number": 10,
-          "name": "Video: Instruktørfilm",
-          "types": [
-            "video"
-          ],
-          "schedulable": false,
-          "priority": 0,
-          "cast": []
-        },
-        {
-          "id": "1-11",
-          "number": 11,
-          "name": "Whist",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Niklas",
-              "role": "S1"
-            },
-            {
-              "name": "Baldur",
-              "role": "S2"
-            },
-            {
-              "name": "Nadja",
-              "role": "YD"
-            },
-            {
-              "name": "Maya",
-              "role": "D1"
-            },
-            {
-              "name": "Lea",
-              "role": "D2"
-            },
-            {
-              "name": "Philip",
-              "role": "D3"
-            },
-            {
-              "name": "Hanna",
-              "role": "D4"
-            },
-            {
-              "name": "Emilia",
-              "role": "D5"
-            }
-          ]
-        },
-        {
-          "id": "1-12",
-          "number": 12,
-          "name": "Hvorfor er der 2 af dem?",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Thais",
-              "role": "S1"
-            },
-            {
-              "name": "Lise",
-              "role": "S2"
-            },
-            {
-              "name": "Emma",
-              "role": "U"
-            }
-          ]
-        },
-        {
-          "id": "1-13",
-          "number": 13,
-          "name": "IT Konsulent Baby",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Snow",
-              "role": "S1"
-            },
-            {
-              "name": "Johan",
-              "role": "S2"
-            },
-            {
-              "name": "Augusta",
-              "role": "YD"
-            },
-            {
-              "name": "Lisa",
-              "role": "D1"
-            },
-            {
-              "name": "Maya",
-              "role": "D2"
-            },
-            {
-              "name": "Hanna",
-              "role": "D3"
-            },
-            {
-              "name": "Emilia",
-              "role": "D4"
-            },
-            {
-              "name": "Frederikke",
-              "role": "D5"
-            },
-            {
-              "name": "Sara",
-              "role": "A"
-            }
-          ]
+            "act": "E",
+            "label": "Ekstranumre",
+            "scenes": [
+                {
+                    "id": "E-1",
+                    "number": 1,
+                    "name": "Video: Sammenholdet film",
+                    "schedulable": false,
+                    "priority": 0,
+                    "types": [
+                        "video"
+                    ],
+                    "cast": []
+                },
+                {
+                    "id": "E-2",
+                    "number": 2,
+                    "name": "Hun skriver på den",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Nadja",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Thais",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Hanna",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Emilia",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Philip",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Mads",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Sara",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Thea",
+                            "role": "Dans"
+                        }
+                    ]
+                },
+                {
+                    "id": "E-3",
+                    "number": 3,
+                    "name": "KuMail",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sketch"
+                    ],
+                    "cast": [
+                        {
+                            "name": "KE",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Lise",
+                            "role": "Skuespil"
+                        },
+                        {
+                            "name": "Hugo",
+                            "role": "Skuespil"
+                        }
+                    ]
+                },
+                {
+                    "id": "E-4",
+                    "number": 4,
+                    "name": "Venter til i morgen",
+                    "schedulable": true,
+                    "priority": 0,
+                    "types": [
+                        "sang",
+                        "dans"
+                    ],
+                    "cast": [
+                        {
+                            "name": "Snow",
+                            "role": "Instruktør"
+                        },
+                        {
+                            "name": "Baldur",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Emma",
+                            "role": "Sang/Rap"
+                        },
+                        {
+                            "name": "Katrine",
+                            "role": "Koreograf"
+                        },
+                        {
+                            "name": "Lea",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Frederikke",
+                            "role": "Dans"
+                        },
+                        {
+                            "name": "Maya",
+                            "role": "Dans"
+                        }
+                    ]
+                }
+            ]
         }
-      ]
-    },
-    {
-      "act": "2",
-      "label": "Akt 2",
-      "scenes": [
-        {
-          "id": "2-1",
-          "number": 1,
-          "name": "Ah-Ah",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Nadja",
-              "role": "YDI"
-            },
-            {
-              "name": "Snow",
-              "role": "S"
-            },
-            {
-              "name": "Sara",
-              "role": "D1"
-            },
-            {
-              "name": "Lea",
-              "role": "D2"
-            },
-            {
-              "name": "Anni",
-              "role": "D3"
-            },
-            {
-              "name": "Katrine",
-              "role": "D4"
-            }
-          ]
-        },
-        {
-          "id": "2-2",
-          "number": 2,
-          "name": "χ-faktor",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Inga",
-              "role": "V"
-            },
-            {
-              "name": "Baldur",
-              "role": "S"
-            },
-            {
-              "name": "Christian",
-              "role": "D1"
-            },
-            {
-              "name": "Louise",
-              "role": "D2"
-            },
-            {
-              "name": "Thais",
-              "role": "D3"
-            }
-          ]
-        },
-        {
-          "id": "2-3",
-          "number": 3,
-          "name": "Kærlighed på Matematik",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Louie",
-              "role": "S1"
-            },
-            {
-              "name": "Olivia",
-              "role": "S2"
-            },
-            {
-              "name": "Lea",
-              "role": "Y"
-            },
-            {
-              "name": "Emilia",
-              "role": "D1"
-            },
-            {
-              "name": "Hanna",
-              "role": "D2"
-            },
-            {
-              "name": "Lise",
-              "role": "D3"
-            },
-            {
-              "name": "Maya",
-              "role": "D4"
-            },
-            {
-              "name": "Emma",
-              "role": "St1"
-            },
-            {
-              "name": "Sara",
-              "role": "St2"
-            },
-            {
-              "name": "Thea",
-              "role": "St3"
-            },
-            {
-              "name": "Frederikke",
-              "role": "St4"
-            },
-            {
-              "name": "Hugo",
-              "role": "St5"
-            }
-          ]
-        },
-        {
-          "id": "2-4",
-          "number": 4,
-          "name": "En Imponerende Rekvisit",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Niklas",
-              "role": "I"
-            },
-            {
-              "name": "Kisser",
-              "role": "S"
-            },
-            {
-              "name": "Hugo",
-              "role": "N"
-            },
-            {
-              "name": "Philip",
-              "role": "N"
-            },
-            {
-              "name": "Thea",
-              "role": "N"
-            }
-          ]
-        },
-        {
-          "id": "2-5",
-          "number": 5,
-          "name": "Omdrejningsfladen",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Nadja",
-              "role": "I"
-            },
-            {
-              "name": "Frigg",
-              "role": "S"
-            },
-            {
-              "name": "Augusta",
-              "role": "YD"
-            },
-            {
-              "name": "Louise",
-              "role": "D1"
-            },
-            {
-              "name": "Minh",
-              "role": "D2"
-            },
-            {
-              "name": "Mads",
-              "role": "D3"
-            },
-            {
-              "name": "Baldur",
-              "role": "St"
-            }
-          ]
-        },
-        {
-          "id": "2-6",
-          "number": 6,
-          "name": "Video: Døre på Nørre Campus",
-          "types": [
-            "video"
-          ],
-          "schedulable": false,
-          "priority": 0,
-          "cast": []
-        },
-        {
-          "id": "2-7",
-          "number": 7,
-          "name": "Første Arbejdsdag",
-          "types": [
-            "sketch",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Nadja",
-              "role": "YD1"
-            },
-            {
-              "name": "Snow",
-              "role": "YD2"
-            },
-            {
-              "name": "Thor",
-              "role": "N"
-            },
-            {
-              "name": "Augusta",
-              "role": "D1"
-            },
-            {
-              "name": "Emma",
-              "role": "D2"
-            },
-            {
-              "name": "Frederikke",
-              "role": "D3"
-            },
-            {
-              "name": "Katrine",
-              "role": "D4"
-            },
-            {
-              "name": "Kisser",
-              "role": "D5"
-            },
-            {
-              "name": "Lea",
-              "role": "D6"
-            },
-            {
-              "name": "Lise",
-              "role": "D7"
-            },
-            {
-              "name": "Sara",
-              "role": "D8"
-            }
-          ]
-        },
-        {
-          "id": "2-8",
-          "number": 8,
-          "name": "Den Matemagiske Familie",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Inga",
-              "role": "Y"
-            },
-            {
-              "name": "Philip",
-              "role": "S"
-            },
-            {
-              "name": "Thais",
-              "role": "G"
-            },
-            {
-              "name": "Elinborg",
-              "role": "T"
-            }
-          ]
-        },
-        {
-          "id": "2-9",
-          "number": 9,
-          "name": "Check ind",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Snow",
-              "role": "YDI"
-            },
-            {
-              "name": "Emma",
-              "role": "S"
-            },
-            {
-              "name": "Olivia",
-              "role": "K"
-            },
-            {
-              "name": "Inga",
-              "role": "X"
-            },
-            {
-              "name": "Katrine",
-              "role": "F"
-            },
-            {
-              "name": "Thea",
-              "role": "D1"
-            },
-            {
-              "name": "Thor",
-              "role": "D2"
-            },
-            {
-              "name": "Anni",
-              "role": "D3"
-            },
-            {
-              "name": "Maya",
-              "role": "D4"
-            },
-            {
-              "name": "Baldur",
-              "role": "N"
-            },
-            {
-              "name": "Lea",
-              "role": "N"
-            },
-            {
-              "name": "Minh",
-              "role": "N"
-            },
-            {
-              "name": "Johan",
-              "role": "N"
-            }
-          ]
-        },
-        {
-          "id": "2-10",
-          "number": 10,
-          "name": "Kender du det?",
-          "types": [
-            "sang"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Hugo",
-              "role": "L"
-            },
-            {
-              "name": "Minh",
-              "role": "St"
-            },
-            {
-              "name": "Kisser",
-              "role": "St"
-            }
-          ]
-        },
-        {
-          "id": "2-11",
-          "number": 11,
-          "name": "Den Store Klagedyst",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Frigg",
-              "role": "T"
-            },
-            {
-              "name": "Thor",
-              "role": "X"
-            },
-            {
-              "name": "Niklas",
-              "role": "Y"
-            },
-            {
-              "name": "Thea",
-              "role": "S"
-            }
-          ]
-        },
-        {
-          "id": "2-12",
-          "number": 12,
-          "name": "Hvad nu hvis",
-          "types": [
-            "sang"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Louise",
-              "role": "S1"
-            },
-            {
-              "name": "Christian",
-              "role": "S2"
-            },
-            {
-              "name": "Frigg",
-              "role": "Nik"
-            },
-            {
-              "name": "Lise",
-              "role": "Jay"
-            },
-            {
-              "name": "Sara",
-              "role": "St1"
-            },
-            {
-              "name": "Johan",
-              "role": "St2"
-            },
-            {
-              "name": "Louie",
-              "role": "St3"
-            },
-            {
-              "name": "Augusta",
-              "role": "St4"
-            },
-            {
-              "name": "Snow",
-              "role": "St5"
-            },
-            {
-              "name": "Nadja",
-              "role": "St6"
-            },
-            {
-              "name": "Katrine",
-              "role": "St7"
-            },
-            {
-              "name": "Mads",
-              "role": "St8"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "act": "3",
-      "label": "Akt 3",
-      "scenes": [
-        {
-          "id": "3-1",
-          "number": 1,
-          "name": "Ernsts Hus",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Johan",
-              "role": "R1"
-            },
-            {
-              "name": "Niklas",
-              "role": "R2"
-            },
-            {
-              "name": "Philip",
-              "role": "E"
-            },
-            {
-              "name": "Baldur",
-              "role": "YD"
-            },
-            {
-              "name": "Mads",
-              "role": "D1"
-            },
-            {
-              "name": "Sara",
-              "role": "D2"
-            },
-            {
-              "name": "Frederikke",
-              "role": "D3"
-            },
-            {
-              "name": "Thais",
-              "role": "Ni"
-            }
-          ]
-        },
-        {
-          "id": "3-2",
-          "number": 2,
-          "name": "Matematiker ved himlens porte",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Frigg",
-              "role": "S"
-            },
-            {
-              "name": "Inga",
-              "role": "P"
-            }
-          ]
-        },
-        {
-          "id": "3-3",
-          "number": 3,
-          "name": "Video: Rytteriet",
-          "types": [
-            "video"
-          ],
-          "schedulable": false,
-          "priority": 0,
-          "cast": []
-        },
-        {
-          "id": "3-4",
-          "number": 4,
-          "name": "Spørg om Hjælp",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Christian",
-              "role": "S1"
-            },
-            {
-              "name": "Louie",
-              "role": "S2"
-            },
-            {
-              "name": "Nadja",
-              "role": "Y"
-            },
-            {
-              "name": "Mads",
-              "role": "D1"
-            },
-            {
-              "name": "Louise",
-              "role": "D2"
-            },
-            {
-              "name": "Minh",
-              "role": "D3"
-            }
-          ]
-        },
-        {
-          "id": "3-5",
-          "number": 5,
-          "name": "Fluer i S01",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Hugo",
-              "role": "F1"
-            },
-            {
-              "name": "Kisser",
-              "role": "F2"
-            },
-            {
-              "name": "Thea",
-              "role": "F3"
-            }
-          ]
-        },
-        {
-          "id": "3-6",
-          "number": 6,
-          "name": "Er der nogen spørgsmål?",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Stine",
-              "role": "I"
-            },
-            {
-              "name": "Johan",
-              "role": "M"
-            },
-            {
-              "name": "Anni",
-              "role": "S1"
-            },
-            {
-              "name": "Elinborg",
-              "role": "S2"
-            },
-            {
-              "name": "Inga",
-              "role": "St1"
-            },
-            {
-              "name": "Lise",
-              "role": "St2"
-            },
-            {
-              "name": "Niklas",
-              "role": "St3"
-            },
-            {
-              "name": "Lea",
-              "role": "St4"
-            }
-          ]
-        },
-        {
-          "id": "3-7",
-          "number": 7,
-          "name": "Malene",
-          "types": [
-            "sang"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Sommer",
-              "role": "I"
-            },
-            {
-              "name": "Inga",
-              "role": "S"
-            },
-            {
-              "name": "Johan",
-              "role": "F"
-            },
-            {
-              "name": "Thais",
-              "role": "N1"
-            },
-            {
-              "name": "Minh",
-              "role": "N2"
-            },
-            {
-              "name": "Emma",
-              "role": "N"
-            },
-            {
-              "name": "Niklas",
-              "role": "N"
-            },
-            {
-              "name": "Sara",
-              "role": "N"
-            }
-          ]
-        },
-        {
-          "id": "3-8",
-          "number": 8,
-          "name": "Start med en trekant",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Philip",
-              "role": "S1"
-            },
-            {
-              "name": "Kisser",
-              "role": "S2"
-            },
-            {
-              "name": "Louise",
-              "role": "S3"
-            }
-          ]
-        },
-        {
-          "id": "3-9",
-          "number": 9,
-          "name": "SS SS",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Snow",
-              "role": "YDI"
-            },
-            {
-              "name": "Frigg",
-              "role": "S1"
-            },
-            {
-              "name": "Elinborg",
-              "role": "S2"
-            },
-            {
-              "name": "Nadja",
-              "role": "D1"
-            },
-            {
-              "name": "Anni",
-              "role": "D2"
-            },
-            {
-              "name": "Augusta",
-              "role": "D3"
-            },
-            {
-              "name": "Thor",
-              "role": "D4"
-            },
-            {
-              "name": "Baldur",
-              "role": "D5"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "act": "E",
-      "label": "Ekstranumre",
-      "scenes": [
-        {
-          "id": "E-1",
-          "number": 1,
-          "name": "Video: Sammenholdet film",
-          "types": [
-            "video"
-          ],
-          "schedulable": false,
-          "priority": 0,
-          "cast": []
-        },
-        {
-          "id": "E-2",
-          "number": 2,
-          "name": "Hun skriver på den",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Nadja",
-              "role": "IY"
-            },
-            {
-              "name": "Thais",
-              "role": "S"
-            },
-            {
-              "name": "Hanna",
-              "role": "D1"
-            },
-            {
-              "name": "Emilia",
-              "role": "D2"
-            },
-            {
-              "name": "Philip",
-              "role": "D3"
-            },
-            {
-              "name": "Mads",
-              "role": "D4"
-            },
-            {
-              "name": "Sara",
-              "role": "D5"
-            },
-            {
-              "name": "Thea",
-              "role": "D6"
-            }
-          ]
-        },
-        {
-          "id": "E-3",
-          "number": 3,
-          "name": "KuMail",
-          "types": [
-            "sketch"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "KE",
-              "role": "I"
-            },
-            {
-              "name": "Lise",
-              "role": "K"
-            },
-            {
-              "name": "Hugo",
-              "role": "V"
-            }
-          ]
-        },
-        {
-          "id": "E-4",
-          "number": 4,
-          "name": "Venter til i morgen",
-          "types": [
-            "sang",
-            "dans"
-          ],
-          "schedulable": true,
-          "priority": 0,
-          "cast": [
-            {
-              "name": "Snow",
-              "role": "I"
-            },
-            {
-              "name": "Baldur",
-              "role": "R1"
-            },
-            {
-              "name": "Emma",
-              "role": "R2"
-            },
-            {
-              "name": "Katrine",
-              "role": "YD"
-            },
-            {
-              "name": "Lea",
-              "role": "D1"
-            },
-            {
-              "name": "Frederikke",
-              "role": "D2"
-            },
-            {
-              "name": "Maya",
-              "role": "D3"
-            }
-          ]
-        }
-      ]
-    }
-  ]
+    ]
 }
