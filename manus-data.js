@@ -1,29 +1,28 @@
 /* =========================================================
    Matematikrevyen – Active scene/cast data source
-   Scheduling data normally comes from the embedded SCENES_DATA /
-   CAST_DATA globals (scenes-data.js, generated from data/*.json).
-   The manus-import tool (import.js) can locally override that with
-   data saved to localStorage — this is the single place both
-   schedule.js and import.js check which one is currently active.
+   Scheduling data comes from the embedded SCENES_DATA / CAST_DATA
+   globals (scenes-data.js, generated from data/*.json). A manus-tool
+   save (import.js's applyImport()) writes those files globally via
+   server/update-data.php, then reloads once the GitHub Action has
+   regenerated scenes-data.js — but that round trip takes a minute or
+   two, so a successful save also sets an in-memory (page-lifetime
+   only, never persisted) shadow here for instant same-tab feedback.
+   This is the single place both schedule.js and import.js check which
+   one is currently active.
    ========================================================= */
 
 'use strict';
 
-const MANUS_OVERRIDE_KEY = 'matrevy-manus-data';
+let manusSavedOverride = null;
 
-function getManusOverride() {
-  try {
-    const raw = localStorage.getItem(MANUS_OVERRIDE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch (e) { return null; }
+function setManusSavedOverride(data) {
+  manusSavedOverride = data;
 }
 
 function getEffectiveScenesData() {
-  const override = getManusOverride();
-  return override ? override.scenes : SCENES_DATA;
+  return manusSavedOverride ? manusSavedOverride.scenes : SCENES_DATA;
 }
 
 function getEffectiveCastData() {
-  const override = getManusOverride();
-  return override ? override.cast : CAST_DATA;
+  return manusSavedOverride ? manusSavedOverride.cast : CAST_DATA;
 }

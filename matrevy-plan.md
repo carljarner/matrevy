@@ -22,93 +22,6 @@ The site is intentionally internal-facing. A login wall will be added at a later
 
 ---
 
-### Sub-Task 1 — Repository & Site Shell
-
-**Intent**
-Set up the GitHub repository and build the outer site shell: navigation, main/landing page, and a placeholder manus page. This establishes the structure all future pages plug into.
-
-**Expected Outcomes**
-- A GitHub repository exists with the project files.
-- A working multi-page site with a top navigation bar.
-- A `Main` page (index.html) with a section for coordinator announcements/messages.
-- A `Manus` page (manus.html) as a placeholder.
-- Clean, modern styling (neutral colours, readable typography).
-- Easy to add new pages by copying a template.
-
-**Todo List**
-1. Create GitHub repository `matrevy-website` (user does this; Bob provides instructions).
-2. Create `index.html` — main/landing page with a messages/announcements section.
-3. Create `manus.html` — placeholder page.
-4. Create `style.css` — shared stylesheet with navigation, page layout, and typography.
-5. Create `page-template.html` — a blank page template so new pages are trivial to add.
-6. Commit and push to GitHub.
-7. Enable GitHub Pages on the repository.
-
-**Relevant Context**
-- The existing site is at `manus.matrevy.dk` — the new site should feel like a modern replacement.
-- Navigation must be easy to extend (just add a link).
-
-**Status**: [ ] pending
-
----
-
-### Sub-Task 2 — Scene Data JSON
-
-**Intent**
-Convert the scene/cast data from the LaTeX appendix (as seen in `Scenes.pdf`) into a structured JSON file. This JSON is the input to the scheduling tool and any other page that needs to display cast/scene information.
-
-**Expected Outcomes**
-- A `data/scenes.json` file containing all scenes from Matematikrevyen 2025.
-- Each scene entry includes: act, scene number, scene name, time estimate (minutes), and an array of cast members with their role codes.
-- The JSON is human-readable and easy to update for future productions.
-
-**Todo List**
-1. Define the JSON schema (act, number, name, duration_minutes, cast: [{name, role_code}]).
-2. Parse `Scenes.pdf` data and write `data/scenes.json` covering all acts and extra numbers.
-3. Write `data/cast.json` with the full cast list and what role type each code maps to (D = dancer, I = director, etc.).
-4. Add a brief `README.md` in `data/` explaining how to update the files for a new production.
-
-**Relevant Context**
-- Source: `Scenes.pdf` — Rolleoversigt table (pages 4–5 of the PDF).
-- Role codes: D = dancer, I = director, others are acting roles (S, R, F, etc.).
-- Some scenes are videos or band jingles (duration 0) — these should be flagged and excluded from scheduling.
-
-**Status**: [ ] pending
-
----
-
-### Sub-Task 3 — Scheduling Tool: Input & Grid UI
-
-**Intent**
-Build the rehearsal scheduling page (`schedule.html`). This sub-task covers the day-setup inputs and the visual schedule grid — the interactive canvas the coordinator works on.
-
-**Expected Outcomes**
-- A `schedule.html` page accessible from the navigation.
-- A day-setup panel where the coordinator can:
-  - Set the day's start time, end time, and break times.
-  - Enter the list of rooms available that day.
-  - Enter the list of cast members absent for the full day.
-  - Set a rehearsal priority score (0–3) per scene.
-- A schedule grid rendered as a table: rooms as columns, 30-minute time slots as rows.
-- Empty slots are visually distinct from filled ones.
-- The grid updates live as the coordinator changes day-setup inputs.
-
-**Todo List**
-1. Build the day-setup form (time range, rooms, absences, priority scores).
-2. Render the schedule grid from the form inputs (rooms × time slots).
-3. Style the grid to match the look of the existing PDF schedule.
-4. Load scene and cast data from `data/scenes.json`.
-5. Show a sidebar/panel listing all schedulable scenes with their priority score and cast count.
-
-**Relevant Context**
-- The existing schedule runs 10:00–17:00 with 30-minute blocks and 5-minute gaps.
-- Rooms from the example: Lille UP1, Store UP1, Biblioteket, A101, A102, A105, A106, A107, Bandet, Rekvisitten.
-- Videos and band jingles (duration 0) are excluded from the scheduling tool.
-
-**Status**: [ ] pending
-
----
-
 ### Sub-Task 4 — Scheduling Tool: Auto-Place Algorithm
 
 **Intent**
@@ -134,90 +47,106 @@ Implement the optimization step: automatically distribute all scenes with priori
 - A scene spans one 30-minute slot by default; if its duration > 30 min it occupies consecutive slots in the same room.
 - The algorithm should place scenes "across the whole day" (not top-to-bottom per room) — fill the highest-need scenes first across all available slots.
 
-**Status**: [ ] pending
-
----
-
-### Sub-Task 5 — Scheduling Tool: Drag-and-Drop & Manual Editing
-
-**Intent**
-Allow the coordinator to freely move scenes between cells after auto-placement, and to manually add scenes to empty slots from the scene sidebar.
-
-**Expected Outcomes**
-- Scenes in the grid are draggable to other empty cells.
-- Dragging a scene to a cell with a cast conflict shows a warning (but does not block the move — coordinator can override).
-- Clicking an empty cell opens a scene picker to manually assign a scene.
-- Scenes can be removed from a cell (returned to the unplaced sidebar list).
-- The page state is saved to `localStorage` so refreshing doesn't lose work.
-
-**Todo List**
-1. Implement drag-and-drop using the HTML5 Drag and Drop API.
-2. Add conflict highlighting: when dragging, highlight cells where the dragged scene would have a cast conflict.
-3. Implement click-to-assign on empty cells (dropdown or search of unplaced scenes).
-4. Implement remove/unassign on placed scenes.
-5. Save and restore schedule state to/from `localStorage`.
-
-**Relevant Context**
-- Cast conflict = any cast member of the dragged scene is already scheduled in the same time slot in any other room.
-- The coordinator should always be able to override conflicts — warnings only, no hard blocks on manual edits.
-
-**Status**: [ ] pending
-
----
-
-### Sub-Task 6 — Scheduling Tool: Cast Attendance View & PDF Export
-
-**Intent**
-Show the cast attendance column (who is present/absent per slot) and implement the PDF export that matches the existing schedule format.
-
-**Expected Outcomes**
-- Each grid cell shows the scene name and the cast list for that scene, with absent members shown crossed out or in parentheses.
-- A "Export to PDF" button triggers a print-optimised view of the schedule grid.
-- The printed output matches the style of `rehearsal_schedule.pdf`: rooms as columns, time slots as rows, scene name + cast list in each cell.
-- Page breaks are handled cleanly for longer schedules.
-
-**Todo List**
-1. Render cast names inside each filled grid cell, crossing out absent members.
-2. Write a `@media print` CSS stylesheet that hides the UI controls and formats the grid for A4 paper.
-3. Add an "Export PDF" button that calls `window.print()`.
-4. Test print output against `rehearsal_schedule.pdf` as a reference.
-
-**Relevant Context**
-- Reference output: `rehearsal_schedule.pdf` — rooms as columns, 30-min slots as rows, scene + cast list per cell.
-- Absent members should be visually distinct but still present in the cell (crossed out or parenthesised), so the rest of the cast know who to wait for.
-
-**Status**: [ ] pending
-
----
-
-### Sub-Task 7 — GitHub & Deployment Setup
-
-**Intent**
-Connect the repository to GitHub Pages and point the Simply.com domain to it, so the site is live at the existing domain.
-
-**Expected Outcomes**
-- The site is publicly accessible at the production URL.
-- A `README.md` at the repo root explains how to update the site and the data files for a new production.
-- The coordinator knows how to push changes and see them go live.
-
-**Todo List**
-1. Enable GitHub Pages on the `main` branch (or a `/docs` folder if preferred).
-2. Add a custom domain in the GitHub Pages settings.
-3. Update the DNS CNAME record on Simply.com to point to the GitHub Pages URL.
-4. Verify the site loads at the domain.
-5. Write `README.md` with instructions for: updating scene data, adding pages, and deploying changes.
-
-**Relevant Context**
-- Current domain host: Simply.com.
-- Current URL pattern from the PDF footer: `manus.matrevy.dk/oeveplan/plan.html` — the new site should ideally preserve or improve this structure.
-
-**Status**: [ ] pending
+**Status**: implemented, then removed — deliberately deferred for a future redesign (see CLAUDE.md's scheduling-tool notes on scene priority: priority 0–3 is currently just a manual-placement aid with no automatic placement behind it).
 
 ---
 
 ## Open Questions / Future Phases
 
-- **Login / access control**: Some pages will eventually be behind a login form. This is explicitly out of scope for the current build and will be a separate phase.
-- **Manus page content**: The content for the manus page has not been described yet — to be filled in when ready.
-- **Additional pages**: The user noted there will be more pages. These can be added using the page template from Sub-Task 1.
-- **New productions**: The JSON data files in `data/` are replaced each cycle. A future improvement could be a LaTeX-to-JSON parser to automate this.
+- **Login / access control**: Some pages will eventually be behind a login form. This is explicitly out of scope for the current build and will be a separate phase. Still not implemented.
+- **Manus page content**: The content for the manus page has not been described yet — to be filled in when ready. Still a placeholder ("Manussiden er under opbygning").
+- **Additional pages**: The user noted there will be more pages. These can be added using `page-template.html`.
+- **New productions**: The JSON data files in `data/` are replaced each cycle. A LaTeX-to-JSON parser now partially exists — the manus edit tool (`import.js`/`manus-data.js`) already parses `.tex` sketch files into scene/cast data, but only writes to `localStorage`; promoting a browser's edits into the committed `data/scenes.json`/`cast.json` is still a manual step.
+
+---
+
+### Sub-Task — Make Manus Tool Data Global (not per-browser localStorage)
+
+**Intent**
+Replace the manus edit tool's `localStorage`-only save (`import.js`'s `applyImport()`,
+`manus-data.js`'s `MANUS_OVERRIDE_KEY`/`getManusOverride()`) with a genuinely global write,
+so one coordinator's "Opdater" is visible to everyone instead of only their own browser.
+Real admin login is explicitly deferred to a later phase; a shared PIN is a deliberate
+interim stopgap.
+
+**Architecture**
+```
+schedule.html (Rediger Manus modal)
+   │ user clicks "Opdater"
+   ▼
+import.js: applyImport()
+   │ POST { pin, scenes, cast } over HTTPS
+   ▼
+Simply.com PHP proxy (server/update-data.php)
+   │ checks PIN, validates JSON shape
+   │ calls GitHub Contents API with a server-side-only PAT
+   ▼
+GitHub repo: commits data/scenes.json + data/cast.json to main
+   │ push triggers
+   ▼
+New GitHub Action (.github/workflows/embed-scenes.yml)
+   │ runs node scripts/embed-scenes.js, commits regenerated scenes-data.js
+   ▼
+GitHub Pages rebuilds (~1-2 min) — everyone sees the change
+```
+This uses the user's existing Simply.com hosting plan (which includes PHP) as the
+server-side piece holding the GitHub write credential, rather than introducing new
+infrastructure like Cloudflare Workers.
+
+**Expected Outcomes**
+- A save in the manus tool updates the real `data/scenes.json`/`data/cast.json` in the repo
+  for everyone, not just the saving browser.
+- `scenes-data.js` regenerates automatically (via a new GitHub Action) — no manual
+  `node scripts/embed-scenes.js` step needed for this flow.
+- The write endpoint is gated by a single shared PIN, easy to remove once real login exists.
+- Concurrent-edit conflicts (stale GitHub file `sha`) are surfaced clearly, never silently
+  overwritten.
+
+**Todo List**
+1. Generate a fine-grained GitHub PAT scoped to just this repo, **Contents: read & write**
+   only. Never commit it — store only in the PHP proxy's server-side config.
+2. Build `server/update-data.php` (committed to the repo for review, deployed by hand to
+   Simply.com): validates the PIN and JSON shape, then for each of
+   `data/scenes.json`/`data/cast.json` does GET (fetch current `sha`) → PUT (commit new
+   base64 content) via GitHub's Contents API; returns a clear conflict error on `409`.
+3. Add `server/config.example.php` (committed, documents required constants: `GITHUB_TOKEN`,
+   `GITHUB_OWNER`, `GITHUB_REPO`, `SHARED_PIN`) and `server/config.php` (gitignored, holds
+   the real secrets, lives only on the Simply.com server).
+4. Add `.github/workflows/embed-scenes.yml`: on push to `main` touching
+   `data/scenes.json`/`data/cast.json`, run `node scripts/embed-scenes.js` and commit the
+   regenerated `scenes-data.js` back to `main`.
+5. Rewrite `manus-data.js`: remove the `localStorage` override entirely;
+   `getEffectiveScenesData()`/`getEffectiveCastData()` read `SCENES_DATA`/`CAST_DATA`,
+   optionally shadowed by an in-memory (not persisted) "just saved this tab" value for
+   instant same-tab feedback.
+6. Rewrite `import.js`'s `applyImport()`: prompt for the PIN once per tab (cached in
+   `sessionStorage`), POST `{ pin, scenes, cast }` to the proxy, spinner on "Opdater" while
+   in flight, success closes the modal with a brief confirmation, failure (bad PIN, network,
+   conflict) shows an inline error (reuse the existing `importWarning()` pattern) and keeps
+   the modal open so edits aren't lost.
+7. Update CLAUDE.md's "Manus edit tool" section (currently says this is explicitly "local,
+   not the publishing pipeline") and `data/README.md` to describe the new global-save flow.
+
+**Relevant Context**
+- Current write point: `import.js` lines ~588-634 (`applyImport()`), ending in
+  `localStorage.setItem(MANUS_OVERRIDE_KEY, ...); location.reload();`.
+- `getEffectiveScenesData()`/`getEffectiveCastData()` (`manus-data.js`) are read by
+  `schedule.js` in several places (`loadScenes()`, cast-name lookups) — signatures must stay
+  the same so those call sites keep working unchanged.
+- Out of scope: real user accounts/login — the PIN is a deliberate stopgap only.
+
+**Status**: [x] implemented in code (`server/update-data.php`, `server/config.example.php`,
+`.github/workflows/embed-scenes.yml`, rewritten `manus-data.js`/`import.js`). Deployed: a
+`manus.matematikrevy.dk` subdomain (CNAME + `www.manus` CNAME, both to
+`matematikrevy.dk.linux32.unoeuro-server.com`) was created on the Simply.com hosting account,
+issued a free Let's Encrypt certificate, and now serves `update-data.php`/`config.php` — verified
+reachable over HTTPS with a matching cert, and `import.js`'s `MANUS_SAVE_ENDPOINT` now points at
+`https://manus.matematikrevy.dk/update-data.php`. Remaining before an actual "Opdater" save will
+succeed: `server/config.php` on that server still needs its placeholder `GITHUB_TOKEN` (a
+fine-grained PAT scoped to just this repo, Contents: read & write) and `SHARED_PIN` filled in
+with real values — until then the endpoint responds correctly to a bad/missing PIN but can't yet
+commit to GitHub. Also note: Simply.com's Website Application Firewall serves a JS proof-of-work
+challenge to traffic it deems suspicious (confirmed via testing) — it did not trigger for a
+real browser's direct GET to the endpoint, but hasn't yet been confirmed against an actual
+cross-origin `fetch()` POST from `matematikrevy.dk`; if "Opdater" ever silently fails, check
+whether the response body is HTML (a challenge page) rather than JSON.

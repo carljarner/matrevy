@@ -150,6 +150,26 @@ async function loadScenes() {
   state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...getEffectiveScenesData()]);
 }
 
+// Re-derives state.allScenes/state.scenes from getEffectiveScenesData() right
+// now, bypassing loadScenes()'s "already loaded" guard — used after a manus
+// tool save (import.js's applyImport()) so the sidebar/grid reflect the new
+// data immediately, without a page reload (which would drop the in-memory
+// manusSavedOverride set by that same save — see manus-data.js). Only
+// reachable once a grid already exists (the manus button lives inside the
+// sidebar, which stays hidden until buildGrid()/restoreState() has run), so
+// state.scenes is always safe to recompute here the same way those two do.
+function refreshScenesFromSource() {
+  state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...getEffectiveScenesData()]);
+  const prevPriorities = {};
+  for (const sc of state.scenes) prevPriorities[sc.id] = sc.priority;
+  state.scenes = state.allScenes
+    .filter(s => s.schedulable)
+    .map(s => ({ ...s, priority: prevPriorities[s.id] ?? s.priority ?? 0 }));
+  renderGrid();
+  renderSceneSidebar();
+  saveState();
+}
+
 // ── Build grid ────────────────────────────────────────────
 async function buildGrid() {
   await loadScenes();

@@ -8,16 +8,24 @@
    a scene sits in and its position within it. New scenes (manual
    add, or an uploaded .tex that doesn't name-match anything) land
    in a staging "Ikke placeret" section until dragged into an act.
-   Applying writes the result straight into localStorage (read via
-   manus-data.js's getEffectiveScenesData()/getEffectiveCastData())
-   and reloads. This does NOT touch data/scenes.json — it's a fast
-   local-iteration loop, not the git-committed publishing pipeline.
+   Applying POSTs { pin, scenes, cast } to a PHP proxy
+   (server/update-data.php) which commits data/scenes.json and
+   data/cast.json to the repo via the GitHub Contents API — a global
+   save visible to every coordinator, not just this browser. A
+   GitHub Action then regenerates scenes-data.js; in the meantime
+   this tab shows the new data immediately via an in-memory shadow
+   (manus-data.js's setManusSavedOverride()) rather than reloading.
+   Gated by a shared PIN (see CLAUDE.md) — a deliberate stopgap until
+   real coordinator login exists.
    Only \title{} and \begin{roles}...\end{roles} are parsed out of
    uploaded .tex files; everything else (props, sketch body, \says,
    stage directions) is deliberately ignored.
    ========================================================= */
 
 'use strict';
+
+const MANUS_SAVE_ENDPOINT = 'https://manus.matematikrevy.dk/update-data.php';
+const MANUS_PIN_SESSION_KEY = 'matrevy-manus-pin';
 
 // ── State ─────────────────────────────────────────────────
 // importActs: [{ code, label }] — fixed, derived from the current data each time the modal opens.
@@ -584,8 +592,33 @@ function importTextField(labelText, value, onChange) {
   return label;
 }
 
-// ── Apply: merge into current data + save ──────────────────
-function applyImport() {
+// ── Apply: build data + POST globally ───────────────────────
+function getCachedPin() {
+  try { return sessionStorage.getItem(MANUS_PIN_SESSION_KEY) || ''; } catch (e) { return ''; }
+}
+function setCachedPin(pin) {
+  try { sessionStorage.setItem(MANUS_PIN_SESSION_KEY, pin); } catch (e) { /* ignore */ }
+}
+
+function setApplyBusy(busy) {
+  const btn = document.getElementById('import-apply');
+  btn.disabled = busy;
+  btn.textContent = busy ? 'Gemmer…' : 'Opdater';
+}
+
+function clearApplyError() {
+  const existing = document.getElementById('import-apply-error');
+  if (existing) existing.remove();
+}
+function showApplyError(text) {
+  clearApplyError();
+  const w = importWarning(text);
+  w.id = 'import-apply-error';
+  w.style.marginRight = 'auto';
+  document.querySelector('#import-overlay .picker-footer').prepend(w);
+}
+
+async function applyImport() {
   if (!importState.scenes.length) { alert('Ingen scener at opdatere.'); return; }
 
   for (const f of importState.scenes) {
@@ -604,17 +637,18 @@ function applyImport() {
     }
   }
 
-  const scenes = [];
-  for (const act of importActs) {
+  // Nested act-grouped structure — matches data/scenes.json's real schema,
+  // sent to the server as-is to become its new "acts" value.
+  const acts = importActs.map(act => {
     const sceneEntries = importState.scenes.filter(s => s.actCode === act.code);
-    sceneEntries.forEach((f, idx) => {
+    const sceneList = sceneEntries.map((f, idx) => {
       const number = idx + 1;
       const castList = f.cast
         .filter(c => c.name.trim() && c.code.trim())
         .map(c => ({ name: c.name.trim(), role: c.code.trim() }));
       castList.forEach(c => ensureCastMember(c.name));
 
-      scenes.push({
+      return {
         id: `${act.code}-${number}`,
         number,
         name: f.name.trim(),
@@ -622,13 +656,54 @@ function applyImport() {
         priority: 0,
         types: f.types.slice(),
         cast: castList,
-        actLabel: act.label,
-      });
+      };
     });
-  }
+    return { act: act.code, label: act.label, scenes: sceneList };
+  });
 
   castRoster.forEach((c, i) => c.index = i);
 
-  localStorage.setItem(MANUS_OVERRIDE_KEY, JSON.stringify({ scenes, cast: castRoster }));
-  location.reload();
+  // Flat SCENES_DATA-shaped list (each scene + actLabel) — mirrors what
+  // scripts/embed-scenes.js derives from the acts structure server-side, used
+  // only for this tab's in-memory shadow (manus-data.js).
+  const flatScenes = acts.flatMap(act => act.scenes.map(s => ({ ...s, actLabel: act.label })));
+
+  let pin = getCachedPin();
+  if (!pin) {
+    pin = (prompt('Indtast PIN-kode for at gemme ændringer globalt:') || '').trim();
+    if (!pin) return;
+  }
+
+  clearApplyError();
+  setApplyBusy(true);
+  try {
+    const res = await fetch(MANUS_SAVE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin, scenes: acts, cast: castRoster }),
+    });
+
+    if (res.status === 401) {
+      setCachedPin('');
+      showApplyError('Forkert PIN-kode. Prøv igen.');
+      return;
+    }
+    if (res.status === 409) {
+      showApplyError('En anden har lige gemt ændringer. Genindlæs værktøjet og prøv igen.');
+      return;
+    }
+    if (!res.ok) {
+      showApplyError('Kunne ikke gemme ændringer (serverfejl). Prøv igen senere.');
+      return;
+    }
+
+    setCachedPin(pin);
+    setManusSavedOverride({ scenes: flatScenes, cast: castRoster });
+    refreshScenesFromSource();
+    closeImportModal();
+  } catch (e) {
+    showApplyError('Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.');
+  } finally {
+    setApplyBusy(false);
+  }
 }

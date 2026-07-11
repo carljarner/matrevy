@@ -2,6 +2,8 @@
 
 This folder contains the source-of-truth data files for the scheduling tool.
 
+These files can be edited by hand (see below) or via the scheduling tool's "Rediger Manus" button, which saves globally through `server/update-data.php` — see CLAUDE.md's "Manus edit tool" section. A GitHub Action regenerates `scenes-data.js` automatically after either kind of change lands on `main`; `node scripts/embed-scenes.js` only needs to be run by hand after editing these JSON files directly.
+
 ## Files
 
 | File | Purpose |
