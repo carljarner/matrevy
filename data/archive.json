@@ -2,14 +2,41 @@
     "years": [
         {
             "year": 2024,
-            "name": "MatRevy 2024",
-            "folder": "MatRevy_2024",
-            "coverImage": "archive/MatRevy_2024/cover.jpg",
+            "name": "MateRevy 2024",
+            "folder": "MateRevy_2024",
+            "coverImage": "archive/MateRevy_2024/cover.jpg",
             "youtubeUrl": "https://www.youtube.com/watch?v=Dp76DZvBoMo",
-            "manusPdf": "archive/MatRevy_2024/manus.pdf",
-            "sketches": [],
-            "songs": [],
-            "andet": []
+            "manusPdf": "archive/MateRevy_2024/manus.pdf",
+            "sketches": [
+                {
+                    "filename": "DenSorteSketch.pdf",
+                    "path": "archive/MateRevy_2024/sketches/DenSorteSketch.pdf"
+                },
+                {
+                    "filename": "Bistandsklienten.tex",
+                    "path": "archive/MateRevy_2024/sketches/Bistandsklienten.tex"
+                }
+            ],
+            "songs": [
+                {
+                    "filename": "AabningssangDirrty.pdf",
+                    "path": "archive/MateRevy_2024/songs/AabningssangDirrty.pdf"
+                },
+                {
+                    "filename": "AabningssangDirrty.tex",
+                    "path": "archive/MateRevy_2024/songs/AabningssangDirrty.tex"
+                }
+            ],
+            "andet": [
+                {
+                    "filename": "DaJegVarRUS.pdf",
+                    "path": "archive/MateRevy_2024/andet/DaJegVarRUS.pdf"
+                },
+                {
+                    "filename": "DaJegVarRUS.tex",
+                    "path": "archive/MateRevy_2024/andet/DaJegVarRUS.tex"
+                }
+            ]
         }
     ]
 }
