@@ -49,11 +49,13 @@
   display: flex;
   flex-direction: column;
   cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
 .arkiv-card:hover,
 .arkiv-card:focus-visible {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transform: translateY(-4px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
   outline: none;
 }
 
@@ -61,6 +63,32 @@
 .arkiv-poster-placeholder {
   width: 100%;
   display: block;
+  transition: transform 0.35s ease;
+}
+
+.arkiv-card:hover .arkiv-poster,
+.arkiv-card:focus-visible .arkiv-poster,
+.arkiv-card:hover .arkiv-poster-placeholder,
+.arkiv-card:focus-visible .arkiv-poster-placeholder {
+  transform: scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arkiv-card,
+  .arkiv-poster,
+  .arkiv-poster-placeholder {
+    transition: none;
+  }
+  .arkiv-card:hover,
+  .arkiv-card:focus-visible {
+    transform: none;
+  }
+  .arkiv-card:hover .arkiv-poster,
+  .arkiv-card:focus-visible .arkiv-poster,
+  .arkiv-card:hover .arkiv-poster-placeholder,
+  .arkiv-card:focus-visible .arkiv-poster-placeholder {
+    transform: none;
+  }
 }
 
 .arkiv-poster--square { aspect-ratio: 1 / 1; }
@@ -81,6 +109,8 @@
 }
 
 /* Slim dark caption bar, styled like the main nav bar (style.css .site-header). */
+/* Sits above the zooming poster (z-index) so the scaled image can't spill down
+   over the title box on hover. */
 .arkiv-card-body {
   padding: 0.3rem 0.6rem;
   display: flex;
@@ -88,6 +118,8 @@
   justify-content: center;
   flex: 1;
   background: #1f2328;
+  position: relative;
+  z-index: 1;
 }
 
 /* Selector carries an extra class so it beats style.css's `.page-content h2`
@@ -202,17 +234,19 @@
 }
 
 /* --- Labeled action pills (Manus / YouTube / Spotify) ------- */
+/* Column container of two rows (media / repository); its gap matches the
+   per-row button gap so vertical and horizontal spacing are identical. */
+.arkiv-action-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
 .arkiv-action-row {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.6rem;
-}
-
-/* Full-width zero-height spacer: forces GitHub/Drive onto a new row (3-2). */
-.arkiv-action-break {
-  flex-basis: 100%;
-  height: 0;
 }
 
 .arkiv-action-btn {
@@ -261,6 +295,14 @@
   opacity: 0.6;
   cursor: default;
   pointer-events: none;
+}
+
+/* Drive's icon uses hardcoded brand fills (not currentColor), so grey them
+   explicitly when the pill is disabled — CSS wins over the inline fill attr.
+   Scoped to the drive icon so the outline-only Manus/YouTube/Spotify icons
+   (fill:none) aren't filled solid. */
+.arkiv-action-disabled .arkiv-drive-icon path {
+  fill: #9ca3af;
 }
 
 /* --- Modern edit form (archive-scoped; other pages' edit modals

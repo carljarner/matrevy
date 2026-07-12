@@ -70,20 +70,6 @@ function renderArchive() {
 
     list.appendChild(card);
   }
-
-  if (isAdmin) {
-    const addTile = document.createElement('article');
-    addTile.className = 'arkiv-add-tile';
-    addTile.setAttribute('role', 'button');
-    addTile.setAttribute('tabindex', '0');
-    addTile.setAttribute('aria-label', 'Tilføj årgang');
-    addTile.textContent = '+';
-    addTile.addEventListener('click', () => openYearEditor(null));
-    addTile.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openYearEditor(null); }
-    });
-    list.appendChild(addTile);
-  }
 }
 
 // variant: 'square' (1:1, grid cards) or 'wide' (16:9, overlay cover).
@@ -170,7 +156,7 @@ function buildGithubIcon() {
 
 // Google Drive logo — three brand-coloured panels forming the folded triangle.
 function buildDriveIcon() {
-  const svg = svgEl('svg', { viewBox: '0 0 24 24', width: '18', height: '18' });
+  const svg = svgEl('svg', { viewBox: '0 0 24 24', width: '18', height: '18', class: 'arkiv-drive-icon' });
   // left (blue)
   svg.appendChild(svgEl('path', { fill: '#2684fc', stroke: 'none', d: 'M7.71 3.5 1.15 15l3.43 5.94 6.56-11.44z' }));
   // right (yellow)
@@ -204,19 +190,26 @@ function buildActionButton(href, label, iconEl, extraClass) {
 const GITHUB_ARCHIVE_BASE = 'https://github.com/carljarner/matrevy/tree/main/archive/';
 
 // All five pills always render; missing links come through greyed and unclickable.
+// Two explicit rows (media / repository) in a column container so a single gap
+// governs both the horizontal button spacing and the vertical row spacing.
 function buildActionRow(entry) {
-  const row = document.createElement('div');
-  row.className = 'arkiv-action-row';
-  row.appendChild(buildActionButton(entry.manusPdf, 'Manus', buildPdfIcon()));
-  row.appendChild(buildActionButton(entry.youtubeUrl, 'YouTube', buildPlayIcon(), 'arkiv-action-youtube'));
-  row.appendChild(buildActionButton(entry.spotifyUrl, 'Spotify', buildSpotifyIcon(), 'arkiv-action-spotify'));
-  // Force the repository links (GitHub/Drive) onto their own row below the media links.
-  const brk = document.createElement('div');
-  brk.className = 'arkiv-action-break';
-  row.appendChild(brk);
-  row.appendChild(buildActionButton(entry.folder ? GITHUB_ARCHIVE_BASE + entry.folder : '', 'GitHub', buildGithubIcon()));
-  row.appendChild(buildActionButton(entry.driveUrl, 'Drive', buildDriveIcon(), 'arkiv-action-drive'));
-  return row;
+  const wrap = document.createElement('div');
+  wrap.className = 'arkiv-action-rows';
+
+  const media = document.createElement('div');
+  media.className = 'arkiv-action-row';
+  media.appendChild(buildActionButton(entry.manusPdf, 'Manus', buildPdfIcon()));
+  media.appendChild(buildActionButton(entry.youtubeUrl, 'YouTube', buildPlayIcon(), 'arkiv-action-youtube'));
+  media.appendChild(buildActionButton(entry.spotifyUrl, 'Spotify', buildSpotifyIcon(), 'arkiv-action-spotify'));
+  wrap.appendChild(media);
+
+  const repo = document.createElement('div');
+  repo.className = 'arkiv-action-row';
+  repo.appendChild(buildActionButton(entry.folder ? GITHUB_ARCHIVE_BASE + entry.folder : '', 'GitHub', buildGithubIcon()));
+  repo.appendChild(buildActionButton(entry.driveUrl, 'Drive', buildDriveIcon(), 'arkiv-action-drive'));
+  wrap.appendChild(repo);
+
+  return wrap;
 }
 
 // ── Read-only detail overlay ──────────────────────────────────
