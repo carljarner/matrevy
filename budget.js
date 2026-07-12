@@ -65,6 +65,71 @@ function parseAmount(str) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+// ── Receipt image → JPEG base64 ──────────────────────────────
+// Self-contained (archive.js's helpers are NOT loaded on this page).
+// Re-encodes to JPEG via <canvas> so the stored file is always a .jpg,
+// regardless of what the phone hands us (HEIC/PNG/JPEG). Two decode
+// paths for cross-browser robustness — createImageBitmap where it
+// works, an <img> element (which iOS Safari can decode HEIC through)
+// as fallback — then a last-resort fallback to the original bytes so
+// a submit never hard-fails on an odd image.
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result);
+      const i = s.indexOf(',');
+      resolve(i === -1 ? s : s.slice(i + 1));
+    };
+    reader.onerror = () => reject(new Error('read_failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImageElement(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode_failed')); };
+    img.src = url;
+  });
+}
+
+async function compressReceiptImage(file, { maxWidth = 1600, quality = 0.8 } = {}) {
+  let source, width, height;
+  try {
+    const bitmap = await createImageBitmap(file);
+    source = bitmap; width = bitmap.width; height = bitmap.height;
+  } catch (e) {
+    const img = await loadImageElement(file); // e.g. iOS Safari / HEIC
+    source = img; width = img.naturalWidth || img.width; height = img.naturalHeight || img.height;
+  }
+  if (!width || !height) throw new Error('empty_image');
+  const scale = Math.min(1, maxWidth / width);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+  if (!blob) throw new Error('encode_failed');
+  return blob;
+}
+
+// Returns raw base64 JPEG bytes for upload. Prefers a re-encoded/
+// downscaled JPEG; falls back to the original file bytes if the
+// browser can't process the image at all (better a big-but-working
+// receipt than a blocked submit).
+async function receiptToBase64(file) {
+  let blob;
+  try {
+    blob = await compressReceiptImage(file);
+  } catch (e) {
+    blob = file;
+  }
+  return { base64: await blobToBase64(blob), size: blob.size };
+}
+
 // ── Authenticated API ────────────────────────────────────────
 // Works for revyst AND admin: the password is whichever level the
 // visitor logged in with (getSiteAuth().password), unlike
@@ -200,13 +265,11 @@ function renderRevystForm(root) {
     submitBtn.disabled = true;
     setMsg('Sender …', null);
     try {
-      const blob = await compressCoverImage(file);
-      if (blob.size > 5 * 1024 * 1024) {
+      const { base64: receiptBase64, size } = await receiptToBase64(file);
+      if (size > 5 * 1024 * 1024) {
         submitBtn.disabled = false;
         return setMsg('Billedet er for stort (maks. 5 MB). Prøv et mindre billede.', 'error');
       }
-      const dataUrl = await readFileAsDataURL(blob);
-      const receiptBase64 = stripDataUrlPrefix(dataUrl);
       const result = await budgetApi('budget_submit', {
         category, amount, name, phone, comment, receiptBase64,
       });
