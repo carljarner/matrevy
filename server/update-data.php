@@ -248,10 +248,17 @@ function handle_delete($body) {
 // dance: concurrency is handled with flock around each read-modify-write.
 
 // The fixed category keys (mirrors BUDGET_CATEGORIES in budget.js).
-const BUDGET_CATEGORY_KEYS = [
-  'rekvisitter', 'makeup', 'texnik', 'snacks', 'kage', 'mad', 'sammenholdet',
-  'fest', 'diverse', 'rengoring', 'tur', 'manus', 'tshirts', 'stregnskab',
-];
+// A function, not a `const` array: the budget-action dispatch near the
+// top of this file calls budget_submit() before execution reaches a
+// top-level `const` array declaration (which — unlike a scalar const —
+// is only defined once its line runs), so a const here would be
+// undefined at call time. Functions are hoisted, so this always works.
+function budget_category_keys() {
+  return [
+    'rekvisitter', 'makeup', 'texnik', 'snacks', 'kage', 'mad', 'sammenholdet',
+    'fest', 'diverse', 'rengoring', 'tur', 'manus', 'tshirts', 'stregnskab',
+  ];
+}
 
 // The ONLY guard between a request's "file" field and reading an arbitrary
 // file off the host. Receipts are always JPEGs named "<key>_<n>.jpg" (paid)
@@ -338,7 +345,7 @@ function budget_submit($body) {
   $phone    = $body['phone'] ?? '';
   $comment  = $body['comment'] ?? '';
   $receipt  = $body['receiptBase64'] ?? '';
-  if (!in_array($category, BUDGET_CATEGORY_KEYS, true)
+  if (!in_array($category, budget_category_keys(), true)
       || !is_numeric($amount) || (float) $amount <= 0
       || !is_string($name) || trim($name) === ''
       || !is_string($phone) || trim($phone) === ''
