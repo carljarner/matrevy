@@ -22,7 +22,7 @@
 .budget-msg.ok { color: #1a7f37; }
 
 .budget-count {
-  background: #eaeef2;
+  background: var(--surface-2);
   color: #57606a;
   border-radius: 999px;
   padding: 0.05rem 0.55rem;
@@ -76,8 +76,8 @@
   gap: 1rem;
   align-items: flex-start;
   justify-content: space-between;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.85rem 1rem;
 }
@@ -120,8 +120,8 @@
   width: 88px;
   height: 88px;
   border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  background: #f7f8fa;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -182,14 +182,14 @@
 .budget-table td {
   text-align: left;
   padding: 0.45rem 0.6rem;
-  border-bottom: 1px solid #eaeef2;
+  border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
 
 .budget-table th {
   font-weight: 600;
   color: #57606a;
-  border-bottom: 1px solid #d0d7de;
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 

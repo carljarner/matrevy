@@ -42,8 +42,8 @@
 }
 
 .arkiv-card {
-  background: #f7f8fa;
-  border: 1px solid #e5e7eb;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
   display: flex;
@@ -116,7 +116,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #e5e7eb;
+  background: var(--surface-2);
   color: #57606a;
   font-weight: 600;
   font-size: 1.6rem;
@@ -152,8 +152,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f3f4f6;
-  border: 2px dashed #d1d5db;
+  background: var(--surface);
+  border: 2px dashed var(--border);
   border-radius: 8px;
   font-size: 2.5rem;
   color: #9ca3af;
@@ -161,14 +161,14 @@
 }
 
 .arkiv-add-tile:focus-visible {
-  background: #e5e7eb;
+  background: var(--surface-2);
   border-color: #9ca3af;
   outline: none;
 }
 
 @media (hover: hover) {
   .arkiv-add-tile:hover {
-    background: #e5e7eb;
+    background: var(--surface-2);
     border-color: #9ca3af;
     outline: none;
   }
@@ -292,7 +292,7 @@
 }
 
 .arkiv-action-btn:focus-visible {
-  background: #f7f8fa;
+  background: var(--surface-2);
   border-color: #9ca3af;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   outline: none;
@@ -300,7 +300,7 @@
 
 @media (hover: hover) {
   .arkiv-action-btn:hover {
-    background: #f7f8fa;
+    background: var(--surface-2);
     border-color: #9ca3af;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
     outline: none;
@@ -325,7 +325,7 @@
 /* Missing-link pill: shown for context but muted and inert. */
 .arkiv-action-disabled {
   color: #9ca3af;
-  border-color: #e5e7eb;
+  border-color: var(--border);
   opacity: 0.6;
   cursor: default;
   pointer-events: none;
@@ -353,8 +353,8 @@
 }
 
 .arkiv-edit-group {
-  background: #f7f8fa;
-  border: 1px solid #eceef1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem 1rem 0.5rem;
   margin-bottom: 1.25rem;
@@ -372,5 +372,5 @@
 .arkiv-edit-modal .login-actions {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid #eceef1;
+  border-top: 1px solid var(--border);
 }

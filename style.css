@@ -2,6 +2,21 @@
    Matematikrevyen – Shared Stylesheet
    ========================================================= */
 
+/* --- Palette ---------------------------------------------
+   Warm honey/walnut wood theme. Defined here (loaded on every
+   page) so all content stylesheets can reference these tokens.
+   Øveplan (schedule.css) deliberately references none of them —
+   see the body:has(.sched-layout) reset below. */
+:root {
+  --bg: #e4d3b3;         /* page background (honey oak) */
+  --surface: #f1e6cf;    /* cards / cells / panels (warm cream) */
+  --surface-2: #eee2cc;  /* secondary fills (rows, hovers) */
+  --border: #d3bf9c;     /* borders (tan) */
+  --text: #2e2416;       /* primary text (warm near-black) */
+  --header: #1f2328;     /* header — unchanged near-black */
+  --accent: #3b82d4;     /* blue — unchanged */
+}
+
 /* --- Reset & base ---------------------------------------- */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -18,12 +33,30 @@ html {
 body {
   font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
   line-height: 1.6;
-  color: #1f2328;
-  background: #ffffff;
+  color: var(--text);
+  background: var(--bg);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
+
+/* ── Øveplan opt-out of the warm theme ──────────────────────
+   Øveplan (schedule.html) deliberately keeps the original flat
+   pre-theme look. schedule.html loads this shared stylesheet and
+   its transparent .sched-main shows the body through, so we undo
+   the warm colours here rather than touching schedule.css.
+   All Øveplan overrides live in THIS one block — to let Øveplan
+   adopt the warm theme too, just delete the whole block. The
+   values below are the site's original pre-theme colours. */
+body:has(.sched-layout) {
+  background: #ffffff;
+  color: #1f2328;
+}
+
+body:has(.sched-layout) .site-footer {
+  border-top-color: #e5e7eb;
+}
+/* ───────────────────────────────────────────────────────────── */
 
 /* --- Site header / navigation ---------------------------- */
 .site-header {
@@ -128,7 +161,7 @@ body {
 }
 
 .login-modal {
-  background: #ffffff;
+  background: var(--surface);
   border-radius: 8px;
   padding: 1.5rem;
   width: min(340px, 90vw);
@@ -196,7 +229,7 @@ body {
 }
 
 @media (hover: hover) {
-  .site-btn-secondary:hover { background: #f0f2f5; }
+  .site-btn-secondary:hover { background: var(--surface-2); }
 }
 
 /* --- Mobile menu (hamburger + overlay) --------------------
@@ -316,20 +349,20 @@ body.site-menu-open {
   font-size: 1.6rem;
   font-weight: 600;
   margin-bottom: 1.5rem;
-  color: #1f2328;
+  color: var(--text);
 }
 
 .page-content h2 {
   font-size: 1.1rem;
   font-weight: 600;
   margin-bottom: 0.75rem;
-  color: #1f2328;
+  color: var(--text);
 }
 
 /* --- Card ------------------------------------------------ */
 .card {
-  background: #f7f8fa;
-  border: 1px solid #e5e7eb;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.25rem;
@@ -413,7 +446,7 @@ body.site-menu-open {
 }
 
 @media (hover: hover) {
-  .btn-small:hover { background: #f0f2f5; }
+  .btn-small:hover { background: var(--surface-2); }
 }
 
 .btn-small-danger {
@@ -462,7 +495,7 @@ body.site-menu-open {
   padding: 1.25rem;
   font-size: 0.8rem;
   color: #57606a;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border);
   margin-top: auto;
 }
 
