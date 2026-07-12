@@ -89,6 +89,24 @@ if ($action === 'upload' || $action === 'delete') {
   if ($action === 'upload') handle_upload($body);
   else handle_delete($body);
 }
+
+// ── Budget actions (private Simply.com datastore) ────────────
+// These read/write local files under BUDGET_DATA_DIR (never the
+// public repo). Each handler validates + responds/exits.
+$BUDGET_ACTIONS = [
+  'budget_submit'         => 'revyst', // revyster submit reimbursement requests
+  'budget_read'           => 'admin',
+  'budget_receipt'        => 'admin',
+  'budget_approve'        => 'admin',
+  'budget_request_reject' => 'admin',
+];
+if (isset($BUDGET_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BUDGET_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  handle_budget($action, $body);
+}
+
 if ($action !== 'save') {
   respond(400, ['error' => 'unknown_action']);
 }
@@ -220,6 +238,255 @@ function handle_delete($body) {
   assert_allowed_archive_path($path);
   delete_file($path, 'Slet ' . $path . ' via arkivet');
   respond(200, ['ok' => true, 'path' => $path]);
+}
+
+// ── Budget datastore (private, local files under BUDGET_DATA_DIR) ─
+// Unlike the resource savers below (which commit JSON to the public
+// GitHub repo), the budget feature stores expense requests, the paid
+// ledger and receipt photos as plain files on the Simply.com host —
+// names, phone numbers and receipts must NOT be public. No sha/409
+// dance: concurrency is handled with flock around each read-modify-write.
+
+// The fixed category keys (mirrors BUDGET_CATEGORIES in budget.js).
+const BUDGET_CATEGORY_KEYS = [
+  'rekvisitter', 'makeup', 'texnik', 'snacks', 'kage', 'mad', 'sammenholdet',
+  'fest', 'diverse', 'rengoring', 'tur', 'manus', 'tshirts', 'stregnskab',
+];
+
+// The ONLY guard between a request's "file" field and reading an arbitrary
+// file off the host. Receipts are always JPEGs named "<key>_<n>.jpg" (paid)
+// or "pending/<id>.jpg" (submitted). Keep it strict.
+const BUDGET_RECEIPT_RE = '#^(pending/)?[A-Za-z0-9_]+\.jpg$#';
+
+function budget_dir() {
+  if (!defined('BUDGET_DATA_DIR') || !is_string(BUDGET_DATA_DIR) || BUDGET_DATA_DIR === '') {
+    respond(500, ['error' => 'budget_not_configured']);
+  }
+  return rtrim(BUDGET_DATA_DIR, '/');
+}
+
+function budget_ensure_dir($dir) {
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'budget_storage_unavailable']);
+  }
+}
+
+// Read-only load of one of the JSON files; returns $default if missing/empty.
+function budget_load($name, $default) {
+  $path = budget_dir() . '/' . $name;
+  if (!is_file($path)) return $default;
+  $json = json_decode((string) file_get_contents($path), true);
+  return is_array($json) ? $json : $default;
+}
+
+// Locked read-modify-write of one JSON file. $mutate receives the decoded
+// array (or $default) and returns the array to persist.
+function budget_mutate($name, $default, $mutate) {
+  budget_ensure_dir(budget_dir());
+  $path = budget_dir() . '/' . $name;
+  $fh = @fopen($path, 'c+');
+  if ($fh === false) respond(500, ['error' => 'budget_storage_unavailable']);
+  if (!flock($fh, LOCK_EX)) { fclose($fh); respond(500, ['error' => 'budget_lock_failed']); }
+  $raw = stream_get_contents($fh);
+  $json = ($raw === '' || $raw === false) ? $default : json_decode($raw, true);
+  if (!is_array($json)) $json = $default;
+  $json = $mutate($json);
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  return $json;
+}
+
+function budget_receipts_dir() {
+  $dir = budget_dir() . '/receipts';
+  budget_ensure_dir($dir);
+  budget_ensure_dir($dir . '/pending');
+  return $dir;
+}
+
+// Decode + size-check a base64 receipt, returning the raw bytes.
+function budget_decode_receipt($contentBase64) {
+  if (!is_string($contentBase64) || $contentBase64 === '') {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $raw = base64_decode($contentBase64, true);
+  if ($raw === false) respond(400, ['error' => 'bad_base64']);
+  if (strlen($raw) > MAX_UPLOAD_BYTES) respond(413, ['error' => 'too_large']);
+  return $raw;
+}
+
+function handle_budget($action, $body) {
+  switch ($action) {
+    case 'budget_submit':         return budget_submit($body);
+    case 'budget_read':           return budget_read();
+    case 'budget_receipt':        return budget_receipt($body);
+    case 'budget_approve':        return budget_approve($body);
+    case 'budget_request_reject': return budget_request_reject($body);
+  }
+  respond(400, ['error' => 'unknown_action']);
+}
+
+// Revyst appends ONE reimbursement request (+ its receipt). The client never
+// sends the whole list, so revyster can't read or overwrite others' requests.
+function budget_submit($body) {
+  $category = $body['category'] ?? '';
+  $amount   = $body['amount'] ?? null;
+  $name     = $body['name'] ?? '';
+  $phone    = $body['phone'] ?? '';
+  $comment  = $body['comment'] ?? '';
+  $receipt  = $body['receiptBase64'] ?? '';
+  if (!in_array($category, BUDGET_CATEGORY_KEYS, true)
+      || !is_numeric($amount) || (float) $amount <= 0
+      || !is_string($name) || trim($name) === ''
+      || !is_string($phone) || trim($phone) === ''
+      || !is_string($comment)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $raw = budget_decode_receipt($receipt);
+
+  $id = dechex(time()) . bin2hex(random_bytes(4));
+  $receiptsDir = budget_receipts_dir();
+  if (@file_put_contents($receiptsDir . '/pending/' . $id . '.jpg', $raw) === false) {
+    respond(500, ['error' => 'budget_storage_unavailable']);
+  }
+
+  $request = [
+    'id'          => $id,
+    'category'    => $category,
+    'amount'      => round((float) $amount, 2),
+    'name'        => trim($name),
+    'phone'       => trim($phone),
+    'comment'     => trim($comment),
+    'receiptFile' => 'pending/' . $id . '.jpg',
+    'createdAt'   => date('c'),
+  ];
+  budget_mutate('requests.json', ['requests' => []], function ($json) use ($request) {
+    if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
+    $json['requests'][] = $request;
+    return $json;
+  });
+  respond(200, ['ok' => true, 'id' => $id]);
+}
+
+// Admin: return everything needed to render the management view (no binaries).
+function budget_read() {
+  respond(200, [
+    'ok'       => true,
+    'budget'   => budget_load('budget.json', ['areas' => [], 'tickets' => new stdClass(), 'updatedAt' => null]),
+    'requests' => budget_load('requests.json', ['requests' => []]),
+    'expenses' => budget_load('expenses.json', ['expenses' => []]),
+  ]);
+}
+
+// Admin: stream a receipt image (fetched with the password, so receipts are
+// never exposed at a public URL). Overrides the JSON content-type header.
+function budget_receipt($body) {
+  $file = $body['file'] ?? '';
+  if (!is_string($file) || !preg_match(BUDGET_RECEIPT_RE, $file)) {
+    respond(400, ['error' => 'bad_path']);
+  }
+  $path = budget_dir() . '/receipts/' . $file;
+  if (!is_file($path)) respond(404, ['error' => 'not_found']);
+  header('Content-Type: image/jpeg');
+  header('Content-Length: ' . filesize($path));
+  readfile($path);
+  exit;
+}
+
+// Admin: approve a pending request → assign the next bilag number for its
+// category, rename the receipt to "<key>_<n>.jpg", move it into the ledger.
+function budget_approve($body) {
+  $id       = $body['id'] ?? '';
+  $paidBy   = $body['paidBy'] ?? '';
+  $transfer = $body['transfer'] ?? 0;
+  $settled  = $body['settled'] ?? false;
+  $date     = $body['date'] ?? date('Y-m-d');
+  if (!is_string($id) || $id === ''
+      || !is_string($paidBy) || trim($paidBy) === ''
+      || !is_numeric($transfer) || (float) $transfer < 0
+      || !is_bool($settled)
+      || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  // Pull the request out of requests.json.
+  $found = null;
+  budget_mutate('requests.json', ['requests' => []], function ($json) use ($id, &$found) {
+    $keep = [];
+    foreach (($json['requests'] ?? []) as $r) {
+      if (($r['id'] ?? null) === $id) { $found = $r; continue; }
+      $keep[] = $r;
+    }
+    $json['requests'] = $keep;
+    return $json;
+  });
+  if ($found === null) respond(404, ['error' => 'not_found']);
+
+  $category = $found['category'];
+  // Next number for this category (max existing n + 1, so deletions don't reuse).
+  $existing = budget_load('expenses.json', ['expenses' => []])['expenses'] ?? [];
+  $maxN = 0;
+  foreach ($existing as $e) {
+    if (($e['category'] ?? null) === $category && isset($e['n']) && (int) $e['n'] > $maxN) {
+      $maxN = (int) $e['n'];
+    }
+  }
+  $n = $maxN + 1;
+  $receiptFile = $category . '_' . $n . '.jpg';
+
+  // Rename the receipt pending/<id>.jpg → <key>_<n>.jpg (best-effort).
+  $receiptsDir = budget_receipts_dir();
+  $oldPath = $receiptsDir . '/' . ($found['receiptFile'] ?? '');
+  $newRel = '';
+  if (is_file($oldPath) && preg_match(BUDGET_RECEIPT_RE, $found['receiptFile'] ?? '')) {
+    if (@rename($oldPath, $receiptsDir . '/' . $receiptFile)) $newRel = $receiptFile;
+  }
+
+  $expense = [
+    'id'          => $id,
+    'category'    => $category,
+    'n'           => $n,
+    'bilag'       => $category . '_' . $n,
+    'amount'      => $found['amount'],
+    'date'        => $date,
+    'paidBy'      => trim($paidBy),
+    'transfer'    => round((float) $transfer, 2),
+    'settled'     => $settled,
+    'comment'     => $found['comment'] ?? '',
+    'name'        => $found['name'] ?? '',
+    'phone'       => $found['phone'] ?? '',
+    'receiptFile' => $newRel,
+    'approvedAt'  => date('c'),
+  ];
+  budget_mutate('expenses.json', ['expenses' => []], function ($json) use ($expense) {
+    if (!isset($json['expenses']) || !is_array($json['expenses'])) $json['expenses'] = [];
+    $json['expenses'][] = $expense;
+    return $json;
+  });
+  respond(200, ['ok' => true, 'expense' => $expense]);
+}
+
+// Admin: reject/delete a pending request and its receipt.
+function budget_request_reject($body) {
+  $id = $body['id'] ?? '';
+  if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
+  $removed = null;
+  budget_mutate('requests.json', ['requests' => []], function ($json) use ($id, &$removed) {
+    $keep = [];
+    foreach (($json['requests'] ?? []) as $r) {
+      if (($r['id'] ?? null) === $id) { $removed = $r; continue; }
+      $keep[] = $r;
+    }
+    $json['requests'] = $keep;
+    return $json;
+  });
+  if ($removed !== null && preg_match(BUDGET_RECEIPT_RE, $removed['receiptFile'] ?? '')) {
+    @unlink(budget_dir() . '/receipts/' . $removed['receiptFile']);
+  }
+  respond(200, ['ok' => true]);
 }
 
 // ── Resource savers ──────────────────────────────────────────

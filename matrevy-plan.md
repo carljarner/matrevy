@@ -138,9 +138,38 @@ write (voting).
 
 ---
 
+### Phase 5 — Budget / økonomistyring
+
+**Intent**: digitise the revue's `Regnskab.xlsx` workflow so it's live and multi-user —
+revyster submit reimbursement requests (kategori, beløb, navn, telefon, kvitteringsfoto,
+kommentar); the kasserer approves them into a paid ledger (assigning the next
+bilagsnummer, renaming the receipt to `<kategori>_<n>.jpg`); and an editable budget
+sheet tracks planned numbers with spent/balance derived from the ledger.
+
+**Key architecture decision** (new for the site): the budget data is **private** — it holds
+names, phone numbers and receipt photos, so it must NOT go in the public repo. It lives as
+plain files on the Simply.com PHP host under `BUDGET_DATA_DIR`, read/written only through
+authenticated actions on `update-data.php` (`budget_submit`/`budget_read`/`budget_receipt`/
+`budget_approve`/`budget_request_reject`). This is a deliberate exception to the
+embed-pipeline pattern — the budget feature never touches `scripts/embed-scenes.js`, the
+workflow, or `data/*.json`. It is also the site's **first revyst-level write**.
+
+**Status**:
+- [x] Phase 5.1 — reimbursement loop, built 2026-07-12 (code complete, **pending manual
+  deploy** of `update-data.php`/`config.php` to Simply.com + creating `BUDGET_DATA_DIR`).
+  `budget.html`/`budget.js`/`budget.css`; revyst submit form; admin pending list +
+  approve/reject + read-only paid browser. Verified locally headless (render + validation +
+  mocked admin flow, no JS errors); live round-trip still to verify post-deploy.
+- [ ] Phase 5.2 — editable budget sheet (planned numbers, computed spent/balance, 15-min
+  autosave + beforeunload guard), admin-added direct expenses, request/expense editing
+  (`budget_save_sheet`/`budget_expense_add`/`budget_expense_update`/`budget_request_update`).
+- [ ] Later — reimbursement-owed rollup (Excel's "Udlægsholder/Udlæg"), export/backup of the
+  private datastore (this data has no git history), closer parity with the full Excel.
+
+---
+
 ### Later / parked
 
-- **Budget tool** — help coordinators track the production budget. Requirements TBD.
 - **Auto-place algorithm (schedule tool)** — implemented once, then deliberately removed
   for a future redesign. Original spec: greedy placement of priority scenes respecting
   cast conflicts and absences, auto-placed cells visually distinct, re-runnable, with a

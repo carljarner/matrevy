@@ -1,0 +1,214 @@
+/* =========================================================
+   Matematikrevyen – Budget page styles (budget.html only)
+   Page-scoped like calendar.css/schedule.css; shared shell
+   styles live in style.css. The 719px breakpoint is the
+   site-wide mobile convention — keep it in sync.
+   ========================================================= */
+
+/* --- Shared bits ------------------------------------------ */
+.budget-intro {
+  color: #57606a;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.budget-msg {
+  font-size: 0.88rem;
+  margin: 0.75rem 0;
+  min-height: 1.2em;
+}
+
+.budget-msg.error { color: #c0392b; }
+.budget-msg.ok { color: #1a7f37; }
+
+.budget-count {
+  background: #eaeef2;
+  color: #57606a;
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.budget-badge {
+  background: #eef4fc;
+  color: #2f6cb3;
+  border-radius: 6px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.budget-amount {
+  font-weight: 600;
+  color: #1f2328;
+  white-space: nowrap;
+}
+
+/* --- Submit form ------------------------------------------ */
+.budget-form .site-btn-primary {
+  margin-top: 0.5rem;
+}
+
+.budget-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #1f2328;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.budget-check input {
+  width: auto;
+}
+
+/* --- Pending list ----------------------------------------- */
+.budget-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.budget-item {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.budget-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.budget-item-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.budget-item-line {
+  font-size: 0.9rem;
+  color: #1f2328;
+}
+
+.budget-item-note {
+  font-size: 0.85rem;
+  color: #57606a;
+  margin-top: 0.2rem;
+  white-space: pre-wrap;
+}
+
+.budget-item-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+  flex-wrap: wrap;
+}
+
+/* --- Receipt thumbnail ------------------------------------ */
+.budget-thumb {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #f7f8fa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.budget-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
+}
+
+.budget-thumb-empty {
+  font-size: 0.72rem;
+  color: #8b949e;
+  text-align: center;
+  padding: 0 0.3rem;
+}
+
+/* --- Paid browser ----------------------------------------- */
+.budget-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.budget-filter label {
+  font-size: 0.85rem;
+  color: #57606a;
+}
+
+.budget-filter select {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #ffffff;
+  color: #1f2328;
+}
+
+.budget-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.budget-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.budget-table th,
+.budget-table td {
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #eaeef2;
+  vertical-align: top;
+}
+
+.budget-table th {
+  font-weight: 600;
+  color: #57606a;
+  border-bottom: 1px solid #d0d7de;
+  white-space: nowrap;
+}
+
+.budget-td-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.budget-approve-modal .edit-field { margin-bottom: 0.6rem; }
+
+/* --- Mobile (site-wide 719px convention) ------------------ */
+@media (max-width: 719px) {
+  .budget-item {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .budget-thumb {
+    width: 100%;
+    height: 140px;
+  }
+}
