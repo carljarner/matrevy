@@ -7,12 +7,5 @@ const ANNOUNCEMENTS_DATA = [
     "author": "Koordinatorerne",
     "level": "public",
     "text": "Velkommen til Matematikrevyens interne side. Her finder du øveplaner, manus og vigtige beskeder."
-  },
-  {
-    "id": "mrgkjmbb",
-    "date": "2026-07-11",
-    "author": "Koordinatorerne",
-    "level": "revyst",
-    "text": "Den her test tester"
   }
 ];
