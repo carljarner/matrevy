@@ -170,8 +170,14 @@ async function budgetApi(action, body) {
     return { ok: false, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
   }
   if (!res.ok) return { ok: false, message: budgetMapError(res.status) };
+  // Require a real {ok:true} JSON body — a PHP fatal error (or a WAF
+  // challenge) can come back as HTTP 200 with an HTML body, and must
+  // NOT be mistaken for success.
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
+  if (!data || data.ok !== true) {
+    return { ok: false, message: 'Uventet svar fra serveren. Prøv igen senere.' };
+  }
   return { ok: true, data };
 }
 

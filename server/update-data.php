@@ -77,6 +77,14 @@ if ($level === null) {
 
 $LEVEL_RANK = ['revyst' => 1, 'admin' => 2];
 
+// Constants referenced by handlers dispatched below (upload/delete, and the
+// archive save validator). They MUST be declared above the dispatch: PHP
+// registers top-level `const` in execution order, not at compile time, so a
+// declaration placed lower in the file is undefined when an early-dispatched
+// handler runs. (Budget handlers avoid consts entirely — see budget_*() fns.)
+const ARCHIVE_PATH_RE = '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf)$#';
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
 $action = $body['action'] ?? '';
 
 if ($action === 'login') {
@@ -167,12 +175,10 @@ function update_file($filePath, $mutate, $commitMessage) {
 }
 
 // ── Archive file uploads (binary content at admin-chosen paths) ─
-// GITHUB_TOKEN has whole-repo write access, so this regex is the
-// only thing standing between an arbitrary "path" in the request
-// body and overwriting any file in the repo. Keep it strict.
-const ARCHIVE_PATH_RE =
-  '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf)$#';
-
+// GITHUB_TOKEN has whole-repo write access, so ARCHIVE_PATH_RE (declared at
+// the top of this file — see the note there for why it lives up there) is the
+// only thing standing between an arbitrary "path" in the request body and
+// overwriting any file in the repo. Keep it strict.
 function assert_allowed_archive_path($path) {
   if (!is_string($path) || !preg_match(ARCHIVE_PATH_RE, $path)) {
     respond(400, ['error' => 'bad_path']);
@@ -212,8 +218,6 @@ function delete_file($filePath, $commitMessage) {
     respond(502, ['error' => 'github_delete_failed', 'file' => $filePath, 'status' => $delStatus]);
   }
 }
-
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 function handle_upload($body) {
   $path = $body['path'] ?? '';
@@ -263,7 +267,19 @@ function budget_category_keys() {
 // The ONLY guard between a request's "file" field and reading an arbitrary
 // file off the host. Receipts are always JPEGs named "<key>_<n>.jpg" (paid)
 // or "pending/<id>.jpg" (submitted). Keep it strict.
-const BUDGET_RECEIPT_RE = '#^(pending/)?[A-Za-z0-9_]+\.jpg$#';
+// A function, not a `const`: the budget-action dispatch runs before any
+// top-level `const` line in this file has executed (PHP registers const
+// declarations in execution order), so a const here would be undefined at
+// call time — see budget_category_keys() for the same reason.
+function budget_receipt_re() {
+  return '#^(pending/)?[A-Za-z0-9_]+\.jpg$#';
+}
+
+// ~5 MB cap on a decoded receipt (mirrors MAX_UPLOAD_BYTES, inlined for the
+// same const-ordering reason).
+function budget_max_upload_bytes() {
+  return 5 * 1024 * 1024;
+}
 
 function budget_dir() {
   if (!defined('BUDGET_DATA_DIR') || !is_string(BUDGET_DATA_DIR) || BUDGET_DATA_DIR === '') {
@@ -321,7 +337,7 @@ function budget_decode_receipt($contentBase64) {
   }
   $raw = base64_decode($contentBase64, true);
   if ($raw === false) respond(400, ['error' => 'bad_base64']);
-  if (strlen($raw) > MAX_UPLOAD_BYTES) respond(413, ['error' => 'too_large']);
+  if (strlen($raw) > budget_max_upload_bytes()) respond(413, ['error' => 'too_large']);
   return $raw;
 }
 
@@ -392,7 +408,7 @@ function budget_read() {
 // never exposed at a public URL). Overrides the JSON content-type header.
 function budget_receipt($body) {
   $file = $body['file'] ?? '';
-  if (!is_string($file) || !preg_match(BUDGET_RECEIPT_RE, $file)) {
+  if (!is_string($file) || !preg_match(budget_receipt_re(), $file)) {
     respond(400, ['error' => 'bad_path']);
   }
   $path = budget_dir() . '/receipts/' . $file;
@@ -448,7 +464,7 @@ function budget_approve($body) {
   $receiptsDir = budget_receipts_dir();
   $oldPath = $receiptsDir . '/' . ($found['receiptFile'] ?? '');
   $newRel = '';
-  if (is_file($oldPath) && preg_match(BUDGET_RECEIPT_RE, $found['receiptFile'] ?? '')) {
+  if (is_file($oldPath) && preg_match(budget_receipt_re(), $found['receiptFile'] ?? '')) {
     if (@rename($oldPath, $receiptsDir . '/' . $receiptFile)) $newRel = $receiptFile;
   }
 
@@ -490,7 +506,7 @@ function budget_request_reject($body) {
     $json['requests'] = $keep;
     return $json;
   });
-  if ($removed !== null && preg_match(BUDGET_RECEIPT_RE, $removed['receiptFile'] ?? '')) {
+  if ($removed !== null && preg_match(budget_receipt_re(), $removed['receiptFile'] ?? '')) {
     @unlink(budget_dir() . '/receipts/' . $removed['receiptFile']);
   }
   respond(200, ['ok' => true]);
