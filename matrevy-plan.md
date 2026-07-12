@@ -171,8 +171,9 @@ workflow, or `data/*.json`. It is also the site's **first revyst-level write**.
   ones declared below the early action dispatch were undefined at call time (this had also
   silently broken **archive** cover/manus uploads — see Phase 3 note); (3) the client showed
   "Tak!" on a `200`+HTML PHP error → `budgetApi` now requires an `{ok:true}` JSON body.
-  `budget_read` verified live; final submit→approve round-trip pending one last
-  `update-data.php` re-upload as of session end 2026-07-12.
+  **Verified live end-to-end 2026-07-12** — user re-uploaded the fixed `update-data.php`
+  and confirmed a real submit→approve round-trip works (archive uploads fixed in the same
+  pass).
 - [ ] Phase 5.2 — editable budget sheet (planned numbers, computed spent/balance, 15-min
   autosave + beforeunload guard), admin-added direct expenses, request/expense editing
   (`budget_save_sheet`/`budget_expense_add`/`budget_expense_update`/`budget_request_update`).
