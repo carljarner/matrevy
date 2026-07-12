@@ -126,6 +126,12 @@ Files commit to `archive/<folder>/...` via new `upload`/`delete` actions in
 `GITHUB_TOKEN` has whole-repo write access); metadata still saves through the `archive`
 resource. See `data/README.md` for the schema and upload flow.
 
+**Bug found & fixed 2026-07-12** (while building Phase 5): browser cover/manus uploads had
+been silently broken by a PHP const-ordering issue — `ARCHIVE_PATH_RE`/`MAX_UPLOAD_BYTES`
+were declared *below* the `upload`/`delete` dispatch, so they were `Undefined constant` at
+call time (a fatal returned as `200`+HTML). Consts moved above the dispatch. Any archive
+covers already in the repo were committed directly via git, not through this endpoint.
+
 ---
 
 ### Phase 4 — Manus selection tool
@@ -155,11 +161,18 @@ embed-pipeline pattern — the budget feature never touches `scripts/embed-scene
 workflow, or `data/*.json`. It is also the site's **first revyst-level write**.
 
 **Status**:
-- [x] Phase 5.1 — reimbursement loop, built 2026-07-12 (code complete, **pending manual
-  deploy** of `update-data.php`/`config.php` to Simply.com + creating `BUDGET_DATA_DIR`).
-  `budget.html`/`budget.js`/`budget.css`; revyst submit form; admin pending list +
-  approve/reject + read-only paid browser. Verified locally headless (render + validation +
-  mocked admin flow, no JS errors); live round-trip still to verify post-deploy.
+- [x] Phase 5.1 — reimbursement loop, built 2026-07-12. `budget.html`/`budget.js`/
+  `budget.css`; revyst submit form; admin pending list + approve/reject + read-only paid
+  browser. Deployed to Simply.com (`BUDGET_DATA_DIR` created, `.htaccess`-denied). Live
+  debugging surfaced three bugs, all now fixed: (1) receipt image helpers were referenced
+  from archive.js which isn't loaded on budget.html → now self-contained in budget.js with a
+  `createImageBitmap`→`<img>`→original-bytes fallback so iPhone/HEIC photos upload; (2) a
+  **PHP const-ordering** fatal — top-level `const`s are registered in execution order, so
+  ones declared below the early action dispatch were undefined at call time (this had also
+  silently broken **archive** cover/manus uploads — see Phase 3 note); (3) the client showed
+  "Tak!" on a `200`+HTML PHP error → `budgetApi` now requires an `{ok:true}` JSON body.
+  `budget_read` verified live; final submit→approve round-trip pending one last
+  `update-data.php` re-upload as of session end 2026-07-12.
 - [ ] Phase 5.2 — editable budget sheet (planned numbers, computed spent/balance, 15-min
   autosave + beforeunload guard), admin-added direct expenses, request/expense editing
   (`budget_save_sheet`/`budget_expense_add`/`budget_expense_update`/`budget_request_update`).
