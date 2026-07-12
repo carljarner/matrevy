@@ -62,22 +62,14 @@ function siteLogout() {
 }
 
 // ── Header / nav rendering ───────────────────────────────────
+// z-index ladder: header 100 → mobile menu overlay 150 → login/edit modals 200.
 function siteCurrentPage() {
   return location.pathname.split('/').pop() || 'index.html';
 }
 
-function renderSiteHeader() {
-  const header = document.querySelector('.site-header');
-  if (!header) return;
-  header.textContent = '';
-
-  const title = document.createElement('div');
-  title.className = 'site-title';
-  title.textContent = 'Matematikrevyen';
-  header.appendChild(title);
-
-  const nav = document.createElement('nav');
-  nav.className = 'site-nav';
+// Fills `nav` with the page links — shared by the desktop header
+// nav and the mobile menu overlay.
+function buildSiteNavLinks(nav) {
   const current = siteCurrentPage();
   for (const page of SITE_PAGES) {
     if (page.level === 'admin' && !siteHasLevel('admin')) continue;
@@ -95,12 +87,13 @@ function renderSiteHeader() {
     if (page.href === current) a.className = 'active';
     nav.appendChild(a);
   }
-  header.appendChild(nav);
+}
 
-  if (siteIsFileProtocol()) return; // no login UI offline
-
-  const authBox = document.createElement('div');
-  authBox.className = 'site-auth';
+// Returns a configured login/logout button, or null over file://
+// (no login UI offline). Both actions end in a page reload, so the
+// mobile menu never needs to close around them.
+function buildAuthButton() {
+  if (siteIsFileProtocol()) return null;
   const btn = document.createElement('button');
   btn.className = 'site-login-btn';
   const auth = getSiteAuth();
@@ -111,8 +104,110 @@ function renderSiteHeader() {
     btn.textContent = 'Log ind';
     btn.addEventListener('click', openLoginModal);
   }
-  authBox.appendChild(btn);
-  header.appendChild(authBox);
+  return btn;
+}
+
+function renderSiteHeader() {
+  const header = document.querySelector('.site-header');
+  if (!header) return;
+  header.textContent = '';
+
+  const title = document.createElement('div');
+  title.className = 'site-title';
+  title.textContent = 'Matematikrevyen';
+  header.appendChild(title);
+
+  const nav = document.createElement('nav');
+  nav.className = 'site-nav';
+  buildSiteNavLinks(nav);
+  header.appendChild(nav);
+
+  const authBtn = buildAuthButton();
+  if (authBtn) {
+    const authBox = document.createElement('div');
+    authBox.className = 'site-auth';
+    authBox.appendChild(authBtn);
+    header.appendChild(authBox);
+  }
+
+  // Hamburger — hidden on desktop via CSS, opens the mobile menu.
+  const menuBtn = document.createElement('button');
+  menuBtn.type = 'button';
+  menuBtn.className = 'site-menu-btn';
+  menuBtn.setAttribute('aria-label', 'Menu');
+  menuBtn.setAttribute('aria-expanded', 'false');
+  for (let i = 0; i < 3; i++) {
+    const bar = document.createElement('span');
+    bar.className = 'site-menu-bar';
+    menuBtn.appendChild(bar);
+  }
+  menuBtn.addEventListener('click', () => openSiteMenu(menuBtn));
+  header.appendChild(menuBtn);
+}
+
+// ── Mobile menu overlay ──────────────────────────────────────
+function openSiteMenu(menuBtn) {
+  if (document.getElementById('site-menu-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'site-menu-overlay';
+  overlay.id = 'site-menu-overlay';
+
+  const top = document.createElement('div');
+  top.className = 'site-menu-top';
+  const title = document.createElement('div');
+  title.className = 'site-title';
+  title.textContent = 'Matematikrevyen';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'site-menu-close';
+  closeBtn.textContent = '✕';
+  closeBtn.setAttribute('aria-label', 'Luk menu');
+  top.appendChild(title);
+  top.appendChild(closeBtn);
+  overlay.appendChild(top);
+
+  const nav = document.createElement('nav');
+  nav.className = 'site-menu-nav';
+  buildSiteNavLinks(nav);
+  overlay.appendChild(nav);
+
+  const authBtn = buildAuthButton();
+  if (authBtn) {
+    const authBox = document.createElement('div');
+    authBox.className = 'site-menu-auth';
+    authBox.appendChild(authBtn);
+    overlay.appendChild(authBox);
+  }
+
+  document.body.appendChild(overlay);
+  document.body.classList.add('site-menu-open');
+  if (menuBtn) menuBtn.setAttribute('aria-expanded', 'true');
+
+  function close() {
+    document.removeEventListener('keydown', onKeydown);
+    document.body.classList.remove('site-menu-open');
+    overlay.remove();
+    if (menuBtn) {
+      menuBtn.setAttribute('aria-expanded', 'false');
+      menuBtn.focus();
+    }
+  }
+  function onKeydown(e) {
+    // Leave Escape to the login modal while it's stacked on top.
+    if (e.key === 'Escape' && !document.getElementById('login-overlay')) close();
+  }
+  document.addEventListener('keydown', onKeydown);
+  closeBtn.addEventListener('click', close);
+  // Close when a nav link is tapped — covers the current page's
+  // link, where no navigation (and thus no fresh header) happens.
+  nav.addEventListener('click', (e) => {
+    if (e.target.closest('a')) close();
+  });
+  // "Log ind" opens the login modal on top of the menu (z-index 200
+  // > 150); cancel returns to the menu, success reloads the page.
+
+  closeBtn.focus();
 }
 
 // ── Login modal ──────────────────────────────────────────────

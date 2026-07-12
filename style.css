@@ -7,6 +7,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
@@ -60,9 +61,11 @@ body {
   transition: background 0.15s, color 0.15s;
 }
 
-.site-nav a:hover {
-  background: rgba(255,255,255,0.1);
-  color: #ffffff;
+@media (hover: hover) {
+  .site-nav a:hover {
+    background: rgba(255,255,255,0.1);
+    color: #ffffff;
+  }
 }
 
 .site-nav a.active {
@@ -96,8 +99,10 @@ body {
   transition: background 0.15s;
 }
 
-.site-login-btn:hover {
-  background: rgba(255,255,255,0.2);
+@media (hover: hover) {
+  .site-login-btn:hover {
+    background: rgba(255,255,255,0.2);
+  }
 }
 
 .site-gate-login {
@@ -106,8 +111,10 @@ body {
   margin-top: 0.5rem;
 }
 
-.site-gate-login:hover {
-  background: #2f6cb3;
+@media (hover: hover) {
+  .site-gate-login:hover {
+    background: #2f6cb3;
+  }
 }
 
 .login-overlay {
@@ -177,7 +184,9 @@ body {
   border: none;
 }
 
-.site-btn-primary:hover { background: #2f6cb3; }
+@media (hover: hover) {
+  .site-btn-primary:hover { background: #2f6cb3; }
+}
 .site-btn-primary:disabled { opacity: 0.6; cursor: default; }
 
 .site-btn-secondary {
@@ -186,7 +195,113 @@ body {
   border: 1px solid #d0d7de;
 }
 
-.site-btn-secondary:hover { background: #f0f2f5; }
+@media (hover: hover) {
+  .site-btn-secondary:hover { background: #f0f2f5; }
+}
+
+/* --- Mobile menu (hamburger + overlay) --------------------
+   z-index ladder: header 100 → menu overlay 150 → login/edit
+   modals 200. The hamburger is hidden on desktop (≥720px). */
+.site-menu-btn {
+  display: none; /* shown ≤719px */
+  flex-direction: column;
+  justify-content: space-between;
+  width: 44px;
+  height: 44px;
+  padding: 14px 10px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.site-menu-bar {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 1px;
+}
+
+.site-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: #1f2328;
+  display: flex;
+  flex-direction: column;
+  padding: 0 1.25rem 1.25rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.site-menu-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 56px;
+  flex-shrink: 0;
+}
+
+.site-menu-close {
+  background: none;
+  border: none;
+  color: #c9d1d9;
+  font-size: 1.4rem;
+  cursor: pointer;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  outline: none;
+}
+
+.site-menu-close:focus-visible {
+  outline: 2px solid #3b82d4;
+}
+
+.site-menu-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1rem;
+}
+
+.site-menu-nav a {
+  color: #c9d1d9;
+  text-decoration: none;
+  font-size: 1.25rem;
+  padding: 0.75rem 0.5rem;
+  border-radius: 6px;
+}
+
+.site-menu-nav a.active {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.site-menu-nav .site-nav-locked {
+  color: #6e7681;
+  font-size: 1.25rem;
+  padding: 0.75rem 0.5rem;
+  cursor: not-allowed;
+  user-select: none;
+}
+
+.site-menu-auth {
+  margin-top: auto;
+  padding-top: 1.5rem;
+}
+
+.site-menu-auth .site-login-btn {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  font-size: 1rem;
+}
+
+body.site-menu-open {
+  overflow: hidden;
+}
 
 /* --- Main content ---------------------------------------- */
 .page-content {
@@ -297,14 +412,18 @@ body {
   white-space: nowrap;
 }
 
-.btn-small:hover { background: #f0f2f5; }
+@media (hover: hover) {
+  .btn-small:hover { background: #f0f2f5; }
+}
 
 .btn-small-danger {
   color: #c0392b;
   border-color: #e0b4ae;
 }
 
-.btn-small-danger:hover { background: #fbf1f0; }
+@media (hover: hover) {
+  .btn-small-danger:hover { background: #fbf1f0; }
+}
 
 /* --- Messages -------------------------------------------- */
 .message-list {
@@ -355,4 +474,36 @@ p {
 
 p:last-child {
   margin-bottom: 0;
+}
+
+/* --- Mobile (≤719px) --------------------------------------
+   Breakpoint: 719px — keep in sync with calendar.css/schedule.css. */
+@media (max-width: 719px) {
+  .site-header {
+    padding: 0 0.75rem 0 1rem;
+    gap: 1rem;
+  }
+
+  /* Inline nav + login collapse into the hamburger menu.
+     Scoped to .site-header so the overlay's own nav is unaffected. */
+  .site-header .site-nav,
+  .site-header .site-auth {
+    display: none;
+  }
+
+  .site-menu-btn {
+    display: flex;
+  }
+
+  .page-content {
+    padding: 1.25rem 1rem;
+  }
+
+  /* iOS Safari zooms into focused inputs with font-size < 16px. */
+  .login-modal input[type="password"],
+  .edit-field input,
+  .edit-field textarea,
+  .edit-field select {
+    font-size: 16px;
+  }
 }

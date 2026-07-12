@@ -90,7 +90,9 @@
   font-family: inherit;
   margin-top: 0.25rem;
 }
-.btn-primary:hover { background: #32383f; }
+@media (hover: hover) {
+  .btn-primary:hover { background: #32383f; }
+}
 
 .btn-secondary {
   padding: 0.45rem 0.9rem;
@@ -103,7 +105,9 @@
   cursor: pointer;
   font-family: inherit;
 }
-.btn-secondary:hover { background: #f3f4f6; }
+@media (hover: hover) {
+  .btn-secondary:hover { background: #f3f4f6; }
+}
 
 /* ── Scene sidebar list ─────────────────────────────────── */
 #scene-list {
@@ -128,7 +132,9 @@
   color: #1f2328;
   transition: background 0.1s, border-color 0.1s;
 }
-.scene-chip:hover { background: #f3f4f6; }
+@media (hover: hover) {
+  .scene-chip:hover { background: #f3f4f6; }
+}
 .scene-chip.placed { opacity: 0.4; }
 .scene-chip.dragging { opacity: 0.5; }
 
@@ -196,7 +202,9 @@
   line-height: 1;
   flex-shrink: 0;
 }
-.absent-remove-btn:hover { color: #ef4444; }
+@media (hover: hover) {
+  .absent-remove-btn:hover { color: #ef4444; }
+}
 
 #btn-add-absent { width: 100%; margin-bottom: 0.75rem; }
 
@@ -308,9 +316,11 @@
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
 }
-.sched-table td.col-time-clickable:hover {
-  background: #e0e7ff;
-  color: #3b82d4;
+@media (hover: hover) {
+  .sched-table td.col-time-clickable:hover {
+    background: #e0e7ff;
+    color: #3b82d4;
+  }
 }
 
 /* ── Cell states ────────────────────────────────────────── */
@@ -328,7 +338,9 @@
   cursor: pointer;
   transition: background 0.1s;
 }
-.cell-empty:hover { background: #f3f4f6; }
+@media (hover: hover) {
+  .cell-empty:hover { background: #f3f4f6; }
+}
 
 .cell-empty .cell-plus {
   color: #d0d7de;
@@ -338,7 +350,9 @@
   justify-content: center;
   height: 100%;
 }
-.cell-empty:hover .cell-plus { color: #3b82d4; }
+@media (hover: hover) {
+  .cell-empty:hover .cell-plus { color: #3b82d4; }
+}
 
 .cell-filled {
   background: #eff6ff;
@@ -384,8 +398,20 @@
   line-height: 1;
   display: none;
 }
-.cell-filled:hover .cell-remove { display: block; }
-.cell-remove:hover { color: #ef4444; }
+@media (hover: hover) {
+  .cell-filled:hover .cell-remove { display: block; }
+  .cell-remove:hover { color: #ef4444; }
+}
+
+/* Touch devices can't hover: keep the remove control always
+   visible with a usable tap target. */
+@media (hover: none) {
+  .cell-remove {
+    display: block;
+    padding: 4px 6px;
+    font-size: 0.9rem;
+  }
+}
 
 /* Drop target highlight */
 .cell-drop-target { background: #dbeafe !important; }
@@ -445,7 +471,9 @@
   color: #57606a;
   padding: 0;
 }
-.picker-close:hover { color: #1f2328; }
+@media (hover: hover) {
+  .picker-close:hover { color: #1f2328; }
+}
 .picker-list {
   overflow-y: auto;
   flex: 1;
@@ -461,7 +489,9 @@
   gap: 0.5rem;
   color: #1f2328;
 }
-.picker-item:hover { background: #f3f4f6; }
+@media (hover: hover) {
+  .picker-item:hover { background: #f3f4f6; }
+}
 .picker-item.picker-selected { background: #dcfce7; }
 .picker-item.picker-placed { color: #b0b7be; }
 .picker-item.picker-selected.picker-placed { color: #166534; }
@@ -543,7 +573,9 @@
   opacity: 0.7;
   transition: opacity 0.1s;
 }
-.picker-back:hover { opacity: 1; }
+@media (hover: hover) {
+  .picker-back:hover { opacity: 1; }
+}
 
 .picker-text-editor { padding: 0.6rem 0.1rem; }
 
@@ -585,7 +617,9 @@
   padding: 0.3rem 0.2rem;
   border-radius: 6px;
 }
-.import-act-header:hover { background: #f7f8fa; }
+@media (hover: hover) {
+  .import-act-header:hover { background: #f7f8fa; }
+}
 .import-act-header .picker-act-label { padding: 0; }
 .import-act-count {
   font-size: 0.72rem;
@@ -610,7 +644,9 @@
   cursor: pointer;
   user-select: none;
 }
-.import-scene-header:hover { background: #f7f8fa; }
+@media (hover: hover) {
+  .import-scene-header:hover { background: #f7f8fa; }
+}
 
 .import-drag-handle {
   color: #b0b7be;
@@ -651,7 +687,9 @@
   line-height: 1;
   flex-shrink: 0;
 }
-.import-remove-btn:hover { color: #ef4444; }
+@media (hover: hover) {
+  .import-remove-btn:hover { color: #ef4444; }
+}
 
 .import-scene-body {
   padding: 0 0.75rem 0.75rem;
@@ -704,7 +742,9 @@
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
-.import-type-pill:hover { border-color: #b0b7be; }
+@media (hover: hover) {
+  .import-type-pill:hover { border-color: #b0b7be; }
+}
 .import-type-pill.active {
   background: #1f2328;
   border-color: #1f2328;
@@ -828,4 +868,26 @@
 
   /* Avoid page breaks inside a row */
   tr { page-break-inside: avoid; }
+}
+
+/* ── Mobile (≤719px, same breakpoint as style.css) ─────────
+   Cheap stacking fallback only — the tool remains desktop-first;
+   the sidebar stacks above the grid and the grid scrolls sideways. */
+@media (max-width: 719px) {
+  .sched-layout {
+    flex-direction: column;
+  }
+
+  .sched-sidebar {
+    width: auto;
+    min-width: 0;
+    max-width: none;
+    border-right: none;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .sched-main {
+    overflow-x: auto;
+    padding: 1.25rem 1rem;
+  }
 }

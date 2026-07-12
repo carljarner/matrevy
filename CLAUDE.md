@@ -17,6 +17,7 @@ Three access levels: **public / revyst / admin**, unlocked by two shared passwor
 - **Page gate**: `applyPageGate()` looks the current page up in `SITE_PAGES`; if the visitor's level is insufficient it hides `<main>` and shows a "Log ind for at se denne side" card instead. Cosmetic only, by design.
 - **`file://` bypass**: over `file://` the login endpoint is unreachable (CORS) and `localStorage` is a different origin, so `getSiteAuth()` returns a synthetic admin level (with an empty password — writes still prompt). This preserves the schedule tool's offline use case; the trade-off is that gating simply doesn't exist offline.
 - `import.js` reads `getSiteAuth()` cross-file (same load-order safety argument as its `classifyOrKeep` usage — only called from event handlers).
+- **Mobile menu**: at ≤719px the inline nav + login button are CSS-hidden and a hamburger (`.site-menu-btn`, appended by `renderSiteHeader()` even over `file://`) opens a full-screen overlay (`openSiteMenu()`, imperative like `openLoginModal`) — nav links via the shared `buildSiteNavLinks()`, login/logout via `buildAuthButton()` pinned at the bottom (`margin-top: auto`; absent over `file://`, like the header). Closes on ✕, Escape (ignored while the login modal is stacked on top), or any nav-link tap; body scroll locks via `body.site-menu-open`. z-index ladder: header 100 → menu overlay 150 → login/edit modals 200. The **719px breakpoint** is the site-wide mobile convention (`@media (max-width: 719px)` blocks in style.css/calendar.css/schedule.css — keep them in sync).
 
 ## The one command you must know
 
@@ -115,6 +116,7 @@ Copy `page-template.html`, then register the page **once** in `site.js`'s `SITE_
 - `'use strict'` at top of every JS file.
 - Section headers in JS use `// ── Section name ─────` comment style.
 - HTML and all user-facing strings/UI labels are in Danish.
+- Every `:hover` rule lives inside a `@media (hover: hover)` block (no sticky hover on touch); a combined `:hover, :focus-visible` selector must be split so `:focus-visible` stays ungated. Hover-only *reveals* need a `@media (hover: none)` always-visible fallback (see `.cell-remove` in schedule.css). The one exception: archive.css's `prefers-reduced-motion` block's `:hover` selectors stay ungated — they only disable transforms (a no-op on touch) and must keep overriding the gated hover rules.
 
 ## Deployment
 

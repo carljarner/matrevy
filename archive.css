@@ -52,11 +52,20 @@
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-.arkiv-card:hover,
+/* :focus-visible stays ungated (works on all devices); :hover is
+   gated to hover-capable devices so taps don't leave sticky hover. */
 .arkiv-card:focus-visible {
   transform: translateY(-4px);
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
   outline: none;
+}
+
+@media (hover: hover) {
+  .arkiv-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+    outline: none;
+  }
 }
 
 .arkiv-poster,
@@ -66,11 +75,16 @@
   transition: transform 0.35s ease;
 }
 
-.arkiv-card:hover .arkiv-poster,
 .arkiv-card:focus-visible .arkiv-poster,
-.arkiv-card:hover .arkiv-poster-placeholder,
 .arkiv-card:focus-visible .arkiv-poster-placeholder {
   transform: scale(1.06);
+}
+
+@media (hover: hover) {
+  .arkiv-card:hover .arkiv-poster,
+  .arkiv-card:hover .arkiv-poster-placeholder {
+    transform: scale(1.06);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -146,11 +160,18 @@
   cursor: pointer;
 }
 
-.arkiv-add-tile:hover,
 .arkiv-add-tile:focus-visible {
   background: #e5e7eb;
   border-color: #9ca3af;
   outline: none;
+}
+
+@media (hover: hover) {
+  .arkiv-add-tile:hover {
+    background: #e5e7eb;
+    border-color: #9ca3af;
+    outline: none;
+  }
 }
 
 .arkiv-edit-preview {
@@ -210,8 +231,10 @@
   z-index: 1;
 }
 
-.arkiv-detail-close:hover {
-  background: rgba(0, 0, 0, 0.75);
+@media (hover: hover) {
+  .arkiv-detail-close:hover {
+    background: rgba(0, 0, 0, 0.75);
+  }
 }
 
 .arkiv-detail-cover .arkiv-poster,
@@ -268,7 +291,6 @@
   flex-shrink: 0;
 }
 
-.arkiv-action-btn:hover,
 .arkiv-action-btn:focus-visible {
   background: #f7f8fa;
   border-color: #9ca3af;
@@ -276,17 +298,29 @@
   outline: none;
 }
 
+@media (hover: hover) {
+  .arkiv-action-btn:hover {
+    background: #f7f8fa;
+    border-color: #9ca3af;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    outline: none;
+  }
+}
+
 .arkiv-action-youtube { color: #c4302b; }
-.arkiv-action-youtube:hover,
 .arkiv-action-youtube:focus-visible { border-color: #c4302b; }
 
 .arkiv-action-spotify { color: #1db954; }
-.arkiv-action-spotify:hover,
 .arkiv-action-spotify:focus-visible { border-color: #1db954; }
 
 .arkiv-action-drive { color: #1a73e8; }
-.arkiv-action-drive:hover,
 .arkiv-action-drive:focus-visible { border-color: #1a73e8; }
+
+@media (hover: hover) {
+  .arkiv-action-youtube:hover { border-color: #c4302b; }
+  .arkiv-action-spotify:hover { border-color: #1db954; }
+  .arkiv-action-drive:hover   { border-color: #1a73e8; }
+}
 
 /* Missing-link pill: shown for context but muted and inert. */
 .arkiv-action-disabled {
