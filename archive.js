@@ -1,18 +1,17 @@
 /* =========================================================
    Matematikrevyen – Arkiv (arkiv.html)
    Renders ARCHIVE_DATA (embedded from data/archive.json) as a
-   poster grid: one clickable card per previous year with a cover
-   photo, a centered title, and PDF/YouTube icon buttons. Clicking
-   a card opens the admin edit form, or a read-only detail overlay
-   (cover, title, icon buttons, and a Sketches/Sange/Andet
-   materiale toggle list) for everyone else. Admins add/edit/
-   delete years directly through the browser — cover photos,
-   manuscripts, and individual sketch/song/other-material files
-   are uploaded here and committed to the repo under
-   archive/<folder>/ via server/update-data.php's 'upload'/
-   'delete' actions (see siteUploadFile/siteDeleteFile in
-   site-utils.js). Metadata itself still saves globally via
-   siteSaveResource ('archive' resource).
+   poster grid: one square-cover card per previous year with the
+   title as a caption. Clicking any card opens a read-only detail
+   overlay (16:9 cover, title, and Manus/YouTube/Spotify/GitHub/
+   Drive link pills); admins also get an Edit button there into the
+   year editor. The GitHub pill is derived from the entry's folder
+   (archive/<folder>) — that's where per-year sketch/song/other .tex
+   sources are browsed; the archive no longer tracks them per file.
+   Cover photos and the manuscript PDF are uploaded here and
+   committed under archive/<folder>/ via server/update-data.php's
+   'upload' action (see siteUploadFile in site-utils.js); metadata
+   saves globally via siteSaveResource ('archive' resource).
 
    DOM is built via createElement/textContent only — no innerHTML.
    ========================================================= */
@@ -51,7 +50,7 @@ function renderArchive() {
     card.setAttribute('role', 'button');
     card.setAttribute('tabindex', '0');
     card.setAttribute('aria-label', entry.name);
-    card.appendChild(buildPoster(entry));
+    card.appendChild(buildPoster(entry, 'square'));
 
     const body = document.createElement('div');
     body.className = 'arkiv-card-body';
@@ -61,12 +60,9 @@ function renderArchive() {
     h2.textContent = entry.name;
     body.appendChild(h2);
 
-    const iconRow = buildIconRow(entry);
-    if (iconRow.children.length > 0) body.appendChild(iconRow);
-
     card.appendChild(body);
 
-    const openThis = () => { if (isAdmin) openYearEditor(entry); else openYearDetail(entry); };
+    const openThis = () => openYearDetail(entry);
     card.addEventListener('click', openThis);
     card.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openThis(); }
@@ -90,26 +86,28 @@ function renderArchive() {
   }
 }
 
-function buildPoster(entry) {
+// variant: 'square' (1:1, grid cards) or 'wide' (16:9, overlay cover).
+function buildPoster(entry, variant) {
+  const modifier = variant === 'wide' ? 'arkiv-poster--wide' : 'arkiv-poster--square';
   const wrap = document.createElement('div');
   if (entry.coverImage) {
     const img = document.createElement('img');
-    img.className = 'arkiv-poster';
+    img.className = `arkiv-poster ${modifier}`;
     img.src = entry.coverImage;
     img.loading = 'lazy';
     img.decoding = 'async';
     img.alt = entry.name;
-    img.addEventListener('error', () => wrap.replaceChildren(buildPlaceholder(entry)), { once: true });
+    img.addEventListener('error', () => wrap.replaceChildren(buildPlaceholder(entry, modifier)), { once: true });
     wrap.appendChild(img);
   } else {
-    wrap.appendChild(buildPlaceholder(entry));
+    wrap.appendChild(buildPlaceholder(entry, modifier));
   }
   return wrap;
 }
 
-function buildPlaceholder(entry) {
+function buildPlaceholder(entry, modifier) {
   const ph = document.createElement('div');
-  ph.className = 'arkiv-poster-placeholder';
+  ph.className = `arkiv-poster-placeholder ${modifier || 'arkiv-poster--square'}`;
   ph.textContent = String(entry.year);
   return ph;
 }
@@ -142,128 +140,89 @@ function buildPlayIcon() {
   return svg;
 }
 
-function buildIconButton(href, label, iconEl) {
-  const a = document.createElement('a');
-  a.className = 'arkiv-icon-btn';
-  a.href = href;
-  a.target = '_blank';
-  a.rel = 'noopener';
-  a.setAttribute('aria-label', label);
-  a.title = label;
-  a.appendChild(iconEl);
-  a.addEventListener('click', (e) => e.stopPropagation());
-  return a;
+function buildSpotifyIcon() {
+  const svg = svgEl('svg', {
+    viewBox: '0 0 24 24', width: '18', height: '18', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  });
+  svg.appendChild(svgEl('circle', { cx: '12', cy: '12', r: '10' }));
+  svg.appendChild(svgEl('path', { d: 'M7.5 9.5c3-.8 6.3-.5 9 1.2' }));
+  svg.appendChild(svgEl('path', { d: 'M8 13c2.4-.6 5-.4 7.2 1' }));
+  svg.appendChild(svgEl('path', { d: 'M8.5 16c1.8-.4 3.7-.3 5.4.8' }));
+  return svg;
 }
 
-function buildIconRow(entry) {
+function buildGithubIcon() {
+  const svg = svgEl('svg', { viewBox: '0 0 24 24', width: '18', height: '18' });
+  svg.appendChild(svgEl('path', {
+    fill: 'currentColor', stroke: 'none',
+    d: 'M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58 '
+      + '0-.29-.01-1.05-.02-2.06-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76'
+      + '-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 '
+      + '.11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.95 0-1.31.47-2.38 1.24-3.22'
+      + '-.12-.3-.54-1.52.12-3.17 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 '
+      + '3.3-1.23.66 1.65.24 2.87.12 3.17.77.84 1.24 1.91 1.24 3.22 0 4.62-2.81 5.64-5.49 5.94'
+      + '.43.37.81 1.1.81 2.22 0 1.6-.01 2.9-.01 3.29 0 .32.22.7.83.58A12 12 0 0 0 24 12.5'
+      + 'C24 5.87 18.63.5 12 .5z',
+  }));
+  return svg;
+}
+
+// Google Drive logo — three brand-coloured panels forming the folded triangle.
+function buildDriveIcon() {
+  const svg = svgEl('svg', { viewBox: '0 0 24 24', width: '18', height: '18' });
+  // left (blue)
+  svg.appendChild(svgEl('path', { fill: '#2684fc', stroke: 'none', d: 'M7.71 3.5 1.15 15l3.43 5.94 6.56-11.44z' }));
+  // right (yellow)
+  svg.appendChild(svgEl('path', { fill: '#ffba00', stroke: 'none', d: 'M16.29 3.5H9.43l6.56 11.5h6.86z' }));
+  // bottom (green)
+  svg.appendChild(svgEl('path', { fill: '#00ac47', stroke: 'none', d: 'M4.57 21.44h13.14l3.42-5.94H8z' }));
+  return svg;
+}
+
+// Labeled pill button (icon + text), used in the detail overlay. A falsy href
+// renders a muted, non-clickable placeholder (a <span>) instead of a link, so a
+// year missing e.g. a Spotify URL still shows a greyed-out Spotify pill.
+function buildActionButton(href, label, iconEl, extraClass) {
+  const el = href ? document.createElement('a') : document.createElement('span');
+  el.className = 'arkiv-action-btn' + (href && extraClass ? ' ' + extraClass : '') + (href ? '' : ' arkiv-action-disabled');
+  if (href) {
+    el.href = href;
+    el.target = '_blank';
+    el.rel = 'noopener';
+    el.addEventListener('click', (e) => e.stopPropagation());
+  } else {
+    el.setAttribute('aria-disabled', 'true');
+  }
+  el.appendChild(iconEl);
+  const text = document.createElement('span');
+  text.textContent = label;
+  el.appendChild(text);
+  return el;
+}
+
+const GITHUB_ARCHIVE_BASE = 'https://github.com/carljarner/matrevy/tree/main/archive/';
+
+// All five pills always render; missing links come through greyed and unclickable.
+function buildActionRow(entry) {
   const row = document.createElement('div');
-  row.className = 'arkiv-icon-row';
-  if (entry.manusPdf) row.appendChild(buildIconButton(entry.manusPdf, 'Åbn manus (PDF)', buildPdfIcon()));
-  if (entry.youtubeUrl) row.appendChild(buildIconButton(entry.youtubeUrl, 'Se video på YouTube', buildPlayIcon()));
+  row.className = 'arkiv-action-row';
+  row.appendChild(buildActionButton(entry.manusPdf, 'Manus', buildPdfIcon()));
+  row.appendChild(buildActionButton(entry.youtubeUrl, 'YouTube', buildPlayIcon(), 'arkiv-action-youtube'));
+  row.appendChild(buildActionButton(entry.spotifyUrl, 'Spotify', buildSpotifyIcon(), 'arkiv-action-spotify'));
+  // Force the repository links (GitHub/Drive) onto their own row below the media links.
+  const brk = document.createElement('div');
+  brk.className = 'arkiv-action-break';
+  row.appendChild(brk);
+  row.appendChild(buildActionButton(entry.folder ? GITHUB_ARCHIVE_BASE + entry.folder : '', 'GitHub', buildGithubIcon()));
+  row.appendChild(buildActionButton(entry.driveUrl, 'Drive', buildDriveIcon(), 'arkiv-action-drive'));
   return row;
 }
 
 // ── Read-only detail overlay ──────────────────────────────────
-// Groups a file list ({filename, path}[]) by filename stem so e.g.
-// "Scene1.pdf" and "Scene1.tex" render as one tagged row.
-function groupArchiveFiles(fileList) {
-  const order = [];
-  const byStem = new Map();
-  for (const f of fileList || []) {
-    const dot = f.filename.lastIndexOf('.');
-    const stem = dot === -1 ? f.filename : f.filename.slice(0, dot);
-    const ext = dot === -1 ? '' : f.filename.slice(dot + 1).toLowerCase();
-    if (!byStem.has(stem)) {
-      byStem.set(stem, { stem, hasPdf: false, hasTex: false });
-      order.push(stem);
-    }
-    const g = byStem.get(stem);
-    if (ext === 'pdf') g.hasPdf = true;
-    if (ext === 'tex') g.hasTex = true;
-  }
-  return order.map((s) => byStem.get(s)).sort((a, b) => a.stem.localeCompare(b.stem, 'da'));
-}
-
-// Collapsible section (Sketches/Sange/Andet materiale) styled after Øveplan's
-// Akt-toggle pattern (import-act-header/-section/-chevron/-count in
-// schedule.css) — reimplemented with arkiv-* classes since this page doesn't
-// load schedule.css. Open state is local to this call, so it resets each
-// time the detail overlay is opened.
-function buildToggleSection(label, fileList) {
-  const groups = groupArchiveFiles(fileList);
-  let open = false;
-
-  const section = document.createElement('div');
-  section.className = 'arkiv-toggle-section';
-
-  function render() {
-    section.textContent = '';
-
-    const header = document.createElement('div');
-    header.className = 'arkiv-toggle-header';
-    header.addEventListener('click', () => { open = !open; render(); });
-
-    const chevron = document.createElement('span');
-    chevron.className = 'arkiv-toggle-chevron';
-    chevron.textContent = open ? '▾' : '▸';
-    header.appendChild(chevron);
-
-    const labelEl = document.createElement('span');
-    labelEl.className = 'arkiv-toggle-label';
-    labelEl.textContent = label;
-    header.appendChild(labelEl);
-
-    const count = document.createElement('span');
-    count.className = 'arkiv-toggle-count';
-    count.textContent = String(groups.length);
-    header.appendChild(count);
-
-    section.appendChild(header);
-
-    if (open) {
-      if (groups.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'arkiv-toggle-empty';
-        empty.textContent = 'Intet materiale uploadet endnu.';
-        section.appendChild(empty);
-      } else {
-        for (const g of groups) {
-          const row = document.createElement('div');
-          row.className = 'arkiv-scene-row';
-
-          const nameEl = document.createElement('span');
-          nameEl.className = 'arkiv-scene-name';
-          nameEl.textContent = g.stem;
-          row.appendChild(nameEl);
-
-          const tags = document.createElement('span');
-          tags.className = 'arkiv-scene-tags';
-          if (g.hasPdf) {
-            const t = document.createElement('span');
-            t.className = 'arkiv-file-tag';
-            t.textContent = 'PDF';
-            tags.appendChild(t);
-          }
-          if (g.hasTex) {
-            const t = document.createElement('span');
-            t.className = 'arkiv-file-tag';
-            t.textContent = 'TEX';
-            tags.appendChild(t);
-          }
-          row.appendChild(tags);
-          section.appendChild(row);
-        }
-      }
-    }
-  }
-
-  render();
-  return section;
-}
-
 function openYearDetail(entry) {
   const overlay = document.createElement('div');
-  overlay.className = 'login-overlay';
+  overlay.className = 'login-overlay arkiv-detail-overlay';
 
   function close() { overlay.remove(); }
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
@@ -281,7 +240,7 @@ function openYearDetail(entry) {
 
   const cover = document.createElement('div');
   cover.className = 'arkiv-detail-cover';
-  cover.appendChild(buildPoster(entry));
+  cover.appendChild(buildPoster(entry, 'wide'));
   modal.appendChild(cover);
 
   const body = document.createElement('div');
@@ -292,12 +251,8 @@ function openYearDetail(entry) {
   title.textContent = entry.name;
   body.appendChild(title);
 
-  const iconRow = buildIconRow(entry);
-  if (iconRow.children.length > 0) body.appendChild(iconRow);
-
-  body.appendChild(buildToggleSection('Sketches', entry.sketches));
-  body.appendChild(buildToggleSection('Sange', entry.songs));
-  body.appendChild(buildToggleSection('Andet materiale', entry.andet));
+  const actionRow = buildActionRow(entry);
+  if (actionRow.children.length > 0) body.appendChild(actionRow);
 
   modal.appendChild(body);
   overlay.appendChild(modal);
@@ -315,23 +270,9 @@ function slugifyFolderName(name) {
   return s;
 }
 
-function sanitizeUploadFilename(filename) {
-  const dot = filename.lastIndexOf('.');
-  const base = dot === -1 ? filename : filename.slice(0, dot);
-  const ext = dot === -1 ? '' : filename.slice(dot);
-  const map = { æ: 'ae', ø: 'oe', å: 'aa', Æ: 'Ae', Ø: 'Oe', Å: 'Aa' };
-  let cleanBase = base.replace(/[æøåÆØÅ]/g, (ch) => map[ch])
-    .replace(/\s+/g, '_')
-    .replace(/[^A-Za-z0-9_-]/g, '');
-  if (!cleanBase) cleanBase = 'fil';
-  const cleanExt = ext.replace(/[^A-Za-z0-9.]/g, '').toLowerCase();
-  return cleanBase + cleanExt;
-}
-
-function buildArchivePath(folder, kind, filename) {
+function buildArchivePath(folder, kind) {
   if (kind === 'cover') return `archive/${folder}/cover.jpg`;
-  if (kind === 'manus') return `archive/${folder}/manus.pdf`;
-  return `archive/${folder}/${kind}/${sanitizeUploadFilename(filename)}`;
+  return `archive/${folder}/manus.pdf`; // kind === 'manus'
 }
 
 // ── Binary file helpers ───────────────────────────────────────
@@ -379,112 +320,28 @@ async function deleteYear(entry) {
   if (!result.ok && result.message) alert(result.message);
 }
 
-// ── File-list section (sketches / songs / andet) ─────────────
-// Manages both already-uploaded files (removable via a queued
-// delete) and newly picked pending files (uploaded only on Gem).
-function buildFileListSection(sectionLabel, existingList) {
-  const wrap = document.createElement('div');
-  wrap.className = 'edit-field';
-  const lbl = document.createElement('label');
-  lbl.textContent = sectionLabel;
-  wrap.appendChild(lbl);
-
-  const rowsEl = document.createElement('div');
-  wrap.appendChild(rowsEl);
-
-  const keptExisting = (existingList || []).slice();
-  const pendingRemovePaths = [];
-  const pendingAdds = [];
-
-  function renderRows() {
-    rowsEl.textContent = '';
-    for (const f of keptExisting) {
-      const row = document.createElement('div');
-      row.className = 'edit-field-row';
-      const a = document.createElement('a');
-      a.href = f.path;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.textContent = f.filename;
-      const remove = document.createElement('button');
-      remove.className = 'btn-small btn-small-danger';
-      remove.textContent = '✕';
-      remove.addEventListener('click', () => {
-        const idx = keptExisting.indexOf(f);
-        if (idx !== -1) keptExisting.splice(idx, 1);
-        pendingRemovePaths.push(f.path);
-        renderRows();
-      });
-      row.appendChild(a);
-      row.appendChild(remove);
-      rowsEl.appendChild(row);
-    }
-    for (const file of pendingAdds) {
-      const row = document.createElement('div');
-      row.className = 'edit-field-row arkiv-pending-row';
-      const span = document.createElement('span');
-      span.textContent = `${file.name} (afventer upload)`;
-      const remove = document.createElement('button');
-      remove.className = 'btn-small btn-small-danger';
-      remove.textContent = '✕';
-      remove.addEventListener('click', () => {
-        const idx = pendingAdds.indexOf(file);
-        if (idx !== -1) pendingAdds.splice(idx, 1);
-        renderRows();
-      });
-      row.appendChild(span);
-      row.appendChild(remove);
-      rowsEl.appendChild(row);
-    }
-  }
-  renderRows();
-
-  const btnRow = document.createElement('div');
-  btnRow.className = 'arkiv-upload-buttons';
-  for (const ext of ['pdf', 'tex']) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'btn-small';
-    btn.textContent = `Upload .${ext}`;
-    const hiddenInput = document.createElement('input');
-    hiddenInput.type = 'file';
-    hiddenInput.accept = '.' + ext;
-    hiddenInput.style.display = 'none';
-    hiddenInput.addEventListener('change', () => {
-      const file = hiddenInput.files[0];
-      if (file) { pendingAdds.push(file); renderRows(); }
-      hiddenInput.value = '';
-    });
-    btn.addEventListener('click', () => hiddenInput.click());
-    btnRow.appendChild(btn);
-    btnRow.appendChild(hiddenInput);
-  }
-  wrap.appendChild(btnRow);
-
-  return {
-    element: wrap,
-    getKeptExisting: () => keptExisting,
-    getPendingAdds: () => pendingAdds,
-    getPendingRemovePaths: () => pendingRemovePaths,
-  };
-}
-
 // ── Editor modal ─────────────────────────────────────────────
 function openYearEditor(existing) {
-  const { form, error, actions, close } = siteOpenEditModal(existing ? 'Rediger årgang' : 'Tilføj årgang');
+  const { modal, form, error, actions, close } = siteOpenEditModal(existing ? 'Rediger årgang' : 'Tilføj årgang');
+  modal.classList.add('arkiv-edit-modal');
+
+  // All fields live in one metadata card (individual-file tracking was removed —
+  // sketches/songs/andet now live in the repo, linked from the overlay's GitHub button).
+  const metaGroup = document.createElement('div');
+  metaGroup.className = 'arkiv-edit-group';
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
   nameInput.placeholder = 'MatRevy 2024';
   nameInput.value = existing ? existing.name : '';
-  form.appendChild(siteEditField('Navn', nameInput));
+  metaGroup.appendChild(siteEditField('Navn', nameInput));
 
   const yearInput = document.createElement('input');
   yearInput.type = 'number';
   yearInput.min = '1900';
   yearInput.max = '2100';
   yearInput.value = existing ? String(existing.year) : '';
-  form.appendChild(siteEditField('Årstal', yearInput));
+  metaGroup.appendChild(siteEditField('Årstal', yearInput));
 
   if (!existing) {
     let yearTouched = false;
@@ -516,13 +373,25 @@ function openYearEditor(existing) {
   });
   const coverField = siteEditField('Cover-foto', coverInput);
   coverField.appendChild(coverPreview);
-  form.appendChild(coverField);
+  metaGroup.appendChild(coverField);
 
   const youtubeInput = document.createElement('input');
   youtubeInput.type = 'url';
   youtubeInput.placeholder = 'https://www.youtube.com/watch?v=...';
   youtubeInput.value = existing ? existing.youtubeUrl || '' : '';
-  form.appendChild(siteEditField('Link til YouTube', youtubeInput));
+  metaGroup.appendChild(siteEditField('Link til YouTube', youtubeInput));
+
+  const spotifyInput = document.createElement('input');
+  spotifyInput.type = 'url';
+  spotifyInput.placeholder = 'https://open.spotify.com/album/...';
+  spotifyInput.value = existing ? existing.spotifyUrl || '' : '';
+  metaGroup.appendChild(siteEditField('Link til Spotify', spotifyInput));
+
+  const driveInput = document.createElement('input');
+  driveInput.type = 'url';
+  driveInput.placeholder = 'https://drive.google.com/drive/folders/...';
+  driveInput.value = existing ? existing.driveUrl || '' : '';
+  metaGroup.appendChild(siteEditField('Link til Google Drive', driveInput));
 
   const manusCurrentLink = document.createElement('a');
   manusCurrentLink.target = '_blank';
@@ -543,14 +412,9 @@ function openYearEditor(existing) {
   });
   const manusField = siteEditField('Manuskript (PDF)', manusInput);
   manusField.appendChild(manusCurrentLink);
-  form.appendChild(manusField);
+  metaGroup.appendChild(manusField);
 
-  const sketchesSection = buildFileListSection('Upload individuelle sketches', existing ? existing.sketches : []);
-  form.appendChild(sketchesSection.element);
-  const songsSection = buildFileListSection('Upload individuelle sange', existing ? existing.songs : []);
-  form.appendChild(songsSection.element);
-  const andetSection = buildFileListSection('Andet materiale', existing ? existing.andet : []);
-  form.appendChild(andetSection.element);
+  form.appendChild(metaGroup);
 
   const progress = document.createElement('div');
   progress.className = 'arkiv-edit-progress';
@@ -588,11 +452,8 @@ function openYearEditor(existing) {
     }
 
     const current = getEffectiveYears();
-    const duplicateYear = current.some((e) => e.year === year && (!existing || e.folder !== existing.folder));
-    if (duplicateYear) {
-      error.textContent = `Årgangen ${year} findes allerede.`;
-      return;
-    }
+    // Year is not unique (e.g. a jubilee revy in the same year as a regular one);
+    // folder is the stable unique key, enforced below.
 
     let folder;
     if (existing) {
@@ -617,10 +478,7 @@ function openYearEditor(existing) {
       }
     }
 
-    const allPending = [
-      pendingCover, pendingManus,
-      ...sketchesSection.getPendingAdds(), ...songsSection.getPendingAdds(), ...andetSection.getPendingAdds(),
-    ].filter(Boolean);
+    const allPending = [pendingCover, pendingManus].filter(Boolean);
     const oversized = allPending.filter((f) => f.size > ARCHIVE_MAX_UPLOAD_BYTES);
     if (oversized.length > 0) {
       error.textContent = `Følgende fil(er) er for store (maks. 5 MB): ${oversized.map((f) => f.name).join(', ')}`;
@@ -633,38 +491,18 @@ function openYearEditor(existing) {
       folder,
       coverImage: existing ? existing.coverImage || '' : '',
       youtubeUrl: youtubeInput.value.trim(),
+      spotifyUrl: spotifyInput.value.trim(),
+      driveUrl: driveInput.value.trim(),
       manusPdf: existing ? existing.manusPdf || '' : '',
-      sketches: sketchesSection.getKeptExisting(),
-      songs: songsSection.getKeptExisting(),
-      andet: andetSection.getKeptExisting(),
     };
 
     const uploadSteps = [];
     if (pendingCover) uploadSteps.push({ kind: 'cover', file: pendingCover });
     if (pendingManus) uploadSteps.push({ kind: 'manus', file: pendingManus });
-    const sectionsByKind = { sketches: sketchesSection, songs: songsSection, andet: andetSection };
-    for (const kind of ['sketches', 'songs', 'andet']) {
-      for (const file of sectionsByKind[kind].getPendingAdds()) uploadSteps.push({ kind, file });
-    }
-    const deletePaths = [
-      ...sketchesSection.getPendingRemovePaths(),
-      ...songsSection.getPendingRemovePaths(),
-      ...andetSection.getPendingRemovePaths(),
-    ];
 
     save.disabled = true;
     save.textContent = 'Gemmer…';
     error.textContent = '';
-
-    for (const path of deletePaths) {
-      const delResult = await siteDeleteFile(path);
-      if (!delResult.ok) {
-        save.disabled = false;
-        save.textContent = 'Gem';
-        error.textContent = delResult.message || 'Kunne ikke slette en fil.';
-        return;
-      }
-    }
 
     const uploaded = [];
     for (let i = 0; i < uploadSteps.length; i++) {
@@ -672,7 +510,7 @@ function openYearEditor(existing) {
       const { kind, file } = uploadSteps[i];
       const blob = kind === 'cover' ? await compressCoverImage(file) : file;
       const dataUrl = await readFileAsDataURL(blob);
-      const path = buildArchivePath(folder, kind, file.name);
+      const path = buildArchivePath(folder, kind);
       const result = await siteUploadFile(path, stripDataUrlPrefix(dataUrl));
       if (!result.ok) {
         save.disabled = false;
@@ -681,14 +519,13 @@ function openYearEditor(existing) {
         error.textContent = `${result.message} (${uploaded.length}/${uploadSteps.length} filer blev gemt før fejlen. Prøv igen — allerede uploadede filer bliver ikke uploadet igen.)`;
         return;
       }
-      uploaded.push({ kind, path, filename: file.name });
+      uploaded.push({ kind, path });
     }
     progress.textContent = '';
 
     for (const u of uploaded) {
       if (u.kind === 'cover') entryDraft.coverImage = u.path;
       else if (u.kind === 'manus') entryDraft.manusPdf = u.path;
-      else entryDraft[u.kind].push({ filename: u.filename, path: u.path });
     }
 
     const next = existing

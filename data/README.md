@@ -115,23 +115,21 @@ These files can be edited by hand (see below) or via the site's in-page admin to
       "folder": "MatRevy_2024",
       "coverImage": "archive/MatRevy_2024/cover.jpg",
       "youtubeUrl": "https://youtube.com/watch?v=...",
-      "manusPdf": "archive/MatRevy_2024/manus.pdf",
-      "sketches": [
-        { "filename": "Scene1.pdf", "path": "archive/MatRevy_2024/sketches/Scene1.pdf" }
-      ],
-      "songs": [],
-      "andet": []
+      "spotifyUrl": "https://open.spotify.com/album/...",
+      "driveUrl": "https://drive.google.com/drive/folders/...",
+      "manusPdf": "archive/MatRevy_2024/manus.pdf"
     }
   ]
 }
 ```
 
-- `year` — integer, unique; auto-detected from `name` when creating a new entry (still editable); the archive page sorts newest first.
+- `year` — integer; auto-detected from `name` when creating a new entry (still editable); the archive page sorts newest first. **Not required to be unique** — e.g. a jubilee revy can share the year of a regular one; `folder` is the sole unique key.
 - `name` — required free-text display name, e.g. `"MatRevy 2024"`.
-- `folder` — the repo-relative folder slug (`archive/<folder>/...`), derived once from `name` when the entry is created (spaces → `_`, Danish `æøå` transliterated, everything else stripped) and **never recomputed** — editing `name` later must not change `folder`, or every already-uploaded file would orphan.
+- `folder` — the repo-relative folder slug (`archive/<folder>/...`), derived once from `name` when the entry is created (spaces → `_`, Danish `æøå` transliterated, everything else stripped) and **never recomputed** — editing `name` later must not change `folder`, or every already-uploaded file would orphan. Also the source for the overlay's **GitHub** button (`github.com/carljarner/matrevy/tree/main/archive/<folder>`) — derived in `archive.js`, not stored.
 - `coverImage`/`manusPdf` — repo-relative paths (`archive/<folder>/cover.jpg` / `archive/<folder>/manus.pdf`) or `""`. **Uploaded directly through the Arkiv admin UI** (no manual git step) — the browser reads the file, the site's PHP endpoint (`server/update-data.php`'s `upload` action) commits it to the repo via the GitHub Contents API. Cover photos are always re-encoded to JPEG client-side (canvas-resized, max ~1600px wide) before upload, so the filename/extension never changes across re-uploads.
-- `sketches` / `songs` / `andet` — arrays of `{ filename, path }`, one entry per individually uploaded `.pdf`/`.tex` file, growing over time as an admin adds material via the same in-app uploader.
-- Uploads are capped at ~5 MB each (client- and server-side) — Simply.com's actual PHP upload limits aren't documented, so this is a conservative guess.
+- `youtubeUrl` / `spotifyUrl` / `driveUrl` — optional external links (or `""`); each renders a matching link pill on the detail overlay. All three are validated against a host regex in `save_archive` only when non-empty (never required, so entries lacking them still validate).
+- The archive does **not** track individual sketch/song/other-material files. Those `.tex`/`.pdf` sources live in the repo under `archive/<folder>/{sketches,songs,other}/` and are browsed via the overlay's **GitHub** (or **Drive**) button — not listed in `archive.json`.
+- Uploads (cover / manus) are capped at ~5 MB each (client- and server-side) — Simply.com's actual PHP upload limits aren't documented, so this is a conservative guess.
 
 ## Adding a year to the archive
 
@@ -139,6 +137,6 @@ No manual git steps needed — everything happens in the browser:
 
 1. Open `arkiv.html`, log in as admin.
 2. Click the grey **+** tile at the end of the grid.
-3. Fill in the Navn (required — e.g. "MatRevy 2024"; Årstal auto-fills from a year in the name), optionally a cover photo, a YouTube link, and the manuscript PDF.
-4. Optionally upload individual sketch/song/other-material files further down — these can also be added later at any time via **Rediger** on the year's card.
-5. Click **Gem** — files upload first (one at a time, with a progress indicator), then the year's metadata saves to `data/archive.json` via `server/update-data.php`; a GitHub Action then regenerates `archive-data.js` automatically.
+3. Fill in the Navn (required — e.g. "MatRevy 2024"; Årstal auto-fills from a year in the name), optionally a cover photo, the manuscript PDF, and YouTube / Spotify / Google Drive links.
+4. Click **Gem** — the cover/manus files upload first (with a progress indicator), then the year's metadata saves to `data/archive.json` via `server/update-data.php`; a GitHub Action then regenerates `archive-data.js` automatically.
+5. Sketch/song/other `.tex` sources are committed to the repo under `archive/<folder>/{sketches,songs,other}/` (by hand or separately) — the overlay's GitHub button links there; the archive doesn't track them per file.

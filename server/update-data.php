@@ -153,7 +153,7 @@ function update_file($filePath, $mutate, $commitMessage) {
 // only thing standing between an arbitrary "path" in the request
 // body and overwriting any file in the repo. Keep it strict.
 const ARCHIVE_PATH_RE =
-  '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf|(sketches|songs|andet)/[A-Za-z0-9_.-]+\.(pdf|tex))$#';
+  '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf)$#';
 
 function assert_allowed_archive_path($path) {
   if (!is_string($path) || !preg_match(ARCHIVE_PATH_RE, $path)) {
@@ -309,48 +309,34 @@ function save_calendar($payload) {
   }, 'Opdater calendar.json via kalenderen');
 }
 
-function validate_archive_file_ref($f, $folder) {
-  if (!is_array($f)
-      || !isset($f['filename'], $f['path'])
-      || !is_string($f['filename']) || $f['filename'] === ''
-      || !is_string($f['path']) || !preg_match(ARCHIVE_PATH_RE, $f['path'])) {
-    return false;
-  }
-  // The path's folder segment must match this entry's own folder, or one
-  // entry's payload could otherwise reference another entry's files.
-  return preg_match('#^archive/' . preg_quote($folder, '#') . '/#', $f['path']) === 1;
-}
-
 function save_archive($payload) {
   $years = $payload['years'] ?? null;
   if (!is_array($years)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  $seenYear = [];
+  // `folder` is the sole unique key; `year` is not unique (e.g. a jubilee revy
+  // held the same year as a regular one), only used for display sorting.
   $seenFolder = [];
   foreach ($years as $y) {
-    if (!is_array($y)
-        || !isset($y['year'], $y['name'], $y['folder'], $y['coverImage'], $y['youtubeUrl'], $y['manusPdf'], $y['sketches'], $y['songs'], $y['andet'])
+    if (!is_array($y)) {
+      respond(400, ['error' => 'invalid_years_shape']);
+    }
+    // spotifyUrl / driveUrl are optional external links — validated only when present.
+    $spotify = $y['spotifyUrl'] ?? '';
+    $drive = $y['driveUrl'] ?? '';
+    if (!isset($y['year'], $y['name'], $y['folder'], $y['coverImage'], $y['youtubeUrl'], $y['manusPdf'])
         || !is_int($y['year']) || $y['year'] < 1900 || $y['year'] > 2100
-        || isset($seenYear[$y['year']])
         || !is_string($y['name']) || $y['name'] === ''
         || !is_string($y['folder']) || !preg_match('#^[A-Za-z0-9_-]+$#', $y['folder'])
         || isset($seenFolder[$y['folder']])
         || !is_string($y['coverImage']) || ($y['coverImage'] !== '' && !preg_match(ARCHIVE_PATH_RE, $y['coverImage']))
         || !is_string($y['youtubeUrl']) || ($y['youtubeUrl'] !== '' && !preg_match('#^https://(www\.)?(youtube\.com|youtu\.be)/#', $y['youtubeUrl']))
         || !is_string($y['manusPdf']) || ($y['manusPdf'] !== '' && !preg_match(ARCHIVE_PATH_RE, $y['manusPdf']))
-        || !is_array($y['sketches']) || !is_array($y['songs']) || !is_array($y['andet'])) {
+        || !is_string($spotify) || ($spotify !== '' && !preg_match('#^https://open\.spotify\.com/#', $spotify))
+        || !is_string($drive) || ($drive !== '' && !preg_match('#^https://(drive|docs)\.google\.com/#', $drive))) {
       respond(400, ['error' => 'invalid_years_shape']);
     }
-    $seenYear[$y['year']] = true;
     $seenFolder[$y['folder']] = true;
-    foreach (['sketches', 'songs', 'andet'] as $key) {
-      foreach ($y[$key] as $f) {
-        if (!validate_archive_file_ref($f, $y['folder'])) {
-          respond(400, ['error' => 'invalid_files_shape']);
-        }
-      }
-    }
   }
 
   update_file('data/archive.json', function ($json) use ($years) {
