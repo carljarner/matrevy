@@ -78,7 +78,7 @@ const ARCHIVE_DATA = [
     "coverImage": "archive/MatRevy_2019/cover.jpg",
     "youtubeUrl": "https://www.youtube.com/watch?v=dzMXuQLgGxk",
     "spotifyUrl": "",
-    "driveUrl": "",
+    "driveUrl": "https://drive.google.com/drive/folders/1ECi1ZcPEsjXwfKZqCL4C4cO3__MdzDpv",
     "manusPdf": "archive/MatRevy_2019/manus.pdf"
   },
   {
@@ -88,7 +88,7 @@ const ARCHIVE_DATA = [
     "coverImage": "archive/JubiRevy_15aar/cover.jpg",
     "youtubeUrl": "https://www.youtube.com/watch?v=3ScIaSoOiDU",
     "spotifyUrl": "",
-    "driveUrl": "https://drive.google.com/drive/folders/1ECi1ZcPEsjXwfKZqCL4C4cO3__MdzDpv",
+    "driveUrl": "",
     "manusPdf": "archive/JubiRevy_15aar/manus.pdf"
   },
   {
