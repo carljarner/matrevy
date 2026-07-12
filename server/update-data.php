@@ -107,6 +107,10 @@ $BUDGET_ACTIONS = [
   'budget_receipt'        => 'admin',
   'budget_approve'        => 'admin',
   'budget_request_reject' => 'admin',
+  'budget_save_sheet'     => 'admin', // editable planned/income budget sheet
+  'budget_expense_add'    => 'admin', // admin-entered direct expense
+  'budget_expense_update' => 'admin', // edit a paid expense (category locked)
+  'budget_request_update' => 'admin', // edit a pending request
 ];
 if (isset($BUDGET_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BUDGET_ACTIONS[$action]]) {
@@ -348,8 +352,25 @@ function handle_budget($action, $body) {
     case 'budget_receipt':        return budget_receipt($body);
     case 'budget_approve':        return budget_approve($body);
     case 'budget_request_reject': return budget_request_reject($body);
+    case 'budget_save_sheet':     return budget_save_sheet($body);
+    case 'budget_expense_add':    return budget_expense_add($body);
+    case 'budget_expense_update': return budget_expense_update($body);
+    case 'budget_request_update': return budget_request_update($body);
   }
   respond(400, ['error' => 'unknown_action']);
+}
+
+// Next bilag number for a category = max existing n + 1 (so deletions never
+// reuse a number). Shared by budget_approve and budget_expense_add.
+function budget_next_n($category) {
+  $existing = budget_load('expenses.json', ['expenses' => []])['expenses'] ?? [];
+  $maxN = 0;
+  foreach ($existing as $e) {
+    if (($e['category'] ?? null) === $category && isset($e['n']) && (int) $e['n'] > $maxN) {
+      $maxN = (int) $e['n'];
+    }
+  }
+  return $maxN + 1;
 }
 
 // Revyst appends ONE reimbursement request (+ its receipt). The client never
@@ -398,7 +419,7 @@ function budget_submit($body) {
 function budget_read() {
   respond(200, [
     'ok'       => true,
-    'budget'   => budget_load('budget.json', ['areas' => [], 'tickets' => new stdClass(), 'updatedAt' => null]),
+    'budget'   => budget_load('budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null]),
     'requests' => budget_load('requests.json', ['requests' => []]),
     'expenses' => budget_load('expenses.json', ['expenses' => []]),
   ]);
@@ -449,15 +470,7 @@ function budget_approve($body) {
   if ($found === null) respond(404, ['error' => 'not_found']);
 
   $category = $found['category'];
-  // Next number for this category (max existing n + 1, so deletions don't reuse).
-  $existing = budget_load('expenses.json', ['expenses' => []])['expenses'] ?? [];
-  $maxN = 0;
-  foreach ($existing as $e) {
-    if (($e['category'] ?? null) === $category && isset($e['n']) && (int) $e['n'] > $maxN) {
-      $maxN = (int) $e['n'];
-    }
-  }
-  $n = $maxN + 1;
+  $n = budget_next_n($category);
   $receiptFile = $category . '_' . $n . '.jpg';
 
   // Rename the receipt pending/<id>.jpg → <key>_<n>.jpg (best-effort).
@@ -509,6 +522,197 @@ function budget_request_reject($body) {
   if ($removed !== null && preg_match(budget_receipt_re(), $removed['receiptFile'] ?? '')) {
     @unlink(budget_dir() . '/receipts/' . $removed['receiptFile']);
   }
+  respond(200, ['ok' => true]);
+}
+
+// Admin: overwrite the editable budget sheet — the planned amount per category
+// plus a free-form income/revenue list. Spent/balance are derived client-side
+// from the ledger, never stored here.
+function budget_save_sheet($body) {
+  $planned = $body['planned'] ?? null;
+  $income  = $body['income'] ?? null;
+  if (!is_array($planned) || !is_array($income)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $keys = budget_category_keys();
+  $cleanPlanned = [];
+  foreach ($planned as $key => $val) {
+    if (!in_array($key, $keys, true) || !is_numeric($val) || (float) $val < 0) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $cleanPlanned[$key] = round((float) $val, 2);
+  }
+  $cleanIncome = [];
+  foreach ($income as $line) {
+    if (!is_array($line)
+        || !isset($line['label']) || !is_string($line['label']) || trim($line['label']) === ''
+        || !isset($line['amount']) || !is_numeric($line['amount']) || (float) $line['amount'] < 0) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $id = (isset($line['id']) && is_string($line['id']) && $line['id'] !== '')
+      ? $line['id']
+      : (dechex(time()) . bin2hex(random_bytes(3)));
+    $cleanIncome[] = [
+      'id'     => $id,
+      'label'  => trim($line['label']),
+      'amount' => round((float) $line['amount'], 2),
+    ];
+  }
+
+  budget_mutate('budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
+    function ($json) use ($cleanPlanned, $cleanIncome) {
+      // Encode planned as an object even when empty (json_encode turns [] into
+      // an array, but the schema — and the client — expect an object).
+      $json['planned'] = empty($cleanPlanned) ? new stdClass() : $cleanPlanned;
+      $json['income'] = $cleanIncome;
+      $json['updatedAt'] = date('c');
+      return $json;
+    });
+  respond(200, ['ok' => true]);
+}
+
+// Admin: add an expense directly to the ledger (no revyst request), optionally
+// with a receipt photo. Assigns the next bilag number for the category, exactly
+// like budget_approve.
+function budget_expense_add($body) {
+  $category = $body['category'] ?? '';
+  $amount   = $body['amount'] ?? null;
+  $date     = $body['date'] ?? date('Y-m-d');
+  $paidBy   = $body['paidBy'] ?? '';
+  $transfer = $body['transfer'] ?? 0;
+  $settled  = $body['settled'] ?? false;
+  $comment  = $body['comment'] ?? '';
+  $name     = $body['name'] ?? '';
+  $phone    = $body['phone'] ?? '';
+  $receipt  = $body['receiptBase64'] ?? '';
+  if (!in_array($category, budget_category_keys(), true)
+      || !is_numeric($amount) || (float) $amount <= 0
+      || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+      || !is_string($paidBy) || trim($paidBy) === ''
+      || !is_numeric($transfer) || (float) $transfer < 0
+      || !is_bool($settled)
+      || !is_string($comment) || !is_string($name) || !is_string($phone)
+      || !is_string($receipt)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  $id = dechex(time()) . bin2hex(random_bytes(4));
+  $n = budget_next_n($category);
+
+  $receiptRel = '';
+  if ($receipt !== '') {
+    $raw = budget_decode_receipt($receipt);
+    $receiptsDir = budget_receipts_dir();
+    $receiptRel = $category . '_' . $n . '.jpg';
+    if (@file_put_contents($receiptsDir . '/' . $receiptRel, $raw) === false) {
+      respond(500, ['error' => 'budget_storage_unavailable']);
+    }
+  }
+
+  $expense = [
+    'id'          => $id,
+    'category'    => $category,
+    'n'           => $n,
+    'bilag'       => $category . '_' . $n,
+    'amount'      => round((float) $amount, 2),
+    'date'        => $date,
+    'paidBy'      => trim($paidBy),
+    'transfer'    => round((float) $transfer, 2),
+    'settled'     => $settled,
+    'comment'     => trim($comment),
+    'name'        => trim($name),
+    'phone'       => trim($phone),
+    'receiptFile' => $receiptRel,
+    'approvedAt'  => date('c'),
+  ];
+  budget_mutate('expenses.json', ['expenses' => []], function ($json) use ($expense) {
+    if (!isset($json['expenses']) || !is_array($json['expenses'])) $json['expenses'] = [];
+    $json['expenses'][] = $expense;
+    return $json;
+  });
+  respond(200, ['ok' => true, 'expense' => $expense]);
+}
+
+// Admin: edit an existing paid expense. Category/n/bilag/receiptFile stay locked
+// (changing category would need a bilag renumber + receipt rename — do reject/re-add).
+function budget_expense_update($body) {
+  $id       = $body['id'] ?? '';
+  $amount   = $body['amount'] ?? null;
+  $date     = $body['date'] ?? '';
+  $paidBy   = $body['paidBy'] ?? '';
+  $transfer = $body['transfer'] ?? 0;
+  $settled  = $body['settled'] ?? false;
+  $comment  = $body['comment'] ?? '';
+  $name     = $body['name'] ?? '';
+  $phone    = $body['phone'] ?? '';
+  if (!is_string($id) || $id === ''
+      || !is_numeric($amount) || (float) $amount <= 0
+      || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
+      || !is_string($paidBy) || trim($paidBy) === ''
+      || !is_numeric($transfer) || (float) $transfer < 0
+      || !is_bool($settled)
+      || !is_string($comment) || !is_string($name) || !is_string($phone)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $found = false;
+  budget_mutate('expenses.json', ['expenses' => []],
+    function ($json) use ($id, $amount, $date, $paidBy, $transfer, $settled, $comment, $name, $phone, &$found) {
+      foreach (($json['expenses'] ?? []) as &$e) {
+        if (($e['id'] ?? null) === $id) {
+          $e['amount']   = round((float) $amount, 2);
+          $e['date']     = $date;
+          $e['paidBy']   = trim($paidBy);
+          $e['transfer'] = round((float) $transfer, 2);
+          $e['settled']  = $settled;
+          $e['comment']  = trim($comment);
+          $e['name']     = trim($name);
+          $e['phone']    = trim($phone);
+          $found = true;
+          break;
+        }
+      }
+      unset($e);
+      return $json;
+    });
+  if (!$found) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true]);
+}
+
+// Admin: edit a pending request. Category may change (no bilag assigned yet; the
+// receipt stays pending/<id>.jpg regardless).
+function budget_request_update($body) {
+  $id       = $body['id'] ?? '';
+  $category = $body['category'] ?? '';
+  $amount   = $body['amount'] ?? null;
+  $name     = $body['name'] ?? '';
+  $phone    = $body['phone'] ?? '';
+  $comment  = $body['comment'] ?? '';
+  if (!is_string($id) || $id === ''
+      || !in_array($category, budget_category_keys(), true)
+      || !is_numeric($amount) || (float) $amount <= 0
+      || !is_string($name) || trim($name) === ''
+      || !is_string($phone) || trim($phone) === ''
+      || !is_string($comment)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $found = false;
+  budget_mutate('requests.json', ['requests' => []],
+    function ($json) use ($id, $category, $amount, $name, $phone, $comment, &$found) {
+      foreach (($json['requests'] ?? []) as &$r) {
+        if (($r['id'] ?? null) === $id) {
+          $r['category'] = $category;
+          $r['amount']   = round((float) $amount, 2);
+          $r['name']     = trim($name);
+          $r['phone']    = trim($phone);
+          $r['comment']  = trim($comment);
+          $found = true;
+          break;
+        }
+      }
+      unset($r);
+      return $json;
+    });
+  if (!$found) respond(404, ['error' => 'not_found']);
   respond(200, ['ok' => true]);
 }
 

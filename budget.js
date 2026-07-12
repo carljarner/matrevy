@@ -324,7 +324,7 @@ function budgetReceiptThumb(file) {
 }
 
 // ── Admin: management view ───────────────────────────────────
-let budgetState = { requests: [], expenses: [] };
+let budgetState = { requests: [], expenses: [], budget: { planned: {}, income: [] } };
 let budgetPaidFilter = 'alle';
 
 async function loadAndRenderAdmin(root) {
@@ -341,9 +341,279 @@ async function loadAndRenderAdmin(root) {
   const data = result.data || {};
   budgetState.requests = (data.requests && data.requests.requests) || [];
   budgetState.expenses = (data.expenses && data.expenses.expenses) || [];
+  const b = data.budget || {};
+  budgetState.budget = {
+    planned: (b.planned && typeof b.planned === 'object') ? b.planned : {},
+    income: Array.isArray(b.income) ? b.income : [],
+  };
 
+  renderBudgetSheet(root);
   renderPendingSection(root);
   renderPaidSection(root);
+}
+
+// Re-read + re-render after a mutation. Any unsaved budget-sheet edits are
+// flushed first so a reload triggered by an expense/request action doesn't
+// discard the planned/income numbers the admin was in the middle of typing.
+async function reloadAdmin(root) {
+  await saveBudgetSheetIfDirty();
+  loadAndRenderAdmin(root);
+}
+
+// ── Budget sheet (planned per category + income; spent/balance derived) ──
+// `budgetSheet` holds live references to the current sheet's DOM so autosave
+// and the totals recompute can read/update it without a full re-render.
+let budgetSheet = null;
+let budgetSheetDirty = false;
+let budgetSheetTimersReady = false;
+
+function computeSpentByCategory() {
+  const map = {};
+  budgetState.expenses.forEach((e) => {
+    const k = e.category;
+    map[k] = (map[k] || 0) + (Number(e.amount) || 0);
+  });
+  return map;
+}
+
+function markSheetDirty() {
+  budgetSheetDirty = true;
+  if (budgetSheet) {
+    budgetSheet.status.textContent = 'Ikke gemt';
+    budgetSheet.status.className = 'budget-save-status dirty';
+  }
+}
+
+function nowHhmm() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderBudgetSheet(root) {
+  const card = el('section', 'card budget-sheet-card');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Budget'));
+  const status = el('span', 'budget-save-status', 'Gemt');
+  head.appendChild(status);
+  card.appendChild(head);
+
+  const spent = computeSpentByCategory();
+  const plannedInputs = {};
+  const restCells = {};
+
+  const tableWrap = el('div', 'budget-table-wrap');
+  const table = el('table', 'budget-table budget-sheet-table');
+  const thead = el('thead');
+  const htr = el('tr');
+  ['Kategori', 'Planlagt', 'Brugt', 'Rest'].forEach((h) => htr.appendChild(el('th', null, h)));
+  thead.appendChild(htr);
+  table.appendChild(thead);
+
+  const tbody = el('tbody');
+  BUDGET_CATEGORIES.forEach((c) => {
+    const tr = el('tr');
+    tr.appendChild(el('td', null, c.label));
+
+    const pTd = el('td', 'budget-td-num');
+    const inp = el('input', 'budget-plan-input');
+    inp.type = 'text';
+    inp.inputMode = 'decimal';
+    inp.placeholder = '0';
+    const pv = budgetState.budget.planned[c.key];
+    if (pv != null && pv !== '') inp.value = String(pv).replace('.', ',');
+    inp.addEventListener('input', () => { markSheetDirty(); updateSheetTotals(); });
+    plannedInputs[c.key] = inp;
+    pTd.appendChild(inp);
+    tr.appendChild(pTd);
+
+    tr.appendChild(el('td', 'budget-td-num budget-brugt-cell', formatKr(spent[c.key] || 0)));
+
+    const rTd = el('td', 'budget-td-num budget-rest-cell');
+    restCells[c.key] = rTd;
+    tr.appendChild(rTd);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  const tfoot = el('tfoot');
+  const ftr = el('tr', 'budget-sheet-total');
+  ftr.appendChild(el('td', null, 'I alt'));
+  const totalPlannedCell = el('td', 'budget-td-num');
+  const totalBrugtCell = el('td', 'budget-td-num');
+  const totalRestCell = el('td', 'budget-td-num');
+  ftr.appendChild(totalPlannedCell);
+  ftr.appendChild(totalBrugtCell);
+  ftr.appendChild(totalRestCell);
+  tfoot.appendChild(ftr);
+  table.appendChild(tfoot);
+
+  tableWrap.appendChild(table);
+  card.appendChild(tableWrap);
+
+  // Income section.
+  const incomeHead = el('div', 'budget-subhead');
+  incomeHead.appendChild(el('h3', null, 'Indtægter'));
+  const incomeTotalCell = el('span', 'budget-amount', formatKr(0));
+  incomeHead.appendChild(incomeTotalCell);
+  card.appendChild(incomeHead);
+
+  const incomeList = el('div', 'budget-income-list');
+  card.appendChild(incomeList);
+
+  const addIncomeBtn = el('button', 'btn-small', '＋ Tilføj indtægt');
+  addIncomeBtn.type = 'button';
+  addIncomeBtn.addEventListener('click', () => {
+    addIncomeRow('', '');
+    markSheetDirty();
+    updateSheetTotals();
+  });
+  card.appendChild(addIncomeBtn);
+
+  // Net result.
+  const netRow = el('div', 'budget-net-row');
+  netRow.appendChild(el('span', null, 'Resultat (indtægter − brugt)'));
+  const netCell = el('span', 'budget-net-value');
+  netRow.appendChild(netCell);
+  card.appendChild(netRow);
+
+  // Save bar.
+  const saveBar = el('div', 'budget-save-bar');
+  const saveBtn = el('button', 'site-btn-primary', 'Gem budget');
+  saveBtn.type = 'button';
+  saveBtn.addEventListener('click', () => saveBudgetSheet());
+  saveBar.appendChild(saveBtn);
+  card.appendChild(saveBar);
+
+  budgetSheet = {
+    plannedInputs, restCells, spent, incomeList,
+    incomeRows: [],
+    totalPlannedCell, totalBrugtCell, totalRestCell,
+    incomeTotalCell, netCell, status,
+  };
+  budgetSheetDirty = false;
+
+  (budgetState.budget.income || []).forEach((line) => addIncomeRow(line.label, line.amount, line.id));
+  updateSheetTotals();
+
+  root.appendChild(card);
+  ensureBudgetSheetTimers(root);
+}
+
+function addIncomeRow(label, amount, id) {
+  const row = el('div', 'budget-income-row');
+  const labelInput = el('input', 'budget-income-label');
+  labelInput.type = 'text';
+  labelInput.placeholder = 'fx Billetsalg';
+  if (label != null) labelInput.value = label;
+  const amountInput = el('input', 'budget-income-amount');
+  amountInput.type = 'text';
+  amountInput.inputMode = 'decimal';
+  amountInput.placeholder = '0';
+  if (amount != null && amount !== '') amountInput.value = String(amount).replace('.', ',');
+  const removeBtn = el('button', 'budget-income-remove', '✕');
+  removeBtn.type = 'button';
+  removeBtn.title = 'Fjern';
+
+  labelInput.addEventListener('input', markSheetDirty);
+  amountInput.addEventListener('input', () => { markSheetDirty(); updateSheetTotals(); });
+
+  const entry = { row, labelInput, amountInput, id: id || null };
+  removeBtn.addEventListener('click', () => {
+    row.remove();
+    budgetSheet.incomeRows = budgetSheet.incomeRows.filter((r) => r !== entry);
+    markSheetDirty();
+    updateSheetTotals();
+  });
+
+  row.appendChild(labelInput);
+  row.appendChild(amountInput);
+  row.appendChild(removeBtn);
+  budgetSheet.incomeList.appendChild(row);
+  budgetSheet.incomeRows.push(entry);
+}
+
+function updateSheetTotals() {
+  if (!budgetSheet) return;
+  let totalPlanned = 0;
+  let totalBrugt = 0;
+  BUDGET_CATEGORIES.forEach((c) => {
+    const planned = parseAmount(budgetSheet.plannedInputs[c.key].value) || 0;
+    const brugt = budgetSheet.spent[c.key] || 0;
+    const rest = planned - brugt;
+    totalPlanned += planned;
+    totalBrugt += brugt;
+    const cell = budgetSheet.restCells[c.key];
+    cell.textContent = formatKr(rest);
+    cell.classList.toggle('budget-negative', rest < 0);
+  });
+  budgetSheet.totalPlannedCell.textContent = formatKr(totalPlanned);
+  budgetSheet.totalBrugtCell.textContent = formatKr(totalBrugt);
+  budgetSheet.totalRestCell.textContent = formatKr(totalPlanned - totalBrugt);
+  budgetSheet.totalRestCell.classList.toggle('budget-negative', totalPlanned - totalBrugt < 0);
+
+  let totalIncome = 0;
+  budgetSheet.incomeRows.forEach((r) => { totalIncome += parseAmount(r.amountInput.value) || 0; });
+  budgetSheet.incomeTotalCell.textContent = formatKr(totalIncome);
+  const net = totalIncome - totalBrugt;
+  budgetSheet.netCell.textContent = formatKr(net);
+  budgetSheet.netCell.classList.toggle('budget-negative', net < 0);
+}
+
+// Collect the current sheet values into the payload shape.
+function collectSheetPayload() {
+  const planned = {};
+  BUDGET_CATEGORIES.forEach((c) => {
+    const raw = budgetSheet.plannedInputs[c.key].value.trim();
+    if (raw === '') return;
+    const v = parseAmount(raw);
+    if (Number.isFinite(v) && v >= 0) planned[c.key] = v;
+  });
+  const income = [];
+  budgetSheet.incomeRows.forEach((r) => {
+    const label = r.labelInput.value.trim();
+    if (label === '') return; // skip blank lines
+    const amount = parseAmount(r.amountInput.value);
+    income.push({ label, amount: Number.isFinite(amount) && amount >= 0 ? amount : 0, id: r.id || undefined });
+  });
+  return { planned, income };
+}
+
+async function saveBudgetSheet() {
+  if (!budgetSheet) return { ok: false };
+  const payload = collectSheetPayload();
+  budgetSheet.status.textContent = 'Gemmer …';
+  budgetSheet.status.className = 'budget-save-status';
+  const result = await budgetApi('budget_save_sheet', payload);
+  if (result.ok) {
+    budgetSheetDirty = false;
+    budgetState.budget = { planned: payload.planned, income: payload.income };
+    budgetSheet.status.textContent = 'Gemt kl. ' + nowHhmm();
+    budgetSheet.status.className = 'budget-save-status';
+  } else if (result.message) {
+    budgetSheet.status.textContent = result.message;
+    budgetSheet.status.className = 'budget-save-status error';
+  } else {
+    // Cancelled password prompt — leave dirty, no scary message.
+    budgetSheet.status.textContent = 'Ikke gemt';
+    budgetSheet.status.className = 'budget-save-status dirty';
+  }
+  return result;
+}
+
+async function saveBudgetSheetIfDirty() {
+  if (budgetSheet && budgetSheetDirty) await saveBudgetSheet();
+}
+
+// Register the 15-minute autosave interval and the unsaved-changes guard once.
+function ensureBudgetSheetTimers(root) {
+  if (budgetSheetTimersReady) return;
+  budgetSheetTimersReady = true;
+  setInterval(() => { if (budgetSheetDirty) saveBudgetSheet(); }, 15 * 60 * 1000);
+  window.addEventListener('beforeunload', (e) => {
+    if (budgetSheetDirty) { e.preventDefault(); e.returnValue = ''; }
+  });
 }
 
 function renderPendingSection(root) {
@@ -383,9 +653,12 @@ function buildPendingCard(root, req) {
   const actions = el('div', 'budget-item-actions');
   const approveBtn = el('button', 'btn-small', 'Godkend (betalt)');
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
+  const editBtn = el('button', 'btn-small', 'Rediger');
+  editBtn.addEventListener('click', () => openRequestEditModal(root, req));
   const rejectBtn = el('button', 'btn-small btn-small-danger', 'Afvis');
   rejectBtn.addEventListener('click', () => rejectRequest(root, req));
   actions.appendChild(approveBtn);
+  actions.appendChild(editBtn);
   actions.appendChild(rejectBtn);
   main.appendChild(actions);
 
@@ -443,7 +716,68 @@ function openApproveModal(root, req) {
     });
     if (result.ok) {
       close();
-      loadAndRenderAdmin(document.getElementById('budget-root'));
+      reloadAdmin(document.getElementById('budget-root'));
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// Admin: edit a pending request (category may change; receipt stays put).
+function openRequestEditModal(root, req) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('Rediger udlæg');
+  modal.classList.add('budget-approve-modal');
+
+  const categorySelect = el('select');
+  BUDGET_CATEGORIES.forEach((c) => categorySelect.appendChild(new Option(c.label, c.key)));
+  categorySelect.value = req.category;
+  form.appendChild(siteEditField('Kategori', categorySelect));
+
+  const amountInput = el('input');
+  amountInput.type = 'text';
+  amountInput.inputMode = 'decimal';
+  amountInput.value = String(req.amount).replace('.', ',');
+  form.appendChild(siteEditField('Beløb (kr)', amountInput));
+
+  const nameInput = el('input');
+  nameInput.type = 'text';
+  nameInput.value = req.name;
+  form.appendChild(siteEditField('Navn', nameInput));
+
+  const phoneInput = el('input');
+  phoneInput.type = 'tel';
+  phoneInput.value = req.phone;
+  form.appendChild(siteEditField('Telefonnummer', phoneInput));
+
+  const commentInput = el('textarea');
+  commentInput.value = req.comment || '';
+  form.appendChild(siteEditField('Kommentar', commentInput));
+
+  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = el('button', 'site-btn-primary', 'Gem');
+  confirmBtn.addEventListener('click', async () => {
+    const amount = parseAmount(amountInput.value);
+    if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
+    if (!(amount > 0)) { error.textContent = 'Angiv et gyldigt beløb.'; return; }
+    if (!nameInput.value.trim()) { error.textContent = 'Angiv navn.'; return; }
+    if (!phoneInput.value.trim()) { error.textContent = 'Angiv telefonnummer.'; return; }
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_request_update', {
+      id: req.id,
+      category: categorySelect.value,
+      amount,
+      name: nameInput.value.trim(),
+      phone: phoneInput.value.trim(),
+      comment: commentInput.value.trim(),
+    });
+    if (result.ok) {
+      close();
+      reloadAdmin(root);
     } else {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;
@@ -457,7 +791,7 @@ async function rejectRequest(root, req) {
   if (!confirm(`Afvis udlægget fra ${req.name} (${formatKr(req.amount)})? Kvitteringen slettes.`)) return;
   const result = await budgetApi('budget_request_reject', { id: req.id });
   if (result.ok) {
-    loadAndRenderAdmin(root);
+    reloadAdmin(root);
   } else if (result.message) {
     alert(result.message);
   }
@@ -467,8 +801,13 @@ function renderPaidSection(root) {
   const card = el('section', 'card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Betalte udgifter'));
+  const headRight = el('div', 'budget-head-right');
+  const addBtn = el('button', 'btn-small', '＋ Tilføj udgift');
+  addBtn.addEventListener('click', () => openExpenseAddModal(root));
+  headRight.appendChild(addBtn);
   const total = budgetState.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  head.appendChild(el('span', 'budget-amount', formatKr(total)));
+  headRight.appendChild(el('span', 'budget-amount', formatKr(total)));
+  head.appendChild(headRight);
   card.appendChild(head);
 
   // Category filter ("shuffle through categories").
@@ -506,7 +845,7 @@ function renderPaidTable(wrap) {
   const table = el('table', 'budget-table');
   const thead = el('thead');
   const htr = el('tr');
-  ['Bilag', 'Dato', 'Beløb', 'Udlægsholder', 'Overførsel', 'Afregnet', 'Kommentar', 'Kvittering']
+  ['Bilag', 'Dato', 'Beløb', 'Udlægsholder', 'Overførsel', 'Afregnet', 'Kommentar', 'Kvittering', '']
     .forEach((h) => htr.appendChild(el('th', null, h)));
   thead.appendChild(htr);
   table.appendChild(thead);
@@ -535,10 +874,190 @@ function renderPaidTable(wrap) {
       receiptTd.appendChild(el('span', 'budget-thumb-empty', '—'));
     }
     tr.appendChild(receiptTd);
+
+    const editTd = el('td');
+    const editBtn = el('button', 'btn-small', 'Rediger');
+    editBtn.addEventListener('click', () => openExpenseEditModal(document.getElementById('budget-root'), e));
+    editTd.appendChild(editBtn);
+    tr.appendChild(editTd);
+
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
   wrap.appendChild(table);
+}
+
+// ── Admin: add a direct expense (no revyst request) ──────────
+function openExpenseAddModal(root) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('Tilføj udgift');
+  modal.classList.add('budget-approve-modal');
+
+  const categorySelect = el('select');
+  categorySelect.appendChild(new Option('Vælg kategori …', ''));
+  BUDGET_CATEGORIES.forEach((c) => categorySelect.appendChild(new Option(c.label, c.key)));
+  form.appendChild(siteEditField('Kategori', categorySelect));
+
+  const amountInput = el('input');
+  amountInput.type = 'text';
+  amountInput.inputMode = 'decimal';
+  amountInput.placeholder = 'fx 249,50';
+  form.appendChild(siteEditField('Beløb (kr)', amountInput));
+
+  const dateInput = el('input');
+  dateInput.type = 'date';
+  dateInput.value = todayIso();
+  form.appendChild(siteEditField('Dato', dateInput));
+
+  const paidByInput = el('input');
+  paidByInput.type = 'text';
+  form.appendChild(siteEditField('Udlægsholder', paidByInput));
+
+  const transferInput = el('input');
+  transferInput.type = 'text';
+  transferInput.inputMode = 'decimal';
+  transferInput.placeholder = '0';
+  form.appendChild(siteEditField('Overførsel (kr tilbage til personen)', transferInput));
+
+  const settledWrap = el('label', 'budget-check');
+  const settledInput = el('input');
+  settledInput.type = 'checkbox';
+  settledInput.checked = true;
+  settledWrap.appendChild(settledInput);
+  settledWrap.appendChild(el('span', null, 'Beløbet er overført (afregnet)'));
+  form.appendChild(settledWrap);
+
+  const commentInput = el('textarea');
+  commentInput.placeholder = 'valgfrit';
+  form.appendChild(siteEditField('Kommentar', commentInput));
+
+  const receiptInput = el('input');
+  receiptInput.type = 'file';
+  receiptInput.accept = 'image/*';
+  form.appendChild(siteEditField('Billede af kvittering (valgfrit)', receiptInput));
+
+  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = el('button', 'site-btn-primary', 'Tilføj');
+  confirmBtn.addEventListener('click', async () => {
+    const amount = parseAmount(amountInput.value);
+    const transfer = parseAmount(transferInput.value);
+    if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
+    if (!(amount > 0)) { error.textContent = 'Angiv et gyldigt beløb.'; return; }
+    if (!paidByInput.value.trim()) { error.textContent = 'Angiv udlægsholder.'; return; }
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    let receiptBase64 = '';
+    const file = receiptInput.files && receiptInput.files[0];
+    if (file) {
+      try {
+        const { base64, size } = await receiptToBase64(file);
+        if (size > 5 * 1024 * 1024) {
+          confirmBtn.disabled = false;
+          error.textContent = 'Billedet er for stort (maks. 5 MB).';
+          return;
+        }
+        receiptBase64 = base64;
+      } catch (e) {
+        confirmBtn.disabled = false;
+        error.textContent = 'Kunne ikke behandle billedet. Prøv et andet.';
+        return;
+      }
+    }
+    const result = await budgetApi('budget_expense_add', {
+      category: categorySelect.value,
+      amount,
+      date: dateInput.value || todayIso(),
+      paidBy: paidByInput.value.trim(),
+      transfer: transfer >= 0 ? transfer : 0,
+      settled: settledInput.checked,
+      comment: commentInput.value.trim(),
+      receiptBase64,
+    });
+    if (result.ok) {
+      close();
+      reloadAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// ── Admin: edit a paid expense (category locked) ─────────────
+function openExpenseEditModal(root, exp) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('Rediger udgift');
+  modal.classList.add('budget-approve-modal');
+
+  form.appendChild(el('p', 'budget-intro',
+    `${budgetCategoryLabel(exp.category)} · bilag ${exp.bilag || '—'}`));
+
+  const amountInput = el('input');
+  amountInput.type = 'text';
+  amountInput.inputMode = 'decimal';
+  amountInput.value = String(exp.amount).replace('.', ',');
+  form.appendChild(siteEditField('Beløb (kr)', amountInput));
+
+  const dateInput = el('input');
+  dateInput.type = 'date';
+  dateInput.value = exp.date || todayIso();
+  form.appendChild(siteEditField('Dato', dateInput));
+
+  const paidByInput = el('input');
+  paidByInput.type = 'text';
+  paidByInput.value = exp.paidBy || '';
+  form.appendChild(siteEditField('Udlægsholder', paidByInput));
+
+  const transferInput = el('input');
+  transferInput.type = 'text';
+  transferInput.inputMode = 'decimal';
+  transferInput.value = String(exp.transfer != null ? exp.transfer : 0).replace('.', ',');
+  form.appendChild(siteEditField('Overførsel (kr tilbage til personen)', transferInput));
+
+  const settledWrap = el('label', 'budget-check');
+  const settledInput = el('input');
+  settledInput.type = 'checkbox';
+  settledInput.checked = !!exp.settled;
+  settledWrap.appendChild(settledInput);
+  settledWrap.appendChild(el('span', null, 'Beløbet er overført (afregnet)'));
+  form.appendChild(settledWrap);
+
+  const commentInput = el('textarea');
+  commentInput.value = exp.comment || '';
+  form.appendChild(siteEditField('Kommentar', commentInput));
+
+  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = el('button', 'site-btn-primary', 'Gem');
+  confirmBtn.addEventListener('click', async () => {
+    const amount = parseAmount(amountInput.value);
+    const transfer = parseAmount(transferInput.value);
+    if (!(amount > 0)) { error.textContent = 'Angiv et gyldigt beløb.'; return; }
+    if (!paidByInput.value.trim()) { error.textContent = 'Angiv udlægsholder.'; return; }
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_expense_update', {
+      id: exp.id,
+      amount,
+      date: dateInput.value || todayIso(),
+      paidBy: paidByInput.value.trim(),
+      transfer: transfer >= 0 ? transfer : 0,
+      settled: settledInput.checked,
+      comment: commentInput.value.trim(),
+      name: exp.name || '',
+      phone: exp.phone || '',
+    });
+    if (result.ok) {
+      close();
+      reloadAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Init ─────────────────────────────────────────────────────

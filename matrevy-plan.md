@@ -174,9 +174,19 @@ workflow, or `data/*.json`. It is also the site's **first revyst-level write**.
   **Verified live end-to-end 2026-07-12** — user re-uploaded the fixed `update-data.php`
   and confirmed a real submit→approve round-trip works (archive uploads fixed in the same
   pass).
-- [ ] Phase 5.2 — editable budget sheet (planned numbers, computed spent/balance, 15-min
-  autosave + beforeunload guard), admin-added direct expenses, request/expense editing
-  (`budget_save_sheet`/`budget_expense_add`/`budget_expense_update`/`budget_request_update`).
+- [x] Phase 5.2 — built 2026-07-12. Editable budget sheet (`renderBudgetSheet` in
+  budget.js): a **planned** amount per category with **Brugt** (= sum of that category's
+  expense `amount`) and **Rest** computed live, an editable **income** list, and a net
+  result. 15-min autosave (`setInterval` guarded to register once) + `beforeunload` guard on
+  a dirty flag, plus a manual "Gem budget" button; a reload triggered by any expense/request
+  action flushes unsaved sheet edits first (`reloadAdmin`/`saveBudgetSheetIfDirty`).
+  Admin-added **direct expenses** (`openExpenseAddModal`, optional receipt) and
+  **request/expense editing** (`openRequestEditModal`/`openExpenseEditModal` — expense
+  category locked, keeping bilag + receipt stable). New `budget.json` schema
+  `{planned:{key→n}, income:[{id,label,amount}], updatedAt}`. Server: four admin actions
+  (`budget_save_sheet`/`budget_expense_add`/`budget_expense_update`/`budget_request_update`)
+  + a shared `budget_next_n()` refactor, all hoisted functions (const-ordering landmine).
+  **Pending live deploy**: re-upload `update-data.php` to Simply.com, then verify end-to-end.
 - [ ] Later — reimbursement-owed rollup (Excel's "Udlægsholder/Udlæg"), export/backup of the
   private datastore (this data has no git history), closer parity with the full Excel.
 
