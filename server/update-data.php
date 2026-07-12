@@ -419,7 +419,7 @@ function budget_submit($body) {
 function budget_read() {
   respond(200, [
     'ok'       => true,
-    'budget'   => budget_load('budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null]),
+    'budget'   => budget_load('budget.json', ['planned' => new stdClass(), 'notes' => new stdClass(), 'income' => [], 'updatedAt' => null]),
     'requests' => budget_load('requests.json', ['requests' => []]),
     'expenses' => budget_load('expenses.json', ['expenses' => []]),
   ]);
@@ -525,13 +525,15 @@ function budget_request_reject($body) {
   respond(200, ['ok' => true]);
 }
 
-// Admin: overwrite the editable budget sheet — the planned amount per category
-// plus a free-form income/revenue list. Spent/balance are derived client-side
-// from the ledger, never stored here.
+// Admin: overwrite the editable budget sheet — the planned amount per category,
+// an optional per-category note, and the income/revenue list (each line may
+// carry a comment). Spent/balance are derived client-side from the ledger,
+// never stored here.
 function budget_save_sheet($body) {
   $planned = $body['planned'] ?? null;
   $income  = $body['income'] ?? null;
-  if (!is_array($planned) || !is_array($income)) {
+  $notes   = $body['notes'] ?? [];
+  if (!is_array($planned) || !is_array($income) || !is_array($notes)) {
     respond(400, ['error' => 'invalid_shape']);
   }
   $keys = budget_category_keys();
@@ -541,6 +543,14 @@ function budget_save_sheet($body) {
       respond(400, ['error' => 'invalid_shape']);
     }
     $cleanPlanned[$key] = round((float) $val, 2);
+  }
+  $cleanNotes = [];
+  foreach ($notes as $key => $text) {
+    if (!in_array($key, $keys, true) || !is_string($text)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $text = trim($text);
+    if ($text !== '') $cleanNotes[$key] = $text;
   }
   $cleanIncome = [];
   foreach ($income as $line) {
@@ -552,18 +562,21 @@ function budget_save_sheet($body) {
     $id = (isset($line['id']) && is_string($line['id']) && $line['id'] !== '')
       ? $line['id']
       : (dechex(time()) . bin2hex(random_bytes(3)));
+    $comment = (isset($line['comment']) && is_string($line['comment'])) ? trim($line['comment']) : '';
     $cleanIncome[] = [
-      'id'     => $id,
-      'label'  => trim($line['label']),
-      'amount' => round((float) $line['amount'], 2),
+      'id'      => $id,
+      'label'   => trim($line['label']),
+      'amount'  => round((float) $line['amount'], 2),
+      'comment' => $comment,
     ];
   }
 
-  budget_mutate('budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
-    function ($json) use ($cleanPlanned, $cleanIncome) {
-      // Encode planned as an object even when empty (json_encode turns [] into
-      // an array, but the schema — and the client — expect an object).
+  budget_mutate('budget.json', ['planned' => new stdClass(), 'notes' => new stdClass(), 'income' => [], 'updatedAt' => null],
+    function ($json) use ($cleanPlanned, $cleanNotes, $cleanIncome) {
+      // Encode planned/notes as objects even when empty (json_encode turns []
+      // into an array, but the schema — and the client — expect an object).
       $json['planned'] = empty($cleanPlanned) ? new stdClass() : $cleanPlanned;
+      $json['notes'] = empty($cleanNotes) ? new stdClass() : $cleanNotes;
       $json['income'] = $cleanIncome;
       $json['updatedAt'] = date('c');
       return $json;

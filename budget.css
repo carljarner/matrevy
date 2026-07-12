@@ -5,6 +5,45 @@
    site-wide mobile convention — keep it in sync.
    ========================================================= */
 
+/* --- Page width & two-column layout ----------------------- */
+/* budget.css loads only on budget.html, so widening .page-content
+   here affects this page alone. The revyst form is capped narrow. */
+.page-content { max-width: 1080px; }
+.budget-form { max-width: 520px; }
+
+.budget-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: stretch;
+  margin-bottom: 1.25rem;
+}
+
+.budget-columns > .card { margin-bottom: 0; }
+
+/* Afventende udlæg matches the Budget column's height and scrolls its
+   list internally. The list is absolutely positioned so it contributes
+   ~0 to intrinsic height — the grid row is sized by the (taller) Budget
+   card, and the pending card stretches to fit. */
+.budget-col-pending {
+  display: flex;
+  flex-direction: column;
+}
+
+.budget-scroll-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.budget-scroll-wrap .budget-list {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 2px;
+}
+
 /* --- Shared bits ------------------------------------------ */
 .budget-intro {
   color: #57606a;
@@ -51,17 +90,46 @@
   margin-top: 0.5rem;
 }
 
-.budget-check {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.9rem;
-  color: #1f2328;
-  margin: 0.5rem 0 0.25rem;
+/* --- Warm-theme inputs (page-scoped) ---------------------- */
+/* The blue primary buttons stay; only the fields and small gray
+   buttons are pulled into the honey/walnut palette. */
+.budget-form .edit-field input,
+.budget-form .edit-field select,
+.budget-form .edit-field textarea,
+.budget-approve-modal .edit-field input,
+.budget-approve-modal .edit-field select,
+.budget-approve-modal .edit-field textarea,
+.budget-sheet-table .budget-plan-input,
+.budget-income-amount,
+.budget-filter select {
+  border-color: var(--border);
+  background: #fdf8ec;
+  color: var(--text);
 }
 
-.budget-check input {
-  width: auto;
+.budget-form .edit-field input:focus,
+.budget-form .edit-field select:focus,
+.budget-form .edit-field textarea:focus,
+.budget-approve-modal .edit-field input:focus,
+.budget-approve-modal .edit-field select:focus,
+.budget-approve-modal .edit-field textarea:focus,
+.budget-sheet-table .budget-plan-input:focus,
+.budget-income-amount:focus,
+.budget-filter select:focus {
+  outline: none;
+  border-color: #3b82d4;
+  box-shadow: 0 0 0 2px rgba(59, 130, 212, 0.15);
+}
+
+/* --- Warm-theme small buttons (keep the red danger variant) - */
+#budget-root .btn-small:not(.btn-small-danger) {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  #budget-root .btn-small:not(.btn-small-danger):hover { background: var(--surface-2); }
 }
 
 /* --- Pending list ----------------------------------------- */
@@ -114,26 +182,21 @@
   flex-wrap: wrap;
 }
 
-/* --- Receipt thumbnail ------------------------------------ */
-.budget-thumb {
-  flex: 0 0 auto;
-  width: 88px;
-  height: 88px;
-  border-radius: 6px;
+/* --- Receipt icon (pending cards) ------------------------- */
+.budget-receipt-icon {
   border: 1px solid var(--border);
-  background: var(--surface-2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  background: var(--surface);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
 }
 
-.budget-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  cursor: pointer;
-  display: block;
+.budget-receipt-icon:disabled { opacity: 0.5; cursor: default; }
+
+@media (hover: hover) {
+  .budget-receipt-icon:hover { background: var(--surface-2); }
 }
 
 .budget-thumb-empty {
@@ -141,6 +204,41 @@
   color: #8b949e;
   text-align: center;
   padding: 0 0.3rem;
+}
+
+/* --- Comment icon (categories + income rows) -------------- */
+.budget-comment-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+
+.budget-comment-btn.has-note {
+  opacity: 1;
+  filter: none;
+}
+
+@media (hover: hover) {
+  .budget-comment-btn:hover { opacity: 1; }
+}
+
+/* Category name + comment icon share one cell */
+.budget-cat-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.budget-cat-name {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
 }
 
 /* --- Paid browser ----------------------------------------- */
@@ -215,17 +313,16 @@
 .budget-save-status.dirty { color: #9a6700; }
 .budget-save-status.error { color: #c0392b; }
 
+.budget-sheet-table { min-width: 0; }
+
 .budget-sheet-table .budget-plan-input,
-.budget-income-label,
 .budget-income-amount {
   width: 100%;
   padding: 0.3rem 0.45rem;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.85rem;
   font-family: inherit;
-  background: #ffffff;
-  color: #1f2328;
 }
 
 .budget-sheet-table .budget-plan-input {
@@ -268,25 +365,14 @@
   align-items: center;
 }
 
-.budget-income-label { flex: 1; min-width: 0; }
-.budget-income-amount { flex: 0 0 130px; text-align: right; }
-
-.budget-income-remove {
-  flex: 0 0 auto;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: #8b949e;
-  border-radius: 6px;
-  width: 32px;
-  height: 32px;
-  cursor: pointer;
+.budget-income-name {
+  flex: 1;
+  min-width: 0;
   font-size: 0.9rem;
-  line-height: 1;
+  color: var(--text);
 }
 
-@media (hover: hover) {
-  .budget-income-remove:hover { color: #c0392b; border-color: #c0392b; }
-}
+.budget-income-amount { flex: 0 0 130px; text-align: right; }
 
 .budget-net-row {
   display: flex;
@@ -312,13 +398,11 @@
 
 /* --- Mobile (site-wide 719px convention) ------------------ */
 @media (max-width: 719px) {
-  .budget-item {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
+  .page-content { max-width: 100%; }
 
-  .budget-thumb {
-    width: 100%;
-    height: 140px;
-  }
+  /* Stack the two columns; the pending list flows naturally (no cap). */
+  .budget-columns { grid-template-columns: 1fr; }
+  .budget-col-pending { display: block; }
+  .budget-scroll-wrap { position: static; }
+  .budget-scroll-wrap .budget-list { position: static; }
 }
