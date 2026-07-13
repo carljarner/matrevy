@@ -10,6 +10,7 @@
    here affects this page alone (matches the Arkiv page's 1200px).
    The revyst form is capped narrow. */
 .page-content { max-width: 1200px; }
+.page-content > h1 { text-align: center; }
 .budget-form { max-width: 520px; margin: 0 auto; }
 .budget-form h2 { text-align: center; }
 
@@ -126,13 +127,30 @@
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
+/* Warm hue on hover too (the focus glow is the ring; hover is just the
+   orange border). Gated per the site-wide hover convention. */
+@media (hover: hover) {
+  .budget-form .edit-field input:hover,
+  .budget-form .edit-field select:hover,
+  .budget-form .edit-field textarea:hover,
+  .budget-approve-modal .edit-field input:hover,
+  .budget-approve-modal .edit-field select:hover,
+  .budget-approve-modal .edit-field textarea:hover,
+  .budget-sheet-table .budget-plan-input:hover,
+  .budget-income-amount:hover,
+  .budget-income-note-input:hover,
+  .budget-filter select:hover {
+    border-color: var(--accent-warm);
+  }
+}
+
 /* --- Warm-theme small buttons (keep the red danger variant) - */
 /* The resting fill only; hover (amber) is inherited from the global
    .btn-small rule in style.css, and the semantic action buttons
    (.budget-act-*) keep their own green/amber/red hovers via #id specificity. */
 #budget-root .btn-small:not(.btn-small-danger) {
   border-color: var(--border);
-  background: var(--surface);
+  background: #fdf8ec;
   color: var(--text);
 }
 
@@ -268,6 +286,7 @@
 .budget-pill-btn:disabled { opacity: 0.6; cursor: default; }
 .budget-pill-primary { color: #1a7f37; }
 .budget-pill-danger { color: #c0392b; }
+.budget-pill-warm { color: var(--accent-warm-text); }
 
 @media (hover: hover) {
   .budget-pill-btn:hover { background: var(--surface-2); }

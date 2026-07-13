@@ -742,7 +742,7 @@ function openApproveModal(root, req) {
 // Admin: edit a pending request (category may change; receipt stays put).
 function openRequestEditModal(root, req) {
   const { modal, form, error, actions, close } = siteOpenEditModal('Rediger udlæg');
-  modal.classList.add('budget-approve-modal');
+  modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
   const categorySelect = el('select');
   BUDGET_CATEGORIES.forEach((c) => categorySelect.appendChild(new Option(c.label, c.key)));
@@ -769,9 +769,9 @@ function openRequestEditModal(root, req) {
   commentInput.value = req.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
-  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
+  const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = el('button', 'site-btn-primary', 'Gem');
+  const confirmBtn = budgetPillBtn('Gem', 'budget-pill-warm');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
