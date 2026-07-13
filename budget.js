@@ -175,14 +175,24 @@ async function budgetApi(action, body) {
   } catch (e) {
     return { ok: false, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
   }
-  if (!res.ok) return { ok: false, message: budgetMapError(res.status) };
   // Require a real {ok:true} JSON body — a PHP fatal error (or a WAF
   // challenge) can come back as HTTP 200 with an HTML body, and must
   // NOT be mistaken for success.
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) {
+    // Surface the server's own error code (e.g. "unknown_action" when the
+    // deployed PHP predates a handler) instead of a generic message, so a
+    // deploy gap is diagnosable rather than silent.
+    const detail = data && typeof data.error === 'string' ? data.error : '';
+    const base = budgetMapError(res.status);
+    return { ok: false, message: detail ? `${base} (${detail})` : base };
+  }
   if (!data || data.ok !== true) {
-    return { ok: false, message: 'Uventet svar fra serveren. Prøv igen senere.' };
+    const detail = data && typeof data.error === 'string' ? data.error : '';
+    return { ok: false, message: detail
+      ? `Serverfejl: ${detail}`
+      : 'Uventet svar fra serveren. Prøv igen senere.' };
   }
   return { ok: true, data };
 }
@@ -514,6 +524,9 @@ function renderBudgetSheet(container) {
 }
 
 function buildIncomeRow(def, stored, incomeRows) {
+  // Wrapper so the optional description (Andet) can sit under the amount row.
+  const wrap = el('div', 'budget-income-group');
+
   const row = el('div', 'budget-income-row');
   row.appendChild(el('span', 'budget-income-name', def.label));
 
@@ -525,10 +538,23 @@ function buildIncomeRow(def, stored, incomeRows) {
   if (amt != null && amt !== '') amountInput.value = String(amt).replace('.', ',');
   amountInput.addEventListener('input', () => { markSheetDirty(); updateSheetTotals(); });
   row.appendChild(amountInput);
+  wrap.appendChild(row);
 
   const entry = { id: def.id, label: def.label, amountInput };
+
+  // "Andet" is a catch-all — let the kasserer describe what it covers.
+  if (def.id === 'andet') {
+    const noteInput = el('input', 'budget-income-note-input');
+    noteInput.type = 'text';
+    noteInput.placeholder = 'Beskriv hvad "Andet" dækker …';
+    if (stored.note != null) noteInput.value = String(stored.note);
+    noteInput.addEventListener('input', () => { markSheetDirty(); });
+    wrap.appendChild(noteInput);
+    entry.noteInput = noteInput;
+  }
+
   incomeRows.push(entry);
-  return row;
+  return wrap;
 }
 
 function updateSheetTotals() {
@@ -570,11 +596,13 @@ function collectSheetPayload() {
   });
   const income = budgetSheet.incomeRows.map((r) => {
     const amount = parseAmount(r.amountInput.value);
-    return {
+    const line = {
       id: r.id,
       label: r.label,
       amount: Number.isFinite(amount) && amount >= 0 ? amount : 0,
     };
+    if (r.noteInput) line.note = r.noteInput.value.trim();
+    return line;
   });
   return { planned, income };
 }
@@ -654,11 +682,11 @@ function buildPendingCard(root, req) {
   if (req.comment) main.appendChild(el('div', 'budget-item-note', req.comment));
 
   const actions = el('div', 'budget-item-actions');
-  const approveBtn = el('button', 'btn-small', 'Godkend');
+  const approveBtn = el('button', 'btn-small budget-act-approve', 'Godkend');
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
-  const editBtn = el('button', 'btn-small', 'Rediger');
+  const editBtn = el('button', 'btn-small budget-act-edit', 'Rediger');
   editBtn.addEventListener('click', () => openRequestEditModal(root, req));
-  const rejectBtn = el('button', 'btn-small', 'Afvis');
+  const rejectBtn = el('button', 'btn-small budget-act-reject', 'Afvis');
   rejectBtn.addEventListener('click', () => rejectRequest(root, req));
   actions.appendChild(approveBtn);
   actions.appendChild(editBtn);
@@ -802,13 +830,9 @@ function renderPaidSection(root) {
   const card = el('section', 'card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Betalte udgifter'));
-  const headRight = el('div', 'budget-head-right');
   const addBtn = el('button', 'btn-small', '＋ Tilføj udgift');
   addBtn.addEventListener('click', () => openExpenseAddModal(root));
-  headRight.appendChild(addBtn);
-  const total = budgetState.expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
-  headRight.appendChild(el('span', 'budget-amount', formatKr(total)));
-  head.appendChild(headRight);
+  head.appendChild(addBtn);
   card.appendChild(head);
 
   // Category filter ("shuffle through categories").

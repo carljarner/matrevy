@@ -552,11 +552,16 @@ function budget_save_sheet($body) {
     $id = (isset($line['id']) && is_string($line['id']) && $line['id'] !== '')
       ? $line['id']
       : (dechex(time()) . bin2hex(random_bytes(3)));
-    $cleanIncome[] = [
+    $entry = [
       'id'     => $id,
       'label'  => trim($line['label']),
       'amount' => round((float) $line['amount'], 2),
     ];
+    // Optional free-text description (e.g. what the "Andet" income covers).
+    if (isset($line['note']) && is_string($line['note']) && trim($line['note']) !== '') {
+      $entry['note'] = trim($line['note']);
+    }
+    $cleanIncome[] = $entry;
   }
 
   budget_mutate('budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
