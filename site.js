@@ -226,10 +226,6 @@ function openLoginModal() {
   heading.textContent = 'Log ind';
   modal.appendChild(heading);
 
-  const hint = document.createElement('p');
-  hint.textContent = 'Indtast den fælles adgangskode (revyst eller admin).';
-  modal.appendChild(hint);
-
   const input = document.createElement('input');
   input.type = 'password';
   input.id = 'login-password';
@@ -246,10 +242,10 @@ function openLoginModal() {
   submit.className = 'site-btn-primary';
   submit.textContent = 'Log ind';
   const cancel = document.createElement('button');
-  cancel.className = 'site-btn-secondary';
+  cancel.className = 'site-btn-warm';
   cancel.textContent = 'Annuller';
-  actions.appendChild(submit);
   actions.appendChild(cancel);
+  actions.appendChild(submit);
   modal.appendChild(actions);
 
   overlay.appendChild(modal);

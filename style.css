@@ -210,7 +210,8 @@ body:has(.sched-layout) .site-footer {
 }
 
 .site-btn-primary,
-.site-btn-secondary {
+.site-btn-secondary,
+.site-btn-warm {
   border-radius: 6px;
   padding: 0.45rem 1rem;
   font-size: 0.9rem;
@@ -237,6 +238,22 @@ body:has(.sched-layout) .site-footer {
 
 @media (hover: hover) {
   .site-btn-secondary:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+
+/* Warm secondary button — the site's standard warm-amber look
+   (mirrors .btn-small), used for "Annuller" next to a blue primary. */
+.site-btn-warm {
+  background: #fdf8ec;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+@media (hover: hover) {
+  .site-btn-warm:hover {
     background: var(--accent-warm-fill);
     border-color: var(--accent-warm);
     color: var(--accent-warm-text);

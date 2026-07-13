@@ -945,7 +945,7 @@ function openExpenseAddModal(root) {
   receiptInput.accept = 'image/*';
   form.appendChild(siteEditField('Billede af kvittering (valgfrit)', receiptInput));
 
-  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
+  const cancelBtn = el('button', 'site-btn-warm', 'Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = el('button', 'site-btn-primary', 'Tilføj');
   confirmBtn.addEventListener('click', async () => {
