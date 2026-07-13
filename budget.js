@@ -36,7 +36,7 @@ const BUDGET_CATEGORIES = [
   { key: 'diverse',      label: 'Diverse' },
   { key: 'rengoring',    label: 'Rengøring' },
   { key: 'tur',          label: 'Revyttetur' },
-  { key: 'manus',        label: 'Manuskript' },
+  { key: 'manus',        label: 'Manusmøder' },
   { key: 'tshirts',      label: 'T-shirts' },
   { key: 'stregnskab',   label: 'Stregnskab' },
 ];
@@ -714,6 +714,10 @@ function openApproveModal(root, req) {
 
   form.appendChild(el('p', 'budget-intro',
     `${budgetCategoryLabel(req.category)} · ${formatKr(req.amount)} · ${req.name} · ${req.phone}`));
+
+  if (req.comment && req.comment.trim()) {
+    form.appendChild(el('p', 'budget-intro', `Kommentar: ${req.comment.trim()}`));
+  }
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
