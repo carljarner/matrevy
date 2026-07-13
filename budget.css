@@ -7,38 +7,25 @@
 
 /* --- Page width & two-column layout ----------------------- */
 /* budget.css loads only on budget.html, so widening .page-content
-   here affects this page alone. The revyst form is capped narrow. */
-.page-content { max-width: 1080px; }
+   here affects this page alone (matches the Arkiv page's 1200px).
+   The revyst form is capped narrow. */
+.page-content { max-width: 1200px; }
 .budget-form { max-width: 520px; }
 
 .budget-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 1fr;   /* Budget ~2/3, Afventende udlæg ~1/3 */
   gap: 1.25rem;
-  align-items: stretch;
+  align-items: start;               /* pending doesn't stretch to Budget's height */
   margin-bottom: 1.25rem;
 }
 
 .budget-columns > .card { margin-bottom: 0; }
 
-/* Afventende udlæg matches the Budget column's height and scrolls its
-   list internally. The list is absolutely positioned so it contributes
-   ~0 to intrinsic height — the grid row is sized by the (taller) Budget
-   card, and the pending card stretches to fit. */
-.budget-col-pending {
-  display: flex;
-  flex-direction: column;
-}
-
+/* Afventende udlæg is a roughly-square box; many requests scroll inside
+   it instead of lengthening the column. */
 .budget-scroll-wrap {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-
-.budget-scroll-wrap .budget-list {
-  position: absolute;
-  inset: 0;
+  max-height: 300px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-right: 2px;
@@ -182,21 +169,26 @@
   flex-wrap: wrap;
 }
 
-/* --- Receipt icon (pending cards) ------------------------- */
-.budget-receipt-icon {
-  border: 1px solid var(--border);
-  background: var(--surface);
+/* --- Receipt thumbnail (pending cards) -------------------- */
+.budget-thumb {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
   border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  line-height: 1;
-  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
-.budget-receipt-icon:disabled { opacity: 0.5; cursor: default; }
-
-@media (hover: hover) {
-  .budget-receipt-icon:hover { background: var(--surface-2); }
+.budget-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
 }
 
 .budget-thumb-empty {
@@ -206,39 +198,33 @@
   padding: 0 0.3rem;
 }
 
-/* --- Comment icon (categories + income rows) -------------- */
-.budget-comment-btn {
-  flex: 0 0 auto;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  padding: 0 0.15rem;
-  opacity: 0.4;
-  filter: grayscale(1);
+/* --- Confirm-dialog pill buttons (Arkiv style) ------------ */
+.budget-confirm-modal .login-actions {
+  justify-content: center;
+  gap: 0.6rem;
 }
 
-.budget-comment-btn.has-note {
-  opacity: 1;
-  filter: none;
+.budget-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
 }
+
+.budget-pill-btn:disabled { opacity: 0.6; cursor: default; }
+.budget-pill-primary { color: #1a7f37; }
+.budget-pill-danger { color: #c0392b; }
 
 @media (hover: hover) {
-  .budget-comment-btn:hover { opacity: 1; }
-}
-
-/* Category name + comment icon share one cell */
-.budget-cat-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.budget-cat-name {
-  flex: 1;
-  min-width: 0;
-  white-space: normal;
+  .budget-pill-btn:hover { background: var(--surface-2); }
 }
 
 /* --- Paid browser ----------------------------------------- */
@@ -402,7 +388,15 @@
 
   /* Stack the two columns; the pending list flows naturally (no cap). */
   .budget-columns { grid-template-columns: 1fr; }
-  .budget-col-pending { display: block; }
-  .budget-scroll-wrap { position: static; }
-  .budget-scroll-wrap .budget-list { position: static; }
+  .budget-scroll-wrap { max-height: none; overflow-y: visible; }
+
+  .budget-item {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .budget-thumb {
+    width: 100%;
+    height: 140px;
+  }
 }

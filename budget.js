@@ -305,24 +305,31 @@ function renderRevystForm(root) {
   root.appendChild(card);
 }
 
-// ── Receipt icon (lazy, private) ─────────────────────────────
-// A small clickable icon that opens the (password-gated) receipt in a new tab.
-function buildReceiptIconBtn(file) {
-  const btn = el('button', 'budget-receipt-icon', '🧾');
-  btn.type = 'button';
-  btn.title = 'Se kvittering';
-  btn.setAttribute('aria-label', 'Se kvittering');
-  btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    const url = await budgetFetchReceipt(file);
-    btn.disabled = false;
-    if (url) window.open(url, '_blank');
+// ── Receipt thumbnail (lazy, private) ────────────────────────
+function budgetReceiptThumb(file) {
+  const wrap = el('div', 'budget-thumb');
+  if (!file) {
+    wrap.appendChild(el('span', 'budget-thumb-empty', 'Ingen kvittering'));
+    return wrap;
+  }
+  wrap.appendChild(el('span', 'budget-thumb-empty', 'Henter …'));
+  budgetFetchReceipt(file).then((url) => {
+    wrap.replaceChildren();
+    if (!url) {
+      wrap.appendChild(el('span', 'budget-thumb-empty', 'Kvittering utilgængelig'));
+      return;
+    }
+    const img = el('img');
+    img.src = url;
+    img.alt = 'Kvittering';
+    img.addEventListener('click', () => window.open(url, '_blank'));
+    wrap.appendChild(img);
   });
-  return btn;
+  return wrap;
 }
 
 // ── Admin: management view ───────────────────────────────────
-let budgetState = { requests: [], expenses: [], budget: { planned: {}, notes: {}, income: [] } };
+let budgetState = { requests: [], expenses: [], budget: { planned: {}, income: [] } };
 let budgetPaidFilter = 'alle';
 
 async function loadAndRenderAdmin(root) {
@@ -342,7 +349,6 @@ async function loadAndRenderAdmin(root) {
   const b = data.budget || {};
   budgetState.budget = {
     planned: (b.planned && typeof b.planned === 'object') ? b.planned : {},
-    notes: (b.notes && typeof b.notes === 'object') ? b.notes : {},
     income: Array.isArray(b.income) ? b.income : [],
   };
 
@@ -393,7 +399,7 @@ function nowHhmm() {
 }
 
 // Income is a fixed two-row list (labels hardcoded, non-removable) — the only
-// real income is ticket sales; "Andet" is a catch-all with a comment.
+// real income is ticket sales; "Andet" is a catch-all.
 const BUDGET_INCOME_ROWS = [
   { id: 'billetsalg', label: 'Billetsalg (efter kontingent)' },
   { id: 'andet',      label: 'Andet' },
@@ -410,11 +416,6 @@ function renderBudgetSheet(container) {
   const spent = computeSpentByCategory();
   const plannedInputs = {};
   const restCells = {};
-  const plannedNotes = {};
-  const storedNotes = budgetState.budget.notes || {};
-  BUDGET_CATEGORIES.forEach((c) => {
-    plannedNotes[c.key] = typeof storedNotes[c.key] === 'string' ? storedNotes[c.key] : '';
-  });
 
   const tableWrap = el('div', 'budget-table-wrap');
   const table = el('table', 'budget-table budget-sheet-table');
@@ -427,13 +428,7 @@ function renderBudgetSheet(container) {
   const tbody = el('tbody');
   BUDGET_CATEGORIES.forEach((c) => {
     const tr = el('tr');
-    const nameTd = el('td', 'budget-cat-cell');
-    nameTd.appendChild(el('span', 'budget-cat-name', c.label));
-    nameTd.appendChild(budgetCommentIcon(
-      () => plannedNotes[c.key],
-      (val) => { plannedNotes[c.key] = val; },
-    ));
-    tr.appendChild(nameTd);
+    tr.appendChild(el('td', null, c.label));
 
     const pTd = el('td', 'budget-td-num');
     const inp = el('input', 'budget-plan-input');
@@ -505,7 +500,7 @@ function renderBudgetSheet(container) {
   card.appendChild(saveBar);
 
   budgetSheet = {
-    plannedInputs, restCells, plannedNotes, spent, incomeList,
+    plannedInputs, restCells, spent, incomeList,
     incomeRows,
     totalPlannedCell, totalBrugtCell, totalRestCell,
     incomeTotalCell, netCell, status,
@@ -531,58 +526,9 @@ function buildIncomeRow(def, stored, incomeRows) {
   amountInput.addEventListener('input', () => { markSheetDirty(); updateSheetTotals(); });
   row.appendChild(amountInput);
 
-  const entry = {
-    id: def.id,
-    label: def.label,
-    amountInput,
-    comment: typeof stored.comment === 'string' ? stored.comment : '',
-  };
-  row.appendChild(budgetCommentIcon(
-    () => entry.comment,
-    (val) => { entry.comment = val; },
-  ));
-
+  const entry = { id: def.id, label: def.label, amountInput };
   incomeRows.push(entry);
   return row;
-}
-
-// A small speech-bubble button that opens a comment overlay for a single
-// line (a category or an income row). getText/setText read/write the note;
-// the button shows a filled (has-note) state when a comment exists.
-function budgetCommentIcon(getText, setText) {
-  const btn = el('button', 'budget-comment-btn');
-  btn.type = 'button';
-  btn.textContent = '💬';
-  function refresh() {
-    const t = (getText() || '').trim();
-    btn.classList.toggle('has-note', !!t);
-    btn.title = t || 'Tilføj kommentar';
-    btn.setAttribute('aria-label', t ? 'Rediger kommentar' : 'Tilføj kommentar');
-  }
-  btn.addEventListener('click', () => {
-    openCommentModal(getText(), (val) => {
-      setText(val);
-      refresh();
-      markSheetDirty();
-    });
-  });
-  refresh();
-  return btn;
-}
-
-function openCommentModal(current, onSave) {
-  const { modal, form, actions, close } = siteOpenEditModal('Kommentar');
-  modal.classList.add('budget-approve-modal');
-  const ta = el('textarea');
-  ta.value = current || '';
-  ta.placeholder = 'fx hvordan beløbet fordeles';
-  form.appendChild(siteEditField('Kommentar', ta));
-  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
-  cancelBtn.addEventListener('click', close);
-  const saveBtn = el('button', 'site-btn-primary', 'Gem');
-  saveBtn.addEventListener('click', () => { onSave(ta.value.trim()); close(); });
-  actions.appendChild(cancelBtn);
-  actions.appendChild(saveBtn);
 }
 
 function updateSheetTotals() {
@@ -615,15 +561,12 @@ function updateSheetTotals() {
 // Collect the current sheet values into the payload shape.
 function collectSheetPayload() {
   const planned = {};
-  const notes = {};
   BUDGET_CATEGORIES.forEach((c) => {
     const raw = budgetSheet.plannedInputs[c.key].value.trim();
     if (raw !== '') {
       const v = parseAmount(raw);
       if (Number.isFinite(v) && v >= 0) planned[c.key] = v;
     }
-    const note = (budgetSheet.plannedNotes[c.key] || '').trim();
-    if (note !== '') notes[c.key] = note;
   });
   const income = budgetSheet.incomeRows.map((r) => {
     const amount = parseAmount(r.amountInput.value);
@@ -631,10 +574,9 @@ function collectSheetPayload() {
       id: r.id,
       label: r.label,
       amount: Number.isFinite(amount) && amount >= 0 ? amount : 0,
-      comment: (r.comment || '').trim(),
     };
   });
-  return { planned, notes, income };
+  return { planned, income };
 }
 
 async function saveBudgetSheet() {
@@ -645,7 +587,7 @@ async function saveBudgetSheet() {
   const result = await budgetApi('budget_save_sheet', payload);
   if (result.ok) {
     budgetSheetDirty = false;
-    budgetState.budget = { planned: payload.planned, notes: payload.notes, income: payload.income };
+    budgetState.budget = { planned: payload.planned, income: payload.income };
     budgetSheet.status.textContent = 'Gemt kl. ' + nowHhmm();
     budgetSheet.status.className = 'budget-save-status';
   } else if (result.message) {
@@ -716,47 +658,46 @@ function buildPendingCard(root, req) {
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
   const editBtn = el('button', 'btn-small', 'Rediger');
   editBtn.addEventListener('click', () => openRequestEditModal(root, req));
-  const rejectBtn = el('button', 'btn-small btn-small-danger', 'Afvis');
+  const rejectBtn = el('button', 'btn-small', 'Afvis');
   rejectBtn.addEventListener('click', () => rejectRequest(root, req));
   actions.appendChild(approveBtn);
   actions.appendChild(editBtn);
   actions.appendChild(rejectBtn);
-  if (req.receiptFile) actions.appendChild(buildReceiptIconBtn(req.receiptFile));
   main.appendChild(actions);
 
   item.appendChild(main);
+  item.appendChild(budgetReceiptThumb(req.receiptFile));
   return item;
 }
 
+// A rounded "pill" button in the Arkiv style (used by the confirm dialogs).
+function budgetPillBtn(label, variant) {
+  const btn = el('button', 'budget-pill-btn' + (variant ? ' ' + variant : ''), label);
+  btn.type = 'button';
+  return btn;
+}
+
+// Godkend is a confirmation, not an edit form (editing is what "Rediger" is
+// for): just the request's details + Annuller/Betalt. The paid-out person is
+// the submitter, and the expense date is the submission date.
 function openApproveModal(root, req) {
   const { modal, form, error, actions, close } = siteOpenEditModal('Godkend udlæg');
-  modal.classList.add('budget-approve-modal');
+  modal.classList.add('budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
-    `${budgetCategoryLabel(req.category)} · ${formatKr(req.amount)} · ${req.name}`));
+    `${budgetCategoryLabel(req.category)} · ${formatKr(req.amount)} · ${req.name} · ${req.phone}`));
 
-  const paidByInput = el('input');
-  paidByInput.type = 'text';
-  paidByInput.value = req.name;
-  form.appendChild(siteEditField('Udlægsholder (hvem lagde ud)', paidByInput));
-
-  const dateInput = el('input');
-  dateInput.type = 'date';
-  dateInput.value = todayIso();
-  form.appendChild(siteEditField('Dato', dateInput));
-
-  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
+  const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = el('button', 'site-btn-primary', 'Betalt');
+  const confirmBtn = budgetPillBtn('Betalt', 'budget-pill-primary');
   confirmBtn.addEventListener('click', async () => {
-    if (!paidByInput.value.trim()) { error.textContent = 'Angiv udlægsholder.'; return; }
     confirmBtn.disabled = true;
     error.textContent = '';
     const result = await budgetApi('budget_approve', {
       id: req.id,
-      paidBy: paidByInput.value.trim(),
+      paidBy: req.name,
       settled: true,
-      date: dateInput.value || todayIso(),
+      date: String(req.createdAt || '').slice(0, 10) || todayIso(),
     });
     if (result.ok) {
       close();
@@ -831,14 +772,30 @@ function openRequestEditModal(root, req) {
   actions.appendChild(confirmBtn);
 }
 
-async function rejectRequest(root, req) {
-  if (!confirm(`Afvis udlægget fra ${req.name} (${formatKr(req.amount)})? Kvitteringen slettes.`)) return;
-  const result = await budgetApi('budget_request_reject', { id: req.id });
-  if (result.ok) {
-    reloadAdmin(root);
-  } else if (result.message) {
-    alert(result.message);
-  }
+function rejectRequest(root, req) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('Afvis udlæg');
+  modal.classList.add('budget-confirm-modal');
+
+  form.appendChild(el('p', 'budget-intro',
+    `Afvis udlægget fra ${req.name} (${formatKr(req.amount)})? Kvitteringen slettes.`));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = budgetPillBtn('Afvis', 'budget-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_request_reject', { id: req.id });
+    if (result.ok) {
+      close();
+      reloadAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 function renderPaidSection(root) {
@@ -889,7 +846,7 @@ function renderPaidTable(wrap) {
   const table = el('table', 'budget-table');
   const thead = el('thead');
   const htr = el('tr');
-  ['Bilag', 'Dato', 'Beløb', 'Udlægsholder', 'Kommentar', 'Kvittering', '']
+  ['Bilag', 'Dato', 'Betalt', 'Beløb', 'Udlægsholder', 'Kommentar', 'Kvittering', '']
     .forEach((h) => htr.appendChild(el('th', null, h)));
   thead.appendChild(htr);
   table.appendChild(thead);
@@ -898,7 +855,8 @@ function renderPaidTable(wrap) {
   rows.forEach((e) => {
     const tr = el('tr');
     tr.appendChild(el('td', null, e.bilag || '—'));
-    tr.appendChild(el('td', null, formatDaNumeric(e.date)));
+    tr.appendChild(el('td', null, formatDaNumeric(String(e.date || '').slice(0, 10))));
+    tr.appendChild(el('td', null, formatDaNumeric(String(e.approvedAt || '').slice(0, 10))));
     tr.appendChild(el('td', 'budget-td-num', formatKr(e.amount)));
     tr.appendChild(el('td', null, e.paidBy || '—'));
     tr.appendChild(el('td', null, e.comment || ''));
@@ -1018,17 +976,15 @@ function openExpenseEditModal(root, exp) {
 
   form.appendChild(el('p', 'budget-intro',
     `${budgetCategoryLabel(exp.category)} · bilag ${exp.bilag || '—'}`));
+  form.appendChild(el('p', 'budget-intro',
+    `Indsendt ${formatDaNumeric(String(exp.date || '').slice(0, 10))}`
+    + ` · Betalt ${formatDaNumeric(String(exp.approvedAt || '').slice(0, 10))}`));
 
   const amountInput = el('input');
   amountInput.type = 'text';
   amountInput.inputMode = 'decimal';
   amountInput.value = String(exp.amount).replace('.', ',');
   form.appendChild(siteEditField('Beløb (kr)', amountInput));
-
-  const dateInput = el('input');
-  dateInput.type = 'date';
-  dateInput.value = exp.date || todayIso();
-  form.appendChild(siteEditField('Dato', dateInput));
 
   const paidByInput = el('input');
   paidByInput.type = 'text';
@@ -1051,7 +1007,7 @@ function openExpenseEditModal(root, exp) {
     const result = await budgetApi('budget_expense_update', {
       id: exp.id,
       amount,
-      date: dateInput.value || todayIso(),
+      date: String(exp.date || '').slice(0, 10) || todayIso(),
       paidBy: paidByInput.value.trim(),
       settled: true,
       comment: commentInput.value.trim(),
