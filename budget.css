@@ -122,19 +122,18 @@
 .budget-income-amount:focus,
 .budget-filter select:focus {
   outline: none;
-  border-color: #3b82d4;
-  box-shadow: 0 0 0 2px rgba(59, 130, 212, 0.15);
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 /* --- Warm-theme small buttons (keep the red danger variant) - */
+/* The resting fill only; hover (amber) is inherited from the global
+   .btn-small rule in style.css, and the semantic action buttons
+   (.budget-act-*) keep their own green/amber/red hovers via #id specificity. */
 #budget-root .btn-small:not(.btn-small-danger) {
   border-color: var(--border);
   background: var(--surface);
   color: var(--text);
-}
-
-@media (hover: hover) {
-  #budget-root .btn-small:not(.btn-small-danger):hover { background: var(--surface-2); }
 }
 
 /* --- Pending list ----------------------------------------- */
@@ -422,8 +421,8 @@
 
 .budget-income-note-input:focus {
   outline: none;
-  border-color: #3b82d4;
-  box-shadow: 0 0 0 2px rgba(59, 130, 212, 0.15);
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .budget-net-row {

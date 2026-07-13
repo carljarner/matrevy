@@ -14,7 +14,14 @@
   --border: #d3bf9c;     /* borders (tan) */
   --text: #2e2416;       /* primary text (warm near-black) */
   --header: #1f2328;     /* header — unchanged near-black */
-  --accent: #3b82d4;     /* blue — unchanged */
+  --accent: #3b82d4;     /* blue — solid primary buttons only */
+  /* Warm accent: the site-wide standard for secondary-button hover and
+     text-field focus (Arkiv + Øveplan opt out). Sourced from the Budget
+     "Rediger" hover the design settled on. */
+  --accent-warm:      #d8b878;                /* hover/focus border */
+  --accent-warm-fill: #f6ecd8;                /* hover background   */
+  --accent-warm-text: #9a6700;                /* hover text         */
+  --accent-warm-ring: rgba(216, 184, 120, 0.35); /* focus glow      */
 }
 
 /* --- Reset & base ---------------------------------------- */
@@ -229,7 +236,11 @@ body:has(.sched-layout) .site-footer {
 }
 
 @media (hover: hover) {
-  .site-btn-secondary:hover { background: var(--surface-2); }
+  .site-btn-secondary:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
 }
 
 /* --- Mobile menu (hamburger + overlay) --------------------
@@ -408,6 +419,17 @@ body.site-menu-open {
   resize: vertical;
 }
 
+/* Warm focus is the site-wide standard for text fields (Arkiv opts out in
+   archive.css; Øveplan styles its own fields in schedule.css). */
+.edit-field input:focus,
+.edit-field select:focus,
+.edit-field textarea:focus,
+.login-modal input[type="password"]:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
 .edit-field-row {
   display: flex;
   gap: 0.75rem;
@@ -446,7 +468,11 @@ body.site-menu-open {
 }
 
 @media (hover: hover) {
-  .btn-small:hover { background: var(--surface-2); }
+  .btn-small:not(.btn-small-danger):hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
 }
 
 .btn-small-danger {

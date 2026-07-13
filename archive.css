@@ -365,6 +365,23 @@
   background: #ffffff;
 }
 
+/* Arkiv opts out of the site-wide warm focus/hover standard (style.css):
+   keep the editor's fields and secondary button neutral. */
+.arkiv-edit-modal .edit-field input:focus,
+.arkiv-edit-modal .edit-field select:focus,
+.arkiv-edit-modal .edit-field textarea:focus {
+  border-color: #d0d7de;
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .arkiv-edit-modal .site-btn-secondary:hover {
+    background: var(--surface-2);
+    border-color: #d0d7de;
+    color: #1f2328;
+  }
+}
+
 .arkiv-edit-modal .edit-field:last-child {
   margin-bottom: 0.25rem;
 }
