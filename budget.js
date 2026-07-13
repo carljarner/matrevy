@@ -996,7 +996,7 @@ function openExpenseAddModal(root) {
 // ── Admin: edit a paid expense (category locked) ─────────────
 function openExpenseEditModal(root, exp) {
   const { modal, form, error, actions, close } = siteOpenEditModal('Rediger udgift');
-  modal.classList.add('budget-approve-modal');
+  modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
     `${budgetCategoryLabel(exp.category)} · bilag ${exp.bilag || '—'}`));
@@ -1019,9 +1019,9 @@ function openExpenseEditModal(root, exp) {
   commentInput.value = exp.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
-  const cancelBtn = el('button', 'site-btn-secondary', 'Annuller');
+  const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = el('button', 'site-btn-primary', 'Gem');
+  const confirmBtn = budgetPillBtn('Gem', 'budget-pill-warm');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!(amount > 0)) { error.textContent = 'Angiv et gyldigt beløb.'; return; }

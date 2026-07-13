@@ -144,16 +144,6 @@
   }
 }
 
-/* --- Warm-theme small buttons (keep the red danger variant) - */
-/* The resting fill only; hover (amber) is inherited from the global
-   .btn-small rule in style.css, and the semantic action buttons
-   (.budget-act-*) keep their own green/amber/red hovers via #id specificity. */
-#budget-root .btn-small:not(.btn-small-danger) {
-  border-color: var(--border);
-  background: #fdf8ec;
-  color: var(--text);
-}
-
 /* --- Pending list ----------------------------------------- */
 .budget-list {
   display: flex;
