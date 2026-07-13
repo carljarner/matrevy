@@ -662,7 +662,11 @@ function budget_expense_update($body) {
   $found = false;
   budget_mutate('expenses.json', ['expenses' => []],
     function ($json) use ($id, $amount, $date, $paidBy, $transfer, $settled, $comment, $name, $phone, &$found) {
-      foreach (($json['expenses'] ?? []) as &$e) {
+      // Bind &$e to a real variable, not the ($json['expenses'] ?? []) expression
+      // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
+      // edit would silently not persist (handler still returns ok:true).
+      $expenses = $json['expenses'] ?? [];
+      foreach ($expenses as &$e) {
         if (($e['id'] ?? null) === $id) {
           $e['amount']   = round((float) $amount, 2);
           $e['date']     = $date;
@@ -677,6 +681,7 @@ function budget_expense_update($body) {
         }
       }
       unset($e);
+      $json['expenses'] = $expenses;
       return $json;
     });
   if (!$found) respond(404, ['error' => 'not_found']);
@@ -703,7 +708,11 @@ function budget_request_update($body) {
   $found = false;
   budget_mutate('requests.json', ['requests' => []],
     function ($json) use ($id, $category, $amount, $name, $phone, $comment, &$found) {
-      foreach (($json['requests'] ?? []) as &$r) {
+      // Bind &$r to a real variable, not the ($json['requests'] ?? []) expression
+      // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
+      // edit would silently not persist (handler still returns ok:true).
+      $requests = $json['requests'] ?? [];
+      foreach ($requests as &$r) {
         if (($r['id'] ?? null) === $id) {
           $r['category'] = $category;
           $r['amount']   = round((float) $amount, 2);
@@ -715,6 +724,7 @@ function budget_request_update($body) {
         }
       }
       unset($r);
+      $json['requests'] = $requests;
       return $json;
     });
   if (!$found) respond(404, ['error' => 'not_found']);
