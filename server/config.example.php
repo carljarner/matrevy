@@ -8,10 +8,12 @@ define('GITHUB_TOKEN', 'github_pat_XXXXXXXXXXXXXXXXXXXXXXXX');
 define('GITHUB_OWNER', 'carljarner');
 define('GITHUB_REPO', 'matrevy');
 
-// The two shared site passwords, handed out verbally.
+// The three shared site passwords, handed out verbally.
 // - REVYST_PASSWORD unlocks the revyst-level pages and (later) revyst-level writes.
+// - BOSS_PASSWORD additionally unlocks Øveplan/Koordinator and editing Manus/Kalender.
 // - ADMIN_PASSWORD unlocks everything, including all saves.
 define('REVYST_PASSWORD', 'skift-mig-revyst');
+define('BOSS_PASSWORD', 'skift-mig-boss');
 define('ADMIN_PASSWORD', 'skift-mig-admin');
 
 // Legacy: the original manus-tool PIN. If still defined, it is accepted as an

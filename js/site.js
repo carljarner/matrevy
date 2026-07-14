@@ -1,7 +1,7 @@
 /* =========================================================
    Matematikrevyen – Shared site shell: nav + login
    Renders the header nav on every page from one central page
-   registry, and handles the shared-password login (revyst/admin).
+   registry, and handles the shared-password login (revyst/boss/admin).
 
    Access model (deliberate trade-off, see CLAUDE.md):
    - Reads are gated client-side only — the repo is public, so
@@ -18,18 +18,20 @@ const SITE_AUTH_KEY = 'matrevy-auth';
 
 // The one place a page is registered. level:
 //   'public' — always visible
-//   'revyst' — greyed-out in nav until revyst/admin login
-//   'admin'  — omitted from nav entirely until admin login
+//   'revyst' — greyed-out in nav until revyst+ login
+//   'boss'/'admin' — omitted from nav entirely until that level or above
 const SITE_PAGES = [
-  { href: 'index.html',    label: 'Forside',  level: 'public' },
-  { href: 'kalender.html', label: 'Kalender', level: 'revyst' },
-  { href: 'manus.html',    label: 'Manus',    level: 'revyst' },
-  { href: 'arkiv.html',    label: 'Arkiv',    level: 'revyst' },
-  { href: 'budget.html',   label: 'Budget',   level: 'revyst' },
-  { href: 'schedule.html', label: 'Øveplan',  level: 'admin' },
+  { href: 'index.html',       label: 'Forside',     level: 'public' },
+  { href: 'kalender.html',    label: 'Kalender',    level: 'public' },
+  { href: 'arkiv.html',       label: 'Arkiv',       level: 'revyst' },
+  { href: 'wiki.html',        label: 'Wiki',        level: 'revyst' },
+  { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
+  { href: 'manus.html',       label: 'Manus',       level: 'revyst' },
+  { href: 'schedule.html',    label: 'Øveplan',     level: 'boss' },
+  { href: 'koordinator.html', label: 'Koordinator', level: 'boss' },
 ];
 
-const SITE_LEVEL_RANK = { public: 0, revyst: 1, admin: 2 };
+const SITE_LEVEL_RANK = { public: 0, revyst: 1, boss: 2, admin: 3 };
 
 // ── Auth state ───────────────────────────────────────────────
 // Over file:// the login endpoint is unreachable (CORS) and
@@ -46,7 +48,7 @@ function getSiteAuth() {
     const raw = localStorage.getItem(SITE_AUTH_KEY);
     if (!raw) return null;
     const auth = JSON.parse(raw);
-    if (auth && (auth.level === 'revyst' || auth.level === 'admin')) return auth;
+    if (auth && (auth.level === 'revyst' || auth.level === 'boss' || auth.level === 'admin')) return auth;
   } catch (e) { /* ignore */ }
   return null;
 }
@@ -73,13 +75,18 @@ function siteCurrentPage() {
 function buildSiteNavLinks(nav) {
   const current = siteCurrentPage();
   for (const page of SITE_PAGES) {
-    if (page.level === 'admin' && !siteHasLevel('admin')) continue;
-    if (page.level === 'revyst' && !siteHasLevel('revyst')) {
+    if (siteHasLevel(page.level)) {
+      // falls through to the real link below
+    } else if (SITE_LEVEL_RANK[page.level] <= SITE_LEVEL_RANK.revyst) {
+      // revyst-level pages: greyed-out but visible, so visitors know they exist
       const locked = document.createElement('span');
       locked.className = 'site-nav-locked';
       locked.textContent = page.label;
       locked.title = 'Log ind for at se denne side';
       nav.appendChild(locked);
+      continue;
+    } else {
+      // boss/admin-level pages: hidden entirely below that level
       continue;
     }
     const a = document.createElement('a');
@@ -277,7 +284,7 @@ function openLoginModal() {
         return;
       }
       const data = await res.json();
-      if (!data || (data.level !== 'revyst' && data.level !== 'admin')) {
+      if (!data || (data.level !== 'revyst' && data.level !== 'boss' && data.level !== 'admin')) {
         error.textContent = 'Uventet svar fra serveren.';
         return;
       }

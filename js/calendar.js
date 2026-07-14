@@ -85,7 +85,7 @@ function renderCalendar() {
   monthNav.style.display = calState.view === 'month' ? 'flex' : 'none';
 
   adminSlot.textContent = '';
-  if (siteHasLevel('admin')) {
+  if (siteHasLevel('boss')) {
     const addBtn = document.createElement('button');
     addBtn.className = 'btn-small';
     addBtn.textContent = '+ Ny begivenhed';
@@ -150,7 +150,7 @@ function renderMonthView(container) {
       chip.textContent = ev.start ? `${ev.start} ${ev.title}` : ev.title;
       chip.title = ev.title;
       chip.addEventListener('click', () => {
-        if (siteHasLevel('admin')) openEventEditor(ev);
+        if (siteHasLevel('boss')) openEventEditor(ev);
         else openEventDetail(ev);
       });
       cell.appendChild(chip);
@@ -166,7 +166,7 @@ function renderMonthView(container) {
 function renderListView(container) {
   const today = todayIso();
   const upcoming = getSortedEvents().filter(ev => ev.date >= today);
-  const isAdmin = siteHasLevel('admin');
+  const isAdmin = siteHasLevel('boss');
 
   if (upcoming.length === 0) {
     const empty = document.createElement('p');

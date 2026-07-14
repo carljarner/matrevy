@@ -66,6 +66,7 @@ function password_level($pw) {
   // Legacy: the old manus PIN keeps working as an admin credential
   // until it's removed from config.php.
   if (defined('SHARED_PIN') && hash_equals(SHARED_PIN, $pw)) return 'admin';
+  if (defined('BOSS_PASSWORD') && hash_equals(BOSS_PASSWORD, $pw)) return 'boss';
   if (defined('REVYST_PASSWORD') && hash_equals(REVYST_PASSWORD, $pw)) return 'revyst';
   return null;
 }
@@ -75,7 +76,7 @@ if ($level === null) {
   respond(401, ['error' => 'invalid_password']);
 }
 
-$LEVEL_RANK = ['revyst' => 1, 'admin' => 2];
+$LEVEL_RANK = ['revyst' => 1, 'boss' => 2, 'admin' => 3];
 
 // Constants referenced by handlers dispatched below (upload/delete, and the
 // archive save validator). They MUST be declared above the dispatch: PHP
@@ -855,9 +856,9 @@ function save_archive($payload) {
 }
 
 $RESOURCES = [
-  'manus'         => ['level' => 'admin', 'save' => 'save_manus'],
+  'manus'         => ['level' => 'boss',  'save' => 'save_manus'],
   'announcements' => ['level' => 'admin', 'save' => 'save_announcements'],
-  'calendar'      => ['level' => 'admin', 'save' => 'save_calendar'],
+  'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
   'archive'       => ['level' => 'admin', 'save' => 'save_archive'],
 ];
 

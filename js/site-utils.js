@@ -63,10 +63,13 @@ function siteUtilsSetCachedPin(pin) {
 // so the prompt/cache dance only lives in one place.
 function siteResolvePassword() {
   const siteAuth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
-  const fromLogin = siteAuth && siteAuth.level === 'admin' && siteAuth.password;
+  // revyst's password never passes a boss/admin-level save, so only trust a
+  // stored login at boss level or above; revyst (and file://'s synthetic
+  // admin) still hit the cache/prompt fallback below.
+  const fromLogin = siteAuth && (siteAuth.level === 'boss' || siteAuth.level === 'admin') && siteAuth.password;
   let password = fromLogin ? siteAuth.password : siteUtilsGetCachedPin();
   if (!password) {
-    password = (prompt('Indtast admin-adgangskoden for at gemme ændringer globalt:') || '').trim();
+    password = (prompt('Indtast boss- eller admin-adgangskoden for at gemme ændringer globalt:') || '').trim();
     if (!password) return null;
   }
   return { password, fromLogin };
@@ -92,7 +95,7 @@ async function siteSaveResource(resource, payload) {
 
   if (res.status === 401 || res.status === 403) {
     siteUtilsSetCachedPin('');
-    return { ok: false, message: 'Forkert eller utilstrækkelig adgangskode. Log ind som admin og prøv igen.' };
+    return { ok: false, message: 'Forkert eller utilstrækkelig adgangskode. Log ind med tilstrækkelig adgang og prøv igen.' };
   }
   if (res.status === 409) {
     return { ok: false, message: 'En anden har lige gemt ændringer. Genindlæs siden og prøv igen.' };

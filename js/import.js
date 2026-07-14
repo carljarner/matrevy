@@ -670,13 +670,14 @@ async function applyImport() {
   // only for this tab's in-memory shadow (manus-data.js).
   const flatScenes = acts.flatMap(act => act.scenes.map(s => ({ ...s, actLabel: act.label })));
 
-  // Prefer the site login's stored admin password; fall back to the
-  // per-tab prompt (file:// use, or an admin who hasn't logged in).
+  // Prefer the site login's stored boss/admin password; fall back to the
+  // per-tab prompt (file:// use, or a boss/admin who hasn't logged in).
+  // Manus saves only need boss level (see $RESOURCES in update-data.php).
   const siteAuth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
-  const fromLogin = siteAuth && siteAuth.level === 'admin' && siteAuth.password;
+  const fromLogin = siteAuth && (siteAuth.level === 'boss' || siteAuth.level === 'admin') && siteAuth.password;
   let password = fromLogin ? siteAuth.password : getCachedPin();
   if (!password) {
-    password = (prompt('Indtast admin-adgangskoden for at gemme ændringer globalt:') || '').trim();
+    password = (prompt('Indtast boss- eller admin-adgangskoden for at gemme ændringer globalt:') || '').trim();
     if (!password) return;
   }
 
@@ -691,7 +692,7 @@ async function applyImport() {
 
     if (res.status === 401 || res.status === 403) {
       setCachedPin('');
-      showApplyError('Forkert eller utilstrækkelig adgangskode. Log ind som admin og prøv igen.');
+      showApplyError('Forkert eller utilstrækkelig adgangskode. Log ind med tilstrækkelig adgang og prøv igen.');
       return;
     }
     if (res.status === 409) {

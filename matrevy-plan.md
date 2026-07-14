@@ -20,12 +20,15 @@ file documents *what's next and why*.
 
 - **Tech stack**: Plain HTML + CSS + JS, no framework, no build step. Node only for
   `scripts/embed-scenes.js`. Hosted on GitHub Pages at `matematikrevy.dk`.
-- **Access model** (three levels: public / revyst / admin): public landing page; top-right
-  login with two shared passwords handed out verbally. Revyst pages are greyed out in the
-  nav until login; admin pages are hidden from the nav until admin login. Client-side
-  gating for *reads* is a deliberate, accepted trade-off (the repo is public — nothing on
-  the site is secret); **writes are genuinely validated server-side** by
-  `server/update-data.php` (two password levels, `hash_equals`).
+- **Access model** (four levels: public / revyst / boss / admin, added in Phase 6):
+  public landing page; top-right login with three shared passwords handed out verbally.
+  **Boss** is today's show-directors/coordinators role (Øveplan, editing Manus/Kalender);
+  **Admin** is a new top tier above Boss (the site's technical maintainer) with everything
+  Boss has plus year-switching and site-wide config. Revyst-level pages are greyed out in
+  the nav until login; boss/admin-level pages are hidden from the nav entirely below that
+  level. Client-side gating for *reads* is a deliberate, accepted trade-off (the repo is
+  public — nothing on the site is secret); **writes are genuinely validated server-side**
+  by `server/update-data.php` (three password levels, `hash_equals`).
 - **Data**: every feature stores its data as JSON in `data/`, committed via the PHP proxy →
   GitHub Contents API pattern proven by the manus tool. `.github/workflows/embed-scenes.yml`
   regenerates the embedded `*-data.js` globals on any `data/*.json` push.
@@ -134,13 +137,49 @@ covers already in the repo were committed directly via git, not through this end
 
 ---
 
-### Phase 4 — Manus selection tool
+### Phase 4 — Manus production pipeline
 
-**Intent**: tool for shortlisting/voting which sketches make the current year's manus.
-Requirements gathered in its own planning session — likely the first real revyst-level
-write (voting).
+**Intent**: supersedes the original one-line placeholder now that requirements exist
+(gathered 2026-07-14). The full flow the user wants: revyster upload `.tex`/`.pdf` for
+scenes they've written → boss selects/lays out which scenes make the cut → boss assigns
+cast/roles → the site compiles `.tex` sources into manuscript PDFs. This is the biggest
+change on the roadmap and the next thing to build (session order: 4.1 → 4.2 → 4.3 → 4.4 →
+4.5 → 4.6, though each may be its own session).
 
-**Status**: [ ] not started — needs requirements
+**Resolved design decisions**: one-stage data model — revyst uploads write directly into
+the production catalog (`data/scenes.json`-equivalent) with a `status` field, rather than
+a separate submissions store; once a season's manus is finalized, the submit/upload UI is
+simply removed for that season. PDF generation is a GitHub Action running a LaTeX engine
+on push, the same pattern as `embed-scenes.yml`.
+
+**Sub-phases**:
+- **4.1 — Upload**: revyst uploads `.tex`/`.pdf` for scenes they've written, writing
+  directly into the catalog with a `status` (e.g. `submitted`/`selected`/`cut`). This is
+  the first revyst-level write to the *production catalog itself* (unlike Budget's
+  separate private store) — needs a dedicated design pass on scoping it safely (a revyst
+  user should only add new submissions or edit their own still-pending ones, never touch
+  someone else's or an already-selected scene). Open question for this session.
+- **4.2 — Selection & layout**: boss chooses which submitted scenes make the cut and
+  arranges act structure/order (`status` submitted→selected/cut; act/number assignment)
+  — reuses `import.js`'s existing act-grouping/drag-reorder UI.
+- **4.3 — Role assignment**: boss assigns cast/role-categories per scene — exactly
+  `import.js`'s existing per-scene cast editor; reused directly.
+- **4.4 — Move priority + cast-editing from Øveplan into Manus**: the scene-priority
+  selector and Rekvisitten/per-cell cast-override tooling currently in `schedule.js`'s
+  sidebar relocate to Manus's boss view; the "Rediger manus" entry point moves off
+  Øveplan's sidebar onto the Manus page (`import.js`'s modal logic is reused, only its
+  entry point and host page change).
+- **4.5 — `.tex` → PDF compilation**: new GitHub Action (e.g. `compile-manus.yml`),
+  triggered like `embed-scenes.yml`, runs a LaTeX engine and commits generated PDFs back
+  to the repo. **Blocked on the user sharing example `.tex`/PDF files** — need real
+  package/class dependencies before picking an engine (tectonic vs. a full texlive
+  image) and the generated-file layout (per-actor scripts? full manus?).
+- **4.6 — Full manuscript assembly**: combine the season's selected/laid-out scenes into
+  one `manus.tex` → `manus.pdf`, feeding Arkiv's existing `manusPdf` slot once the season
+  is archived.
+
+**Status**: [ ] not started — 4.1 is the next session; needs Phase 6 (boss level) live
+first, and example `.tex`/PDF files from the user before 4.5/4.6 can be scoped.
 
 ---
 
@@ -187,8 +226,140 @@ workflow, or `data/*.json`. It is also the site's **first revyst-level write**.
   (`budget_save_sheet`/`budget_expense_add`/`budget_expense_update`/`budget_request_update`)
   + a shared `budget_next_n()` refactor, all hoisted functions (const-ordering landmine).
   **Pending live deploy**: re-upload `update-data.php` to Simply.com, then verify end-to-end.
-- [ ] Later — reimbursement-owed rollup (Excel's "Udlægsholder/Udlæg"), export/backup of the
-  private datastore (this data has no git history), closer parity with the full Excel.
+- [ ] Later — reimbursement-owed rollup (Excel's "Udlægsholder/Udlæg"), closer parity
+  with the full Excel. (Export/backup of the private datastore is now folded into
+  Phase 13.)
+
+---
+
+### Phase 6 — Access-level expansion + nav reorder
+
+**Intent**: foundation for everything below — inserts the "boss" level between revyst and
+admin, reorders/relevels the nav to the user's full 8-page vision, and adds stub pages for
+the two pages that don't exist yet (Wiki, Koordinator). Small and self-contained on
+purpose, so Phase 4 (Manus) can build on a working boss login immediately.
+
+**What was built**:
+- Four-level rank (`public`/`revyst`/`boss`/`admin`) threaded through `js/site.js`
+  (`SITE_LEVEL_RANK`, `getSiteAuth`, the login response validator, the generalized
+  `buildSiteNavLinks` rank rule) and `server/update-data.php` (`password_level()`,
+  `$LEVEL_RANK`, `$RESOURCES`), plus a new `BOSS_PASSWORD` in `config.example.php`/
+  `config.php`.
+- `SITE_PAGES` reordered/relevelled to: Forside (public), Kalender (public — was
+  revyst), Arkiv (revyst), Wiki (revyst, new stub), Budget (revyst), Manus (revyst),
+  Øveplan (boss — was admin), Koordinator (boss, new stub).
+- `manus`/`calendar` resources in `$RESOURCES` moved from `admin` to `boss`; `calendar.js`
+  and the password-resolution helpers (`site-utils.js`'s `siteResolvePassword`,
+  `import.js`'s manus-save flow) updated so a boss login is trusted for these saves
+  instead of forcing a redundant admin-password prompt. `announcements`/`archive` stay
+  `admin`-only (unaffected — their boss-authored content is Phase 7/8).
+- New stub pages `wiki.html`/`koordinator.html`, matching `manus.html`'s existing
+  pre-Phase-4 stub pattern.
+
+**Status**: [x] done 2026-07-14, verified end-to-end with a headless-browser drive of all
+four levels (nav contents + page-gate behavior for public/revyst/boss, admin implied by
+rank) — see verification notes below. Needs a real `BOSS_PASSWORD` value + a manual
+`update-data.php`/`config.php` re-upload to Simply.com before this is live in production
+(local dev config uses a placeholder).
+
+---
+
+### Phase 7 — Wiki
+
+**Intent**: structured FAQ/knowledge-base for general revyst info (not a forum) — same
+editorial pattern as Announcements/Kalender/Arkiv.
+
+**Expected outcomes**: `data/wiki.json` (articles: title, category, body) + embedded
+`wiki-data.js`; boss/admin write via a new `wiki` `$RESOURCES` entry; revyst+ read on
+`wiki.html`. Content itself (FAQ text) comes from the user, continuously.
+
+**Status**: [ ] not started
+
+---
+
+### Phase 8 — Forside dashboard v2
+
+**Intent**: right-hand general-info card (names of the year's coordinators, etc.) plus a
+second post section for boss/admin-only "coordinator" notes, alongside the existing
+revyst-facing announcements.
+
+**Expected outcomes**: likely extends `announcements.json`'s `level` enum with a third
+value (e.g. `boss`) rendered in its own Forside section — reuses the existing
+`announcements.js`/editor code almost entirely. General-info card contents (coordinator
+names, etc.) probably need their own small admin-editable resource rather than being
+hardcoded.
+
+**Status**: [ ] not started
+
+---
+
+### Phase 9 — Kalender polish
+
+**Intent**: visual styling pass (Kalender currently has none), plus a calendar-subscribe
+`.ics` feature.
+
+**Expected outcomes**: styling pass on `kalender.html`/`calendar.css`. `.ics` subscribe:
+an unguessable per-viewer link (accepted trade-off, see Architecture Decisions) via a new
+`calendar_feed` server action serving `text/calendar`, guarded the same way
+`budget_receipt` guards its file path.
+
+**Status**: [ ] not started
+
+---
+
+### Phase 10 — Budget final styling + SMS-on-reject
+
+**Intent**: remaining visual polish, plus letting an admin text a revyst member when
+their expense is denied.
+
+**Expected outcomes**: styling pass on `budget.css`. SMS: an `sms:<phone>?body=...` link
+shown after `Afvis` (opens the admin's own Messages app pre-filled — no server-side SMS
+sending, no new infra). `phone` is already a required field on every request
+(`budget.js`), so no data-model change needed.
+
+**Status**: [ ] not started
+
+---
+
+### Phase 11 — Øveplan final touches
+
+**Intent**: last round of polish on the scheduling tool.
+
+**Expected outcomes**: a pause/break-between-segments control when building the grid
+(`buildGrid()`/segment config in `schedule.js`); removing the "Rediger manus" button (now
+moved to Manus, Phase 4.4); further small notes from the user as they come up.
+
+**Status**: [ ] not started
+
+---
+
+### Phase 12 — Koordinator
+
+**Intent**: a private notes board for boss/admin — "top secret", meeting notes and
+similar, not yet fully specified beyond v1 shape.
+
+**Expected outcomes**: chronological notes board (title, body, optional file
+attachment), boss/admin post — same pattern as Forside announcements/Phase 8. New
+`koordinator` resource; page already registered at `boss` level (Phase 6).
+
+**Status**: [ ] not started
+
+---
+
+### Phase 13 — Season/year switching (last)
+
+**Intent**: let admin start a new production year while keeping every previous year
+fully accessible — deliberately last, since it needs Manus/Budget/Øveplan's data shapes
+to be stable first.
+
+**Expected outcomes**: namespace `data/<year>/scenes.json` + `cast.json` under a year
+(and the private Budget store on the PHP host similarly), plus a "current year" pointer
+and an admin "New season" action. Nothing is ever destructively cleared — old years just
+stop being current. Also where the private-budget-data backup task (previously parked,
+see Phase 5 note above) finally gets addressed, since both are about the private
+datastore's durability across seasons.
+
+**Status**: [ ] not started
 
 ---
 
