@@ -19,7 +19,7 @@ const readJson = p => JSON.parse(fs.readFileSync(root(p), 'utf8'));
 // Each entry: one generated output file, built from one or more globals.
 const EMBEDS = [
   {
-    out: 'scenes-data.js',
+    out: 'js/scenes-data.js',
     sources: 'data/scenes.json and data/cast.json',
     globals: () => {
       const scenes = readJson('data/scenes.json');
@@ -35,7 +35,7 @@ const EMBEDS = [
     },
   },
   {
-    out: 'announcements-data.js',
+    out: 'js/announcements-data.js',
     sources: 'data/announcements.json',
     globals: () => {
       const announcements = readJson('data/announcements.json').announcements;
@@ -44,7 +44,7 @@ const EMBEDS = [
     },
   },
   {
-    out: 'calendar-data.js',
+    out: 'js/calendar-data.js',
     sources: 'data/calendar.json',
     globals: () => {
       const events = readJson('data/calendar.json').events;
@@ -53,7 +53,7 @@ const EMBEDS = [
     },
   },
   {
-    out: 'archive-data.js',
+    out: 'js/archive-data.js',
     sources: 'data/archive.json',
     globals: () => {
       const years = readJson('data/archive.json').years;

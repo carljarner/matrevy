@@ -11,17 +11,19 @@ Live at: **matematikrevy.dk**
 ├── index.html          Landing page (coordinator messages + general info)
 ├── manus.html          Script/manus page
 ├── schedule.html       Rehearsal scheduling tool
-├── schedule.js         Scheduling tool logic
-├── schedule.css        Scheduling tool styles
-├── scenes-data.js      Embedded scene data (auto-generated — do not edit directly)
-├── style.css           Shared stylesheet
 ├── page-template.html  Copy this to add a new page
 ├── CNAME               Custom domain for GitHub Pages
+├── css/
+│   ├── style.css       Shared stylesheet
+│   └── schedule.css    Scheduling tool styles
+├── js/
+│   ├── schedule.js       Scheduling tool logic
+│   └── scenes-data.js    Embedded scene data (auto-generated — do not edit directly)
 ├── data/
 │   ├── scenes.json     Scene and cast data (source of truth — edit this)
 │   └── cast.json       Full cast list and role code definitions
 └── scripts/
-    └── embed-scenes.js Regenerates scenes-data.js from data/scenes.json
+    └── embed-scenes.js Regenerates js/scenes-data.js from data/scenes.json
 ```
 
 ## Adding a New Page
@@ -34,7 +36,7 @@ Live at: **matematikrevy.dk**
 ## Updating Scene Data for a New Production
 
 1. Edit `data/scenes.json` with the new scenes and cast.
-2. Run `node scripts/embed-scenes.js` to regenerate `scenes-data.js`.
+2. Run `node scripts/embed-scenes.js` to regenerate `js/scenes-data.js`.
 3. Commit and push both files.
 
 ## Deployment

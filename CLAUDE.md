@@ -27,13 +27,13 @@ Three access levels: **public / revyst / admin**, unlocked by two shared passwor
 node scripts/embed-scenes.js
 ```
 
-Commit `data/scenes.json`, `data/cast.json`, and `scenes-data.js` together.
+Commit `data/scenes.json`, `data/cast.json`, and `js/scenes-data.js` together.
 
 This step only matters when you edit those JSON files by hand. A manus-tool save (see "Manus edit tool" below) pushes straight to `main` via the GitHub API, which triggers `.github/workflows/embed-scenes.yml` (fires on any `data/*.json` push) to run this same script and commit the regenerated `scenes-data.js` automatically.
 
 The script is table-driven (`EMBEDS` in `scripts/embed-scenes.js`): a future data file (announcements, calendar, …) gets an entry there, its generated `*-data.js` file added to the workflow's `git add` line, and a `<script src>` tag on the pages that need it.
 
-`fetch()`-based data loading was intentionally replaced with embedded globals (`SCENES_DATA` and `CAST_DATA`, injected via `<script src="scenes-data.js">`) so the scheduling tool works when opened directly from the filesystem (`file://`), where `fetch()` fails. The `async` wrapper on `loadScenes()` in `schedule.js` is vestigial — the data is always synchronously available.
+`fetch()`-based data loading was intentionally replaced with embedded globals (`SCENES_DATA` and `CAST_DATA`, injected via `<script src="js/scenes-data.js">`) so the scheduling tool works when opened directly from the filesystem (`file://`), where `fetch()` fails. The `async` wrapper on `loadScenes()` in `schedule.js` is vestigial — the data is always synchronously available.
 
 ## Data-driven pages (Forside, Kalender, Arkiv) & `site-utils.js`
 
