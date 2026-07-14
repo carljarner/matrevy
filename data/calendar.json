@@ -1,13 +1,3 @@
 {
-    "events": [
-        {
-            "id": "mrki78e9",
-            "date": "2026-07-14",
-            "start": "",
-            "end": "",
-            "title": "Test",
-            "category": "forestilling",
-            "note": "Fredagsforestilling"
-        }
-    ]
+    "events": []
 }
