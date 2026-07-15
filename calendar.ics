@@ -63,4 +63,12 @@ DTEND:20251023T210000
 DESCRIPTION:Vi ser MatRevy '24 sammen i Lille UP1\, sammenholdet står for at man kan købe snacks og drikkevare
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm4pn3a@matematikrevy.dk
+SUMMARY:Sangudvælgelse
+DTSTART:20251001T171500
+DTEND:20251001T210000
+DESCRIPTION:Vær med til at stemme og de indsendte sange til årets revy!
+CATEGORIES:Manus
+END:VEVENT
 END:VCALENDAR
