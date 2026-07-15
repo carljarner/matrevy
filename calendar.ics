@@ -289,4 +289,12 @@ DTEND:20260216T230000
 DESCRIPTION:Det er i Demant Salen (tidligere Oticon)\, Anker Engelunds vej 1\, Lyngby. Dørene åbner kl. 19 og showstart er 19.30
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6fmve@matematikrevy.dk
+SUMMARY:KemiRevy
+DTSTART:20260219T193000
+DTEND:20260219T230000
+DESCRIPTION:Det foregår i Store UP1\, og dørene åbner kl. 19\, showet starter 19.30
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
