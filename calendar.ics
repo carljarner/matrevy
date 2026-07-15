@@ -44,7 +44,7 @@ UID:mrm37nti@matematikrevy.dk
 SUMMARY:Infomøde
 DTSTART:20250925T171500
 DTEND:20250925T180000
-DESCRIPTION:Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål
+DESCRIPTION:Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål.
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -52,31 +52,14 @@ UID:mrm39fvj@matematikrevy.dk
 SUMMARY:Sange (deadline)
 DTSTART:20250930T235900
 DTEND:20250930T235900
-DESCRIPTION:Deadline for at indsende sange til udvælgelse
+DESCRIPTION:Deadline for at indsende sange til udvælgese
 CATEGORIES:Deadline
 END:VEVENT
 BEGIN:VEVENT
-UID:mrm3c54v@matematikrevy.dk
+UID:mrm3hszu@matematikrevy.dk
 SUMMARY:Sangudvælgelse
 DTSTART:20251001T171500
 DTEND:20251001T210000
-DESCRIPTION:Vær med til at stemme om de indsendte sang til årets revy!\nForegår i Aud4
-CATEGORIES:Manus
-END:VEVENT
-BEGIN:VEVENT
-UID:mrm3dkhi@matematikrevy.dk
-SUMMARY:Sketches (deadline)
-DTSTART:20251007T235900
-DTEND:20251007T235900
-DESCRIPTION:Deadline for at indsende sketches til udvælgelse
-CATEGORIES:Deadline
-END:VEVENT
-BEGIN:VEVENT
-UID:mrm3f30y@matematikrevy.dk
-SUMMARY:Sketchudvælgelse
-DTSTART:20251008T171500
-DTEND:20251008T193000
-DESCRIPTION:Vær med til at stemme om de indsendte sketches til årets revy!\nForegår i A104
 CATEGORIES:Manus
 END:VEVENT
 END:VCALENDAR
