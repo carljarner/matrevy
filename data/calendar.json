@@ -269,6 +269,16 @@
             "title": "Oberstprøve",
             "category": "ove",
             "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven"
+        },
+        {
+            "id": "mrm5m5va",
+            "date": "2025-11-27",
+            "endDate": "2025-11-27",
+            "start": "17:00",
+            "end": "23:00",
+            "title": "Generalprøve",
+            "category": "forestilling",
+            "note": "Generalprøve! Vi mødes 17 og gør klar, døre åbner 19 og showstart er 19:30"
         }
     ]
 }
