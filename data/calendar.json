@@ -279,6 +279,16 @@
             "title": "Generalprøve",
             "category": "forestilling",
             "note": "Generalprøve! Vi mødes 17 og gør klar, døre åbner 19 og showstart er 19:30"
+        },
+        {
+            "id": "mrm5n556",
+            "date": "2025-11-28",
+            "endDate": "2025-11-28",
+            "start": "15:00",
+            "end": "23:00",
+            "title": "Premiere",
+            "category": "forestilling",
+            "note": "Premiere! Vi mødes 15-17 og gør klar, døre åbner 19 og showstart er 19:30"
         }
     ]
 }
