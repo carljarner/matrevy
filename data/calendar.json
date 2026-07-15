@@ -359,6 +359,16 @@
             "title": "Revyjulefrokost",
             "category": "andet",
             "note": "Julekomitéen juleinviterer hermed til julerevyenjulefrokost"
+        },
+        {
+            "id": "mrm63wek",
+            "date": "2026-02-26",
+            "endDate": "2026-02-26",
+            "start": "15:00",
+            "end": "18:00",
+            "title": "Manusmøde",
+            "category": "manus",
+            "note": ""
         }
     ]
 }
