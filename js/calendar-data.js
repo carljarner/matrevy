@@ -230,5 +230,15 @@ const CALENDAR_DATA = [
     "title": "Øveweekend",
     "category": "ove",
     "note": "Øvedag og overtag scenen fra Bio"
+  },
+  {
+    "id": "mrm5ig3j",
+    "date": "2025-11-23",
+    "endDate": "2025-11-23",
+    "start": "16:00",
+    "end": "23:00",
+    "title": "Jordbærdrinks",
+    "category": "forestilling",
+    "note": "Uformel intern gennemspilning mens vi drikker lækre jordbærdrinks"
   }
 ];

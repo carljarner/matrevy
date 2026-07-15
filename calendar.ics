@@ -183,4 +183,12 @@ DTEND:20251123T160000
 DESCRIPTION:Øvedag og overtag scenen fra Bio
 CATEGORIES:Øvning
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5ig3j@matematikrevy.dk
+SUMMARY:Jordbærdrinks
+DTSTART:20251123T160000
+DTEND:20251123T230000
+DESCRIPTION:Uformel intern gennemspilning mens vi drikker lækre jordbærdrinks
+CATEGORIES:Forestilling
+END:VEVENT
 END:VCALENDAR
