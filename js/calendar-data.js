@@ -69,6 +69,16 @@ const CALENDAR_DATA = [
     "end": "23:59",
     "title": "Sange (deadline)",
     "category": "deadline",
-    "note": "Deadline for at indsende sange til udvælgese"
+    "note": "Deadline for at indsende sange til udvælgelse"
+  },
+  {
+    "id": "mrm3c54v",
+    "date": "2025-10-01",
+    "endDate": "2025-10-01",
+    "start": "17:15",
+    "end": "21:00",
+    "title": "Sangudvælgelse",
+    "category": "manus",
+    "note": "Vær med til at stemme om de indsendte sang til årets revy!\nForegår i Aud4"
   }
 ];

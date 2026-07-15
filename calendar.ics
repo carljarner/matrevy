@@ -52,7 +52,15 @@ UID:mrm39fvj@matematikrevy.dk
 SUMMARY:Sange (deadline)
 DTSTART:20250930T235900
 DTEND:20250930T235900
-DESCRIPTION:Deadline for at indsende sange til udvælgese
+DESCRIPTION:Deadline for at indsende sange til udvælgelse
 CATEGORIES:Deadline
+END:VEVENT
+BEGIN:VEVENT
+UID:mrm3c54v@matematikrevy.dk
+SUMMARY:Sangudvælgelse
+DTSTART:20251001T171500
+DTEND:20251001T210000
+DESCRIPTION:Vær med til at stemme om de indsendte sang til årets revy!\nForegår i Aud4
+CATEGORIES:Manus
 END:VEVENT
 END:VCALENDAR
