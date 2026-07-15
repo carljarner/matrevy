@@ -110,5 +110,15 @@ const CALENDAR_DATA = [
     "title": "Sketches (deadline)",
     "category": "deadline",
     "note": "Deadline for at indsende skecthes til udvælgese"
+  },
+  {
+    "id": "mrm4wby1",
+    "date": "2025-10-09",
+    "endDate": "2025-10-09",
+    "start": "",
+    "end": "",
+    "title": "Aktfordeling",
+    "category": "deadline",
+    "note": "Instruktører og bosser bestemmer årets aktfordeling"
   }
 ];

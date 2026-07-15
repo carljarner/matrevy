@@ -87,4 +87,12 @@ DTEND:20251007T235900
 DESCRIPTION:Deadline for at indsende skecthes til udvælgese
 CATEGORIES:Deadline
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm4wby1@matematikrevy.dk
+SUMMARY:Aktfordeling
+DTSTART;VALUE=DATE:20251009
+DTEND;VALUE=DATE:20251010
+DESCRIPTION:Instruktører og bosser bestemmer årets aktfordeling
+CATEGORIES:Deadline
+END:VEVENT
 END:VCALENDAR
