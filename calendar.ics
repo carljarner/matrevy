@@ -52,7 +52,7 @@ UID:mrm39fvj@matematikrevy.dk
 SUMMARY:Sange (deadline)
 DTSTART:20250930T235900
 DTEND:20250930T235900
-DESCRIPTION:Deadline for indsending af sange til udvælgese
+DESCRIPTION:Deadline for at indsende sange til udvælgese
 CATEGORIES:Deadline
 END:VEVENT
 END:VCALENDAR

@@ -69,6 +69,6 @@ const CALENDAR_DATA = [
     "end": "23:59",
     "title": "Sange (deadline)",
     "category": "deadline",
-    "note": "Deadline for indsending af sange til udvælgese"
+    "note": "Deadline for at indsende sange til udvælgese"
   }
 ];
