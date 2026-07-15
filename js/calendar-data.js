@@ -359,7 +359,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "DTU-revyen",
     "category": "andet",
-    "note": "Det er i Demant Salen (tidligere Oticon), Anker Engelunds vej 1, Lyngby. Dørene åbner kl. 19 og showstart er 19.30"
+    "note": "Generalprøve på årets DTU-revy. Det er i Demant Salen (tidligere Oticon), Anker Engelunds vej 1, Lyngby. Dørene åbner kl. 19 og showstart er 19.30"
   },
   {
     "id": "mrm6fmve",
@@ -369,7 +369,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "KemiRevy",
     "category": "andet",
-    "note": "Det foregår i Store UP1, og dørene åbner kl. 19, showet starter 19.30"
+    "note": "Generalprøve på årets KemiRevy. Det foregår i Store UP1, og dørene åbner kl. 19, showet starter 19.30"
   },
   {
     "id": "mrm6g60r",
@@ -389,7 +389,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "MedicinRevy",
     "category": "andet",
-    "note": "Det foregår i Mærsktårnet på Panum kl. 20"
+    "note": "Generalprøve på årets MedicinRevy. Det foregår i Mærsktårnet på Panum kl. 20"
   },
   {
     "id": "mrm6huij",
@@ -409,7 +409,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "MBKRevy",
     "category": "andet",
-    "note": "Det foregår i Store UP1, dørene åbner 19 og showstart er 19:30"
+    "note": "Generalprøve på årets MBKRevy. Det foregår i Store UP1, dørene åbner 19 og showstart er 19:30"
   },
   {
     "id": "mrm6jvot",
@@ -419,7 +419,7 @@ const CALENDAR_DATA = [
     "end": "22:00",
     "title": "PsykoRevy",
     "category": "andet",
-    "note": "Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18, dørene til salen åbner kl. 18.30 og showet starter kl. 19"
+    "note": "Generalprøve på årets PsykoRevy. Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18, dørene til salen åbner kl. 18.30 og showet starter kl. 19"
   },
   {
     "id": "mrm6ktqo",
@@ -429,7 +429,7 @@ const CALENDAR_DATA = [
     "end": "22:00",
     "title": "StatsRevy",
     "category": "andet",
-    "note": "Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18"
+    "note": "Generalprøve på årets StatskundskabsRevy. Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18"
   },
   {
     "id": "mrm6mgml",
@@ -439,7 +439,7 @@ const CALENDAR_DATA = [
     "end": "22:00",
     "title": "JuraRevy",
     "category": "andet",
-    "note": "Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18."
+    "note": "Generalprøve på årets JuraRevy. Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18."
   },
   {
     "id": "mrm6nbw2",
@@ -459,7 +459,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "FysikRevy",
     "category": "andet",
-    "note": "Det foregår på DIKU i Store UP1. Dørene åbner kl. 19, og showet starter kl. 19:30"
+    "note": "Generalprøve på årets FysikRevy. Det foregår på DIKU i Store UP1. Dørene åbner kl. 19, og showet starter kl. 19:30"
   },
   {
     "id": "mrm6pu8w",

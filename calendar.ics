@@ -286,7 +286,7 @@ UID:mrm6ewyz@matematikrevy.dk
 SUMMARY:DTU-revyen
 DTSTART:20260216T193000
 DTEND:20260216T230000
-DESCRIPTION:Det er i Demant Salen (tidligere Oticon)\, Anker Engelunds vej 1\, Lyngby. Dørene åbner kl. 19 og showstart er 19.30
+DESCRIPTION:Generalprøve på årets DTU-revy. Det er i Demant Salen (tidligere Oticon)\, Anker Engelunds vej 1\, Lyngby. Dørene åbner kl. 19 og showstart er 19.30
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -294,7 +294,7 @@ UID:mrm6fmve@matematikrevy.dk
 SUMMARY:KemiRevy
 DTSTART:20260219T193000
 DTEND:20260219T230000
-DESCRIPTION:Det foregår i Store UP1\, og dørene åbner kl. 19\, showet starter 19.30
+DESCRIPTION:Generalprøve på årets KemiRevy. Det foregår i Store UP1\, og dørene åbner kl. 19\, showet starter 19.30
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -310,7 +310,7 @@ UID:mrm6gwl6@matematikrevy.dk
 SUMMARY:MedicinRevy
 DTSTART:20260222T200000
 DTEND:20260222T230000
-DESCRIPTION:Det foregår i Mærsktårnet på Panum kl. 20
+DESCRIPTION:Generalprøve på årets MedicinRevy. Det foregår i Mærsktårnet på Panum kl. 20
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -326,7 +326,7 @@ UID:mrm6ilpn@matematikrevy.dk
 SUMMARY:MBKRevy
 DTSTART:20260305T193000
 DTEND:20260305T230000
-DESCRIPTION:Det foregår i Store UP1\, dørene åbner 19 og showstart er 19:30
+DESCRIPTION:Generalprøve på årets MBKRevy. Det foregår i Store UP1\, dørene åbner 19 og showstart er 19:30
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -334,7 +334,7 @@ UID:mrm6jvot@matematikrevy.dk
 SUMMARY:PsykoRevy
 DTSTART:20260318T190000
 DTEND:20260318T220000
-DESCRIPTION:Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18\, dørene til salen åbner kl. 18.30 og showet starter kl. 19
+DESCRIPTION:Generalprøve på årets PsykoRevy. Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18\, dørene til salen åbner kl. 18.30 og showet starter kl. 19
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -342,7 +342,7 @@ UID:mrm6ktqo@matematikrevy.dk
 SUMMARY:StatsRevy
 DTSTART:20260407T190000
 DTEND:20260407T220000
-DESCRIPTION:Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18
+DESCRIPTION:Generalprøve på årets StatskundskabsRevy. Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -350,7 +350,7 @@ UID:mrm6mgml@matematikrevy.dk
 SUMMARY:JuraRevy
 DTSTART:20260414T190000
 DTEND:20260414T220000
-DESCRIPTION:Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18.
+DESCRIPTION:Generalprøve på årets JuraRevy. Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18.
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
@@ -366,7 +366,7 @@ UID:mrm6o3yp@matematikrevy.dk
 SUMMARY:FysikRevy
 DTSTART:20260423T193000
 DTEND:20260423T230000
-DESCRIPTION:Det foregår på DIKU i Store UP1. Dørene åbner kl. 19\, og showet starter kl. 19:30
+DESCRIPTION:Generalprøve på årets FysikRevy. Det foregår på DIKU i Store UP1. Dørene åbner kl. 19\, og showet starter kl. 19:30
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
