@@ -430,5 +430,15 @@ const CALENDAR_DATA = [
     "title": "StatsRevy",
     "category": "andet",
     "note": "Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18"
+  },
+  {
+    "id": "mrm6mgml",
+    "date": "2026-04-14",
+    "endDate": "2026-04-14",
+    "start": "19:00",
+    "end": "22:00",
+    "title": "JuraRevy",
+    "category": "andet",
+    "note": "Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18."
   }
 ];

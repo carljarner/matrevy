@@ -345,4 +345,12 @@ DTEND:20260407T220000
 DESCRIPTION:Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6mgml@matematikrevy.dk
+SUMMARY:JuraRevy
+DTSTART:20260414T190000
+DTEND:20260414T220000
+DESCRIPTION:Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18.
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
