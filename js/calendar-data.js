@@ -359,6 +359,6 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "Revyjulefrokost",
     "category": "andet",
-    "note": ""
+    "note": "Julekomitéen juleinviterer hermed til julerevyenjulefrokost"
   }
 ];
