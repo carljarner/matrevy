@@ -211,29 +211,35 @@ function renderListView(container) {
     const row = document.createElement('div');
     row.className = 'cal-list-row';
 
+    const meta = document.createElement('span');
+    meta.className = 'cal-list-meta';
+
     const dot = document.createElement('span');
     dot.className = `cal-dot ${calCategoryClass(ev.category)}`;
-    row.appendChild(dot);
+    meta.appendChild(dot);
 
     const date = document.createElement('span');
     date.className = 'cal-list-date';
     date.textContent = calDateLabelShort(ev);
-    row.appendChild(date);
+    meta.appendChild(date);
 
     const time = document.createElement('span');
     time.className = 'cal-list-time';
     time.textContent = calTimeRange(ev);
-    row.appendChild(time);
+    meta.appendChild(time);
+
+    row.appendChild(meta);
+
+    const content = document.createElement('span');
+    content.className = 'cal-list-content';
+
+    const titleLine = document.createElement('span');
+    titleLine.className = 'cal-list-titleline';
 
     const title = document.createElement('span');
     title.className = 'cal-list-title';
     title.textContent = ev.title;
-    row.appendChild(title);
-
-    const cat = document.createElement('span');
-    cat.className = 'cal-list-cat';
-    cat.textContent = calCategoryLabel(ev.category);
-    row.appendChild(cat);
+    titleLine.appendChild(title);
 
     if (isAdmin) {
       const actionsWrap = document.createElement('span');
@@ -248,16 +254,19 @@ function renderListView(container) {
       delBtn.textContent = 'Slet';
       delBtn.addEventListener('click', () => openDeleteConfirm(ev));
       actionsWrap.appendChild(delBtn);
-      row.appendChild(actionsWrap);
+      titleLine.appendChild(actionsWrap);
     }
+
+    content.appendChild(titleLine);
 
     if (ev.note) {
       const note = document.createElement('span');
       note.className = 'cal-list-note';
       note.textContent = ev.note;
-      row.appendChild(note);
+      content.appendChild(note);
     }
 
+    row.appendChild(content);
     container.appendChild(row);
   }
 }

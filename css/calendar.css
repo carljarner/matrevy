@@ -212,12 +212,18 @@
 
 .cal-list-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.6rem;
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.88rem;
   flex-wrap: wrap;
+}
+
+.cal-list-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
 }
 
 .cal-list-row .cal-dot {
@@ -234,20 +240,28 @@
   min-width: 6.5rem;
 }
 
+.cal-list-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 0.15rem;
+}
+
+.cal-list-titleline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
 .cal-list-title {
   font-weight: 500;
 }
 
-.cal-list-cat {
-  color: #57606a;
-  font-size: 0.78rem;
-}
-
 .cal-list-note {
-  flex-basis: 100%;
   color: #57606a;
   font-size: 0.8rem;
-  padding-left: 1.2rem;
 }
 
 .cal-list-actions {
