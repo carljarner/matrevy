@@ -114,9 +114,9 @@ END:VEVENT
 BEGIN:VEVENT
 UID:mrm59gfp@matematikrevy.dk
 SUMMARY:Øveweekend
-DTSTART;VALUE=DATE:20251108
-DTEND;VALUE=DATE:20251110
-DESCRIPTION:Årets første øve/visionsweekend! \nVi øver begge dage 10-18 og spiser sammen om aftenen
+DTSTART:20251108T100000
+DTEND:20251108T180000
+DESCRIPTION:Årets første øve/visionsweekend!
 CATEGORIES:Øvning
 END:VEVENT
 END:VCALENDAR

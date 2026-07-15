@@ -144,11 +144,11 @@ const CALENDAR_DATA = [
   {
     "id": "mrm59gfp",
     "date": "2025-11-08",
-    "endDate": "2025-11-09",
-    "start": "",
-    "end": "",
+    "endDate": "2025-11-08",
+    "start": "10:00",
+    "end": "18:00",
     "title": "Øveweekend",
     "category": "ove",
-    "note": "Årets første øve/visionsweekend! \nVi øver begge dage 10-18 og spiser sammen om aftenen"
+    "note": "Årets første øve/visionsweekend!"
   }
 ];
