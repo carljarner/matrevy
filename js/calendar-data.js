@@ -30,5 +30,15 @@ const CALENDAR_DATA = [
     "title": "Forestilling",
     "category": "forestilling",
     "note": ""
+  },
+  {
+    "id": "mrlzjlwo",
+    "date": "2026-07-16",
+    "endDate": "2026-07-16",
+    "start": "15:00",
+    "end": "16:00",
+    "title": "Deadline",
+    "category": "deadline",
+    "note": ""
   }
 ];
