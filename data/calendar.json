@@ -459,6 +459,16 @@
             "title": "FysikRevy",
             "category": "andet",
             "note": "Det foregår på DIKU i Store UP1. Dørene åbner kl. 19, og showet starter kl. 19:30"
+        },
+        {
+            "id": "mrm6pu8w",
+            "date": "2026-04-26",
+            "endDate": "2026-04-26",
+            "start": "19:00",
+            "end": "23:00",
+            "title": "KUA-Musical",
+            "category": "andet",
+            "note": "KUA-musicalen invitere til generalprøve på deres opsætning af The Addams family i festsalen på Søndercampus. Dørene åbner kl. 18.45"
         }
     ]
 }
