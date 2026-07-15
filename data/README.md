@@ -90,6 +90,7 @@ These files can be edited by hand (see below) or via the site's in-page admin to
     {
       "id": "m3k2j1",
       "date": "2026-01-15",
+      "endDate": "2026-01-15",
       "start": "19:00",
       "end": "22:00",
       "title": "Fællesøve",
@@ -100,9 +101,9 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 }
 ```
 
-- Single-day events only — a multi-day thing is several events.
+- `endDate` — `YYYY-MM-DD`, `>= date`; equal to `date` for a single-day event, later for a multi-day one (e.g. a weekend rehearsal camp).
 - `start`/`end` — `"HH:MM"` or `""` (all-day).
-- `category` — ASCII key from `ove` / `forestilling` / `deadline` / `andet`; the Danish labels and colors live in `calendar.js`'s `CAL_CATEGORIES`.
+- `category` — ASCII key from `manus` / `ove` / `forestilling` / `deadline` / `andet`; the Danish labels and colors live in `calendar.js`'s `CAL_CATEGORIES` (and are duplicated in `scripts/embed-scenes.js`'s `.ics` builder for the feed's `CATEGORIES` field).
 
 ## Schema: archive.json
 

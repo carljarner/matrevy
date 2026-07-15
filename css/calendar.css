@@ -4,6 +4,11 @@
    style.css.
    ========================================================= */
 
+/* --- Page width: match Arkiv/Budget (default is 900px) ---- */
+.page-content {
+  max-width: 1200px;
+}
+
 /* --- Toolbar ---------------------------------------------- */
 .cal-toolbar {
   display: flex;
@@ -18,13 +23,14 @@
 }
 
 .cal-view-toggle button {
-  background: #ffffff;
-  color: #1f2328;
-  border: 1px solid #d0d7de;
+  background: #fdf8ec;
+  color: var(--text);
+  border: 1px solid var(--border);
   padding: 0.3rem 0.9rem;
   font-size: 0.85rem;
   font-family: inherit;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .cal-view-toggle button:first-child {
@@ -42,6 +48,14 @@
   color: #ffffff;
 }
 
+@media (hover: hover) {
+  .cal-view-toggle button:not(.active):hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+
 .cal-month-nav {
   display: flex;
   align-items: center;
@@ -49,8 +63,8 @@
 }
 
 .cal-month-nav button {
-  background: #ffffff;
-  border: 1px solid #d0d7de;
+  background: #fdf8ec;
+  border: 1px solid var(--border);
   border-radius: 6px;
   width: 1.8rem;
   height: 1.8rem;
@@ -58,10 +72,16 @@
   font-family: inherit;
   cursor: pointer;
   line-height: 1;
+  color: var(--text);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 @media (hover: hover) {
-  .cal-month-nav button:hover { background: var(--surface-2); }
+  .cal-month-nav button:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
 }
 
 #cal-month-label {
@@ -151,10 +171,11 @@
 }
 
 /* --- Category colors (chip border + list dot) -------------- */
-.cal-cat-ove           { border-left-color: #3b82d4; }
-.cal-cat-forestilling  { border-left-color: #c0392b; }
-.cal-cat-deadline      { border-left-color: #d97706; }
-.cal-cat-andet         { border-left-color: #57606a; }
+.cal-cat-manus          { border-left-color: #1a7f37; } /* Manus — green */
+.cal-cat-ove            { border-left-color: #d4a017; } /* Øvning — yellow */
+.cal-cat-forestilling   { border-left-color: #c0392b; } /* Forestilling — red */
+.cal-cat-deadline       { border-left-color: #3b82d4; } /* Deadline — blue */
+.cal-cat-andet          { border-left-color: #8e44ad; } /* Andet Revy — purple */
 
 .cal-dot {
   display: inline-block;
@@ -165,10 +186,11 @@
   background: #57606a;
 }
 
-.cal-dot.cal-cat-ove          { background: #3b82d4; }
-.cal-dot.cal-cat-forestilling { background: #c0392b; }
-.cal-dot.cal-cat-deadline     { background: #d97706; }
-.cal-dot.cal-cat-andet        { background: #57606a; }
+.cal-dot.cal-cat-manus         { background: #1a7f37; }
+.cal-dot.cal-cat-ove           { background: #d4a017; }
+.cal-dot.cal-cat-forestilling  { background: #c0392b; }
+.cal-dot.cal-cat-deadline      { background: #3b82d4; }
+.cal-dot.cal-cat-andet         { background: #8e44ad; }
 
 /* --- List view --------------------------------------------- */
 .cal-list-month {
@@ -241,6 +263,10 @@
 
 /* --- Mobile (≤719px, same breakpoint as style.css) ---------- */
 @media (max-width: 719px) {
+  .page-content {
+    max-width: 100%;
+  }
+
   .cal-month-nav button {
     width: 2.4rem;
     height: 2.4rem;

@@ -250,6 +250,7 @@ body:has(.sched-layout) .site-footer {
   background: #fdf8ec;
   color: var(--text);
   border: 1px solid var(--border);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 @media (hover: hover) {
@@ -482,6 +483,7 @@ body.site-menu-open {
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 @media (hover: hover) {

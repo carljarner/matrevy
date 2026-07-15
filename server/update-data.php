@@ -801,11 +801,13 @@ function save_calendar($payload) {
     }
     $start = $ev['start'] ?? '';
     $end = $ev['end'] ?? '';
-    if (!isset($ev['id'], $ev['date'], $ev['title'], $ev['category'], $ev['note'])
+    $endDate = $ev['endDate'] ?? '';
+    if (!isset($ev['id'], $ev['date'], $ev['endDate'], $ev['title'], $ev['category'], $ev['note'])
         || !is_string($ev['id']) || $ev['id'] === ''
         || !is_string($ev['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $ev['date'])
+        || !is_string($endDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate) || $endDate < $ev['date']
         || !is_string($ev['title']) || $ev['title'] === ''
-        || !in_array($ev['category'], ['ove', 'forestilling', 'deadline', 'andet'], true)
+        || !in_array($ev['category'], ['manus', 'ove', 'forestilling', 'deadline', 'andet'], true)
         || !is_string($start) || ($start !== '' && !preg_match('/^\d{2}:\d{2}$/', $start))
         || !is_string($end) || ($end !== '' && !preg_match('/^\d{2}:\d{2}$/', $end))
         || !is_string($ev['note'])) {

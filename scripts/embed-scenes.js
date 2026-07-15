@@ -61,9 +61,85 @@ const EMBEDS = [
       return { ARCHIVE_DATA: years };
     },
   },
+  {
+    // Static .ics feed, served directly by GitHub Pages at
+    // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
+    // the calendar data is already fully public (see CLAUDE.md's access-level
+    // trade-off). `raw: true` below writes this verbatim instead of the
+    // `const NAME = ...` JS wrapping every other entry gets.
+    out: 'calendar.ics',
+    sources: 'data/calendar.json',
+    raw: true,
+    build: () => {
+      const events = readJson('data/calendar.json').events;
+      console.log(`  ${events.length} calendar events -> calendar.ics`);
+      return buildIcs(events);
+    },
+  },
 ];
 
+// Mirrors calendar.js's CAL_CATEGORIES labels (duplicated here the same way
+// category colors are already duplicated between calendar.js and
+// calendar.css — no shared-module setup in this zero-dependency codebase).
+const ICS_CATEGORY_LABELS = {
+  manus: 'Manus',
+  ove: 'Øvning',
+  forestilling: 'Forestilling',
+  deadline: 'Deadline',
+  andet: 'Andet Revy',
+};
+
+function icsEscape(text) {
+  return String(text).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function icsDate(iso) {
+  return iso.replace(/-/g, '');
+}
+
+// endDate defaults to date for a single-day event (mirrors calendar.js's
+// calEventEndDate, since this script has no access to the browser globals).
+function icsEventEndDate(ev) {
+  return ev.endDate && ev.endDate >= ev.date ? ev.endDate : ev.date;
+}
+
+function icsAddDays(iso, days) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const date = new Date(y, m - 1, d + days);
+  const pad = n => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function buildIcs(events) {
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Matematikrevyen//Kalender//DA', 'CALSCALE:GREGORIAN'];
+  for (const ev of events) {
+    const endDate = icsEventEndDate(ev);
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${icsEscape(ev.id)}@matematikrevy.dk`);
+    lines.push(`SUMMARY:${icsEscape(ev.title)}`);
+    if (ev.start) {
+      const endTime = ev.end || ev.start;
+      lines.push(`DTSTART:${icsDate(ev.date)}T${ev.start.replace(':', '')}00`);
+      lines.push(`DTEND:${icsDate(endDate)}T${endTime.replace(':', '')}00`);
+    } else {
+      // All-day (possibly multi-day): DTEND is exclusive per RFC 5545.
+      lines.push(`DTSTART;VALUE=DATE:${icsDate(ev.date)}`);
+      lines.push(`DTEND;VALUE=DATE:${icsDate(icsAddDays(endDate, 1))}`);
+    }
+    if (ev.note) lines.push(`DESCRIPTION:${icsEscape(ev.note)}`);
+    lines.push(`CATEGORIES:${icsEscape(ICS_CATEGORY_LABELS[ev.category] || 'Andet Revy')}`);
+    lines.push('END:VEVENT');
+  }
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n') + '\r\n';
+}
+
 for (const embed of EMBEDS) {
+  if (embed.raw) {
+    fs.writeFileSync(root(embed.out), embed.build());
+    console.log(`✓ Wrote ${embed.out}`);
+    continue;
+  }
   const globals = embed.globals();
   let out =
     `// Auto-generated from ${embed.sources}\n` +

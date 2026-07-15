@@ -13,10 +13,11 @@
 // ── Categories ───────────────────────────────────────────────
 // Data stores the ASCII key; label + color class live here.
 const CAL_CATEGORIES = {
-  ove:          { label: 'Øve' },
+  manus:        { label: 'Manus' },
+  ove:          { label: 'Øvning' },
   forestilling: { label: 'Forestilling' },
   deadline:     { label: 'Deadline' },
-  andet:        { label: 'Andet' },
+  andet:        { label: 'Andet Revy' },
 };
 
 function calCategoryClass(category) {
@@ -39,6 +40,25 @@ function getSortedEvents() {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
     return (a.start || '') < (b.start || '') ? -1 : (a.start || '') > (b.start || '') ? 1 : 0;
   });
+}
+
+// Multi-day events store endDate >= date; a single-day event has endDate === date.
+function calEventEndDate(ev) {
+  return (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date;
+}
+
+// Every ISO date an event spans (inclusive) — used to place a multi-day event
+// on each day it covers in the month grid.
+function calDateRangeIso(startIso, endIso) {
+  const pad = n => String(n).padStart(2, '0');
+  const dates = [];
+  let d = parseIsoDate(startIso);
+  const end = parseIsoDate(endIso);
+  while (d <= end) {
+    dates.push(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  }
+  return dates;
 }
 
 // ── View state ───────────────────────────────────────────────
@@ -102,11 +122,14 @@ function renderMonthView(container) {
   document.getElementById('cal-month-label').textContent =
     `${DA_MONTHS[calState.month]} ${calState.year}`;
 
-  // Index events by date for the visible month in one pass.
+  // Index events by date for the visible month in one pass. Multi-day events
+  // are placed on every date they span, not just their start date.
   const byDate = new Map();
   for (const ev of getSortedEvents()) {
-    if (!byDate.has(ev.date)) byDate.set(ev.date, []);
-    byDate.get(ev.date).push(ev);
+    for (const iso of calDateRangeIso(ev.date, calEventEndDate(ev))) {
+      if (!byDate.has(iso)) byDate.set(iso, []);
+      byDate.get(iso).push(ev);
+    }
   }
 
   const wrap = document.createElement('div');
@@ -149,10 +172,7 @@ function renderMonthView(container) {
       chip.className = `cal-chip ${calCategoryClass(ev.category)}`;
       chip.textContent = ev.start ? `${ev.start} ${ev.title}` : ev.title;
       chip.title = ev.title;
-      chip.addEventListener('click', () => {
-        if (siteHasLevel('boss')) openEventEditor(ev);
-        else openEventDetail(ev);
-      });
+      chip.addEventListener('click', () => openEventDetail(ev));
       cell.appendChild(chip);
     }
 
@@ -165,7 +185,8 @@ function renderMonthView(container) {
 
 function renderListView(container) {
   const today = todayIso();
-  const upcoming = getSortedEvents().filter(ev => ev.date >= today);
+  // Keep multi-day events that started before today but haven't ended yet.
+  const upcoming = getSortedEvents().filter(ev => calEventEndDate(ev) >= today);
   const isAdmin = siteHasLevel('boss');
 
   if (upcoming.length === 0) {
@@ -196,7 +217,7 @@ function renderListView(container) {
 
     const date = document.createElement('span');
     date.className = 'cal-list-date';
-    date.textContent = formatDaDateShort(ev.date);
+    date.textContent = calDateLabelShort(ev);
     row.appendChild(date);
 
     const time = document.createElement('span');
@@ -246,12 +267,22 @@ function calTimeRange(ev) {
   return ev.end ? `${ev.start}–${ev.end}` : ev.start;
 }
 
+function calDateLabelShort(ev) {
+  const end = calEventEndDate(ev);
+  return end === ev.date ? formatDaDateShort(ev.date) : `${formatDaDateShort(ev.date)}–${formatDaDateShort(end)}`;
+}
+
+function calDateLabelLong(ev) {
+  const end = calEventEndDate(ev);
+  return end === ev.date ? formatDaDate(ev.date) : `${formatDaDate(ev.date)} – ${formatDaDate(end)}`;
+}
+
 // ── Read-only detail modal (non-admin chip click) ────────────
 function openEventDetail(ev) {
   const { form, actions, close } = siteOpenEditModal(ev.title);
 
   const rows = [
-    ['Dato', formatDaDate(ev.date)],
+    ['Dato', calDateLabelLong(ev)],
     ['Tid', calTimeRange(ev) || 'Hele dagen'],
     ['Kategori', calCategoryLabel(ev.category)],
   ];
@@ -269,8 +300,16 @@ function openEventDetail(ev) {
     form.appendChild(row);
   }
 
+  if (siteHasLevel('boss')) {
+    const editBtn = document.createElement('button');
+    editBtn.className = 'site-btn-warm';
+    editBtn.textContent = 'Rediger';
+    editBtn.addEventListener('click', () => { close(); openEventEditor(ev); });
+    actions.appendChild(editBtn);
+  }
+
   const closeBtn = document.createElement('button');
-  closeBtn.className = 'site-btn-secondary';
+  closeBtn.className = 'site-btn-warm';
   closeBtn.textContent = 'Luk';
   closeBtn.addEventListener('click', close);
   actions.appendChild(closeBtn);
@@ -309,7 +348,15 @@ function openEventEditor(existing) {
       ? todayIso()
       : `${calState.year}-${pad(calState.month + 1)}-01`;
   }
-  form.appendChild(siteEditField('Dato', dateInput));
+  const endDateInput = document.createElement('input');
+  endDateInput.type = 'date';
+  endDateInput.value = existing ? calEventEndDate(existing) : dateInput.value;
+
+  const dateRow = document.createElement('div');
+  dateRow.className = 'edit-field-row';
+  dateRow.appendChild(siteEditField('Dato', dateInput));
+  dateRow.appendChild(siteEditField('Slutdato', endDateInput));
+  form.appendChild(dateRow);
 
   const timeRow = document.createElement('div');
   timeRow.className = 'edit-field-row';
@@ -341,18 +388,18 @@ function openEventEditor(existing) {
   save.className = 'site-btn-primary';
   save.textContent = 'Gem';
   const cancel = document.createElement('button');
-  cancel.className = 'site-btn-secondary';
+  cancel.className = 'site-btn-warm';
   cancel.textContent = 'Annuller';
 
   if (existing) {
     const del = document.createElement('button');
-    del.className = 'site-btn-secondary edit-actions-left';
+    del.className = 'site-btn-warm edit-actions-left';
     del.textContent = 'Slet';
     del.addEventListener('click', () => { close(); deleteEvent(existing); });
     actions.appendChild(del);
   }
-  actions.appendChild(save);
   actions.appendChild(cancel);
+  actions.appendChild(save);
   cancel.addEventListener('click', close);
 
   save.addEventListener('click', async () => {
@@ -362,9 +409,11 @@ function openEventEditor(existing) {
       error.textContent = 'Udfyld både titel og dato.';
       return;
     }
+    const endDate = endDateInput.value && endDateInput.value >= date ? endDateInput.value : date;
     const item = {
       id: existing ? existing.id : Date.now().toString(36),
       date,
+      endDate,
       start: startInput.value || '',
       end: endInput.value || '',
       title,
@@ -396,6 +445,45 @@ async function deleteEvent(ev) {
   if (!result.ok && result.message) alert(result.message);
 }
 
+// ── Calendar-subscribe (.ics) ─────────────────────────────────
+// Static file served by GitHub Pages — the underlying data is already fully
+// public (this page has no login gate), so there's no server round-trip.
+const CALENDAR_FEED_URL = 'https://matematikrevy.dk/calendar.ics';
+
+function openSubscribeModal() {
+  const { form, actions, close } = siteOpenEditModal('Abonnér på kalenderen');
+
+  const info = document.createElement('p');
+  info.textContent = 'Tilføj linket herunder som et kalenderabonnement, så følger din kalender-app automatisk med i alle begivenheder: Google Kalender ("Fra URL"), Apple Kalender ("Nyt kalenderabonnement") eller Outlook ("Abonnér fra internettet").';
+  form.appendChild(info);
+
+  const urlInput = document.createElement('input');
+  urlInput.type = 'text';
+  urlInput.value = CALENDAR_FEED_URL;
+  urlInput.readOnly = true;
+  form.appendChild(siteEditField('Link', urlInput));
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'site-btn-warm';
+  copyBtn.textContent = 'Kopiér link';
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(CALENDAR_FEED_URL);
+      copyBtn.textContent = 'Kopieret!';
+      setTimeout(() => { copyBtn.textContent = 'Kopiér link'; }, 1500);
+    } catch (e) {
+      urlInput.select();
+    }
+  });
+  actions.appendChild(copyBtn);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'site-btn-warm';
+  closeBtn.textContent = 'Luk';
+  closeBtn.addEventListener('click', close);
+  actions.appendChild(closeBtn);
+}
+
 // ── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initCalState();
@@ -403,5 +491,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cal-view-list').addEventListener('click', () => setCalView('list'));
   document.getElementById('cal-prev').addEventListener('click', () => shiftMonth(-1));
   document.getElementById('cal-next').addEventListener('click', () => shiftMonth(1));
+  document.getElementById('cal-subscribe').addEventListener('click', openSubscribeModal);
   renderCalendar();
 });
