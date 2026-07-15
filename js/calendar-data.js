@@ -40,5 +40,15 @@ const CALENDAR_DATA = [
     "title": "Deadline",
     "category": "deadline",
     "note": ""
+  },
+  {
+    "id": "mrlzkmn9",
+    "date": "2026-07-17",
+    "endDate": "2026-07-17",
+    "start": "12:00",
+    "end": "13:00",
+    "title": "Andet",
+    "category": "andet",
+    "note": ""
   }
 ];
