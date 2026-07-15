@@ -19,6 +19,16 @@
             "title": "Manus",
             "category": "manus",
             "note": "Test"
+        },
+        {
+            "id": "mrlziw4t",
+            "date": "2026-07-15",
+            "endDate": "2026-07-15",
+            "start": "",
+            "end": "",
+            "title": "Forestilling",
+            "category": "forestilling",
+            "note": ""
         }
     ]
 }
