@@ -210,5 +210,15 @@ const CALENDAR_DATA = [
     "title": "Øveweekend",
     "category": "ove",
     "note": "Almindelig øvedag"
+  },
+  {
+    "id": "mrm5ge0g",
+    "date": "2025-11-22",
+    "endDate": "2025-11-22",
+    "start": "10:00",
+    "end": "18:00",
+    "title": "Øveweekend",
+    "category": "ove",
+    "note": "Almindelig øvedag"
   }
 ];
