@@ -191,4 +191,12 @@ DTEND:20251123T230000
 DESCRIPTION:Uformel intern gennemspilning mens vi drikker lækre jordbærdrinks
 CATEGORIES:Forestilling
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5jaf7@matematikrevy.dk
+SUMMARY:Revyuge
+DTSTART:20251124T170000
+DTEND:20251124T220000
+DESCRIPTION:Øvning efter studie
+CATEGORIES:Øvning
+END:VEVENT
 END:VCALENDAR

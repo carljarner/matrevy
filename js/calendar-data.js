@@ -240,5 +240,15 @@ const CALENDAR_DATA = [
     "title": "Jordbærdrinks",
     "category": "forestilling",
     "note": "Uformel intern gennemspilning mens vi drikker lækre jordbærdrinks"
+  },
+  {
+    "id": "mrm5jaf7",
+    "date": "2025-11-24",
+    "endDate": "2025-11-24",
+    "start": "17:00",
+    "end": "22:00",
+    "title": "Revyuge",
+    "category": "ove",
+    "note": "Øvning efter studie"
   }
 ];
