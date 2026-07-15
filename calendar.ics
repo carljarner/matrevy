@@ -239,4 +239,11 @@ DTEND:20251129T230000
 DESCRIPTION:Vi mødes 14 og gør rent efter aftenen før og gør klar til sidste forestilling!
 CATEGORIES:Forestilling
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5oo0n@matematikrevy.dk
+SUMMARY:Efterfest
+DTSTART:20251129T230000
+DTEND:20251130T060000
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
