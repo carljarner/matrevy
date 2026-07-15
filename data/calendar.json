@@ -369,6 +369,16 @@
             "title": "Manusmøde",
             "category": "manus",
             "note": ""
+        },
+        {
+            "id": "mrm64uf2",
+            "date": "2026-03-01",
+            "endDate": "2026-03-01",
+            "start": "15:00",
+            "end": "20:00",
+            "title": "Manusmøde",
+            "category": "manus",
+            "note": ""
         }
     ]
 }
