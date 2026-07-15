@@ -480,5 +480,15 @@ const CALENDAR_DATA = [
     "title": "SmedjeRevy",
     "category": "andet",
     "note": "Generalprøve på årets SmedjeRevy. Det foregår i Gimle på Frederiksberg Campus (Dyrelægevej 9). Forestillingen starter kl. 18"
+  },
+  {
+    "id": "mrm6w32r",
+    "date": "2026-05-14",
+    "endDate": "2026-05-14",
+    "start": "19:30",
+    "end": "23:00",
+    "title": "DIKU-revyen",
+    "category": "andet",
+    "note": "Generalprøve for årets DIKU-revy. De spiller i Store UP1. Baren åbner kl. 18.30, dørene 19.00 og forestillingen begynder kl. 19.30"
   }
 ];
