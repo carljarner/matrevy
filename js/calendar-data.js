@@ -160,5 +160,15 @@ const CALENDAR_DATA = [
     "title": "Øveweekend",
     "category": "ove",
     "note": "Årets første øve/visionsweekend!"
+  },
+  {
+    "id": "mrm5csaz",
+    "date": "2025-11-13",
+    "endDate": "2025-11-13",
+    "start": "10:00",
+    "end": "18:00",
+    "title": "Øvedag",
+    "category": "ove",
+    "note": "Almindelig øvedag"
   }
 ];
