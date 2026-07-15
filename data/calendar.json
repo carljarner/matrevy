@@ -299,6 +299,16 @@
             "title": "Lørdagsforestilling",
             "category": "forestilling",
             "note": "Vi mødes 14 og gør rent efter aftenen før og gør klar til sidste forestilling!"
+        },
+        {
+            "id": "mrm5oo0n",
+            "date": "2025-11-29",
+            "endDate": "2025-11-30",
+            "start": "23:00",
+            "end": "06:00",
+            "title": "Efterfest",
+            "category": "andet",
+            "note": ""
         }
     ]
 }
