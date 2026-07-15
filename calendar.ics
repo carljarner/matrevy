@@ -151,4 +151,12 @@ DTEND:20251115T180000
 DESCRIPTION:Almindelig øvedag
 CATEGORIES:Øvning
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5eou6@matematikrevy.dk
+SUMMARY:Rekvisitbyggeaften
+DTSTART:20251115T180000
+DTEND:20251115T220000
+DESCRIPTION:Vi hygger sammen om aftenen og bygger rekvisitter efter aftensmad
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
