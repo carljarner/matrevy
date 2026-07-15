@@ -254,4 +254,12 @@ DTEND:20251130T200000
 DESCRIPTION:Oprydning er obligatorisk for alle\, revyvisning er for hyggens skyld:)
 CATEGORIES:Øvning
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5ud9q@matematikrevy.dk
+SUMMARY:Evalueringsmøde
+DTSTART:20251208T180000
+DTEND:20251208T210000
+DESCRIPTION:Vi gennemgår evalueringen for årets revy og omskriver det til brugbar feedback til næste år
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
