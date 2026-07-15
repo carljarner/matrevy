@@ -309,6 +309,16 @@
             "title": "Efterfest",
             "category": "andet",
             "note": ""
+        },
+        {
+            "id": "mrm5pu9k",
+            "date": "2025-11-30",
+            "endDate": "2025-11-30",
+            "start": "10:00",
+            "end": "20:00",
+            "title": "Oprydning og revyvisning",
+            "category": "ove",
+            "note": "Oprydning er obligatorisk for alle, revyvisning er for hyggens skyld:)"
         }
     ]
 }
