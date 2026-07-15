@@ -361,4 +361,12 @@ DTEND:20260421T173000
 DESCRIPTION:Vi laver mad til FysikRevyen før deres øver om aftenen
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6o3yp@matematikrevy.dk
+SUMMARY:FysikRevy
+DTSTART:20260423T193000
+DTEND:20260423T230000
+DESCRIPTION:Det foregår på DIKU i Store UP1. Dørene åbner kl. 19\, og showet starter kl. 19:30
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
