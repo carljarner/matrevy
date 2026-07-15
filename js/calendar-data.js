@@ -120,5 +120,15 @@ const CALENDAR_DATA = [
     "title": "Aktfordeling",
     "category": "deadline",
     "note": "Instruktører og bosser bestemmer årets aktfordeling"
+  },
+  {
+    "id": "mrm4yd8v",
+    "date": "2025-10-26",
+    "endDate": "2025-10-26",
+    "start": "11:00",
+    "end": "18:00",
+    "title": "Gennemspilningsdag",
+    "category": "ove",
+    "note": "Obligatorisk for alle, der har lyst til at stå på scenen. Vi opfører årets revy for hinanden"
   }
 ];

@@ -95,4 +95,12 @@ DTEND;VALUE=DATE:20251010
 DESCRIPTION:Instruktører og bosser bestemmer årets aktfordeling
 CATEGORIES:Deadline
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm4yd8v@matematikrevy.dk
+SUMMARY:Gennemspilningsdag
+DTSTART:20251026T110000
+DTEND:20251026T180000
+DESCRIPTION:Obligatorisk for alle\, der har lyst til at stå på scenen. Vi opfører årets revy for hinanden
+CATEGORIES:Øvning
+END:VEVENT
 END:VCALENDAR
