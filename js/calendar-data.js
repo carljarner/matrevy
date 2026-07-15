@@ -290,5 +290,15 @@ const CALENDAR_DATA = [
     "title": "Premiere",
     "category": "forestilling",
     "note": "Premiere! Vi mødes 15-17 og gør klar, døre åbner 19 og showstart er 19:30"
+  },
+  {
+    "id": "mrm5o3rh",
+    "date": "2025-11-29",
+    "endDate": "2025-11-29",
+    "start": "14:00",
+    "end": "23:00",
+    "title": "Lørdagsforestilling",
+    "category": "forestilling",
+    "note": "Vi mødes 14 og gør rent efter aftenen før og gør klar til sidste forestilling!"
   }
 ];

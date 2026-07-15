@@ -231,4 +231,12 @@ DTEND:20251128T230000
 DESCRIPTION:Premiere! Vi mødes 15-17 og gør klar\, døre åbner 19 og showstart er 19:30
 CATEGORIES:Forestilling
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5o3rh@matematikrevy.dk
+SUMMARY:Lørdagsforestilling
+DTSTART:20251129T140000
+DTEND:20251129T230000
+DESCRIPTION:Vi mødes 14 og gør rent efter aftenen før og gør klar til sidste forestilling!
+CATEGORIES:Forestilling
+END:VEVENT
 END:VCALENDAR
