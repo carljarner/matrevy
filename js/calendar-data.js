@@ -349,7 +349,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "TeoRevy",
     "category": "andet",
-    "note": "Vi er inviteret til TeoRevys generalprøve kl. 21:30. Det foregår på KUA i Kierkegaard Auditoriet"
+    "note": "Generalprøve på årets TeoRevy. Det foregår på KUA i Kierkegaard Auditoriet kl. 21:30"
   },
   {
     "id": "mrm6ewyz",
