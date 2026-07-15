@@ -359,6 +359,16 @@
             "title": "DTU-revyen",
             "category": "andet",
             "note": "Det er i Demant Salen (tidligere Oticon), Anker Engelunds vej 1, Lyngby. Dørene åbner kl. 19 og showstart er 19.30"
+        },
+        {
+            "id": "mrm6fmve",
+            "date": "2026-02-19",
+            "endDate": "2026-02-19",
+            "start": "19:30",
+            "end": "23:00",
+            "title": "KemiRevy",
+            "category": "andet",
+            "note": "Det foregår i Store UP1, og dørene åbner kl. 19, showet starter 19.30"
         }
     ]
 }
