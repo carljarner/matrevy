@@ -130,5 +130,15 @@ const CALENDAR_DATA = [
     "title": "Gennemspilningsdag",
     "category": "ove",
     "note": "Obligatorisk for alle, der har lyst til at stå på scenen. Vi opfører årets revy for hinanden"
+  },
+  {
+    "id": "mrm4z67j",
+    "date": "2025-10-26",
+    "endDate": "2025-10-26",
+    "start": "23:59",
+    "end": "23:59",
+    "title": "Rolleønskning",
+    "category": "deadline",
+    "note": "Deadline for at ønske roller (både sang og skuespil) til årets revy"
   }
 ];
