@@ -4,10 +4,11 @@ const CALENDAR_DATA = [
   {
     "id": "mrlsnyjo",
     "date": "2026-07-16",
+    "endDate": "2026-07-16",
     "start": "18:00",
     "end": "23:00",
     "title": "BioRevy",
-    "category": "forestilling",
+    "category": "manus",
     "note": "Vi tager ind og ser generalprøven for BioRevy"
   }
 ];
