@@ -70,5 +70,25 @@ const CALENDAR_DATA = [
     "title": "Sange (deadline)",
     "category": "deadline",
     "note": "Deadline for at indsende sange til udvælgese"
+  },
+  {
+    "id": "mrm3hszu",
+    "date": "2025-10-01",
+    "endDate": "2025-10-01",
+    "start": "17:15",
+    "end": "21:00",
+    "title": "Sangudvælgelse",
+    "category": "manus",
+    "note": ""
+  },
+  {
+    "id": "mrm3nyps",
+    "date": "2025-10-23",
+    "endDate": "2025-10-23",
+    "start": "17:15",
+    "end": "21:00",
+    "title": "Revyvisning",
+    "category": "andet",
+    "note": "Vi ser MatRevy '24 sammen i Lille UP1, sammenholdet står for at man kan købe snacks og drikkevare"
   }
 ];
