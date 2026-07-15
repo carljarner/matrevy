@@ -79,4 +79,12 @@ DTEND:20251008T193000
 DESCRIPTION:Vær med til at stemme og de indsendte sketches til årets revy!
 CATEGORIES:Manus
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm4v96r@matematikrevy.dk
+SUMMARY:Sketches (deadline)
+DTSTART:20251007T235900
+DTEND:20251007T235900
+DESCRIPTION:Deadline for at indsende skecthes til udvælgese
+CATEGORIES:Deadline
+END:VEVENT
 END:VCALENDAR

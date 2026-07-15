@@ -100,5 +100,15 @@ const CALENDAR_DATA = [
     "title": "Sketchudvælgelse",
     "category": "manus",
     "note": "Vær med til at stemme og de indsendte sketches til årets revy!"
+  },
+  {
+    "id": "mrm4v96r",
+    "date": "2025-10-07",
+    "endDate": "2025-10-07",
+    "start": "23:59",
+    "end": "23:59",
+    "title": "Sketches (deadline)",
+    "category": "deadline",
+    "note": "Deadline for at indsende skecthes til udvælgese"
   }
 ];
