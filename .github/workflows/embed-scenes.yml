@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: embed-scenes-main
+  cancel-in-progress: false
+
 jobs:
   regenerate:
     runs-on: ubuntu-latest
