@@ -56,13 +56,6 @@ DESCRIPTION:Deadline for at indsende sange til udvælgese
 CATEGORIES:Deadline
 END:VEVENT
 BEGIN:VEVENT
-UID:mrm3hszu@matematikrevy.dk
-SUMMARY:Sangudvælgelse
-DTSTART:20251001T171500
-DTEND:20251001T210000
-CATEGORIES:Manus
-END:VEVENT
-BEGIN:VEVENT
 UID:mrm3nyps@matematikrevy.dk
 SUMMARY:Revyvisning
 DTSTART:20251023T171500
