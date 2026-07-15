@@ -360,5 +360,25 @@ const CALENDAR_DATA = [
     "title": "Revyjulefrokost",
     "category": "andet",
     "note": "Julekomitéen juleinviterer hermed til julerevyenjulefrokost"
+  },
+  {
+    "id": "mrm63wek",
+    "date": "2026-02-26",
+    "endDate": "2026-02-26",
+    "start": "15:00",
+    "end": "20:00",
+    "title": "Manusmøde",
+    "category": "manus",
+    "note": ""
+  },
+  {
+    "id": "mrm64uf2",
+    "date": "2026-03-05",
+    "endDate": "2026-03-05",
+    "start": "15:00",
+    "end": "20:00",
+    "title": "Manusmøde",
+    "category": "manus",
+    "note": ""
   }
 ];
