@@ -58,7 +58,7 @@
             "end": "18:00",
             "title": "Infomøde",
             "category": "andet",
-            "note": "Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål"
+            "note": "Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål."
         },
         {
             "id": "mrm39fvj",
@@ -68,47 +68,7 @@
             "end": "23:59",
             "title": "Sange (deadline)",
             "category": "deadline",
-            "note": "Deadline for at indsende sange til udvælgelse"
-        },
-        {
-            "id": "mrm3c54v",
-            "date": "2025-10-01",
-            "endDate": "2025-10-01",
-            "start": "17:15",
-            "end": "21:00",
-            "title": "Sangudvælgelse",
-            "category": "manus",
-            "note": "Vær med til at stemme om de indsendte sang til årets revy!\nForegår i Aud4"
-        },
-        {
-            "id": "mrm3dkhi",
-            "date": "2025-10-07",
-            "endDate": "2025-10-07",
-            "start": "23:59",
-            "end": "23:59",
-            "title": "Sketches (deadline)",
-            "category": "deadline",
-            "note": "Deadline for at indsende sketches til udvælgelse"
-        },
-        {
-            "id": "mrm3f30y",
-            "date": "2025-10-08",
-            "endDate": "2025-10-08",
-            "start": "17:15",
-            "end": "19:30",
-            "title": "Sketchudvælgelse",
-            "category": "manus",
-            "note": "Vær med til at stemme om de indsendte sketches til årets revy!\nForegår i A104"
-        },
-        {
-            "id": "mrm3jr5s",
-            "date": "2025-10-09",
-            "endDate": "2025-10-09",
-            "start": "",
-            "end": "",
-            "title": "Aktfordeling",
-            "category": "deadline",
-            "note": "Instruktører og bosser beslutter årets aktfordeling"
+            "note": "Deadline for at indsende sange til udvælgese"
         }
     ]
 }
