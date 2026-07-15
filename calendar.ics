@@ -273,4 +273,12 @@ DTEND:20260426T120000
 DESCRIPTION:Revyttetur er en hyttetur for alle\, der har lyst til at hygge om revy!
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6c4rh@matematikrevy.dk
+SUMMARY:TeoRevy
+DTSTART:20251211T213000
+DTEND:20251211T230000
+DESCRIPTION:Vi er inviteret til TeoRevys generalprøve kl. 21:30. Det foregår på KUA i Kierkegaard Auditoriet
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
