@@ -109,6 +109,6 @@ const CALENDAR_DATA = [
     "end": "",
     "title": "Aktfordeling",
     "category": "deadline",
-    "note": "Aktfordeling af årets revy bliver fastlagt"
+    "note": "Instruktører og bosser beslutter årets aktfordeling"
   }
 ];
