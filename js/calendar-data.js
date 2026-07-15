@@ -133,12 +133,12 @@ const CALENDAR_DATA = [
   },
   {
     "id": "mrm4z67j",
-    "date": "2025-10-26",
-    "endDate": "2025-10-26",
+    "date": "2025-10-27",
+    "endDate": "2025-10-27",
     "start": "23:59",
     "end": "23:59",
-    "title": "Rolleønskning",
+    "title": "Tilmelding og Rolleønskning",
     "category": "deadline",
-    "note": "Deadline for at ønske roller (både sang og skuespil) til årets revy"
+    "note": "Deadline for at tilmelde sig : https://docs.google.com/forms/d/1YmFtKRIvTAApvPFz2iSI0ulh5Zyk7VIq4cvyTTmhRcQ/edit\nDeadline for at ønske roller : https://docs.google.com/forms/d/1d7rB9jUgrd1VXgkvVYozbL_CJlRo1emvSNGvcXMf5hE/edit"
   }
 ];
