@@ -47,6 +47,19 @@ function calEventEndDate(ev) {
   return (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date;
 }
 
+// Whole-day difference between two ISO dates (endIso - startIso).
+function calDaysBetweenIso(startIso, endIso) {
+  return Math.round((parseIsoDate(endIso) - parseIsoDate(startIso)) / 86400000);
+}
+
+// Adds (possibly negative) whole days to an ISO date.
+function calAddDaysIso(iso, days) {
+  const d = parseIsoDate(iso);
+  const shifted = new Date(d.getFullYear(), d.getMonth(), d.getDate() + days);
+  const pad = n => String(n).padStart(2, '0');
+  return `${shifted.getFullYear()}-${pad(shifted.getMonth() + 1)}-${pad(shifted.getDate())}`;
+}
+
 // Every ISO date an event spans (inclusive) — used to place a multi-day event
 // on each day it covers in the month grid.
 function calDateRangeIso(startIso, endIso) {
@@ -397,6 +410,21 @@ function openEventEditor(existing) {
   const endDateInput = document.createElement('input');
   endDateInput.type = 'date';
   endDateInput.value = existing ? calEventEndDate(existing) : dateInput.value;
+
+  // Keep the start/end gap constant when the start date changes (0 days for
+  // a single-day event stays single-day; a 2-day span stays 2 days), while
+  // never letting the end date fall before the start date.
+  let dateSpanDays = calDaysBetweenIso(dateInput.value, endDateInput.value);
+  dateInput.addEventListener('change', () => {
+    if (!dateInput.value) return;
+    endDateInput.value = calAddDaysIso(dateInput.value, dateSpanDays);
+  });
+  endDateInput.addEventListener('change', () => {
+    if (endDateInput.value && endDateInput.value < dateInput.value) {
+      endDateInput.value = dateInput.value;
+    }
+    dateSpanDays = calDaysBetweenIso(dateInput.value, endDateInput.value);
+  });
 
   const dateRow = document.createElement('div');
   dateRow.className = 'edit-field-row';
