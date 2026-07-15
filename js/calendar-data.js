@@ -170,5 +170,15 @@ const CALENDAR_DATA = [
     "title": "Øvedag",
     "category": "ove",
     "note": "Almindelig øvedag"
+  },
+  {
+    "id": "mrm5df64",
+    "date": "2025-11-14",
+    "endDate": "2025-11-14",
+    "start": "10:00",
+    "end": "18:00",
+    "title": "Øvedag",
+    "category": "ove",
+    "note": "Almindelig øvedag"
   }
 ];
