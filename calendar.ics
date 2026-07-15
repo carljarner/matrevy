@@ -71,4 +71,12 @@ DTEND:20251001T210000
 DESCRIPTION:Vær med til at stemme og de indsendte sange til årets revy!
 CATEGORIES:Manus
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm4qauu@matematikrevy.dk
+SUMMARY:Sketchudvælgelse
+DTSTART:20251008T171500
+DTEND:20251008T193000
+DESCRIPTION:Vær med til at stemme og de indsendte sketches til årets revy!
+CATEGORIES:Manus
+END:VEVENT
 END:VCALENDAR
