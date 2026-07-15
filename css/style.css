@@ -108,6 +108,11 @@ body:has(.sched-layout) .site-footer {
   }
 }
 
+.site-nav a:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
 .site-nav a.active {
   background: rgba(255,255,255,0.15);
   color: #ffffff;
@@ -204,22 +209,17 @@ body:has(.sched-layout) .site-footer {
 
 .login-actions {
   display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
+  gap: 0.6rem;
+  justify-content: center;
   margin-top: 0.75rem;
 }
 
-.site-btn-primary,
-.site-btn-secondary,
-.site-btn-warm {
+.site-btn-primary {
   border-radius: 6px;
   padding: 0.45rem 1rem;
   font-size: 0.9rem;
   font-family: inherit;
   cursor: pointer;
-}
-
-.site-btn-primary {
   background: #3b82d4;
   color: #ffffff;
   border: none;
@@ -230,35 +230,54 @@ body:has(.sched-layout) .site-footer {
 }
 .site-btn-primary:disabled { opacity: 0.6; cursor: default; }
 
-.site-btn-secondary {
-  background: #ffffff;
-  color: #1f2328;
-  border: 1px solid #d0d7de;
-}
-
-@media (hover: hover) {
-  .site-btn-secondary:hover {
-    background: var(--accent-warm-fill);
-    border-color: var(--accent-warm);
-    color: var(--accent-warm-text);
-  }
-}
-
-/* Warm secondary button — the site's standard warm-amber look
-   (mirrors .btn-small), used for "Annuller" next to a blue primary. */
-.site-btn-warm {
+/* --- Overlay pill buttons (site-wide second-level standard) -----
+   Every button inside a .login-overlay/.login-modal (login, editor,
+   and confirm-dialog forms) except the blue .site-btn-primary. Idle
+   shape/colour matches the oval look Budget/Kalender each grew on
+   their own; the hover/focus-visible treatment is modelled on
+   .arkiv-action-btn's link pills (archive.css): a neutral background
+   + border + soft shadow, with each colour variant only overriding
+   border-color to match its own text colour. */
+.site-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
   background: #fdf8ec;
-  color: var(--text);
   border: 1px solid var(--border);
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.site-pill-btn:disabled { opacity: 0.6; cursor: default; }
+.site-pill-primary { color: #1a7f37; }
+.site-pill-danger  { color: #c0392b; }
+.site-pill-warm    { color: var(--accent-warm-text); }
+
+.site-pill-btn:focus-visible {
+  background: var(--surface-2);
+  border-color: #9ca3af;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  outline: none;
+}
+.site-pill-primary:focus-visible { border-color: #1a7f37; }
+.site-pill-danger:focus-visible  { border-color: #c0392b; }
+.site-pill-warm:focus-visible    { border-color: var(--accent-warm-text); }
+
 @media (hover: hover) {
-  .site-btn-warm:hover {
-    background: var(--accent-warm-fill);
-    border-color: var(--accent-warm);
-    color: var(--accent-warm-text);
+  .site-pill-btn:hover {
+    background: var(--surface-2);
+    border-color: #9ca3af;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   }
+  .site-pill-primary:hover { border-color: #1a7f37; }
+  .site-pill-danger:hover  { border-color: #c0392b; }
+  .site-pill-warm:hover    { border-color: var(--accent-warm-text); }
 }
 
 /* --- Mobile menu (hamburger + overlay) --------------------
@@ -318,7 +337,7 @@ body:has(.sched-layout) .site-footer {
 }
 
 .site-menu-close:focus-visible {
-  outline: 2px solid #3b82d4;
+  outline: 2px solid var(--accent-warm);
 }
 
 .site-menu-nav {
@@ -334,6 +353,11 @@ body:has(.sched-layout) .site-footer {
   font-size: 1.25rem;
   padding: 0.75rem 0.5rem;
   border-radius: 6px;
+}
+
+.site-menu-nav a:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
 }
 
 .site-menu-nav a.active {
@@ -379,6 +403,7 @@ body.site-menu-open {
   font-weight: 600;
   margin-bottom: 1.5rem;
   color: var(--text);
+  text-align: center;
 }
 
 .page-content h2 {
@@ -405,6 +430,335 @@ body.site-menu-open {
 .edit-modal {
   width: min(480px, 92vw);
   max-height: 85vh;
+  overflow-y: auto;
+}
+
+/* --- X-close top-right (site-utils.js siteOpenModalWithClose) --- */
+.site-modal {
+  position: relative;
+}
+
+.site-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-modal-close:hover { background: var(--surface-2); }
+}
+
+.site-modal-close:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  background: var(--surface-2);
+}
+
+/* --- Custom date/time/dropdown picker fields (site-utils.js) -----
+   Native <input type="date">/type="time"> and <select> hand their
+   picker/dropdown UI off to the OS/browser (a closed shadow root,
+   unstylable), so these replace them with popups built from the
+   site's own chrome. .site-field-btn mirrors .edit-field input's
+   look so it sits flush in the same form; the trailing ▾ reuses the
+   import tool's chevron affordance rather than inventing a new icon.
+   Originally Kalender-only, now the site-wide standard for any page's
+   dropdowns/date/time fields (Forside, Budget, ...). */
+.site-field-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #ffffff;
+  color: #1f2328;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-field-btn:hover { border-color: var(--accent-warm); }
+}
+
+.site-field-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.site-field-placeholder {
+  color: #57606a;
+}
+
+.site-field-chevron {
+  color: #57606a;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.site-field-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+/* Typeable combo field (time): unlike the date/dropdown fields
+   (button-only, picker required), time also accepts free typing —
+   restores the native input's old behaviour — so this wraps a real
+   text <input> plus a clock-icon toggle for the picker. overflow:
+   hidden + border-radius:0 on both children clips them flush into
+   the wrapper's own rounded border, so it reads as one field with
+   an icon accessory, not two controls side by side. */
+.site-field-combo {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #ffffff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-field-combo:hover { border-color: var(--accent-warm); }
+}
+
+.site-field-combo:focus-within {
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.site-field-input {
+  flex: 1;
+  min-width: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  color: #1f2328;
+  box-shadow: none;
+}
+
+/* .edit-field input has higher specificity than .site-field-input alone
+   and would otherwise re-draw its own border/focus-ring on just the
+   typed portion, splitting the combo back into two visible fields. */
+.site-field-combo .site-field-input,
+.site-field-combo .site-field-input:focus {
+  border: none;
+  box-shadow: none;
+}
+
+.site-field-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0 0.6rem;
+  color: #57606a;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-field-toggle:hover {
+    background: var(--accent-warm-fill);
+    color: var(--accent-warm-text);
+  }
+}
+
+/* The toggle sits inside .site-field-combo, which already draws a warm
+   border+ring via :focus-within when the toggle is focused — its own
+   outline just needs suppressing so the browser default doesn't show. */
+.site-field-toggle:focus-visible {
+  outline: none;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+}
+
+/* Shared popup chrome — position:fixed + left/top set in JS.
+   z-index 210: above login/edit modals (200, see CLAUDE.md's ladder). */
+.site-field-pop {
+  z-index: 210;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  padding: 0.6rem;
+}
+
+/* --- Date picker popup --------------------------------------- */
+.site-dp-pop {
+  width: min(17.5rem, calc(100vw - 1rem));
+}
+
+.site-dp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.site-dp-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: capitalize;
+}
+
+.site-dp-nav {
+  background: #fdf8ec;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 1.7rem;
+  height: 1.7rem;
+  font-size: 1rem;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1;
+  color: var(--text);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-dp-nav:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+
+.site-dp-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+}
+
+.site-dp-weekday {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #57606a;
+  text-align: center;
+  padding-bottom: 0.15rem;
+}
+
+.site-dp-day {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.3rem 0;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-dp-day:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+  }
+}
+
+.site-dp-today {
+  border-color: var(--border);
+  font-weight: 600;
+}
+
+.site-dp-selected {
+  background: #3b82d4;
+  border-color: #3b82d4;
+  color: #ffffff;
+}
+
+@media (hover: hover) {
+  .site-dp-selected:hover {
+    background: #3b82d4;
+    border-color: #3b82d4;
+  }
+}
+
+/* --- Time picker popup / generic list-row style ---------------
+   .site-list-row/.site-list-selected are shared by the time picker's
+   rows and the generic dropdown picker below (and, with an added
+   coloured dot, Kalender's own category picker in calendar.css). */
+.site-tp-pop {
+  width: 9rem;
+  max-height: 16rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-list-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-list-row:hover { background: var(--accent-warm-fill); }
+}
+
+.site-tp-clear {
+  color: #57606a;
+  font-style: italic;
+  border-bottom: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+  margin-bottom: 0.3rem;
+  padding-bottom: 0.45rem;
+  flex-shrink: 0;
+}
+
+.site-tp-list {
+  overflow-y: auto;
+}
+
+.site-list-selected {
+  background: #3b82d4;
+  color: #ffffff;
+}
+
+@media (hover: hover) {
+  .site-list-selected:hover { background: #3b82d4; }
+}
+
+/* --- Generic dropdown popup (category-less <select> replacement) --- */
+.site-dd-pop {
+  width: min(15rem, calc(100vw - 1rem));
+  max-height: 20rem;
   overflow-y: auto;
 }
 
@@ -581,7 +935,8 @@ p:last-child {
   .login-modal input[type="password"],
   .edit-field input,
   .edit-field textarea,
-  .edit-field select {
+  .edit-field select,
+  .site-field-input {
     font-size: 16px;
   }
 }

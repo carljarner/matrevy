@@ -102,11 +102,9 @@ async function saveAnnouncements(next) {
 
 // ── Editor modal ─────────────────────────────────────────────
 function openAnnouncementEditor(existing) {
-  const { form, error, actions, close } = siteOpenEditModal(existing ? 'Rediger besked' : 'Ny besked');
+  const { form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger besked' : 'Ny besked');
 
-  const dateInput = document.createElement('input');
-  dateInput.type = 'date';
-  dateInput.value = existing ? existing.date : todayIso();
+  const dateInput = siteCreateDateField(existing ? existing.date : todayIso());
   form.appendChild(siteEditField('Dato', dateInput));
 
   const authorInput = document.createElement('input');
@@ -114,14 +112,10 @@ function openAnnouncementEditor(existing) {
   authorInput.value = existing ? existing.author : 'Koordinatorerne';
   form.appendChild(siteEditField('Afsender', authorInput));
 
-  const levelSelect = document.createElement('select');
-  for (const [value, label] of [['public', 'Offentlig'], ['revyst', 'Kun revyster']]) {
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = label;
-    levelSelect.appendChild(opt);
-  }
-  levelSelect.value = existing ? existing.level : 'public';
+  const levelSelect = siteCreateDropdownField(
+    [{ value: 'public', label: 'Offentlig' }, { value: 'revyst', label: 'Kun revyster' }],
+    existing ? existing.level : 'public'
+  );
   form.appendChild(siteEditField('Synlighed', levelSelect));
 
   const textArea = document.createElement('textarea');
@@ -129,14 +123,9 @@ function openAnnouncementEditor(existing) {
   form.appendChild(siteEditField('Besked', textArea));
 
   const save = document.createElement('button');
-  save.className = 'site-btn-primary';
+  save.className = 'site-pill-btn site-pill-primary';
   save.textContent = 'Gem';
-  const cancel = document.createElement('button');
-  cancel.className = 'site-btn-secondary';
-  cancel.textContent = 'Annuller';
   actions.appendChild(save);
-  actions.appendChild(cancel);
-  cancel.addEventListener('click', close);
 
   save.addEventListener('click', async () => {
     const date = dateInput.value;
@@ -170,11 +159,36 @@ function openAnnouncementEditor(existing) {
   textArea.focus();
 }
 
-async function deleteAnnouncement(ann) {
-  if (!confirm('Slet denne besked?')) return;
-  const next = getEffectiveAnnouncements().filter(a => a.id !== ann.id);
-  const result = await saveAnnouncements(next);
-  if (!result.ok && result.message) alert(result.message);
+function deleteAnnouncement(ann) {
+  const { form, error, actions, close } = siteOpenEditModal('Slet besked');
+
+  const info = document.createElement('p');
+  info.textContent = 'Slet denne besked?';
+  form.appendChild(info);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.textContent = 'Annuller';
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.textContent = 'Slet';
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const next = getEffectiveAnnouncements().filter(a => a.id !== ann.id);
+    const result = await saveAnnouncements(next);
+    if (result.ok) {
+      close();
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Init ─────────────────────────────────────────────────────

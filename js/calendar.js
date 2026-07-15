@@ -295,47 +295,12 @@ function renderListView(container) {
   }
 }
 
-// Shared chrome for Kalender's modals: an X-close in the top-right corner
-// instead of a "Luk"/"Annuller" button in the actions row, plus Escape-to-
-// close (siteOpenEditModal has neither). Kalender-only DOM patch — the
-// shared modal helper in site-utils.js is untouched, so every other modal
-// on the site is unaffected. Returns the same shape as siteOpenEditModal,
-// with `close` already wrapping the Escape-listener cleanup.
-function calOpenModal(title) {
-  const { overlay, modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('cal-modal');
-
-  function closeModal() {
-    document.removeEventListener('keydown', onKeydown);
-    close();
-  }
-  function onKeydown(e) {
-    if (e.key === 'Escape') closeModal();
-  }
-  document.addEventListener('keydown', onKeydown);
-  // Backdrop click closes via the overlay's own listener (from
-  // siteOpenEditModal) — also strip our Escape listener in that case.
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) document.removeEventListener('keydown', onKeydown);
-  });
-
-  const closeX = document.createElement('button');
-  closeX.type = 'button';
-  closeX.className = 'cal-modal-close';
-  closeX.textContent = '✕';
-  closeX.setAttribute('aria-label', 'Luk');
-  closeX.addEventListener('click', closeModal);
-  modal.insertBefore(closeX, modal.firstChild);
-
-  return { modal, form, error, actions, close: closeModal };
-}
-
-// A rounded "pill" button for Kalender's modals (mirrors budget.js's
-// budgetPillBtn — see calendar.css's .cal-pill-btn for the styling).
+// A rounded "pill" button for Kalender's modals — see style.css's shared
+// .site-pill-btn for the styling (also used by every other page's modals).
 function calPillBtn(label, variant) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'cal-pill-btn' + (variant ? ' ' + variant : '');
+  btn.className = 'site-pill-btn' + (variant ? ' ' + variant : '');
   btn.textContent = label;
   return btn;
 }
@@ -357,7 +322,7 @@ function calDateLabelLong(ev) {
 
 // ── Read-only detail modal (non-admin chip click) ────────────
 function openEventDetail(ev) {
-  const { form, actions, close } = calOpenModal(ev.title);
+  const { form, actions, close } = siteOpenModalWithClose(ev.title);
 
   const rows = [
     ['Dato', calDateLabelLong(ev)],
@@ -379,7 +344,7 @@ function openEventDetail(ev) {
   }
 
   if (siteHasLevel('boss')) {
-    const editBtn = calPillBtn('Rediger', 'cal-pill-warm');
+    const editBtn = calPillBtn('Rediger', 'site-pill-warm');
     editBtn.addEventListener('click', () => { close(); openEventEditor(ev); });
     actions.appendChild(editBtn);
   }
@@ -395,322 +360,20 @@ async function saveEvents(next) {
   return result;
 }
 
-// ── Custom date/time picker fields ───────────────────────────
-// Native <input type="date">/type="time"> hand their picker UI off to the
-// OS/browser (a closed shadow root outside the DOM — not stylable), so the
-// editor uses these instead: a button showing the formatted value, opening
-// a popup built and styled like the rest of the site. Each factory returns
-// a plain <button> augmented with a `.value` getter/setter (ISO date, or
-// 'HH:MM'/'' for time) and a dispatched 'change' event on selection, so
-// call sites below use them exactly like a native input.
-let calFieldPopupClose = null; // the one currently-open popup's close fn, if any
-
-function calCloseFieldPopup() {
-  if (calFieldPopupClose) { calFieldPopupClose(); calFieldPopupClose = null; }
-}
-
-// Positions `pop` (already appended to <body>) below its anchor button,
-// flipping above and clamping horizontally so it never runs off-screen.
-function calPositionFieldPopup(pop, anchor) {
-  const rect = anchor.getBoundingClientRect();
-  const popRect = pop.getBoundingClientRect();
-  let left = Math.min(rect.left, window.innerWidth - popRect.width - 8);
-  left = Math.max(left, 8);
-  let top = rect.bottom + 4;
-  if (top + popRect.height > window.innerHeight - 8) top = rect.top - popRect.height - 4;
-  pop.style.left = `${left}px`;
-  pop.style.top = `${Math.max(top, 8)}px`;
-}
-
-// Opens `pop` anchored to `anchor` with the close-on-outside-click/Escape/
-// reposition-on-scroll behaviour every field popup here needs. Returns the
-// close function. Escape stops propagation so it closes just the popup,
-// not the surrounding edit modal too (a second Escape closes that).
-function calOpenFieldPopup(anchor, pop) {
-  calCloseFieldPopup();
-  pop.style.position = 'fixed';
-  document.body.appendChild(pop);
-  calPositionFieldPopup(pop, anchor);
-
-  function onDocMousedown(e) {
-    if (!pop.contains(e.target) && e.target !== anchor) close();
-  }
-  function onKeydown(e) {
-    if (e.key === 'Escape') { e.stopPropagation(); close(); anchor.focus(); }
-  }
-  function onReposition() { calPositionFieldPopup(pop, anchor); }
-  document.addEventListener('mousedown', onDocMousedown, true);
-  document.addEventListener('keydown', onKeydown, true);
-  window.addEventListener('resize', onReposition);
-  document.addEventListener('scroll', onReposition, true);
-
-  function close() {
-    document.removeEventListener('mousedown', onDocMousedown, true);
-    document.removeEventListener('keydown', onKeydown, true);
-    window.removeEventListener('resize', onReposition);
-    document.removeEventListener('scroll', onReposition, true);
-    pop.remove();
-    if (calFieldPopupClose === close) calFieldPopupClose = null;
-  }
-  calFieldPopupClose = close;
-  return close;
-}
-
-// Mini month-grid popup — same day-grid math as renderMonthView above, but
-// its own compact rendering with no event chips, just pick-a-day.
-function openCalDatePicker(anchor, currentIso, onSelect) {
-  const base = currentIso ? parseIsoDate(currentIso) : new Date();
-  let viewYear = base.getFullYear();
-  let viewMonth = base.getMonth();
-
-  const pop = document.createElement('div');
-  pop.className = 'cal-field-pop cal-dp-pop';
-
-  const header = document.createElement('div');
-  header.className = 'cal-dp-header';
-  const prevBtn = document.createElement('button');
-  prevBtn.type = 'button';
-  prevBtn.className = 'cal-dp-nav';
-  prevBtn.textContent = '‹';
-  prevBtn.setAttribute('aria-label', 'Forrige måned');
-  const label = document.createElement('span');
-  label.className = 'cal-dp-label';
-  const nextBtn = document.createElement('button');
-  nextBtn.type = 'button';
-  nextBtn.className = 'cal-dp-nav';
-  nextBtn.textContent = '›';
-  nextBtn.setAttribute('aria-label', 'Næste måned');
-  header.appendChild(prevBtn);
-  header.appendChild(label);
-  header.appendChild(nextBtn);
-  pop.appendChild(header);
-
-  const grid = document.createElement('div');
-  grid.className = 'cal-dp-grid';
-  pop.appendChild(grid);
-
-  function renderGrid() {
-    label.textContent = `${DA_MONTHS[viewMonth]} ${viewYear}`;
-    grid.textContent = '';
-    for (const wd of DA_WEEKDAYS_SHORT) {
-      const wdCell = document.createElement('span');
-      wdCell.className = 'cal-dp-weekday';
-      wdCell.textContent = wd;
-      grid.appendChild(wdCell);
-    }
-    const firstOffset = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7;
-    const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-    const totalCells = Math.ceil((firstOffset + daysInMonth) / 7) * 7;
-    const today = todayIso();
-    const pad = n => String(n).padStart(2, '0');
-    for (let i = 0; i < totalCells; i++) {
-      const dayNum = i - firstOffset + 1;
-      if (dayNum < 1 || dayNum > daysInMonth) {
-        grid.appendChild(document.createElement('span'));
-        continue;
-      }
-      const iso = `${viewYear}-${pad(viewMonth + 1)}-${pad(dayNum)}`;
-      const day = document.createElement('button');
-      day.type = 'button';
-      day.className = 'cal-dp-day';
-      if (iso === today) day.classList.add('cal-dp-today');
-      if (iso === currentIso) day.classList.add('cal-dp-selected');
-      day.textContent = dayNum;
-      day.addEventListener('click', () => { close(); onSelect(iso); });
-      grid.appendChild(day);
-    }
-  }
-  renderGrid();
-
-  prevBtn.addEventListener('click', () => {
-    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-    renderGrid();
-  });
-  nextBtn.addEventListener('click', () => {
-    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
-    renderGrid();
-  });
-
-  const close = calOpenFieldPopup(anchor, pop);
-}
-
-// Flat, scrollable list of quarter-hour times (matching Øveplan's own
-// 15-min step convention) plus a clear row, since start/end are optional.
-function calTimeOptions() {
-  const opts = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 15) opts.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-  }
-  return opts;
-}
-
-function openCalTimePicker(anchor, currentValue, onSelect) {
-  const pop = document.createElement('div');
-  pop.className = 'cal-field-pop cal-tp-pop';
-
-  const clearRow = document.createElement('button');
-  clearRow.type = 'button';
-  clearRow.className = 'cal-tp-row cal-tp-clear';
-  clearRow.textContent = 'Ingen tid';
-  clearRow.addEventListener('click', () => { close(); onSelect(''); });
-  pop.appendChild(clearRow);
-
-  const list = document.createElement('div');
-  list.className = 'cal-tp-list';
-  pop.appendChild(list);
-
-  let selectedRow = null;
-  for (const t of calTimeOptions()) {
-    const row = document.createElement('button');
-    row.type = 'button';
-    row.className = 'cal-tp-row';
-    row.textContent = t;
-    if (t === currentValue) { row.classList.add('cal-tp-selected'); selectedRow = row; }
-    row.addEventListener('click', () => { close(); onSelect(t); });
-    list.appendChild(row);
-  }
-
-  const close = calOpenFieldPopup(anchor, pop);
-  if (selectedRow) selectedRow.scrollIntoView({ block: 'center' });
-}
-
-function calCreateDateField(initialIso) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'cal-field-btn';
-  const text = document.createElement('span');
-  text.className = 'cal-field-text';
-  const chevron = document.createElement('span');
-  chevron.className = 'cal-field-chevron';
-  chevron.textContent = '▾';
-  btn.appendChild(text);
-  btn.appendChild(chevron);
-
-  let _value = initialIso || '';
-  function render() {
-    text.textContent = _value ? formatDaDateShort(_value) : 'Vælg dato';
-    text.classList.toggle('cal-field-placeholder', !_value);
-  }
-  Object.defineProperty(btn, 'value', {
-    get() { return _value; },
-    set(v) { _value = v; render(); },
-  });
-  render();
-
-  btn.addEventListener('click', () => {
-    openCalDatePicker(btn, _value, (iso) => {
-      _value = iso;
-      render();
-      btn.dispatchEvent(new Event('change'));
-    });
-  });
-  return btn;
-}
-
-// Accepts what a user is likely to type — "14:30", "14.30", "930", "0930" —
-// and normalizes to strict "HH:MM", or null if unparseable. Kept forgiving
-// but not lenient enough to accept outright garbage (hour/minute bounds).
-function calParseTimeInput(raw) {
-  const s = raw.trim();
-  if (!s) return '';
-  let m = s.match(/^([0-2]?\d)[:.]([0-5]\d)$/);
-  if (!m) m = s.match(/^(\d{1,2})(\d{2})$/);
-  if (!m) return null;
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  if (h > 23 || min > 59) return null;
-  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-}
-
-// Built via createElementNS (not innerHTML — the page's DOM-building rule
-// applies to markup fragments same as to data) so the toggle reads as a
-// clock, echoing the native time input's old picker icon.
-function calClockIcon() {
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('width', '15');
-  svg.setAttribute('height', '15');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '1.3');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  const circle = document.createElementNS(svgNS, 'circle');
-  circle.setAttribute('cx', '8');
-  circle.setAttribute('cy', '8');
-  circle.setAttribute('r', '6.5');
-  svg.appendChild(circle);
-  const hands = document.createElementNS(svgNS, 'path');
-  hands.setAttribute('d', 'M8 4.5V8l2.8 1.6');
-  svg.appendChild(hands);
-  return svg;
-}
-
-// A typeable text field (unlike the date field — free typing plus a picker
-// toggle) since a start/end time is easier to type ("14:30") than to click
-// through a list, and this restores the native input's old typing behaviour.
-function calCreateTimeField(initialValue) {
-  const wrap = document.createElement('div');
-  wrap.className = 'cal-field-combo';
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'cal-field-input';
-  input.placeholder = 'tt:mm';
-  input.autocomplete = 'off';
-  input.inputMode = 'numeric';
-
-  const toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'cal-field-toggle';
-  toggle.appendChild(calClockIcon());
-  toggle.setAttribute('aria-label', 'Vælg tidspunkt');
-
-  wrap.appendChild(input);
-  wrap.appendChild(toggle);
-
-  let _value = initialValue || '';
-  input.value = _value;
-
-  Object.defineProperty(wrap, 'value', {
-    get() { return _value; },
-    set(v) { _value = v || ''; input.value = _value; },
-  });
-
-  function commit(newValue, dispatch) {
-    const changed = newValue !== _value;
-    _value = newValue;
-    input.value = _value;
-    if (dispatch && changed) wrap.dispatchEvent(new Event('change'));
-  }
-
-  input.addEventListener('blur', () => {
-    const parsed = calParseTimeInput(input.value);
-    if (parsed === null) { input.value = _value; return; } // revert, keep last valid value
-    commit(parsed, true);
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-  });
-
-  toggle.addEventListener('click', () => {
-    openCalTimePicker(toggle, _value, (t) => commit(t, true));
-  });
-
-  return wrap;
-}
-
 // ── Category field (custom dropdown popup) ────────────────────
+// Date/time fields use the shared siteCreateDateField/siteCreateTimeField
+// (site-utils.js) directly — only the category field is Kalender-specific
+// (it needs a coloured dot per option), built on the same siteOpenFieldPopup
+// primitive those share.
 function openCalCategoryPicker(anchor, currentKey, onSelect) {
   const pop = document.createElement('div');
-  pop.className = 'cal-field-pop cal-cp-pop';
+  pop.className = 'site-field-pop site-dd-pop';
 
   for (const [key, def] of Object.entries(CAL_CATEGORIES)) {
     const row = document.createElement('button');
     row.type = 'button';
-    row.className = 'cal-tp-row cal-cp-row';
-    if (key === currentKey) row.classList.add('cal-tp-selected');
+    row.className = 'site-list-row cal-cp-row';
+    if (key === currentKey) row.classList.add('site-list-selected');
     const dot = document.createElement('span');
     dot.className = `cal-dot ${calCategoryClass(key)}`;
     row.appendChild(dot);
@@ -719,24 +382,24 @@ function openCalCategoryPicker(anchor, currentKey, onSelect) {
     pop.appendChild(row);
   }
 
-  const close = calOpenFieldPopup(anchor, pop);
+  const close = siteOpenFieldPopup(anchor, pop);
 }
 
 function calCreateCategoryField(initialKey) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'cal-field-btn';
+  btn.className = 'site-field-btn';
 
   const left = document.createElement('span');
-  left.className = 'cal-field-left';
+  left.className = 'site-field-left';
   const dot = document.createElement('span');
   dot.className = 'cal-dot';
   const text = document.createElement('span');
-  text.className = 'cal-field-text';
+  text.className = 'site-field-text';
   left.appendChild(dot);
   left.appendChild(text);
   const chevron = document.createElement('span');
-  chevron.className = 'cal-field-chevron';
+  chevron.className = 'site-field-chevron';
   chevron.textContent = '▾';
   btn.appendChild(left);
   btn.appendChild(chevron);
@@ -764,14 +427,14 @@ function calCreateCategoryField(initialKey) {
 
 // ── Editor modal ─────────────────────────────────────────────
 function openEventEditor(existing) {
-  const { form, error, actions, close } = calOpenModal(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
+  const { form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
   titleInput.value = existing ? existing.title : '';
   form.appendChild(siteEditField('Titel', titleInput));
 
-  const dateInput = calCreateDateField('');
+  const dateInput = siteCreateDateField('');
   if (existing) {
     dateInput.value = existing.date;
   } else {
@@ -784,7 +447,7 @@ function openEventEditor(existing) {
       ? todayIso()
       : `${calState.year}-${pad(calState.month + 1)}-01`;
   }
-  const endDateInput = calCreateDateField(existing ? calEventEndDate(existing) : dateInput.value);
+  const endDateInput = siteCreateDateField(existing ? calEventEndDate(existing) : dateInput.value);
 
   // Keep the start/end gap constant when the start date changes (0 days for
   // a single-day event stays single-day; a 2-day span stays 2 days), while
@@ -809,9 +472,9 @@ function openEventEditor(existing) {
 
   const timeRow = document.createElement('div');
   timeRow.className = 'edit-field-row';
-  const startInput = calCreateTimeField(existing ? existing.start || '' : '');
+  const startInput = siteCreateTimeField(existing ? existing.start || '' : '');
   timeRow.appendChild(siteEditField('Start', startInput));
-  const endInput = calCreateTimeField(existing ? existing.end || '' : '');
+  const endInput = siteCreateTimeField(existing ? existing.end || '' : '');
   timeRow.appendChild(siteEditField('Slut', endInput));
   form.appendChild(timeRow);
 
@@ -822,10 +485,10 @@ function openEventEditor(existing) {
   noteArea.value = existing ? existing.note || '' : '';
   form.appendChild(siteEditField('Note', noteArea));
 
-  const save = calPillBtn('Gem', 'cal-pill-primary');
+  const save = calPillBtn('Gem', 'site-pill-primary');
 
   if (existing) {
-    const del = calPillBtn('Slet', 'cal-pill-danger');
+    const del = calPillBtn('Slet', 'site-pill-danger');
     del.addEventListener('click', () => { close(); openDeleteConfirm(existing); });
     actions.appendChild(del);
   }
@@ -880,7 +543,7 @@ function openDeleteConfirm(ev) {
 
   const cancelBtn = calPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = calPillBtn('Slet', 'cal-pill-danger');
+  const confirmBtn = calPillBtn('Slet', 'site-pill-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -919,7 +582,7 @@ function renderLegend() {
 const CALENDAR_FEED_URL = 'https://matematikrevy.dk/calendar.ics';
 
 function openSubscribeModal() {
-  const { form, actions } = calOpenModal('Abonnér på kalenderen');
+  const { form, actions } = siteOpenModalWithClose('Abonnér på kalenderen');
 
   const info = document.createElement('p');
   info.textContent = 'Tilføj linket herunder som et kalenderabonnement, så følger din kalender-app automatisk med i alle begivenheder: Google Kalender ("Fra URL"), Apple Kalender ("Nyt kalenderabonnement") eller Outlook ("Abonnér fra internettet").';
@@ -931,7 +594,7 @@ function openSubscribeModal() {
   urlInput.readOnly = true;
   form.appendChild(siteEditField('Link', urlInput));
 
-  const copyBtn = calPillBtn('Kopiér link', 'cal-pill-warm');
+  const copyBtn = calPillBtn('Kopiér link', 'site-pill-warm');
   copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(CALENDAR_FEED_URL);

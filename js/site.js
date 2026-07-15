@@ -28,7 +28,7 @@ const SITE_PAGES = [
   { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
   { href: 'manus.html',       label: 'Manus',       level: 'revyst' },
   { href: 'schedule.html',    label: 'Øveplan',     level: 'boss' },
-  { href: 'koordinator.html', label: 'Koordinator', level: 'boss' },
+  { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
 ];
 
 const SITE_LEVEL_RANK = { public: 0, revyst: 1, boss: 2, admin: 3 };
@@ -249,7 +249,7 @@ function openLoginModal() {
   submit.className = 'site-btn-primary';
   submit.textContent = 'Log ind';
   const cancel = document.createElement('button');
-  cancel.className = 'site-btn-warm';
+  cancel.className = 'site-pill-btn';
   cancel.textContent = 'Annuller';
   actions.appendChild(cancel);
   actions.appendChild(submit);

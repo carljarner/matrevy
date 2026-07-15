@@ -17,8 +17,8 @@
 }
 
 .arkiv-hero h1 {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 1.6rem;
+  font-weight: 600;
   margin-bottom: 0.5rem;
 }
 
@@ -278,7 +278,7 @@
   gap: 0.45rem;
   padding: 0.5rem 0.9rem;
   border-radius: 999px;
-  background: #ffffff;
+  background: #fdf8ec;
   border: 1px solid #d0d7de;
   color: #1f2328;
   font-size: 0.9rem;
@@ -363,23 +363,6 @@
 .arkiv-edit-modal .edit-field input,
 .arkiv-edit-modal .edit-field select {
   background: #ffffff;
-}
-
-/* Arkiv opts out of the site-wide warm focus/hover standard (style.css):
-   keep the editor's fields and secondary button neutral. */
-.arkiv-edit-modal .edit-field input:focus,
-.arkiv-edit-modal .edit-field select:focus,
-.arkiv-edit-modal .edit-field textarea:focus {
-  border-color: #d0d7de;
-  box-shadow: none;
-}
-
-@media (hover: hover) {
-  .arkiv-edit-modal .site-btn-secondary:hover {
-    background: var(--surface-2);
-    border-color: #d0d7de;
-    color: #1f2328;
-  }
 }
 
 .arkiv-edit-modal .edit-field:last-child {

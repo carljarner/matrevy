@@ -417,12 +417,12 @@ function openYearEditor(existing) {
   save.className = 'site-btn-primary';
   save.textContent = 'Gem';
   const cancel = document.createElement('button');
-  cancel.className = 'site-btn-secondary';
+  cancel.className = 'site-pill-btn';
   cancel.textContent = 'Annuller';
 
   if (existing) {
     const del = document.createElement('button');
-    del.className = 'site-btn-secondary edit-actions-left';
+    del.className = 'site-pill-btn site-pill-danger edit-actions-left';
     del.textContent = 'Slet årgang';
     del.addEventListener('click', () => { close(); deleteYear(existing); });
     actions.appendChild(del);

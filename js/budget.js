@@ -46,6 +46,13 @@ function budgetCategoryLabel(key) {
   return c ? c.label : key;
 }
 
+// Option list for siteCreateDropdownField (site-utils.js), optionally
+// prefixed with an empty "not yet chosen" placeholder row.
+function budgetCategoryOptions(placeholder) {
+  const opts = BUDGET_CATEGORIES.map((c) => ({ value: c.key, label: c.label }));
+  return placeholder ? [{ value: '', label: 'Vælg kategori …' }, ...opts] : opts;
+}
+
 // ── Small DOM helper ─────────────────────────────────────────
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -226,9 +233,7 @@ function renderRevystForm(root) {
   card.appendChild(intro);
 
   // Category
-  const categorySelect = el('select');
-  categorySelect.appendChild(new Option('Vælg kategori …', ''));
-  BUDGET_CATEGORIES.forEach((c) => categorySelect.appendChild(new Option(c.label, c.key)));
+  const categorySelect = siteCreateDropdownField(budgetCategoryOptions(true), '');
   card.appendChild(siteEditField('Kategori', categorySelect));
 
   // Amount + date row-ish (amount only for now)
@@ -698,9 +703,10 @@ function buildPendingCard(root, req) {
   return item;
 }
 
-// A rounded "pill" button in the Arkiv style (used by the confirm dialogs).
+// A rounded "pill" button — see style.css's shared .site-pill-btn for the
+// styling (also used by every other page's modals).
 function budgetPillBtn(label, variant) {
-  const btn = el('button', 'budget-pill-btn' + (variant ? ' ' + variant : ''), label);
+  const btn = el('button', 'site-pill-btn' + (variant ? ' ' + variant : ''), label);
   btn.type = 'button';
   return btn;
 }
@@ -721,7 +727,7 @@ function openApproveModal(root, req) {
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = budgetPillBtn('Betalt', 'budget-pill-primary');
+  const confirmBtn = budgetPillBtn('Betalt', 'site-pill-primary');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -748,9 +754,7 @@ function openRequestEditModal(root, req) {
   const { modal, form, error, actions, close } = siteOpenEditModal('Rediger udlæg');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
-  const categorySelect = el('select');
-  BUDGET_CATEGORIES.forEach((c) => categorySelect.appendChild(new Option(c.label, c.key)));
-  categorySelect.value = req.category;
+  const categorySelect = siteCreateDropdownField(budgetCategoryOptions(false), req.category);
   form.appendChild(siteEditField('Kategori', categorySelect));
 
   const amountInput = el('input');
@@ -775,7 +779,7 @@ function openRequestEditModal(root, req) {
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = budgetPillBtn('Gem', 'budget-pill-warm');
+  const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
@@ -813,7 +817,7 @@ function rejectRequest(root, req) {
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = budgetPillBtn('Afvis', 'budget-pill-danger');
+  const confirmBtn = budgetPillBtn('Afvis', 'site-pill-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -841,10 +845,10 @@ function renderPaidSection(root) {
 
   // Category filter ("shuffle through categories").
   const filterWrap = el('div', 'budget-filter');
-  const filterSelect = el('select');
-  filterSelect.appendChild(new Option('Alle kategorier', 'alle'));
-  BUDGET_CATEGORIES.forEach((c) => filterSelect.appendChild(new Option(c.label, c.key)));
-  filterSelect.value = budgetPaidFilter;
+  const filterSelect = siteCreateDropdownField(
+    [{ value: 'alle', label: 'Alle kategorier' }, ...budgetCategoryOptions(false)],
+    budgetPaidFilter
+  );
   filterSelect.addEventListener('change', () => {
     budgetPaidFilter = filterSelect.value;
     renderPaidTable(tableWrap);
@@ -920,9 +924,7 @@ function openExpenseAddModal(root) {
   const { modal, form, error, actions, close } = siteOpenEditModal('Tilføj udgift');
   modal.classList.add('budget-approve-modal');
 
-  const categorySelect = el('select');
-  categorySelect.appendChild(new Option('Vælg kategori …', ''));
-  BUDGET_CATEGORIES.forEach((c) => categorySelect.appendChild(new Option(c.label, c.key)));
+  const categorySelect = siteCreateDropdownField(budgetCategoryOptions(true), '');
   form.appendChild(siteEditField('Kategori', categorySelect));
 
   const amountInput = el('input');
@@ -931,9 +933,7 @@ function openExpenseAddModal(root) {
   amountInput.placeholder = 'fx 249,50';
   form.appendChild(siteEditField('Beløb (kr)', amountInput));
 
-  const dateInput = el('input');
-  dateInput.type = 'date';
-  dateInput.value = todayIso();
+  const dateInput = siteCreateDateField(todayIso());
   form.appendChild(siteEditField('Dato', dateInput));
 
   const paidByInput = el('input');
@@ -949,7 +949,7 @@ function openExpenseAddModal(root) {
   receiptInput.accept = 'image/*';
   form.appendChild(siteEditField('Billede af kvittering (valgfrit)', receiptInput));
 
-  const cancelBtn = el('button', 'site-btn-warm', 'Annuller');
+  const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = el('button', 'site-btn-primary', 'Tilføj');
   confirmBtn.addEventListener('click', async () => {
@@ -1025,7 +1025,7 @@ function openExpenseEditModal(root, exp) {
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = budgetPillBtn('Gem', 'budget-pill-warm');
+  const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!(amount > 0)) { error.textContent = 'Angiv et gyldigt beløb.'; return; }
