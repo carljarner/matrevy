@@ -297,4 +297,12 @@ DTEND:20260219T230000
 DESCRIPTION:Det foregår i Store UP1\, og dørene åbner kl. 19\, showet starter 19.30
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6g60r@matematikrevy.dk
+SUMMARY:Mad til Kemi
+DTSTART:20260219T140000
+DTEND:20260219T173000
+DESCRIPTION:Vi laver mad til KemiRevy før deres generalprøve
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR

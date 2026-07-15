@@ -370,5 +370,15 @@ const CALENDAR_DATA = [
     "title": "KemiRevy",
     "category": "andet",
     "note": "Det foregår i Store UP1, og dørene åbner kl. 19, showet starter 19.30"
+  },
+  {
+    "id": "mrm6g60r",
+    "date": "2026-02-19",
+    "endDate": "2026-02-19",
+    "start": "14:00",
+    "end": "17:30",
+    "title": "Mad til Kemi",
+    "category": "andet",
+    "note": "Vi laver mad til KemiRevy før deres generalprøve"
   }
 ];
