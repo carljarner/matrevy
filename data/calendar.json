@@ -379,6 +379,16 @@
             "title": "Manusmøde",
             "category": "manus",
             "note": "Lokale : S01"
+        },
+        {
+            "id": "mrm67y9i",
+            "date": "2026-04-24",
+            "endDate": "2026-04-26",
+            "start": "16:00",
+            "end": "12:00",
+            "title": "Revyttetur",
+            "category": "andet",
+            "note": "Revyttetur er en hyttetur for alle, der har lyst til at hygge om revy!"
         }
     ]
 }
