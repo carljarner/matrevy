@@ -139,6 +139,6 @@ const CALENDAR_DATA = [
     "end": "23:59",
     "title": "Tilmelding og Rolleønskning",
     "category": "deadline",
-    "note": "Deadline for at tilmelde sig : https://docs.google.com/forms/d/1YmFtKRIvTAApvPFz2iSI0ulh5Zyk7VIq4cvyTTmhRcQ/edit\nDeadline for at ønske roller : https://docs.google.com/forms/d/1d7rB9jUgrd1VXgkvVYozbL_CJlRo1emvSNGvcXMf5hE/edit"
+    "note": "Deadline for alle for at tilmelde sig revyen.\nDeadline for at ønske roller for skuespil/sang/dans.\nFind links til formularerne på opslagstavlen"
   }
 ];
