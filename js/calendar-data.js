@@ -350,5 +350,15 @@ const CALENDAR_DATA = [
     "title": "TeoRevy",
     "category": "andet",
     "note": "Vi er inviteret til TeoRevys generalprøve kl. 21:30. Det foregår på KUA i Kierkegaard Auditoriet"
+  },
+  {
+    "id": "mrm6ewyz",
+    "date": "2026-02-16",
+    "endDate": "2026-02-16",
+    "start": "19:30",
+    "end": "23:00",
+    "title": "DTU-revyen",
+    "category": "andet",
+    "note": "Det er i Demant Salen (tidligere Oticon), Anker Engelunds vej 1, Lyngby. Dørene åbner kl. 19 og showstart er 19.30"
   }
 ];
