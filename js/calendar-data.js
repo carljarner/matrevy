@@ -428,7 +428,7 @@ const CALENDAR_DATA = [
     "start": "19:00",
     "end": "22:00",
     "title": "StatsRevy",
-    "category": "ove",
+    "category": "andet",
     "note": "Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18"
   }
 ];
