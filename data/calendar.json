@@ -139,6 +139,16 @@
             "title": "Tilmelding og Rolleønskning",
             "category": "deadline",
             "note": "Deadline for alle for at tilmelde sig revyen.\nDeadline for at ønske roller for skuespil/sang/dans.\nFind links til formularerne på opslagstavlen"
+        },
+        {
+            "id": "mrm59gfp",
+            "date": "2025-11-08",
+            "endDate": "2025-11-09",
+            "start": "",
+            "end": "",
+            "title": "Øveweekend",
+            "category": "ove",
+            "note": "Årets første øve/visionsweekend! \nVi øver begge dage 10-18 og spiser sammen om aftenen"
         }
     ]
 }
