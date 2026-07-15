@@ -49,6 +49,16 @@
             "title": "Andet",
             "category": "andet",
             "note": ""
+        },
+        {
+            "id": "mrm37nti",
+            "date": "2025-09-25",
+            "endDate": "2025-09-25",
+            "start": "17:15",
+            "end": "18:00",
+            "title": "Infomøde",
+            "category": "andet",
+            "note": "Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål."
         }
     ]
 }
