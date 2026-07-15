@@ -63,11 +63,11 @@ const CALENDAR_DATA = [
   },
   {
     "id": "mrm39fvj",
-    "date": "2025-10-30",
-    "endDate": "2025-10-30",
+    "date": "2025-09-30",
+    "endDate": "2025-09-30",
     "start": "23:59",
     "end": "23:59",
-    "title": "Sange",
+    "title": "Sange (deadline)",
     "category": "deadline",
     "note": "Deadline for indsending af sange til udvælgese"
   }
