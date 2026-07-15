@@ -410,5 +410,15 @@ const CALENDAR_DATA = [
     "title": "MBKRevy",
     "category": "andet",
     "note": "Det foregår i Store UP1, dørene åbner 19 og showstart er 19:30"
+  },
+  {
+    "id": "mrm6jvot",
+    "date": "2026-03-18",
+    "endDate": "2026-03-18",
+    "start": "19:00",
+    "end": "22:00",
+    "title": "PsykoRevy",
+    "category": "andet",
+    "note": "Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18, dørene til salen åbner kl. 18.30 og showet starter kl. 19"
   }
 ];

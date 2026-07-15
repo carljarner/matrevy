@@ -329,4 +329,12 @@ DTEND:20260305T230000
 DESCRIPTION:Det foregår i Store UP1\, dørene åbner 19 og showstart er 19:30
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6jvot@matematikrevy.dk
+SUMMARY:PsykoRevy
+DTSTART:20260318T190000
+DTEND:20260318T220000
+DESCRIPTION:Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18\, dørene til salen åbner kl. 18.30 og showet starter kl. 19
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
