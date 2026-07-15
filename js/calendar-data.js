@@ -380,5 +380,15 @@ const CALENDAR_DATA = [
     "title": "Mad til Kemi",
     "category": "andet",
     "note": "Vi laver mad til KemiRevy før deres generalprøve"
+  },
+  {
+    "id": "mrm6gwl6",
+    "date": "2026-02-22",
+    "endDate": "2026-02-22",
+    "start": "20:00",
+    "end": "23:00",
+    "title": "MedicinRevy",
+    "category": "andet",
+    "note": "Det foregår i Mærsktårnet på Panum kl. 20"
   }
 ];
