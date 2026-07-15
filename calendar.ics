@@ -377,4 +377,12 @@ DTEND:20260426T230000
 DESCRIPTION:KUA-musicalen invitere til generalprøve på deres opsætning af The Addams family i festsalen på Søndercampus. Dørene åbner kl. 18.45
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6uwcv@matematikrevy.dk
+SUMMARY:SmedjeRevy
+DTSTART:20260514T180000
+DTEND:20260514T210000
+DESCRIPTION:Generalprøve på årets SmedjeRevy. Det foregår i Gimle på Frederiksberg Campus (Dyrelægevej 9). Forestillingen starter kl. 18
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR

@@ -470,5 +470,15 @@ const CALENDAR_DATA = [
     "title": "KUA-Musical",
     "category": "andet",
     "note": "KUA-musicalen invitere til generalprøve på deres opsætning af The Addams family i festsalen på Søndercampus. Dørene åbner kl. 18.45"
+  },
+  {
+    "id": "mrm6uwcv",
+    "date": "2026-05-14",
+    "endDate": "2026-05-14",
+    "start": "18:00",
+    "end": "21:00",
+    "title": "SmedjeRevy",
+    "category": "andet",
+    "note": "Generalprøve på årets SmedjeRevy. Det foregår i Gimle på Frederiksberg Campus (Dyrelægevej 9). Forestillingen starter kl. 18"
   }
 ];
