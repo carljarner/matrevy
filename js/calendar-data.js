@@ -400,5 +400,15 @@ const CALENDAR_DATA = [
     "title": "Mad til MBK",
     "category": "andet",
     "note": "Vi laver med til MBKRevyen"
+  },
+  {
+    "id": "mrm6ilpn",
+    "date": "2026-03-05",
+    "endDate": "2026-03-05",
+    "start": "19:30",
+    "end": "23:00",
+    "title": "MBKRevy",
+    "category": "andet",
+    "note": "Det foregår i Store UP1, dørene åbner 19 og showstart er 19:30"
   }
 ];
