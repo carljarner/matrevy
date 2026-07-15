@@ -307,7 +307,7 @@ an unguessable per-viewer link (accepted trade-off, see Architecture Decisions) 
 every button on the page unified under the site's warm-amber hover treatment (with an
 actual `transition` added to `.btn-small`/`.site-btn-warm`, previously an instant color
 swap), Gem/Annuller order swapped so Gem lands on the right. Categories became 5: Manus
-(green), Øvning (yellow), Forestilling (red), Deadline (blue), Andet Revy (purple). Events
+(green), Øvning (yellow), Forestilling (red), Deadline (blue), Andet (purple). Events
 now support multi-day spans via an `endDate` field. A month-grid chip click always opens
 the read-only detail modal (same as a revyst sees); boss/admin get a "Rediger" button there
 into the edit form instead of jumping straight to editing — list view's existing

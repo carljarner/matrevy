@@ -13,11 +13,11 @@
 // ── Categories ───────────────────────────────────────────────
 // Data stores the ASCII key; label + color class live here.
 const CAL_CATEGORIES = {
+  deadline:     { label: 'Deadline' },
   manus:        { label: 'Manus' },
   ove:          { label: 'Øvning' },
   forestilling: { label: 'Forestilling' },
-  deadline:     { label: 'Deadline' },
-  andet:        { label: 'Andet Revy' },
+  andet:        { label: 'Andet' },
 };
 
 function calCategoryClass(category) {
@@ -246,7 +246,7 @@ function renderListView(container) {
       const delBtn = document.createElement('button');
       delBtn.className = 'btn-small btn-small-danger';
       delBtn.textContent = 'Slet';
-      delBtn.addEventListener('click', () => deleteEvent(ev));
+      delBtn.addEventListener('click', () => openDeleteConfirm(ev));
       actionsWrap.appendChild(delBtn);
       row.appendChild(actionsWrap);
     }
@@ -260,6 +260,51 @@ function renderListView(container) {
 
     container.appendChild(row);
   }
+}
+
+// Shared chrome for Kalender's modals: an X-close in the top-right corner
+// instead of a "Luk"/"Annuller" button in the actions row, plus Escape-to-
+// close (siteOpenEditModal has neither). Kalender-only DOM patch — the
+// shared modal helper in site-utils.js is untouched, so every other modal
+// on the site is unaffected. Returns the same shape as siteOpenEditModal,
+// with `close` already wrapping the Escape-listener cleanup.
+function calOpenModal(title) {
+  const { overlay, modal, form, error, actions, close } = siteOpenEditModal(title);
+  modal.classList.add('cal-modal');
+
+  function closeModal() {
+    document.removeEventListener('keydown', onKeydown);
+    close();
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') closeModal();
+  }
+  document.addEventListener('keydown', onKeydown);
+  // Backdrop click closes via the overlay's own listener (from
+  // siteOpenEditModal) — also strip our Escape listener in that case.
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) document.removeEventListener('keydown', onKeydown);
+  });
+
+  const closeX = document.createElement('button');
+  closeX.type = 'button';
+  closeX.className = 'cal-modal-close';
+  closeX.textContent = '✕';
+  closeX.setAttribute('aria-label', 'Luk');
+  closeX.addEventListener('click', closeModal);
+  modal.insertBefore(closeX, modal.firstChild);
+
+  return { modal, form, error, actions, close: closeModal };
+}
+
+// A rounded "pill" button for Kalender's modals (mirrors budget.js's
+// budgetPillBtn — see calendar.css's .cal-pill-btn for the styling).
+function calPillBtn(label, variant) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'cal-pill-btn' + (variant ? ' ' + variant : '');
+  btn.textContent = label;
+  return btn;
 }
 
 function calTimeRange(ev) {
@@ -279,7 +324,7 @@ function calDateLabelLong(ev) {
 
 // ── Read-only detail modal (non-admin chip click) ────────────
 function openEventDetail(ev) {
-  const { form, actions, close } = siteOpenEditModal(ev.title);
+  const { form, actions, close } = calOpenModal(ev.title);
 
   const rows = [
     ['Dato', calDateLabelLong(ev)],
@@ -301,18 +346,10 @@ function openEventDetail(ev) {
   }
 
   if (siteHasLevel('boss')) {
-    const editBtn = document.createElement('button');
-    editBtn.className = 'site-btn-warm';
-    editBtn.textContent = 'Rediger';
+    const editBtn = calPillBtn('Rediger', 'cal-pill-warm');
     editBtn.addEventListener('click', () => { close(); openEventEditor(ev); });
     actions.appendChild(editBtn);
   }
-
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'site-btn-warm';
-  closeBtn.textContent = 'Luk';
-  closeBtn.addEventListener('click', close);
-  actions.appendChild(closeBtn);
 }
 
 // ── Saving ───────────────────────────────────────────────────
@@ -327,7 +364,7 @@ async function saveEvents(next) {
 
 // ── Editor modal ─────────────────────────────────────────────
 function openEventEditor(existing) {
-  const { form, error, actions, close } = siteOpenEditModal(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
+  const { form, error, actions, close } = calOpenModal(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -384,23 +421,14 @@ function openEventEditor(existing) {
   noteArea.value = existing ? existing.note || '' : '';
   form.appendChild(siteEditField('Note', noteArea));
 
-  const save = document.createElement('button');
-  save.className = 'site-btn-primary';
-  save.textContent = 'Gem';
-  const cancel = document.createElement('button');
-  cancel.className = 'site-btn-warm';
-  cancel.textContent = 'Annuller';
+  const save = calPillBtn('Gem', 'cal-pill-primary');
 
   if (existing) {
-    const del = document.createElement('button');
-    del.className = 'site-btn-warm edit-actions-left';
-    del.textContent = 'Slet';
-    del.addEventListener('click', () => { close(); deleteEvent(existing); });
+    const del = calPillBtn('Slet', 'cal-pill-danger');
+    del.addEventListener('click', () => { close(); openDeleteConfirm(existing); });
     actions.appendChild(del);
   }
-  actions.appendChild(cancel);
   actions.appendChild(save);
-  cancel.addEventListener('click', close);
 
   save.addEventListener('click', async () => {
     const title = titleInput.value.trim();
@@ -438,11 +466,50 @@ function openEventEditor(existing) {
   titleInput.focus();
 }
 
-async function deleteEvent(ev) {
-  if (!confirm(`Slet begivenheden "${ev.title}"?`)) return;
-  const next = getEffectiveEvents().filter(e => e.id !== ev.id);
-  const result = await saveEvents(next);
-  if (!result.ok && result.message) alert(result.message);
+// Styled "Er du sikker?" overlay, replacing the native confirm() dialog —
+// mirrors budget.js's rejectRequest pattern.
+function openDeleteConfirm(ev) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('Slet begivenhed');
+  modal.classList.add('cal-confirm-modal');
+
+  const info = document.createElement('p');
+  info.className = 'cal-confirm-text';
+  info.textContent = `Slet begivenheden "${ev.title}"?`;
+  form.appendChild(info);
+
+  const cancelBtn = calPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = calPillBtn('Slet', 'cal-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const next = getEffectiveEvents().filter(e => e.id !== ev.id);
+    const result = await saveEvents(next);
+    if (result.ok) {
+      close();
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// ── Colour legend (static, rendered once) ─────────────────────
+function renderLegend() {
+  const legend = document.getElementById('cal-legend');
+  if (!legend) return;
+  legend.textContent = '';
+  for (const [key, def] of Object.entries(CAL_CATEGORIES)) {
+    const item = document.createElement('span');
+    item.className = 'cal-legend-item';
+    const dot = document.createElement('span');
+    dot.className = `cal-dot ${calCategoryClass(key)}`;
+    item.appendChild(dot);
+    item.appendChild(document.createTextNode(def.label));
+    legend.appendChild(item);
+  }
 }
 
 // ── Calendar-subscribe (.ics) ─────────────────────────────────
@@ -451,7 +518,7 @@ async function deleteEvent(ev) {
 const CALENDAR_FEED_URL = 'https://matematikrevy.dk/calendar.ics';
 
 function openSubscribeModal() {
-  const { form, actions, close } = siteOpenEditModal('Abonnér på kalenderen');
+  const { form, actions } = calOpenModal('Abonnér på kalenderen');
 
   const info = document.createElement('p');
   info.textContent = 'Tilføj linket herunder som et kalenderabonnement, så følger din kalender-app automatisk med i alle begivenheder: Google Kalender ("Fra URL"), Apple Kalender ("Nyt kalenderabonnement") eller Outlook ("Abonnér fra internettet").';
@@ -463,9 +530,7 @@ function openSubscribeModal() {
   urlInput.readOnly = true;
   form.appendChild(siteEditField('Link', urlInput));
 
-  const copyBtn = document.createElement('button');
-  copyBtn.className = 'site-btn-warm';
-  copyBtn.textContent = 'Kopiér link';
+  const copyBtn = calPillBtn('Kopiér link', 'cal-pill-warm');
   copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(CALENDAR_FEED_URL);
@@ -476,12 +541,6 @@ function openSubscribeModal() {
     }
   });
   actions.appendChild(copyBtn);
-
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'site-btn-warm';
-  closeBtn.textContent = 'Luk';
-  closeBtn.addEventListener('click', close);
-  actions.appendChild(closeBtn);
 }
 
 // ── Init ─────────────────────────────────────────────────────
@@ -492,5 +551,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cal-prev').addEventListener('click', () => shiftMonth(-1));
   document.getElementById('cal-next').addEventListener('click', () => shiftMonth(1));
   document.getElementById('cal-subscribe').addEventListener('click', openSubscribeModal);
+  renderLegend();
   renderCalendar();
 });

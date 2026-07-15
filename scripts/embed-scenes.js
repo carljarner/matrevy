@@ -86,7 +86,7 @@ const ICS_CATEGORY_LABELS = {
   ove: 'Øvning',
   forestilling: 'Forestilling',
   deadline: 'Deadline',
-  andet: 'Andet Revy',
+  andet: 'Andet',
 };
 
 function icsEscape(text) {
@@ -127,7 +127,7 @@ function buildIcs(events) {
       lines.push(`DTEND;VALUE=DATE:${icsDate(icsAddDays(endDate, 1))}`);
     }
     if (ev.note) lines.push(`DESCRIPTION:${icsEscape(ev.note)}`);
-    lines.push(`CATEGORIES:${icsEscape(ICS_CATEGORY_LABELS[ev.category] || 'Andet Revy')}`);
+    lines.push(`CATEGORIES:${icsEscape(ICS_CATEGORY_LABELS[ev.category] || 'Andet')}`);
     lines.push('END:VEVENT');
   }
   lines.push('END:VCALENDAR');

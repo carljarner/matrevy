@@ -164,18 +164,25 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: filter 0.15s ease;
 }
 
 @media (hover: hover) {
-  .cal-chip:hover { background: #e6d8bd; }
+  .cal-chip:hover { filter: brightness(0.93); }
 }
 
-/* --- Category colors (chip border + list dot) -------------- */
+/* --- Category colors (chip border + list dot + pastel chip bg) */
 .cal-cat-manus          { border-left-color: #1a7f37; } /* Manus — green */
 .cal-cat-ove            { border-left-color: #d4a017; } /* Øvning — yellow */
 .cal-cat-forestilling   { border-left-color: #c0392b; } /* Forestilling — red */
 .cal-cat-deadline       { border-left-color: #3b82d4; } /* Deadline — blue */
-.cal-cat-andet          { border-left-color: #8e44ad; } /* Andet Revy — purple */
+.cal-cat-andet          { border-left-color: #8e44ad; } /* Andet — purple */
+
+.cal-chip.cal-cat-manus         { background: #e6f4ea; }
+.cal-chip.cal-cat-ove           { background: #fdf1d6; }
+.cal-chip.cal-cat-forestilling  { background: #fbeae8; }
+.cal-chip.cal-cat-deadline      { background: #e8f0fb; }
+.cal-chip.cal-cat-andet         { background: #f2e8f6; }
 
 .cal-dot {
   display: inline-block;
@@ -247,6 +254,108 @@
   margin-left: auto;
   display: flex;
   gap: 0.35rem;
+}
+
+/* --- Colour legend ------------------------------------------ */
+#cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem 1.75rem;
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  font-size: 0.78rem;
+  color: #57606a;
+}
+
+.cal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* --- Modal pill buttons (Kalender overlays only) ------------
+   Extends Budget's oval/white .budget-pill-btn look with an actual
+   colour hover animation + glow (Budget's own hover is a flat grey
+   swap with no transition) — deliberate, not a byte-for-byte copy. */
+.cal-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cal-pill-btn:disabled { opacity: 0.6; cursor: default; }
+.cal-pill-primary { color: #1a7f37; }
+.cal-pill-danger  { color: #c0392b; }
+.cal-pill-warm    { color: var(--accent-warm-text); }
+
+@media (hover: hover) {
+  .cal-pill-btn:hover { background: var(--surface-2); }
+  .cal-pill-primary:hover {
+    background: #e6f4ea;
+    border-color: #1a7f37;
+    box-shadow: 0 0 0 3px rgba(26, 127, 55, 0.15);
+  }
+  .cal-pill-danger:hover {
+    background: #fbeae8;
+    border-color: #c0392b;
+    box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.15);
+  }
+  .cal-pill-warm:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    box-shadow: 0 0 0 3px var(--accent-warm-ring);
+  }
+}
+
+/* Centered action-button row for every Kalender modal — the X-close ones
+   (.cal-modal: editor/detail/subscribe) and the delete-confirmation dialog
+   (.cal-confirm-modal, which keeps an explicit Annuller instead of an X,
+   mirroring .budget-confirm-modal). */
+.cal-modal .login-actions,
+.cal-confirm-modal .login-actions {
+  justify-content: center;
+  gap: 0.6rem;
+}
+
+.cal-confirm-text {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+/* --- X-close top-right (editor/detail/subscribe modals) ----- */
+.cal-modal {
+  position: relative;
+}
+
+.cal-modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+@media (hover: hover) {
+  .cal-modal-close:hover { background: var(--surface-2); }
 }
 
 /* --- Read-only detail modal -------------------------------- */
