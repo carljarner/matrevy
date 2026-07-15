@@ -369,4 +369,12 @@ DTEND:20260423T230000
 DESCRIPTION:Det foregår på DIKU i Store UP1. Dørene åbner kl. 19\, og showet starter kl. 19:30
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6pu8w@matematikrevy.dk
+SUMMARY:KUA-Musical
+DTSTART:20260426T190000
+DTEND:20260426T230000
+DESCRIPTION:KUA-musicalen invitere til generalprøve på deres opsætning af The Addams family i festsalen på Søndercampus. Dørene åbner kl. 18.45
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
