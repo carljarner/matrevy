@@ -270,4 +270,12 @@ DTEND:20251208T180000
 DESCRIPTION:Jaer\, vi skal holde en årlig generalforsamling. Vi gør det hurtigt
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5zh2h@matematikrevy.dk
+SUMMARY:Julemanusmøde
+DTSTART:20251209T160000
+DTEND:20251209T190000
+DESCRIPTION:Spis æbleskiver\, drik glögg og skriv næste års manus!
+CATEGORIES:Manus
+END:VEVENT
 END:VCALENDAR

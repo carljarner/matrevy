@@ -340,5 +340,15 @@ const CALENDAR_DATA = [
     "title": "Generalforsamling",
     "category": "andet",
     "note": "Jaer, vi skal holde en årlig generalforsamling. Vi gør det hurtigt"
+  },
+  {
+    "id": "mrm5zh2h",
+    "date": "2025-12-09",
+    "endDate": "2025-12-09",
+    "start": "16:00",
+    "end": "19:00",
+    "title": "Julemanusmøde",
+    "category": "manus",
+    "note": "Spis æbleskiver, drik glögg og skriv næste års manus!"
   }
 ];
