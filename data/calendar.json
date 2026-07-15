@@ -149,6 +149,16 @@
             "title": "Øveweekend",
             "category": "ove",
             "note": "Årets første øve/visionsweekend!"
+        },
+        {
+            "id": "mrm5btbr",
+            "date": "2025-11-09",
+            "endDate": "2025-11-09",
+            "start": "10:00",
+            "end": "18:00",
+            "title": "Øveweekend",
+            "category": "ove",
+            "note": "Årets første øve/visionsweekend!"
         }
     ]
 }
