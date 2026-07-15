@@ -59,7 +59,7 @@ const CALENDAR_DATA = [
     "end": "18:00",
     "title": "Infomøde",
     "category": "andet",
-    "note": "Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål."
+    "note": "Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål"
   },
   {
     "id": "mrm39fvj",
@@ -89,6 +89,6 @@ const CALENDAR_DATA = [
     "end": "23:59",
     "title": "Sketches (deadline)",
     "category": "deadline",
-    "note": "Deadline for at indsende sketches til udvælgelse."
+    "note": "Deadline for at indsende sketches til udvælgelse"
   }
 ];
