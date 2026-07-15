@@ -260,5 +260,15 @@ const CALENDAR_DATA = [
     "title": "Revyuge",
     "category": "ove",
     "note": "Øvning efter studie"
+  },
+  {
+    "id": "mrm5l280",
+    "date": "2025-11-26",
+    "endDate": "2025-11-26",
+    "start": "17:00",
+    "end": "01:00",
+    "title": "Oberstprøve",
+    "category": "ove",
+    "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven"
   }
 ];
