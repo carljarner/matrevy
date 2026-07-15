@@ -275,7 +275,7 @@ UID:mrm5zh2h@matematikrevy.dk
 SUMMARY:Julemanusmøde
 DTSTART:20251209T160000
 DTEND:20251209T190000
-DESCRIPTION:Spis æbleskiver\, drik glögg og skriv næste års manus!
+DESCRIPTION:Kom forbi S01\, spis æbleskiver\, drik glögg og skriv næste års manus!
 CATEGORIES:Manus
 END:VEVENT
 BEGIN:VEVENT
@@ -291,6 +291,7 @@ UID:mrm63wek@matematikrevy.dk
 SUMMARY:Manusmøde
 DTSTART:20260226T150000
 DTEND:20260226T200000
+DESCRIPTION:Lokale : S01
 CATEGORIES:Manus
 END:VEVENT
 BEGIN:VEVENT
@@ -298,6 +299,7 @@ UID:mrm64uf2@matematikrevy.dk
 SUMMARY:Manusmøde
 DTSTART:20260305T150000
 DTEND:20260305T200000
+DESCRIPTION:Lokale : S01
 CATEGORIES:Manus
 END:VEVENT
 END:VCALENDAR

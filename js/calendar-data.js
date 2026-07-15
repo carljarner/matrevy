@@ -349,7 +349,7 @@ const CALENDAR_DATA = [
     "end": "19:00",
     "title": "Julemanusmøde",
     "category": "manus",
-    "note": "Spis æbleskiver, drik glögg og skriv næste års manus!"
+    "note": "Kom forbi S01, spis æbleskiver, drik glögg og skriv næste års manus!"
   },
   {
     "id": "mrm614mv",
@@ -369,7 +369,7 @@ const CALENDAR_DATA = [
     "end": "20:00",
     "title": "Manusmøde",
     "category": "manus",
-    "note": ""
+    "note": "Lokale : S01"
   },
   {
     "id": "mrm64uf2",
@@ -379,6 +379,6 @@ const CALENDAR_DATA = [
     "end": "20:00",
     "title": "Manusmøde",
     "category": "manus",
-    "note": ""
+    "note": "Lokale : S01"
   }
 ];
