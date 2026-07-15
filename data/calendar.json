@@ -449,6 +449,16 @@
             "title": "Mad til Fysik",
             "category": "andet",
             "note": "Vi laver mad til FysikRevyen før deres øver om aftenen"
+        },
+        {
+            "id": "mrm6o3yp",
+            "date": "2026-04-23",
+            "endDate": "2026-04-23",
+            "start": "19:30",
+            "end": "23:00",
+            "title": "FysikRevy",
+            "category": "andet",
+            "note": "Det foregår på DIKU i Store UP1. Dørene åbner kl. 19, og showet starter kl. 19:30"
         }
     ]
 }
