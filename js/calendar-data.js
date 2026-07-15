@@ -440,5 +440,15 @@ const CALENDAR_DATA = [
     "title": "JuraRevy",
     "category": "andet",
     "note": "Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18."
+  },
+  {
+    "id": "mrm6nbw2",
+    "date": "2026-04-21",
+    "endDate": "2026-04-21",
+    "start": "14:00",
+    "end": "17:30",
+    "title": "Mad til Fysik",
+    "category": "andet",
+    "note": "Vi laver mad til FysikRevyen før deres øver om aftenen"
   }
 ];

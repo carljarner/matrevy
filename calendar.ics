@@ -353,4 +353,12 @@ DTEND:20260414T220000
 DESCRIPTION:Det er kl. 19 i Alf Ross (9A.3.01) på KUA3 (Søndre Campus). Dørene åbner kl 18.
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6nbw2@matematikrevy.dk
+SUMMARY:Mad til Fysik
+DTSTART:20260421T140000
+DTEND:20260421T173000
+DESCRIPTION:Vi laver mad til FysikRevyen før deres øver om aftenen
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
