@@ -19,6 +19,7 @@ const DA_MONTHS = ['januar', 'februar', 'marts', 'april', 'maj', 'juni',
   'juli', 'august', 'september', 'oktober', 'november', 'december'];
 // Monday-first (Danish convention); convert JS getDay() with (d + 6) % 7.
 const DA_WEEKDAYS_SHORT = ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn'];
+const DA_WEEKDAYS_LONG = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag'];
 
 // Always construct from parts — new Date('YYYY-MM-DD') parses as UTC
 // midnight and can shift a day in local time.
