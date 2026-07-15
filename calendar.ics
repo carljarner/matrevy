@@ -215,4 +215,12 @@ DTEND:20251126T010000
 DESCRIPTION:Gennemspilning for vores eksterne instruktører\, der giver den sidste vigtige feedback før generalprøven
 CATEGORIES:Øvning
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5m5va@matematikrevy.dk
+SUMMARY:Generalprøve
+DTSTART:20251127T170000
+DTEND:20251127T230000
+DESCRIPTION:Generalprøve! Vi mødes 17 og gør klar\, døre åbner 19 og showstart er 19:30
+CATEGORIES:Forestilling
+END:VEVENT
 END:VCALENDAR
