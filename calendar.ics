@@ -47,4 +47,12 @@ DTEND:20250925T180000
 DESCRIPTION:Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål.
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm39fvj@matematikrevy.dk
+SUMMARY:Sange
+DTSTART:20251030T235900
+DTEND:20251030T235900
+DESCRIPTION:Deadline for indsending af sange til udvælgese
+CATEGORIES:Deadline
+END:VEVENT
 END:VCALENDAR

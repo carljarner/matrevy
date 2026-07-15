@@ -60,5 +60,15 @@ const CALENDAR_DATA = [
     "title": "Infomøde",
     "category": "andet",
     "note": "Infomøde for nye revyster i A104. Kom og hør om revyen og stil spørgsmål."
+  },
+  {
+    "id": "mrm39fvj",
+    "date": "2025-10-30",
+    "endDate": "2025-10-30",
+    "start": "23:59",
+    "end": "23:59",
+    "title": "Sange",
+    "category": "deadline",
+    "note": "Deadline for indsending af sange til udvælgese"
   }
 ];
