@@ -262,4 +262,12 @@ DTEND:20251208T210000
 DESCRIPTION:Vi gennemgår evalueringen for årets revy og omskriver det til brugbar feedback til næste år
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm5v031@matematikrevy.dk
+SUMMARY:Generalforsamling
+DTSTART:20251208T170000
+DTEND:20251208T180000
+DESCRIPTION:Jaer\, vi skal holde en årlig generalforsamling. Vi gør det hurtigt
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
