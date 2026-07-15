@@ -337,4 +337,12 @@ DTEND:20260318T220000
 DESCRIPTION:Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18\, dørene til salen åbner kl. 18.30 og showet starter kl. 19
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrm6ktqo@matematikrevy.dk
+SUMMARY:StatsRevy
+DTSTART:20260407T190000
+DTEND:20260407T220000
+DESCRIPTION:Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18
+CATEGORIES:Øvning
+END:VEVENT
 END:VCALENDAR

@@ -420,5 +420,15 @@ const CALENDAR_DATA = [
     "title": "PsykoRevy",
     "category": "andet",
     "note": "Det sker i Chr. Hansen auditoriet på CSS. Baren åbner kl. 18, dørene til salen åbner kl. 18.30 og showet starter kl. 19"
+  },
+  {
+    "id": "mrm6ktqo",
+    "date": "2026-04-07",
+    "endDate": "2026-04-07",
+    "start": "19:00",
+    "end": "22:00",
+    "title": "StatsRevy",
+    "category": "ove",
+    "note": "Det er i Chr. Hansen auditoriet på CSS kl. 19. Dørene og baren åbner kl. 18"
   }
 ];
