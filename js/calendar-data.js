@@ -350,5 +350,15 @@ const CALENDAR_DATA = [
     "title": "Julemanusmøde",
     "category": "manus",
     "note": "Spis æbleskiver, drik glögg og skriv næste års manus!"
+  },
+  {
+    "id": "mrm614mv",
+    "date": "2026-01-09",
+    "endDate": "2026-01-09",
+    "start": "17:00",
+    "end": "23:00",
+    "title": "Revyjulefrokost",
+    "category": "andet",
+    "note": ""
   }
 ];
