@@ -126,6 +126,7 @@
 }
 
 .cal-day {
+  min-width: 0;
   min-height: 84px;
   padding: 0.25rem 0.3rem;
   border-right: 1px solid var(--border);
