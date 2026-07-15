@@ -219,6 +219,16 @@
             "title": "Øveweekend",
             "category": "ove",
             "note": "Almindelig øvedag"
+        },
+        {
+            "id": "mrm5hif2",
+            "date": "2025-11-23",
+            "endDate": "2025-11-23",
+            "start": "10:00",
+            "end": "16:00",
+            "title": "Øveweekend",
+            "category": "ove",
+            "note": "Øvedag og overtag scenen fra Bio"
         }
     ]
 }
