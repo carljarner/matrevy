@@ -441,4 +441,12 @@ DTEND:20261007T193000
 DESCRIPTION:Vi spiller de indsendte sketches igennem og giver dem point. Lokale : A104
 CATEGORIES:Manus
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn78mjq@matematikrevy.dk
+SUMMARY:Gennemspilningsdag
+DTSTART:20261018T110000
+DTEND:20261018T180000
+DESCRIPTION:Obligatorisk for alle scenefolk (sang\, dans\, skuespil). Vi spiller hele revyen igennem og snakker om den
+CATEGORIES:Øvning
+END:VEVENT
 END:VCALENDAR

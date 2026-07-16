@@ -550,5 +550,15 @@ const CALENDAR_DATA = [
     "title": "Sketchudvælgelse",
     "category": "manus",
     "note": "Vi spiller de indsendte sketches igennem og giver dem point. Lokale : A104"
+  },
+  {
+    "id": "mrn78mjq",
+    "date": "2026-10-18",
+    "endDate": "2026-10-18",
+    "start": "11:00",
+    "end": "18:00",
+    "title": "Gennemspilningsdag",
+    "category": "ove",
+    "note": "Obligatorisk for alle scenefolk (sang, dans, skuespil). Vi spiller hele revyen igennem og snakker om den"
   }
 ];
