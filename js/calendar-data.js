@@ -590,5 +590,25 @@ const CALENDAR_DATA = [
     "title": "Øveweekend",
     "category": "ove",
     "note": "Årets første øveweekend!"
+  },
+  {
+    "id": "mrn7fefb",
+    "date": "2026-11-07",
+    "endDate": "2026-11-07",
+    "start": "10:00",
+    "end": "18:00",
+    "title": "Øveweekend",
+    "category": "ove",
+    "note": ""
+  },
+  {
+    "id": "mrn7fql9",
+    "date": "2026-11-08",
+    "endDate": "2026-11-08",
+    "start": "10:00",
+    "end": "18:00",
+    "title": "Øveweekend",
+    "category": "ove",
+    "note": ""
   }
 ];
