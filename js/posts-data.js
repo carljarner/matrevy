@@ -6,6 +6,6 @@ const POSTS_DATA = [
     "board": "general",
     "date": "2026-07-16",
     "author": "Carl",
-    "text": "Hvad sker der her?"
+    "text": "Hvad sker der her?\n\nKan jeg skrive en lang besked med mellemrum og \n\nLinks : https://www.facebook.com/groups/1334272084959429"
   }
 ];
