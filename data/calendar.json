@@ -499,6 +499,16 @@
             "title": "Infomøde",
             "category": "andet",
             "note": "Infomøde for nye revyster, kom og høre om hvad revyen er"
+        },
+        {
+            "id": "mrn6wa1y",
+            "date": "2026-09-29",
+            "endDate": "2026-09-29",
+            "start": "23:59",
+            "end": "23:59",
+            "title": "Sange (deadline)",
+            "category": "deadline",
+            "note": "Deadline for at indsende sange til årets revy"
         }
     ]
 }
