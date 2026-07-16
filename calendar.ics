@@ -433,4 +433,12 @@ DTEND:20261006T235900
 DESCRIPTION:Deadline for at indsende sketches til årets revy
 CATEGORIES:Deadline
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn75agl@matematikrevy.dk
+SUMMARY:Sketchudvælgelse
+DTSTART:20261007T171500
+DTEND:20261007T193000
+DESCRIPTION:Vi spiller de indsendte sketches igennem og giver dem point. Lokale : A104
+CATEGORIES:Manus
+END:VEVENT
 END:VCALENDAR
