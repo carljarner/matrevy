@@ -248,31 +248,33 @@
 }
 
 .cal-list-content {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   flex: 1;
   min-width: 0;
-  gap: 0.15rem;
 }
 
-.cal-list-titleline {
-  display: flex;
-  align-items: baseline;
-  gap: 0.6rem;
-  flex-wrap: wrap;
+/* Reserve a fixed-width gutter for the Rediger button so every line of the
+   title/note wraps at the same right edge, not just the lines beside it. */
+.cal-list-content:has(.cal-list-actions) {
+  padding-right: 4.75rem;
 }
 
 .cal-list-title {
+  display: block;
   font-weight: 500;
 }
 
 .cal-list-note {
+  display: block;
   color: #57606a;
   font-size: 0.8rem;
+  margin-top: 0.15rem;
 }
 
 .cal-list-actions {
-  margin-left: auto;
+  position: absolute;
+  top: 0;
+  right: 0;
   display: flex;
   gap: 0.35rem;
 }

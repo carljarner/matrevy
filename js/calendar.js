@@ -257,14 +257,6 @@ function renderListView(container) {
     const content = document.createElement('span');
     content.className = 'cal-list-content';
 
-    const titleLine = document.createElement('span');
-    titleLine.className = 'cal-list-titleline';
-
-    const title = document.createElement('span');
-    title.className = 'cal-list-title';
-    title.textContent = ev.title;
-    titleLine.appendChild(title);
-
     if (isAdmin) {
       const actionsWrap = document.createElement('span');
       actionsWrap.className = 'cal-list-actions';
@@ -273,15 +265,13 @@ function renderListView(container) {
       editBtn.textContent = 'Rediger';
       editBtn.addEventListener('click', () => openEventEditor(ev));
       actionsWrap.appendChild(editBtn);
-      const delBtn = document.createElement('button');
-      delBtn.className = 'btn-small btn-small-danger';
-      delBtn.textContent = 'Slet';
-      delBtn.addEventListener('click', () => openDeleteConfirm(ev));
-      actionsWrap.appendChild(delBtn);
-      titleLine.appendChild(actionsWrap);
+      content.appendChild(actionsWrap);
     }
 
-    content.appendChild(titleLine);
+    const title = document.createElement('span');
+    title.className = 'cal-list-title';
+    title.textContent = ev.title;
+    content.appendChild(title);
 
     if (ev.note) {
       const note = document.createElement('span');
