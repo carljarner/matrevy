@@ -689,6 +689,16 @@
             "title": "Oberstprøve",
             "category": "ove",
             "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven"
+        },
+        {
+            "id": "mrn7lp16",
+            "date": "2026-11-19",
+            "endDate": "2026-11-19",
+            "start": "17:00",
+            "end": "23:00",
+            "title": "Generalprøve",
+            "category": "forestilling",
+            "note": ""
         }
     ]
 }
