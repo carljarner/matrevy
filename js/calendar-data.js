@@ -710,5 +710,15 @@ const CALENDAR_DATA = [
     "title": "Premiere",
     "category": "forestilling",
     "note": ""
+  },
+  {
+    "id": "mrn7mnnu",
+    "date": "2026-11-21",
+    "endDate": "2026-11-21",
+    "start": "14:00",
+    "end": "23:00",
+    "title": "Lørdagsforestilling",
+    "category": "forestilling",
+    "note": ""
   }
 ];
