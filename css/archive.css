@@ -279,7 +279,7 @@
   padding: 0.5rem 0.9rem;
   border-radius: 999px;
   background: #fdf8ec;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--border);
   color: #1f2328;
   font-size: 0.9rem;
   font-weight: 600;
