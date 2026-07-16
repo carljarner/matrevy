@@ -750,5 +750,15 @@ const CALENDAR_DATA = [
     "title": "Generalforsamling",
     "category": "andet",
     "note": "Skal gøres årligt, vi skynder os igennem det"
+  },
+  {
+    "id": "mrnbse6u",
+    "date": "2026-11-30",
+    "endDate": "2026-11-30",
+    "start": "18:00",
+    "end": "21:00",
+    "title": "Evalueringsmøde",
+    "category": "andet",
+    "note": "Vi gennemgår årets evalueringer og omskriver det til brugbar feedback til næste års revy"
   }
 ];

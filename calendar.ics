@@ -593,4 +593,12 @@ DTEND:20261130T180000
 DESCRIPTION:Skal gøres årligt\, vi skynder os igennem det
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrnbse6u@matematikrevy.dk
+SUMMARY:Evalueringsmøde
+DTSTART:20261130T180000
+DTEND:20261130T210000
+DESCRIPTION:Vi gennemgår årets evalueringer og omskriver det til brugbar feedback til næste års revy
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR
