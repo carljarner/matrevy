@@ -570,5 +570,15 @@ const CALENDAR_DATA = [
     "title": "Tilmelding og Rolleønskning",
     "category": "deadline",
     "note": "Deadline for at tilmelde sig revyen og (his relevant) ønske roller. Link til tilmeldingsark findes på opslagstavlen"
+  },
+  {
+    "id": "mrn7ask1",
+    "date": "2026-10-24",
+    "endDate": "2026-10-24",
+    "start": "10:00",
+    "end": "18:00",
+    "title": "Øveweekend",
+    "category": "ove",
+    "note": "Årets første øveweekend!"
   }
 ];

@@ -457,4 +457,12 @@ DTEND:20261019T235900
 DESCRIPTION:Deadline for at tilmelde sig revyen og (his relevant) ønske roller. Link til tilmeldingsark findes på opslagstavlen
 CATEGORIES:Deadline
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn7ask1@matematikrevy.dk
+SUMMARY:Øveweekend
+DTSTART:20261024T100000
+DTEND:20261024T180000
+DESCRIPTION:Årets første øveweekend!
+CATEGORIES:Øvning
+END:VEVENT
 END:VCALENDAR
