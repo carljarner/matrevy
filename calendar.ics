@@ -577,4 +577,12 @@ DTEND:20261122T200000
 DESCRIPTION:Oprydning er obligatorisk for alle\, revyvisning er for hyggens skyld:)
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn7rmxi@matematikrevy.dk
+SUMMARY:Efterfest
+DTSTART:20261121T230000
+DTEND:20261121T060000
+DESCRIPTION:Velfortjent efterfest!
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR

@@ -730,5 +730,15 @@ const CALENDAR_DATA = [
     "title": "Oprydning og revysvisning",
     "category": "andet",
     "note": "Oprydning er obligatorisk for alle, revyvisning er for hyggens skyld:)"
+  },
+  {
+    "id": "mrn7rmxi",
+    "date": "2026-11-21",
+    "endDate": "2026-11-21",
+    "start": "23:00",
+    "end": "06:00",
+    "title": "Efterfest",
+    "category": "andet",
+    "note": "Velfortjent efterfest!"
   }
 ];
