@@ -719,7 +719,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "Lørdagsforestilling",
     "category": "forestilling",
-    "note": ""
+    "note": "Vi mødes 14 og gør rent efter aftenen før og gør klar til sidste forestilling!"
   },
   {
     "id": "mrn7nzz7",
