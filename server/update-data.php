@@ -120,6 +120,22 @@ if (isset($BUDGET_ACTIONS[$action])) {
   handle_budget($action, $body);
 }
 
+// ── Posts actions (public, git-backed dashboard forum on Forside) ──
+// posts_create is revyst-level append-only (mirrors budget_submit's shape,
+// against the public data/posts.json instead of the private budget store)
+// — deliberately NOT in $RESOURCES below, since that table always trusts
+// the caller with a full-array replace, which a revyst-level client must
+// never be given (they could edit/delete anyone's post by omission).
+$POST_ACTIONS = [
+  'posts_create' => 'revyst',
+];
+if (isset($POST_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$POST_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  posts_create($body, $level === 'boss' || $level === 'admin');
+}
+
 if ($action !== 'save') {
   respond(400, ['error' => 'unknown_action']);
 }
@@ -821,6 +837,65 @@ function save_calendar($payload) {
   }, 'Opdater calendar.json via kalenderen');
 }
 
+// ── Posts (public, git-backed forum on Forside) ──────────────
+// posts_create appends exactly ONE server-built post, unlike save_posts
+// below (a full-array replace, boss/admin only) — see the dispatch note
+// near $POST_ACTIONS for why revyst can't use the full-array path.
+function posts_create($body, $callerIsBossOrAbove) {
+  $author = $body['author'] ?? '';
+  $text   = $body['text'] ?? '';
+  $board  = $body['board'] ?? 'general';
+  if (!is_string($author) || trim($author) === ''
+      || !is_string($text) || trim($text) === ''
+      || !in_array($board, ['general', 'boss'], true)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  // A revyst-level caller can never place a post on the boss board, no
+  // matter what the request body claims.
+  if (!$callerIsBossOrAbove) {
+    $board = 'general';
+  }
+
+  $post = [
+    'id'     => dechex(time()) . bin2hex(random_bytes(4)),
+    'board'  => $board,
+    'date'   => date('Y-m-d'),
+    'author' => trim($author),
+    'text'   => trim($text),
+  ];
+  update_file('data/posts.json', function ($json) use ($post) {
+    if (!isset($json['posts']) || !is_array($json['posts'])) $json['posts'] = [];
+    $json['posts'][] = $post;
+    return $json;
+  }, 'Nyt opslag via forsiden');
+  respond(200, ['ok' => true, 'id' => $post['id']]);
+}
+
+// Boss/admin: full-array replace, used for editing/deleting a post on
+// either board (safe here since only boss/admin can reach this resource).
+function save_posts($payload) {
+  $list = $payload['posts'] ?? null;
+  if (!is_array($list)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($list as $p) {
+    if (!is_array($p)
+        || !isset($p['id'], $p['board'], $p['date'], $p['author'], $p['text'])
+        || !is_string($p['id']) || $p['id'] === ''
+        || !in_array($p['board'], ['general', 'boss'], true)
+        || !is_string($p['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $p['date'])
+        || !is_string($p['author'])
+        || !is_string($p['text']) || $p['text'] === '') {
+      respond(400, ['error' => 'invalid_posts_shape']);
+    }
+  }
+
+  update_file('data/posts.json', function ($json) use ($list) {
+    $json['posts'] = $list;
+    return $json;
+  }, 'Opdater posts.json via forsiden');
+}
+
 function save_archive($payload) {
   $years = $payload['years'] ?? null;
   if (!is_array($years)) {
@@ -862,6 +937,7 @@ $RESOURCES = [
   'announcements' => ['level' => 'admin', 'save' => 'save_announcements'],
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
   'archive'       => ['level' => 'admin', 'save' => 'save_archive'],
+  'posts'         => ['level' => 'boss',  'save' => 'save_posts'],
 ];
 
 $resource = $body['resource'] ?? '';

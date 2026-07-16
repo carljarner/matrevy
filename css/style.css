@@ -394,7 +394,7 @@ body.site-menu-open {
 /* --- Main content ---------------------------------------- */
 .page-content {
   flex: 1;
-  max-width: 900px;
+  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
   padding: 2rem 1.5rem;
@@ -426,6 +426,55 @@ body.site-menu-open {
 
 .card ul {
   padding-left: 1.2rem;
+}
+
+/* --- Dashboard two-board layout (Forside) ----------------- */
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.dashboard-columns .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.dashboard-board {
+  display: flex;
+  flex-direction: column;
+  height: 420px;
+}
+
+.dashboard-board .message-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.boss-list {
+  list-style: none;
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.boss-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.boss-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.boss-role {
+  font-size: 0.85rem;
+  color: #57606a;
 }
 
 /* --- Edit modal (site-utils.js siteOpenEditModal) --------- */
@@ -931,6 +980,18 @@ p:last-child {
 
   .page-content {
     padding: 1.25rem 1rem;
+  }
+
+  .dashboard-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-board {
+    height: auto;
+  }
+
+  .dashboard-board .message-list {
+    overflow-y: visible;
   }
 
   /* iOS Safari zooms into focused inputs with font-size < 16px. */

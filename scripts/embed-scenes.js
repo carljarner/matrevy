@@ -62,6 +62,15 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/posts-data.js',
+    sources: 'data/posts.json',
+    globals: () => {
+      const posts = readJson('data/posts.json').posts;
+      console.log(`  ${posts.length} posts`);
+      return { POSTS_DATA: posts };
+    },
+  },
+  {
     // Static .ics feed, served directly by GitHub Pages at
     // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
     // the calendar data is already fully public (see CLAUDE.md's access-level

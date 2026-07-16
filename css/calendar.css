@@ -4,11 +4,6 @@
    style.css.
    ========================================================= */
 
-/* --- Page width: match Arkiv/Budget (default is 900px) ---- */
-.page-content {
-  max-width: 1200px;
-}
-
 /* --- Toolbar ---------------------------------------------- */
 .cal-toolbar {
   display: flex;
@@ -335,10 +330,6 @@
 
 /* --- Mobile (≤719px, same breakpoint as style.css) ---------- */
 @media (max-width: 719px) {
-  .page-content {
-    max-width: 100%;
-  }
-
   .cal-month-nav button {
     width: 2.4rem;
     height: 2.4rem;

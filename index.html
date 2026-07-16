@@ -25,11 +25,39 @@
       <div class="message-list" id="announcement-list"></div>
     </section>
 
+    <!-- Two-board forum, rendered by posts.js from posts-data.js.
+         General board: revyst+ can create; boss/admin edit/delete.
+         Boss board: boss/admin create/edit/delete; hidden below revyst. -->
+    <div class="dashboard-columns">
+      <section class="card dashboard-board">
+        <div class="card-head">
+          <h2>Opslagstavle</h2>
+          <span id="posts-general-admin"></span>
+        </div>
+        <div class="message-list" id="posts-general-list"></div>
+      </section>
+
+      <section class="card dashboard-board" id="posts-boss-section">
+        <div class="card-head">
+          <h2>Boss-noter</h2>
+          <span id="posts-boss-admin"></span>
+        </div>
+        <div class="message-list" id="posts-boss-list"></div>
+      </section>
+    </div>
+
     <section class="card">
-      <h2>Generel information</h2>
-      <p>Her finder du alt det praktiske omkring Matematikrevyen: se datoer og deadlines i
-        <a href="kalender.html">kalenderen</a>, læs årets <a href="manus.html">manus</a>,
-        og gense tidligere års forestillinger i <a href="arkiv.html">arkivet</a>.</p>
+      <h2>Bosser for MatRevy 2025</h2>
+      <ul class="boss-list">
+        <li><span class="boss-name">Frida Nøhr Larsen, Carl Jarner, Carl Kareem Saleh Brandt, Louise Carøe, Thea Deleuran Christensen, Thor Nilsson Pedersen, Frederikke Trolle Hansen</span><span class="boss-role">Koordinatorer</span></li>
+        <li><span class="boss-name">Louise Carøe</span><span class="boss-role">Økonomiboss</span></li>
+        <li><span class="boss-name">Hugo Valling Lauritsen, Augusta Dimon</span><span class="boss-role">Manusbosser</span></li>
+        <li><span class="boss-name">Michael Nedergaard</span><span class="boss-role">Bandboss</span></li>
+        <li><span class="boss-name">Frida Nøhr Larsen, Rune Steffensen</span><span class="boss-role">Rekvisitbosser</span></li>
+        <li><span class="boss-name">Katrine Aschengreen Dahl, Lea Wesselhoff Olsen</span><span class="boss-role">Dansebosser</span></li>
+        <li><span class="boss-name">Amalie Vanting Nielsen, Valdemar Cronfeld Schaaf</span><span class="boss-role">Sammenholdsbosser</span></li>
+        <li><span class="boss-name">Kisser Duedahl</span><span class="boss-role">Makeupboss</span></li>
+      </ul>
     </section>
   </main>
 
@@ -41,5 +69,7 @@
   <script src="js/site-utils.js"></script>
   <script src="js/announcements-data.js"></script>
   <script src="js/announcements.js"></script>
+  <script src="js/posts-data.js"></script>
+  <script src="js/posts.js"></script>
 </body>
 </html>

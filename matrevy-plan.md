@@ -283,13 +283,35 @@ editorial pattern as Announcements/Kalender/Arkiv.
 second post section for boss/admin-only "coordinator" notes, alongside the existing
 revyst-facing announcements.
 
-**Expected outcomes**: likely extends `announcements.json`'s `level` enum with a third
-value (e.g. `boss`) rendered in its own Forside section — reuses the existing
-`announcements.js`/editor code almost entirely. General-info card contents (coordinator
-names, etc.) probably need their own small admin-editable resource rather than being
-hardcoded.
+**What was built** (2026-07-16, superseding the original "extend announcements.json's
+level enum" idea once real requirements emerged mid-session): a genuine two-board forum,
+not just a second announcements section — `data/posts.json` (new resource) rendered as
+two equal-width, equal-fixed-height columns (`.dashboard-columns` in `style.css`, 420px
+with internal scroll, stacking on mobile) below the existing untouched announcements
+card, with "Årets bosser" full-width below that. Left/general board: revyst+ can create,
+only boss/admin can edit/delete (no per-post ownership — there's no per-user login).
+Right/boss board: boss/admin only end-to-end, visible read-only to revyst, absent
+entirely below revyst level. This is the site's first write split across two mechanisms
+against the same **public, git-backed** file: a new revyst-level **append-only** server
+action (`posts_create`, its own `$POST_ACTIONS` table, forces `board='general'` for any
+non-boss caller) alongside the usual boss/admin full-array-replace (`posts` resource in
+`$RESOURCES`) for edit/delete — see CLAUDE.md's "Data-driven pages" section for the full
+architecture writeup. Also folded into this session: `.page-content`'s site-wide default
+width was bumped from 900px to 1200px (matching Arkiv/Kalender/Budget, which no longer
+need their own override) per user request, since the new two-column layout looked
+cramped at the old width.
 
-**Status**: [ ] not started
+**Left open / follow-up**: "Årets bosser" is still hand-edited directly in `index.html`
+(the real 2026 names are there now) rather than its own admin-editable resource — revisit
+if that becomes annoying to update by hand next season. The real `posts_create`/edit/
+delete round-trip is unverified against the live Simply.com endpoint (needs the usual
+manual `update-data.php` redeploy first); only local UI/permission-gating was verified
+headlessly.
+
+**Status**: [x] mostly done — layout, permissions, and client/server code built and
+verified locally (three access levels, scroll/mobile behavior); pending a live
+`update-data.php` redeploy to Simply.com before real posts can be created/edited on
+`matematikrevy.dk`.
 
 ---
 
@@ -332,7 +354,11 @@ shown after `Afvis` (opens the admin's own Messages app pre-filled — no server
 sending, no new infra). `phone` is already a required field on every request
 (`budget.js`), so no data-model change needed.
 
-**Status**: [ ] not started
+**Status**: [x] done (styling) — the `budget.css` pass shipped as part of the site-wide
+pill-button/warm-theme rollout (confirm dialogs on `Afvis`/`Godkend`/etc. already use the
+shared `.site-pill-btn` system; inputs and buttons already use the honey/walnut palette —
+see CLAUDE.md's Budget section). **SMS-on-reject was discussed 2026-07-16 and parked, not
+built** — see "Later / parked" below for the two designs considered.
 
 ---
 
@@ -385,6 +411,16 @@ datastore's durability across seasons.
   cast conflicts and absences, auto-placed cells visually distinct, re-runnable, with a
   placement summary. Priority 0–3 in the sidebar is currently a manual aid only.
 - **Real per-user login** — only if the shared-password model ever stops being enough.
+- **SMS-on-reject (Phase 10)** — discussed 2026-07-16, not built. Two designs considered:
+  a zero-infra `sms:<phone>?body=...` link (opens the *admin's own* Messages app,
+  pre-filled with a Danish template built from name/amount/category) — no cost, no server
+  code, but the text comes from the admin's personal number, not "MatRevy"; or a branded
+  sender (an SMS gateway's alphanumeric sender ID showing "MatRevy", or a dedicated leased
+  virtual number) — requires a paid third-party SMS provider account, an API key stored
+  server-side (`config.php`, same pattern as `GITHUB_TOKEN`), and a new `update-data.php`
+  action that actually sends the SMS. The user wants the branded sender if this is ever
+  built, but decided the account setup isn't worth it right now — revisit if it becomes
+  worth the overhead.
 
 ---
 

@@ -5,11 +5,8 @@
    site-wide mobile convention — keep it in sync.
    ========================================================= */
 
-/* --- Page width & two-column layout ----------------------- */
-/* budget.css loads only on budget.html, so widening .page-content
-   here affects this page alone (matches the Arkiv page's 1200px).
-   The revyst form is capped narrow. */
-.page-content { max-width: 1200px; }
+/* --- Two-column layout ------------------------------------ */
+/* The revyst form is capped narrow. */
 .budget-form { max-width: 520px; margin: 0 auto; }
 .budget-form h2 { text-align: center; }
 
@@ -423,8 +420,6 @@
 
 /* --- Mobile (site-wide 719px convention) ------------------ */
 @media (max-width: 719px) {
-  .page-content { max-width: 100%; }
-
   /* Stack the two columns; the pending list flows naturally (no cap). */
   .budget-columns { grid-template-columns: 1fr; }
   .budget-scroll-wrap { max-height: none; overflow-y: visible; }

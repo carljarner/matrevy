@@ -4,13 +4,6 @@
    styles (.card, .btn-small, .edit-field, ...) live in style.css.
    ========================================================= */
 
-/* Wider content area than the default 900px (this override only lands on
-   arkiv.html, the sole page loading this stylesheet) so the poster grid fits
-   four cards per row with less side margin. */
-.page-content {
-  max-width: 1200px;
-}
-
 .arkiv-hero {
   text-align: center;
   margin-bottom: 1.5rem;

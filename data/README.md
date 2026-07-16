@@ -13,6 +13,7 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 | `announcements.json` | Announcements shown on Forside |
 | `calendar.json` | Events shown on the Kalender page |
 | `archive.json` | Previous years' manus/videos shown on the Arkiv page |
+| `posts.json` | Two-board forum (general + boss) shown on Forside |
 
 ## Updating for a New Production
 
@@ -131,6 +132,37 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 - `youtubeUrl` / `spotifyUrl` / `driveUrl` — optional external links (or `""`); each renders a matching link pill on the detail overlay. All three are validated against a host regex in `save_archive` only when non-empty (never required, so entries lacking them still validate).
 - The archive does **not** track individual sketch/song/other-material files. Those `.tex`/`.pdf` sources live in the repo under `archive/<folder>/{sketches,songs,other}/` and are browsed via the overlay's **GitHub** (or **Drive**) button — not listed in `archive.json`.
 - Uploads (cover / manus) are capped at ~5 MB each (client- and server-side) — Simply.com's actual PHP upload limits aren't documented, so this is a conservative guess.
+
+## Schema: posts.json
+
+```json
+{
+  "posts": [
+    {
+      "id": "68123abc4def5678",
+      "board": "general",
+      "date": "2026-07-16",
+      "author": "Ida",
+      "text": "Besked her. Linjeskift bliver til separate afsnit."
+    }
+  ]
+}
+```
+
+- `id` — unique string, always server-assigned (`dechex(time()) . bin2hex(random_bytes(4))` in `server/update-data.php`'s `posts_create`) — never client-supplied, so a revyst-level poster can't forge or collide one.
+- `board` — `"general"` (revyst+ can create; boss/admin edit/delete) or `"boss"` (boss/admin only, create through delete; visible read-only to revyst, absent entirely below revyst level).
+- `date` — `YYYY-MM-DD`, server-assigned to today on create; editable afterwards only via the boss/admin edit modal (which goes through the full-array `posts` resource, not `posts_create`).
+- `author` — free-typed string, same convention as `announcements.json` (no per-user login to attribute a post otherwise).
+- `text` — free text body; Forside splits on `\n` into separate paragraphs, same as announcements.
+
+This is the site's first resource combining two write paths against the same
+public, git-backed file: a revyst-level **append-only** action (`posts_create`,
+outside `$RESOURCES` — the server assigns `id`/`date` and forces `board` to
+`"general"` for any caller below boss, ignoring whatever the client sent) for
+creating a post, and the usual boss-level **full-array replace** (the `posts`
+resource in `$RESOURCES`, `save_posts`) for editing/deleting a post on either
+board. See CLAUDE.md's "Data-driven pages" section for why announcements'
+simpler single-writer pattern doesn't work here.
 
 ## Adding a year to the archive
 
