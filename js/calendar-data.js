@@ -700,5 +700,15 @@ const CALENDAR_DATA = [
     "title": "Generalprøve",
     "category": "forestilling",
     "note": ""
+  },
+  {
+    "id": "mrn7m3hy",
+    "date": "2026-11-20",
+    "endDate": "2026-11-20",
+    "start": "15:00",
+    "end": "23:00",
+    "title": "Premiere",
+    "category": "forestilling",
+    "note": ""
   }
 ];
