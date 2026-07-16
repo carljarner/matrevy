@@ -630,5 +630,15 @@ const CALENDAR_DATA = [
     "title": "Øvedag",
     "category": "ove",
     "note": ""
+  },
+  {
+    "id": "mrn7hgjv",
+    "date": "2026-11-14",
+    "endDate": "2026-11-14",
+    "start": "10:00",
+    "end": "15:00",
+    "title": "Øveweekend",
+    "category": "ove",
+    "note": ""
   }
 ];
