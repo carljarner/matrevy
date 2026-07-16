@@ -660,5 +660,25 @@ const CALENDAR_DATA = [
     "title": "Øveweekend",
     "category": "ove",
     "note": ""
+  },
+  {
+    "id": "mrn7iyym",
+    "date": "2026-11-16",
+    "endDate": "2026-11-16",
+    "start": "17:00",
+    "end": "22:00",
+    "title": "Revyuge",
+    "category": "ove",
+    "note": ""
+  },
+  {
+    "id": "mrn7j6ou",
+    "date": "2026-11-17",
+    "endDate": "2026-11-17",
+    "start": "17:00",
+    "end": "22:00",
+    "title": "Revyuge",
+    "category": "ove",
+    "note": ""
   }
 ];
