@@ -640,5 +640,25 @@ const CALENDAR_DATA = [
     "title": "Øveweekend",
     "category": "ove",
     "note": ""
+  },
+  {
+    "id": "mrn7i83z",
+    "date": "2026-11-14",
+    "endDate": "2026-11-14",
+    "start": "15:00",
+    "end": "23:00",
+    "title": "Jordbærddrinks",
+    "category": "forestilling",
+    "note": "Vi laver den første opførsel af revyen for hinanden mens vi drikker jordbærdrinks"
+  },
+  {
+    "id": "mrn7ijd0",
+    "date": "2026-11-15",
+    "endDate": "2026-11-15",
+    "start": "13:00",
+    "end": "18:00",
+    "title": "Øveweekend",
+    "category": "ove",
+    "note": ""
   }
 ];
