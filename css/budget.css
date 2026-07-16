@@ -21,7 +21,12 @@
   margin-bottom: 1.25rem;
 }
 
-.budget-columns > .card { margin-bottom: 0; }
+/* Grid items default to min-width:auto, which refuses to shrink below the
+   content's intrinsic width (e.g. the sheet/pending tables) and blows the
+   whole column — and with it the page — wider than the viewport. The tables
+   already scroll internally via .budget-table-wrap, so let the column shrink
+   to the track's actual width instead. */
+.budget-columns > .card { margin-bottom: 0; min-width: 0; }
 
 /* Afventende udlæg fills the same height as the Budget card; its list
    scrolls internally instead of lengthening the column. */
@@ -309,7 +314,7 @@
 .budget-save-status.dirty { color: #9a6700; }
 .budget-save-status.error { color: #c0392b; }
 
-.budget-sheet-table { min-width: 0; }
+.budget-sheet-table { min-width: 460px; }
 
 .budget-sheet-table .budget-plan-input,
 .budget-income-amount {
@@ -432,5 +437,87 @@
   .budget-thumb {
     width: 100%;
     height: 140px;
+  }
+
+  /* Both budget tables (the 4-column sheet, the 8-column paid ledger) have
+     more columns than a phone's width can show — cramming them illegibly or
+     scrolling them horizontally with no visible affordance both read as
+     broken here (unlike a plain content overflow, a data table silently
+     hiding some of its columns loses information the admin needs). Turn
+     every row into a bordered card instead: the first cell as heading, the
+     rest as label/value lines via a fixed ::before per column position
+     (column order is static per table, so no data-label attribute is
+     needed). Shared base rules below; per-table label text and the sheet's
+     input sizing follow. */
+  .budget-table-wrap { overflow: visible; }
+  .budget-table { min-width: 0; }
+
+  .budget-table thead { display: none; }
+  .budget-table, .budget-table tbody, .budget-table tfoot,
+  .budget-table tr, .budget-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .budget-table tbody tr,
+  .budget-table tfoot tr {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .budget-sheet-table tfoot tr { border-color: var(--text); }
+
+  .budget-table td { border-bottom: none; padding: 0.2rem 0; }
+
+  .budget-table td:first-child {
+    font-weight: 600;
+    padding-top: 0;
+  }
+
+  .budget-table td:not(:first-child) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    text-align: right;
+  }
+
+  .budget-table td:not(:first-child)::before {
+    color: #57606a;
+    font-size: 0.82rem;
+    font-weight: normal;
+    text-align: left;
+  }
+
+  .budget-sheet-table td:nth-child(2)::before { content: "Planlagt"; }
+  .budget-sheet-table td:nth-child(3)::before { content: "Brugt"; }
+  .budget-sheet-table td:nth-child(4)::before { content: "Rest"; }
+
+  .budget-sheet-table .budget-plan-input {
+    width: auto;
+    flex: 0 1 140px;
+    max-width: none;
+  }
+
+  .budget-table:not(.budget-sheet-table) td:nth-child(2)::before { content: "Dato"; }
+  .budget-table:not(.budget-sheet-table) td:nth-child(3)::before { content: "Betalt"; }
+  .budget-table:not(.budget-sheet-table) td:nth-child(4)::before { content: "Beløb"; }
+  .budget-table:not(.budget-sheet-table) td:nth-child(5)::before { content: "Udlægsholder"; }
+  .budget-table:not(.budget-sheet-table) td:nth-child(6)::before { content: "Kommentar"; }
+  .budget-table:not(.budget-sheet-table) td:nth-child(7)::before { content: "Kvittering"; }
+
+  /* Free text (name, comment) reads better left-aligned than right. */
+  .budget-table:not(.budget-sheet-table) td:nth-child(5),
+  .budget-table:not(.budget-sheet-table) td:nth-child(6) {
+    text-align: left;
+  }
+
+  /* The two action-button columns: just the button, right-aligned, no label
+     needed for the unlabelled trailing edit column. */
+  .budget-table:not(.budget-sheet-table) td:nth-child(7),
+  .budget-table:not(.budget-sheet-table) td:nth-child(8) {
+    justify-content: flex-end;
   }
 }
