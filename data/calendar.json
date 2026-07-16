@@ -739,6 +739,16 @@
             "title": "Efterfest",
             "category": "andet",
             "note": "Velfortjent efterfest!"
+        },
+        {
+            "id": "mrnbrfy0",
+            "date": "2026-11-30",
+            "endDate": "2026-11-30",
+            "start": "17:15",
+            "end": "18:00",
+            "title": "Generalforsamling",
+            "category": "ove",
+            "note": "Skal gøres årligt, vi skynder os igennem det"
         }
     ]
 }
