@@ -32,6 +32,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # List every generated *-data.js output here (see scripts/embed-scenes.js's EMBEDS)
-          git add js/scenes-data.js js/announcements-data.js js/calendar-data.js js/archive-data.js js/posts-data.js calendar.ics
+          git add js/scenes-data.js js/calendar-data.js js/archive-data.js js/posts-data.js calendar.ics
           git diff --staged --quiet || git commit -m "Regenerate embedded data files"
           git push

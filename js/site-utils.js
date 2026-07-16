@@ -1,6 +1,6 @@
 /* =========================================================
    Matematikrevyen – Shared helpers for the data-driven pages
-   (announcements/forside, kalender, arkiv, budget).
+   (forside, kalender, arkiv, budget).
 
    Loaded AFTER site.js (uses SITE_API_ENDPOINT/getSiteAuth) and
    only on pages that need it — schedule.html/manus.html keep

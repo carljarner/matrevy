@@ -6,7 +6,7 @@
 // (A manus-tool save triggers .github/workflows/embed-scenes.yml, which
 // runs this automatically.)
 //
-// To embed a new data file (announcements, calendar, ...): add an entry
+// To embed a new data file (calendar, archive, ...): add an entry
 // to EMBEDS below, list the new output file in embed-scenes.yml's
 // `git add` step, and load it via <script src="..."> where needed.
 
@@ -32,15 +32,6 @@ const EMBEDS = [
       const cast = readJson('data/cast.json');
       console.log(`  ${allScenes.length} scenes, ${cast.cast.length} cast members`);
       return { SCENES_DATA: allScenes, CAST_DATA: cast.cast };
-    },
-  },
-  {
-    out: 'js/announcements-data.js',
-    sources: 'data/announcements.json',
-    globals: () => {
-      const announcements = readJson('data/announcements.json').announcements;
-      console.log(`  ${announcements.length} announcements`);
-      return { ANNOUNCEMENTS_DATA: announcements };
     },
   },
   {

@@ -2,7 +2,7 @@
 
 This folder contains the source-of-truth data files for the site.
 
-These files can be edited by hand (see below) or via the site's in-page admin tools (the scheduling tool's "Rediger Manus" button, the Forside announcement editor, the Kalender event editor, the Arkiv year editor), which all save globally through `server/update-data.php` — see CLAUDE.md. A GitHub Action regenerates the embedded `*-data.js` files automatically after either kind of change lands on `main`; `node scripts/embed-scenes.js` only needs to be run by hand after editing these JSON files directly.
+These files can be edited by hand (see below) or via the site's in-page admin tools (the scheduling tool's "Rediger Manus" button, the Forside posts board, the Kalender event editor, the Arkiv year editor), which all save globally through `server/update-data.php` — see CLAUDE.md. A GitHub Action regenerates the embedded `*-data.js` files automatically after either kind of change lands on `main`; `node scripts/embed-scenes.js` only needs to be run by hand after editing these JSON files directly.
 
 ## Files
 
@@ -10,7 +10,6 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 |------|---------|
 | `scenes.json` | All scenes for the current production, with cast per scene |
 | `cast.json` | Full cast list and role type legend |
-| `announcements.json` | Announcements shown on Forside |
 | `calendar.json` | Events shown on the Kalender page |
 | `archive.json` | Previous years' manus/videos shown on the Arkiv page |
 | `posts.json` | Two-board forum (general + boss) shown on Forside |
@@ -62,26 +61,6 @@ These files can be edited by hand (see below) or via the site's in-page admin to
   ]
 }
 ```
-
-## Schema: announcements.json
-
-```json
-{
-  "announcements": [
-    {
-      "id": "kx7f2a",
-      "date": "2025-11-27",
-      "author": "Koordinatorerne",
-      "level": "public",
-      "text": "Besked her. Linjeskift bliver til separate afsnit."
-    }
-  ]
-}
-```
-
-- `id` — unique string; the editor generates `Date.now().toString(36)`.
-- `date` — `YYYY-MM-DD`; Forside sorts newest first.
-- `level` — `"public"` (everyone) or `"revyst"` (only shown after revyst/admin login; still client-side-only gating).
 
 ## Schema: calendar.json
 
@@ -143,7 +122,17 @@ These files can be edited by hand (see below) or via the site's in-page admin to
       "board": "general",
       "date": "2026-07-16",
       "author": "Ida",
-      "text": "Besked her. Linjeskift bliver til separate afsnit."
+      "title": "Prøve i morgen aflyst",
+      "text": "Besked her. Linjeskift bliver til separate afsnit.",
+      "image": "posts/68123abc4def5678/image.jpg",
+      "comments": [
+        {
+          "id": "68124f0011aa22bb",
+          "author": "Carl",
+          "text": "Noteret!",
+          "date": "2026-07-16"
+        }
+      ]
     }
   ]
 }
@@ -152,17 +141,20 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 - `id` — unique string, always server-assigned (`dechex(time()) . bin2hex(random_bytes(4))` in `server/update-data.php`'s `posts_create`) — never client-supplied, so a revyst-level poster can't forge or collide one.
 - `board` — `"general"` (revyst+ can create; boss/admin edit/delete) or `"boss"` (boss/admin only, create through delete; visible read-only to revyst, absent entirely below revyst level).
 - `date` — `YYYY-MM-DD`, server-assigned to today on create; editable afterwards only via the boss/admin edit modal (which goes through the full-array `posts` resource, not `posts_create`).
-- `author` — free-typed string, same convention as `announcements.json` (no per-user login to attribute a post otherwise).
-- `text` — free text body; Forside splits on `\n` into separate paragraphs, same as announcements.
+- `author` — free-typed string (no per-user login to attribute a post otherwise).
+- `title` — required, non-empty string; the only body text shown in the list view (Forside shows date/title/author there — the full `text` only appears once a post is opened).
+- `text` — free text body; Forside splits on `\n` into separate paragraphs.
+- `image` — optional repo-relative path (`posts/<id>/image.jpg`) or `""`. Uploaded inline as part of `posts_create` itself (not the generic admin-only `upload` action, since post creation is revyst-level) — the client sends raw base64 image bytes alongside the post fields, and the server writes the file via the GitHub Contents API before appending the post's JSON entry. Always re-encoded to JPEG client-side (canvas-resized, max ~1600px wide) before upload, capped at ~5 MB. Not re-uploadable from the edit modal in this pass — changing a post's picture means deleting and recreating the post.
+- `comments` — array of `{id, author, text, date}`, defaulting to `[]` on a freshly created post. `id`/`date` are server-assigned by a separate append-only action, `comments_create`, the same way a post's own `id`/`date` are assigned by `posts_create`. A revyst+ visitor can comment on a `general`-board post; only boss+ can comment on a `boss`-board post (comments_create rejects a revyst caller commenting on a boss post with a 403, since — unlike a new post — there's no "general" board to silently redirect a misplaced comment to). Deleting an individual comment is boss/admin only and needs no dedicated server action: the client filters the comment out of that post's `comments` array and calls the same full-array-replace `posts` resource used to edit/delete a whole post.
 
-This is the site's first resource combining two write paths against the same
-public, git-backed file: a revyst-level **append-only** action (`posts_create`,
-outside `$RESOURCES` — the server assigns `id`/`date` and forces `board` to
-`"general"` for any caller below boss, ignoring whatever the client sent) for
-creating a post, and the usual boss-level **full-array replace** (the `posts`
-resource in `$RESOURCES`, `save_posts`) for editing/deleting a post on either
-board. See CLAUDE.md's "Data-driven pages" section for why announcements'
-simpler single-writer pattern doesn't work here.
+This is the site's first resource combining **three** write paths against the
+same public, git-backed file: two revyst-level **append-only** actions
+(`posts_create` — assigns `id`/`date`, forces `board` to `"general"` for any
+caller below boss, and optionally writes an inline image; `comments_create` —
+assigns a comment's own `id`/`date` and board-gates who may comment) outside
+`$RESOURCES`, and the usual boss-level **full-array replace** (the `posts`
+resource in `$RESOURCES`, `save_posts`) for editing/deleting a post, or
+deleting one of its comments, on either board.
 
 ## Adding a year to the archive
 

@@ -444,7 +444,7 @@ body.site-menu-open {
 .dashboard-board {
   display: flex;
   flex-direction: column;
-  height: 420px;
+  height: 840px;
 }
 
 .dashboard-board .message-list {
@@ -930,13 +930,78 @@ body.site-menu-open {
   flex-wrap: wrap;
 }
 
-.message-badge {
-  background: #eaf1fb;
-  color: #2f6cb3;
-  border-radius: 999px;
-  padding: 0.05rem 0.55rem;
-  font-size: 0.72rem;
-  white-space: nowrap;
+/* --- Post list summary (Forside boards) ------------------- */
+.post-summary {
+  border-left: 3px solid #3b82d4;
+  padding: 0.4rem 0.75rem;
+  margin-left: -0.75rem;
+  border-radius: 0 6px 6px 0;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .post-summary:hover { background: var(--surface-2); }
+}
+.post-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.post-summary-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0.15rem 0 0;
+}
+
+.post-summary-meta {
+  font-size: 0.8rem;
+  color: #57606a;
+}
+
+/* --- Post detail modal (Forside boards) ------------------- */
+.post-detail-cover {
+  margin: -1.5rem -1.5rem 1rem;
+}
+
+.post-detail-cover img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: cover;
+  border-radius: 8px 8px 0 0;
+}
+
+.post-detail-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.post-detail-meta {
+  font-size: 0.8rem;
+  color: #57606a;
+  margin-bottom: 0.75rem;
+}
+
+.post-detail-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.post-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.post-comment-form {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
 }
 
 /* --- Footer ---------------------------------------------- */

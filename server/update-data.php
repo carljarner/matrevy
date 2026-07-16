@@ -85,6 +85,10 @@ $LEVEL_RANK = ['revyst' => 1, 'boss' => 2, 'admin' => 3];
 // handler runs. (Budget handlers avoid consts entirely — see budget_*() fns.)
 const ARCHIVE_PATH_RE = '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf)$#';
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+// Posts images are written inline from posts_create (revyst-level), not via
+// the admin-gated upload action — this is the only guard on that path, so it
+// must live above the dispatch same as ARCHIVE_PATH_RE (see comment above).
+const POST_IMAGE_PATH_RE = '#^posts/[0-9a-f]+/image\.jpg$#';
 
 $action = $body['action'] ?? '';
 
@@ -127,13 +131,15 @@ if (isset($BUDGET_ACTIONS[$action])) {
 // the caller with a full-array replace, which a revyst-level client must
 // never be given (they could edit/delete anyone's post by omission).
 $POST_ACTIONS = [
-  'posts_create' => 'revyst',
+  'posts_create'    => 'revyst',
+  'comments_create' => 'revyst',
 ];
 if (isset($POST_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$POST_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
-  posts_create($body, $level === 'boss' || $level === 'admin');
+  if ($action === 'posts_create') posts_create($body, $level === 'boss' || $level === 'admin');
+  else comments_create($body, $level);
 }
 
 if ($action !== 'save') {
@@ -750,7 +756,7 @@ function budget_request_update($body) {
 
 // ── Resource savers ──────────────────────────────────────────
 // Each resource: minimum level + a validate-and-commit function.
-// Later phases (announcements, calendar, ...) register here.
+// Later phases (calendar, archive, ...) register here.
 
 function save_manus($payload) {
   $scenesActs = $payload['scenes'] ?? null;
@@ -781,29 +787,6 @@ function save_manus($payload) {
     $json['cast'] = $castList;
     return $json;
   }, 'Opdater cast.json via manus-værktøj');
-}
-
-function save_announcements($payload) {
-  $list = $payload['announcements'] ?? null;
-  if (!is_array($list)) {
-    respond(400, ['error' => 'invalid_shape']);
-  }
-  foreach ($list as $a) {
-    if (!is_array($a)
-        || !isset($a['id'], $a['date'], $a['text'], $a['level'], $a['author'])
-        || !is_string($a['id']) || $a['id'] === ''
-        || !is_string($a['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $a['date'])
-        || !is_string($a['text']) || $a['text'] === ''
-        || !in_array($a['level'], ['public', 'revyst'], true)
-        || !is_string($a['author'])) {
-      respond(400, ['error' => 'invalid_announcements_shape']);
-    }
-  }
-
-  update_file('data/announcements.json', function ($json) use ($list) {
-    $json['announcements'] = $list;
-    return $json;
-  }, 'Opdater announcements.json via forsiden');
 }
 
 function save_calendar($payload) {
@@ -843,9 +826,11 @@ function save_calendar($payload) {
 // near $POST_ACTIONS for why revyst can't use the full-array path.
 function posts_create($body, $callerIsBossOrAbove) {
   $author = $body['author'] ?? '';
+  $title  = $body['title'] ?? '';
   $text   = $body['text'] ?? '';
   $board  = $body['board'] ?? 'general';
   if (!is_string($author) || trim($author) === ''
+      || !is_string($title) || trim($title) === ''
       || !is_string($text) || trim($text) === ''
       || !in_array($board, ['general', 'boss'], true)) {
     respond(400, ['error' => 'invalid_shape']);
@@ -856,23 +841,99 @@ function posts_create($body, $callerIsBossOrAbove) {
     $board = 'general';
   }
 
+  $id = dechex(time()) . bin2hex(random_bytes(4));
+
+  // Optional picture, uploaded inline here (revyst-level) rather than via the
+  // admin-gated generic 'upload' action — POST_IMAGE_PATH_RE is the only
+  // guard on this write, checked unconditionally even though the path is
+  // server-built from $id, mirroring ARCHIVE_PATH_RE's "always check" posture.
+  $image = '';
+  $imageBase64 = $body['imageBase64'] ?? '';
+  if (is_string($imageBase64) && $imageBase64 !== '') {
+    $raw = base64_decode($imageBase64, true);
+    if ($raw === false) {
+      respond(400, ['error' => 'bad_base64']);
+    }
+    if (strlen($raw) > MAX_UPLOAD_BYTES) {
+      respond(413, ['error' => 'too_large']);
+    }
+    $path = 'posts/' . $id . '/image.jpg';
+    if (!preg_match(POST_IMAGE_PATH_RE, $path)) {
+      respond(400, ['error' => 'bad_path']);
+    }
+    put_file($path, $imageBase64, 'Nyt opslagsbillede via forsiden');
+    $image = $path;
+  }
+
   $post = [
-    'id'     => dechex(time()) . bin2hex(random_bytes(4)),
-    'board'  => $board,
-    'date'   => date('Y-m-d'),
-    'author' => trim($author),
-    'text'   => trim($text),
+    'id'       => $id,
+    'board'    => $board,
+    'date'     => date('Y-m-d'),
+    'author'   => trim($author),
+    'title'    => trim($title),
+    'text'     => trim($text),
+    'image'    => $image,
+    'comments' => [],
   ];
   update_file('data/posts.json', function ($json) use ($post) {
     if (!isset($json['posts']) || !is_array($json['posts'])) $json['posts'] = [];
     $json['posts'][] = $post;
     return $json;
   }, 'Nyt opslag via forsiden');
-  respond(200, ['ok' => true, 'id' => $post['id']]);
+  respond(200, ['ok' => true, 'id' => $post['id'], 'image' => $post['image']]);
 }
 
-// Boss/admin: full-array replace, used for editing/deleting a post on
-// either board (safe here since only boss/admin can reach this resource).
+// Revyst+ can comment on a general-board post; only boss+ can comment on a
+// boss-board post — unlike posts_create (which silently redirects a
+// sub-boss caller's board to 'general'), a revyst caller commenting on a
+// boss post has no other board to redirect to, so this BLOCKS with 403.
+function comments_create($body, $level) {
+  $postId = $body['postId'] ?? '';
+  $author = $body['author'] ?? '';
+  $text   = $body['text'] ?? '';
+  if (!is_string($postId) || $postId === ''
+      || !is_string($author) || trim($author) === ''
+      || !is_string($text) || trim($text) === '') {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  $comment = [
+    'id'     => dechex(time()) . bin2hex(random_bytes(4)),
+    'author' => trim($author),
+    'text'   => trim($text),
+    'date'   => date('Y-m-d'),
+  ];
+
+  $found = false;
+  $forbidden = false;
+  update_file('data/posts.json', function ($json) use ($postId, $comment, $level, &$found, &$forbidden) {
+    $posts = $json['posts'] ?? [];
+    foreach ($posts as &$p) {
+      if (($p['id'] ?? null) === $postId) {
+        $found = true;
+        if (($p['board'] ?? 'general') === 'boss' && $level !== 'boss' && $level !== 'admin') {
+          $forbidden = true;
+          break;
+        }
+        if (!isset($p['comments']) || !is_array($p['comments'])) $p['comments'] = [];
+        $p['comments'][] = $comment;
+        break;
+      }
+    }
+    unset($p);
+    $json['posts'] = $posts;
+    return $json;
+  }, 'Ny kommentar via forsiden');
+
+  if (!$found) respond(400, ['error' => 'post_not_found']);
+  if ($forbidden) respond(403, ['error' => 'insufficient_level']);
+  respond(200, ['ok' => true, 'comment' => $comment]);
+}
+
+// Boss/admin: full-array replace, used for editing/deleting a post (either
+// board) and for deleting an individual comment (client filters it out of
+// the relevant post's comments array before calling this) — safe here since
+// only boss/admin can reach this resource.
 function save_posts($payload) {
   $list = $payload['posts'] ?? null;
   if (!is_array($list)) {
@@ -880,13 +941,32 @@ function save_posts($payload) {
   }
   foreach ($list as $p) {
     if (!is_array($p)
-        || !isset($p['id'], $p['board'], $p['date'], $p['author'], $p['text'])
+        || !isset($p['id'], $p['board'], $p['date'], $p['author'], $p['title'], $p['text'])
         || !is_string($p['id']) || $p['id'] === ''
         || !in_array($p['board'], ['general', 'boss'], true)
         || !is_string($p['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $p['date'])
         || !is_string($p['author'])
+        || !is_string($p['title']) || $p['title'] === ''
         || !is_string($p['text']) || $p['text'] === '') {
       respond(400, ['error' => 'invalid_posts_shape']);
+    }
+    $image = $p['image'] ?? '';
+    if (!is_string($image) || ($image !== '' && !preg_match(POST_IMAGE_PATH_RE, $image))) {
+      respond(400, ['error' => 'invalid_posts_shape']);
+    }
+    $comments = $p['comments'] ?? [];
+    if (!is_array($comments)) {
+      respond(400, ['error' => 'invalid_posts_shape']);
+    }
+    foreach ($comments as $c) {
+      if (!is_array($c)
+          || !isset($c['id'], $c['author'], $c['text'], $c['date'])
+          || !is_string($c['id']) || $c['id'] === ''
+          || !is_string($c['author'])
+          || !is_string($c['text']) || $c['text'] === ''
+          || !is_string($c['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $c['date'])) {
+        respond(400, ['error' => 'invalid_posts_shape']);
+      }
     }
   }
 
@@ -934,7 +1014,6 @@ function save_archive($payload) {
 
 $RESOURCES = [
   'manus'         => ['level' => 'boss',  'save' => 'save_manus'],
-  'announcements' => ['level' => 'admin', 'save' => 'save_announcements'],
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
   'archive'       => ['level' => 'admin', 'save' => 'save_archive'],
   'posts'         => ['level' => 'boss',  'save' => 'save_posts'],
