@@ -680,5 +680,15 @@ const CALENDAR_DATA = [
     "title": "Revyuge",
     "category": "ove",
     "note": ""
+  },
+  {
+    "id": "mrn7jv25",
+    "date": "2026-11-18",
+    "endDate": "2026-11-19",
+    "start": "17:00",
+    "end": "01:00",
+    "title": "Oberstprøve",
+    "category": "ove",
+    "note": ""
   }
 ];
