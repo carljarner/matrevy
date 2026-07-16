@@ -1,3 +1,11 @@
 {
-  "posts": []
+    "posts": [
+        {
+            "id": "6a58e735af93939f",
+            "board": "general",
+            "date": "2026-07-16",
+            "author": "Carl",
+            "text": "Hvad sker der her?"
+        }
+    ]
 }
