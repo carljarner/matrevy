@@ -684,11 +684,11 @@ const CALENDAR_DATA = [
   {
     "id": "mrn7jv25",
     "date": "2026-11-18",
-    "endDate": "2026-11-19",
+    "endDate": "2026-11-18",
     "start": "17:00",
     "end": "01:00",
     "title": "Oberstprøve",
     "category": "ove",
-    "note": ""
+    "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven"
   }
 ];

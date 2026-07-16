@@ -541,7 +541,8 @@ BEGIN:VEVENT
 UID:mrn7jv25@matematikrevy.dk
 SUMMARY:Oberstprøve
 DTSTART:20261118T170000
-DTEND:20261119T010000
+DTEND:20261118T010000
+DESCRIPTION:Gennemspilning for vores eksterne instruktører\, der giver den sidste vigtige feedback før generalprøven
 CATEGORIES:Øvning
 END:VEVENT
 END:VCALENDAR
