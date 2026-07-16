@@ -559,6 +559,16 @@
             "title": "Gennemspilningsdag",
             "category": "ove",
             "note": "Obligatorisk for alle scenefolk (sang, dans, skuespil). Vi spiller hele revyen igennem og snakker om den"
+        },
+        {
+            "id": "mrn79x51",
+            "date": "2026-10-19",
+            "endDate": "2026-10-19",
+            "start": "23:59",
+            "end": "23:59",
+            "title": "Tilmelding og Rolleønskning",
+            "category": "deadline",
+            "note": "Deadline for at tilmelde sig revyen og (his relevant) ønske roller. Link til tilmeldingsark findes på opslagstavlen"
         }
     ]
 }
