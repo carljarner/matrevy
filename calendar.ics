@@ -393,4 +393,12 @@ DTEND:20260514T230000
 DESCRIPTION:Generalprøve for årets DIKU-revy. De spiller i Store UP1. Baren åbner kl. 18.30\, dørene 19.00 og forestillingen begynder kl. 19.30
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn6v122@matematikrevy.dk
+SUMMARY:Infomøde
+DTSTART:20260917T171500
+DTEND:20260917T180000
+DESCRIPTION:Infomøde for nye revyster\, kom og høre om hvad revyen er
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR

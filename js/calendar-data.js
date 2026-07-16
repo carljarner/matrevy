@@ -490,5 +490,15 @@ const CALENDAR_DATA = [
     "title": "DIKU-revyen",
     "category": "andet",
     "note": "Generalprøve for årets DIKU-revy. De spiller i Store UP1. Baren åbner kl. 18.30, dørene 19.00 og forestillingen begynder kl. 19.30"
+  },
+  {
+    "id": "mrn6v122",
+    "date": "2026-09-17",
+    "endDate": "2026-09-17",
+    "start": "17:15",
+    "end": "18:00",
+    "title": "Infomøde",
+    "category": "andet",
+    "note": "Infomøde for nye revyster, kom og høre om hvad revyen er"
   }
 ];
