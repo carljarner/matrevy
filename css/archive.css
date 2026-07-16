@@ -360,11 +360,6 @@
   margin-bottom: 1.25rem;
 }
 
-.arkiv-edit-modal .edit-field input,
-.arkiv-edit-modal .edit-field select {
-  background: #ffffff;
-}
-
 .arkiv-edit-modal .edit-field:last-child {
   margin-bottom: 0.25rem;
 }

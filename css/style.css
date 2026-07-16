@@ -22,6 +22,7 @@
   --accent-warm-fill: #f6ecd8;                /* hover background   */
   --accent-warm-text: #9a6700;                /* hover text         */
   --accent-warm-ring: rgba(216, 184, 120, 0.35); /* focus glow      */
+  --input-bg: #fdf8ec; /* warm cream — form-control background site-wide (Øveplan excluded) */
 }
 
 /* --- Reset & base ---------------------------------------- */
@@ -198,6 +199,7 @@ body:has(.sched-layout) .site-footer {
   border-radius: 6px;
   font-size: 0.95rem;
   font-family: inherit;
+  background: var(--input-bg);
 }
 
 .login-error {
@@ -483,7 +485,7 @@ body.site-menu-open {
   border-radius: 6px;
   font-size: 0.95rem;
   font-family: inherit;
-  background: #ffffff;
+  background: var(--input-bg);
   color: #1f2328;
   cursor: pointer;
   text-align: left;
@@ -530,7 +532,7 @@ body.site-menu-open {
   border: 1px solid #d0d7de;
   border-radius: 6px;
   overflow: hidden;
-  background: #ffffff;
+  background: var(--input-bg);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -782,7 +784,7 @@ body.site-menu-open {
   border-radius: 6px;
   font-size: 0.95rem;
   font-family: inherit;
-  background: #ffffff;
+  background: var(--input-bg);
   color: #1f2328;
 }
 
@@ -791,8 +793,8 @@ body.site-menu-open {
   resize: vertical;
 }
 
-/* Warm focus is the site-wide standard for text fields (Arkiv opts out in
-   archive.css; Øveplan styles its own fields in schedule.css). */
+/* Warm focus is the site-wide standard for text fields (Øveplan styles its
+   own fields in schedule.css). */
 .edit-field input:focus,
 .edit-field select:focus,
 .edit-field textarea:focus,
