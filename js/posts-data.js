@@ -6,6 +6,14 @@ const POSTS_DATA = [
     "board": "general",
     "date": "2026-07-16",
     "author": "Carl",
-    "text": "Hvad sker der her?\n\nKan jeg skrive en lang besked med mellemrum og \n\nLinks : https://www.facebook.com/groups/1334272084959429"
+    "text": "Hvad sker der her?\n\nKan jeg skrive en lang besked med mellemrum og \n\nLinks : https://www.facebook.com/groups/1334272084959429",
+    "comments": [
+      {
+        "id": "6a58f6c8629af9ac",
+        "author": "Carl 2",
+        "text": "Nice, post",
+        "date": "2026-07-16"
+      }
+    ]
   }
 ];
