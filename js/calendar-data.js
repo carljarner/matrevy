@@ -689,7 +689,7 @@ const CALENDAR_DATA = [
     "end": "23:59",
     "title": "Oberstprøve",
     "category": "ove",
-    "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven. Sen aften, det slutter nok omkring kl 1"
+    "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven. Sen aften, det slutter nok omkring kl 1. Hvornår stopper linjen?"
   },
   {
     "id": "mrn7lp16",
