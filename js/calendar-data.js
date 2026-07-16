@@ -510,5 +510,15 @@ const CALENDAR_DATA = [
     "title": "Sange (deadline)",
     "category": "deadline",
     "note": "Deadline for at indsende sange til årets revy"
+  },
+  {
+    "id": "mrn6xo0l",
+    "date": "2026-09-30",
+    "endDate": "2026-09-30",
+    "start": "17:15",
+    "end": "21:00",
+    "title": "Sangudvælgelse",
+    "category": "manus",
+    "note": "Vi synger alle de indsendte sange igennem og giver dem point"
   }
 ];

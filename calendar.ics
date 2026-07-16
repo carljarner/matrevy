@@ -409,4 +409,12 @@ DTEND:20260929T235900
 DESCRIPTION:Deadline for at indsende sange til årets revy
 CATEGORIES:Deadline
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn6xo0l@matematikrevy.dk
+SUMMARY:Sangudvælgelse
+DTSTART:20260930T171500
+DTEND:20260930T210000
+DESCRIPTION:Vi synger alle de indsendte sange igennem og giver dem point
+CATEGORIES:Manus
+END:VEVENT
 END:VCALENDAR
