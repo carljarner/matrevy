@@ -499,7 +499,7 @@ const CALENDAR_DATA = [
     "end": "18:00",
     "title": "Infomøde",
     "category": "andet",
-    "note": "Infomøde for nye revyster, kom og høre om hvad revyen er"
+    "note": "Infomøde for nye revyster, kom og høre om hvad revyen er. Lokale : A104"
   },
   {
     "id": "mrn6wa1y",
@@ -519,6 +519,16 @@ const CALENDAR_DATA = [
     "end": "21:00",
     "title": "Sangudvælgelse",
     "category": "manus",
-    "note": "Vi synger alle de indsendte sange igennem og giver dem point"
+    "note": "Vi synger alle de indsendte sange igennem og giver dem point. Lokale : Aud4"
+  },
+  {
+    "id": "mrn6z0x8",
+    "date": "2026-10-01",
+    "endDate": "2026-10-01",
+    "start": "17:15",
+    "end": "21:00",
+    "title": "Revyvisning",
+    "category": "andet",
+    "note": "Vi ser MatRevy '25 sammen i Lille UP1. Sammenholdet sørger for snacks/drikkevare"
   }
 ];
