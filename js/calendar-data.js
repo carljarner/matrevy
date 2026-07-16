@@ -254,7 +254,7 @@ const CALENDAR_DATA = [
   {
     "id": "mrm5oo0n",
     "date": "2025-11-29",
-    "endDate": "2025-11-30",
+    "endDate": "2025-11-29",
     "start": "23:00",
     "end": "06:00",
     "title": "Efterfest",
