@@ -709,7 +709,7 @@ const CALENDAR_DATA = [
     "end": "23:00",
     "title": "Premiere",
     "category": "forestilling",
-    "note": ""
+    "note": "Premiere! Vi mødes 15-17 og gør klar, døre åbner 19 og showstart er 19:30"
   },
   {
     "id": "mrn7mnnu",
