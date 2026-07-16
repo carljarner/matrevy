@@ -941,13 +941,20 @@ function save_posts($payload) {
   }
   foreach ($list as $p) {
     if (!is_array($p)
-        || !isset($p['id'], $p['board'], $p['date'], $p['author'], $p['title'], $p['text'])
+        || !isset($p['id'], $p['board'], $p['date'], $p['author'], $p['text'])
         || !is_string($p['id']) || $p['id'] === ''
         || !in_array($p['board'], ['general', 'boss'], true)
         || !is_string($p['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $p['date'])
         || !is_string($p['author'])
-        || !is_string($p['title']) || $p['title'] === ''
         || !is_string($p['text']) || $p['text'] === '') {
+      respond(400, ['error' => 'invalid_posts_shape']);
+    }
+    // title is required for every post created after this schema landed
+    // (posts_create always sets one) but optional here so a handful of
+    // live posts that predate it can still pass through a full-array
+    // edit/delete of some other post without failing validation.
+    $title = $p['title'] ?? '';
+    if (!is_string($title)) {
       respond(400, ['error' => 'invalid_posts_shape']);
     }
     $image = $p['image'] ?? '';

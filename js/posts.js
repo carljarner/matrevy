@@ -34,6 +34,13 @@ function getEffectivePosts() {
   return postsOverride || POSTS_DATA;
 }
 
+// A handful of live posts predate the title/image/comments fields (created
+// before this schema landed) — fall back gracefully rather than rendering
+// the literal string "undefined".
+function postTitle(post) {
+  return post.title || 'Opslag';
+}
+
 // ── Any-level authenticated API (for revyst-level post/comment creation) ──
 function postsResolvePassword() {
   const auth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
@@ -181,11 +188,11 @@ function renderBoard(board, listId, adminId, canCreate) {
     article.className = 'post-summary';
     article.setAttribute('role', 'button');
     article.tabIndex = 0;
-    article.setAttribute('aria-label', post.title);
+    article.setAttribute('aria-label', postTitle(post));
 
     const title = document.createElement('h3');
     title.className = 'post-summary-title';
-    title.textContent = post.title;
+    title.textContent = postTitle(post);
     article.appendChild(title);
 
     const meta = document.createElement('div');
@@ -220,14 +227,14 @@ function renderPosts() {
 
 // ── Detail modal: image, full text, comments, admin actions ──
 function openPostDetail(post) {
-  const { form, actions, close } = siteOpenModalWithClose(post.title);
+  const { form, actions, close } = siteOpenModalWithClose(postTitle(post));
 
   if (post.image) {
     const cover = document.createElement('div');
     cover.className = 'post-detail-cover';
     const img = document.createElement('img');
     img.src = post.image;
-    img.alt = post.title;
+    img.alt = postTitle(post);
     img.loading = 'lazy';
     img.decoding = 'async';
     cover.appendChild(img);
@@ -501,7 +508,7 @@ function openPostEditModal(existing) {
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
-  titleInput.value = existing.title;
+  titleInput.value = existing.title || '';
   form.appendChild(siteEditField('Titel', titleInput));
 
   const authorInput = document.createElement('input');
