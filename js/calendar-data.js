@@ -537,7 +537,7 @@ const CALENDAR_DATA = [
     "endDate": "2026-10-06",
     "start": "23:59",
     "end": "23:59",
-    "title": "Sketches",
+    "title": "Sketches (deadline)",
     "category": "deadline",
     "note": "Deadline for at indsende sketches til årets revy"
   },
