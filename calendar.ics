@@ -215,7 +215,7 @@ SUMMARY:Oprydning og revyvisning
 DTSTART:20251130T100000
 DTEND:20251130T200000
 DESCRIPTION:Oprydning er obligatorisk for alle\, revyvisning er for hyggens skyld:)
-CATEGORIES:Øvning
+CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
 UID:mrm5ud9q@matematikrevy.dk
@@ -565,5 +565,13 @@ SUMMARY:Lørdagsforestilling
 DTSTART:20261121T140000
 DTEND:20261121T230000
 CATEGORIES:Forestilling
+END:VEVENT
+BEGIN:VEVENT
+UID:mrn7nzz7@matematikrevy.dk
+SUMMARY:Oprydning og revysvisning
+DTSTART:20261122T100000
+DTEND:20261122T200000
+DESCRIPTION:Oprydning er obligatorisk for alle\, revyvisning er for hyggens skyld:)
+CATEGORIES:Andet
 END:VEVENT
 END:VCALENDAR

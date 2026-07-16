@@ -268,7 +268,7 @@ const CALENDAR_DATA = [
     "start": "10:00",
     "end": "20:00",
     "title": "Oprydning og revyvisning",
-    "category": "ove",
+    "category": "andet",
     "note": "Oprydning er obligatorisk for alle, revyvisning er for hyggens skyld:)"
   },
   {
@@ -720,5 +720,15 @@ const CALENDAR_DATA = [
     "title": "Lørdagsforestilling",
     "category": "forestilling",
     "note": ""
+  },
+  {
+    "id": "mrn7nzz7",
+    "date": "2026-11-22",
+    "endDate": "2026-11-22",
+    "start": "10:00",
+    "end": "20:00",
+    "title": "Oprydning og revysvisning",
+    "category": "andet",
+    "note": "Oprydning er obligatorisk for alle, revyvisning er for hyggens skyld:)"
   }
 ];
