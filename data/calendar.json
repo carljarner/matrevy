@@ -579,6 +579,16 @@
             "title": "Øveweekend",
             "category": "ove",
             "note": "Årets første øveweekend!"
+        },
+        {
+            "id": "mrn7b9iq",
+            "date": "2026-10-25",
+            "endDate": "2026-10-25",
+            "start": "10:00",
+            "end": "18:00",
+            "title": "Øveweekend",
+            "category": "ove",
+            "note": "Årets første øveweekend!"
         }
     ]
 }
