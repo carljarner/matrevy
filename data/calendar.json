@@ -539,6 +539,16 @@
             "title": "Sketches",
             "category": "deadline",
             "note": "Deadline for at indsende sketches til årets revy"
+        },
+        {
+            "id": "mrn75agl",
+            "date": "2026-10-07",
+            "endDate": "2026-10-07",
+            "start": "17:15",
+            "end": "19:30",
+            "title": "Sketchudvælgelse",
+            "category": "manus",
+            "note": "Vi spiller de indsendte sketches igennem og giver dem point. Lokale : A104"
         }
     ]
 }
