@@ -15,5 +15,15 @@ const POSTS_DATA = [
         "date": "2026-07-16"
       }
     ]
+  },
+  {
+    "id": "6a58f74c5fddff14",
+    "board": "general",
+    "date": "2026-07-16",
+    "author": "Theis",
+    "title": "Glemte Solbriller i UP1",
+    "text": "Jeg har mistet mine solbriller:(",
+    "image": "posts/6a58f74c5fddff14/image.jpg",
+    "comments": []
   }
 ];
