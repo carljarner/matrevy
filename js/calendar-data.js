@@ -686,10 +686,10 @@ const CALENDAR_DATA = [
     "date": "2026-11-18",
     "endDate": "2026-11-18",
     "start": "17:00",
-    "end": "01:00",
+    "end": "23:59",
     "title": "Oberstprøve",
     "category": "ove",
-    "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven"
+    "note": "Gennemspilning for vores eksterne instruktører, der giver den sidste vigtige feedback før generalprøven. Sen aften, det slutter nok omkring kl 1"
   },
   {
     "id": "mrn7lp16",
@@ -736,7 +736,7 @@ const CALENDAR_DATA = [
     "date": "2026-11-21",
     "endDate": "2026-11-21",
     "start": "23:00",
-    "end": "06:00",
+    "end": "23:59",
     "title": "Efterfest",
     "category": "andet",
     "note": "Velfortjent efterfest!"
