@@ -545,4 +545,11 @@ DTEND:20261118T010000
 DESCRIPTION:Gennemspilning for vores eksterne instruktører\, der giver den sidste vigtige feedback før generalprøven
 CATEGORIES:Øvning
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn7lp16@matematikrevy.dk
+SUMMARY:Generalprøve
+DTSTART:20261119T170000
+DTEND:20261119T230000
+CATEGORIES:Forestilling
+END:VEVENT
 END:VCALENDAR
