@@ -530,5 +530,15 @@ const CALENDAR_DATA = [
     "title": "Revyvisning",
     "category": "andet",
     "note": "Vi ser MatRevy '25 sammen i Lille UP1. Sammenholdet sørger for snacks/drikkevare"
+  },
+  {
+    "id": "mrn70ja8",
+    "date": "2026-10-06",
+    "endDate": "2026-10-06",
+    "start": "23:59",
+    "end": "23:59",
+    "title": "Sketches",
+    "category": "deadline",
+    "note": "Deadline for at indsende sketches til årets revy"
   }
 ];

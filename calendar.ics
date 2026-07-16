@@ -425,4 +425,12 @@ DTEND:20261001T210000
 DESCRIPTION:Vi ser MatRevy '25 sammen i Lille UP1. Sammenholdet sørger for snacks/drikkevare
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mrn70ja8@matematikrevy.dk
+SUMMARY:Sketches
+DTSTART:20261006T235900
+DTEND:20261006T235900
+DESCRIPTION:Deadline for at indsende sketches til årets revy
+CATEGORIES:Deadline
+END:VEVENT
 END:VCALENDAR
