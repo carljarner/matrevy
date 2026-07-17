@@ -159,8 +159,8 @@ async function postImageToBase64(file) {
   return { base64: await blobToBase64(blob), size: blob.size };
 }
 
-// A bulletin-board thumbtack (round flat head + a sharp triangular metal
-// point below it), not a map-pin teardrop — outline when a post is
+// A straight sewing-pin (round head + a plain straight stem below it),
+// not a thumbtack with a triangular metal point — outline when a post is
 // unpinned, filled amber when pinned, so the same button reads as "pin
 // this" / "unpin this" in either column. createElementNS, like
 // site-utils.js's clock icon.
@@ -180,13 +180,15 @@ function postsPinIcon(filled) {
   head.setAttribute('stroke-width', filled ? '0' : '1.3');
   svg.appendChild(head);
 
-  const needle = document.createElementNS(svgNS, 'path');
-  needle.setAttribute('d', 'M6.1 7.4L9.9 7.4L8 14.3Z');
-  needle.setAttribute('fill', filled ? 'currentColor' : 'none');
-  needle.setAttribute('stroke', 'currentColor');
-  needle.setAttribute('stroke-width', filled ? '0' : '1.1');
-  needle.setAttribute('stroke-linejoin', 'round');
-  svg.appendChild(needle);
+  const stem = document.createElementNS(svgNS, 'line');
+  stem.setAttribute('x1', '8');
+  stem.setAttribute('y1', '8.3');
+  stem.setAttribute('x2', '8');
+  stem.setAttribute('y2', '14.3');
+  stem.setAttribute('stroke', 'currentColor');
+  stem.setAttribute('stroke-width', '1.4');
+  stem.setAttribute('stroke-linecap', 'round');
+  svg.appendChild(stem);
 
   return svg;
 }
@@ -289,6 +291,16 @@ function renderPosts() {
   renderPostList(pinned, 'posts-pinned-list', null, false);
 }
 
+// Deterministically picks one of 5 warm avatar colours (css/style.css's
+// .message-avatar-1..5) per comment, keyed on its id so the palette stays
+// stable across re-renders instead of reshuffling on every open/comment add.
+function commentAvatarVariant(comment) {
+  const key = String(comment.id || comment.author || '');
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return `message-avatar-${(Math.abs(hash) % 5) + 1}`;
+}
+
 // ── Detail modal: image, full text, comments, admin actions ──
 function openPostDetail(post) {
   const { form, error, actions, close } = siteOpenModalWithClose(postTitle(post));
@@ -339,23 +351,38 @@ function openPostDetail(post) {
       const article = document.createElement('article');
       article.className = 'message';
 
-      const cmeta = document.createElement('div');
-      cmeta.className = 'message-meta';
-      const cmetaText = document.createElement('span');
-      cmetaText.textContent = `${formatDaDateTime(c.date)} · ${c.author}`;
-      cmeta.appendChild(cmetaText);
+      const avatar = document.createElement('div');
+      avatar.className = `message-avatar ${commentAvatarVariant(c)}`;
+      avatar.textContent = (c.author || '?').trim().charAt(0).toUpperCase();
+      article.appendChild(avatar);
+
+      const body = document.createElement('div');
+      body.className = 'message-body';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
+      const cauthor = document.createElement('div');
+      cauthor.className = 'message-author';
+      cauthor.textContent = c.author;
+      bubble.appendChild(cauthor);
+      const ctext = document.createElement('div');
+      ctext.className = 'message-text';
+      ctext.textContent = c.text;
+      bubble.appendChild(ctext);
+      body.appendChild(bubble);
+
+      article.appendChild(body);
+
       if (siteHasLevel('boss')) {
         const delBtn = document.createElement('button');
-        delBtn.className = 'btn-small btn-small-danger';
-        delBtn.textContent = 'Slet';
+        delBtn.type = 'button';
+        delBtn.className = 'message-delete';
+        delBtn.textContent = '×';
+        delBtn.setAttribute('aria-label', 'Slet kommentar');
+        delBtn.title = 'Slet kommentar';
         delBtn.addEventListener('click', () => deleteComment(post, c));
-        cmeta.appendChild(delBtn);
+        article.appendChild(delBtn);
       }
-      article.appendChild(cmeta);
-
-      const ctext = document.createElement('p');
-      ctext.textContent = c.text;
-      article.appendChild(ctext);
 
       commentsWrap.appendChild(article);
     }
