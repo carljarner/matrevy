@@ -23,7 +23,14 @@
             "title": "Glemte Solbriller i UP1",
             "text": "Jeg har mistet mine solbriller:(",
             "image": "posts/6a58f74c5fddff14/image.jpg",
-            "comments": []
+            "comments": [
+                {
+                    "id": "6a5a0d476aa31af7",
+                    "author": "Carl",
+                    "text": "Jeg så dem på bandscenen",
+                    "date": "2026-07-17T13:08:55"
+                }
+            ]
         }
     ]
 }
