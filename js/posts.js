@@ -3,23 +3,24 @@
    Renders POSTS_DATA (embedded from data/posts.json) as two
    columns: a normal list (revyst+ can create; boss/admin
    edit/delete/pin) and a pinned column fed purely by boss/admin
-   flipping a post's `pinned` flag from the edit modal — pinning
-   MOVES a post out of the normal list, it never duplicates it.
-   Both columns share the same audience: public read, revyst+
-   write/comment.
+   flipping a post's `pinned` flag via a pin-icon button on the list
+   row (togglePinned, not the edit modal) — pinning MOVES a post out
+   of the normal list, it never duplicates it. Both columns share the
+   same audience: public read, revyst+ write/comment.
 
    Each post has a title + optional picture and a comments thread.
-   The list view shows only date/title/author; clicking a post opens
-   a detail modal with the full text, image, comments and (for
-   boss/admin) the Rediger/Slet buttons for the post itself.
+   The list view shows only date/title/author (plus, for boss/admin,
+   the pin toggle); clicking a post opens a detail modal with the full
+   text, image, comments and (for boss/admin) the Rediger/Slet buttons
+   for the post itself.
 
    Unlike calendar.js/archive.js's siteSaveResource-only flow, creating a
    post (or a comment) needs an ANY-level authenticated call (revyst
    included) — postsApi()/postsResolvePassword() below mirror
    budget.js's budgetApi()/budgetResolvePassword() for exactly that
-   reason. Editing/deleting a post (including toggling pinned), and
-   deleting an individual comment, are boss/admin only and reuse
-   siteSaveResource (a full posts-array replace) exactly like today.
+   reason. Editing/deleting a post, toggling pinned, and deleting an
+   individual comment are boss/admin only and reuse siteSaveResource
+   (a full posts-array replace) exactly like today.
 
    DOM is built via createElement/textContent only — no innerHTML.
    ========================================================= */
@@ -158,6 +159,49 @@ async function postImageToBase64(file) {
   return { base64: await blobToBase64(blob), size: blob.size };
 }
 
+// A bulletin-board thumbtack (round flat head + a sharp triangular metal
+// point below it), not a map-pin teardrop — outline when a post is
+// unpinned, filled amber when pinned, so the same button reads as "pin
+// this" / "unpin this" in either column. createElementNS, like
+// site-utils.js's clock icon.
+function postsPinIcon(filled) {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+
+  const head = document.createElementNS(svgNS, 'circle');
+  head.setAttribute('cx', '8');
+  head.setAttribute('cy', '5');
+  head.setAttribute('r', '3.3');
+  head.setAttribute('fill', filled ? 'currentColor' : 'none');
+  head.setAttribute('stroke', 'currentColor');
+  head.setAttribute('stroke-width', filled ? '0' : '1.3');
+  svg.appendChild(head);
+
+  const needle = document.createElementNS(svgNS, 'path');
+  needle.setAttribute('d', 'M6.1 7.4L9.9 7.4L8 14.3Z');
+  needle.setAttribute('fill', filled ? 'currentColor' : 'none');
+  needle.setAttribute('stroke', 'currentColor');
+  needle.setAttribute('stroke-width', filled ? '0' : '1.1');
+  needle.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(needle);
+
+  return svg;
+}
+
+// Boss/admin-only quick toggle from the list row — not routed through the
+// edit modal. Mirrors archive.js's deleteYear: mutate, save, alert() on
+// failure (no modal error slot to show it in for a one-click action).
+async function togglePinned(post) {
+  const next = getEffectivePosts().map(p =>
+    p.id === post.id ? { ...p, pinned: !p.pinned } : p
+  );
+  const result = await savePosts(next);
+  if (!result.ok && result.message) alert(result.message);
+}
+
 // ── Rendering: list view (date/title/author only) ────────────
 // `posts` is an already-filtered/sorted array; `adminId` may be null for
 // the pinned column, which never gets its own create button.
@@ -194,15 +238,35 @@ function renderPostList(posts, listId, adminId, canCreate) {
     article.tabIndex = 0;
     article.setAttribute('aria-label', postTitle(post));
 
+    const main = document.createElement('div');
+    main.className = 'post-summary-main';
+
     const title = document.createElement('h3');
     title.className = 'post-summary-title';
     title.textContent = postTitle(post);
-    article.appendChild(title);
+    main.appendChild(title);
 
     const meta = document.createElement('div');
     meta.className = 'post-summary-meta';
     meta.textContent = `${formatDaDateTime(post.date)} · ${post.author}`;
-    article.appendChild(meta);
+    main.appendChild(meta);
+
+    article.appendChild(main);
+
+    if (siteHasLevel('boss')) {
+      const pinBtn = document.createElement('button');
+      pinBtn.type = 'button';
+      pinBtn.className = 'post-pin-btn' + (post.pinned ? ' pinned' : '');
+      const label = post.pinned ? 'Frigør opslag' : 'Fastgør opslag';
+      pinBtn.setAttribute('aria-label', label);
+      pinBtn.title = label;
+      pinBtn.appendChild(postsPinIcon(post.pinned));
+      pinBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePinned(post);
+      });
+      article.appendChild(pinBtn);
+    }
 
     const open = () => openPostDetail(post);
     article.addEventListener('click', open);
@@ -234,19 +298,6 @@ function openPostDetail(post) {
   error.remove();
   actions.remove();
 
-  if (post.image) {
-    const cover = document.createElement('div');
-    cover.className = 'post-detail-cover';
-    const img = document.createElement('img');
-    img.src = post.image;
-    img.alt = postTitle(post);
-    img.loading = 'lazy';
-    img.decoding = 'async';
-    img.addEventListener('click', () => window.open(post.image, '_blank'));
-    cover.appendChild(img);
-    form.appendChild(cover);
-  }
-
   const meta = document.createElement('div');
   meta.className = 'post-detail-meta';
   meta.textContent = `${formatDaDateTime(post.date)} · ${post.author}`;
@@ -261,6 +312,19 @@ function openPostDetail(post) {
     textBox.appendChild(p);
   }
   form.appendChild(textBox);
+
+  if (post.image) {
+    const cover = document.createElement('div');
+    cover.className = 'post-detail-cover';
+    const img = document.createElement('img');
+    img.src = post.image;
+    img.alt = postTitle(post);
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.addEventListener('click', () => window.open(post.image, '_blank'));
+    cover.appendChild(img);
+    form.appendChild(cover);
+  }
 
   // ── Comments (oldest first — a thread reads top-to-bottom) ──
   const commentsWrap = document.createElement('div');
@@ -547,11 +611,6 @@ function openPostEditModal(existing) {
   textArea.value = existing.text;
   form.appendChild(siteEditField('Besked', textArea));
 
-  const pinnedInput = document.createElement('input');
-  pinnedInput.type = 'checkbox';
-  pinnedInput.checked = !!existing.pinned;
-  form.appendChild(siteEditField('Fastgør opslag', pinnedInput));
-
   const save = document.createElement('button');
   save.className = 'site-pill-btn site-pill-primary';
   save.textContent = 'Gem';
@@ -568,14 +627,15 @@ function openPostEditModal(existing) {
     }
     const item = {
       id: existing.id,
-      pinned: pinnedInput.checked,
+      // Not exposed by this form — carry over unchanged. Pinning is now a
+      // one-click toggle on the list row (see togglePinned above), not an
+      // edit-modal field, and image/comments changing here means delete-
+      // and-recreate the post.
+      pinned: existing.pinned,
       date: `${date}T${time}:00`,
       author: authorInput.value.trim() || existing.author,
       title,
       text,
-      // Not exposed by this form — carry over unchanged so a save never
-      // silently wipes the post's picture or comment thread. Changing the
-      // picture in this pass means delete-and-recreate the post.
       image: existing.image || '',
       comments: existing.comments || [],
     };

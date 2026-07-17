@@ -450,6 +450,14 @@ body.site-menu-open {
 .dashboard-board .message-list {
   flex: 1;
   overflow-y: auto;
+  /* overflow-y:auto forces overflow-x to compute 'auto' too (per the CSS
+     overflow spec, mixing 'visible' with a non-visible axis isn't allowed),
+     which clips anything a child pushes past this box via negative margin —
+     silently hiding .post-summary's accent border. Shift the box itself
+     left and pad it back in, so children render inside it with no negative
+     margin of their own and nothing gets clipped. */
+  margin-left: -0.75rem;
+  padding-left: 0.75rem;
   padding-right: 2px;
 }
 
@@ -932,17 +940,25 @@ body.site-menu-open {
 
 /* --- Post list summary (Forside boards) ------------------- */
 .post-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   border-left: 3px solid #3b82d4;
   padding: 0.4rem 0.75rem;
-  margin-left: -0.75rem;
   border-radius: 0 6px 6px 0;
   cursor: pointer;
 }
 
-/* Opslagstavle (the normal, unpinned list) gets an orange left border to
-   set it apart from the pinned column's default blue. */
+.post-summary-main {
+  min-width: 0;
+}
+
+/* Opslagstavle (the normal, unpinned list) gets an amber left border (the
+   site's warm-theme accent, --accent-warm-text) to set it apart from the
+   pinned column's default blue. */
 #posts-list .post-summary {
-  border-left-color: #e8590c;
+  border-left-color: var(--accent-warm-text);
 }
 
 @media (hover: hover) {
@@ -964,17 +980,40 @@ body.site-menu-open {
   color: #57606a;
 }
 
+/* Boss/admin-only pin toggle, right-aligned on each entry. */
+.post-pin-btn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.3rem;
+  border-radius: 6px;
+  color: #57606a;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .post-pin-btn:hover { background: var(--surface-2); }
+}
+
+.post-pin-btn.pinned {
+  color: var(--accent-warm-text);
+}
+
 /* --- Post detail modal (Forside boards) ------------------- */
 .post-detail-cover {
-  margin: -1.5rem -1.5rem 1rem;
+  margin: 1rem auto 0;
+  max-width: 220px;
 }
 
 .post-detail-cover img {
   display: block;
   width: 100%;
-  max-height: 280px;
+  max-height: 220px;
   object-fit: cover;
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
   cursor: pointer;
 }
 
