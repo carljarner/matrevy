@@ -12,14 +12,14 @@ const POSTS_DATA = [
         "id": "6a58f6c8629af9ac",
         "author": "Carl 2",
         "text": "Nice, post",
-        "date": "2026-07-16"
+        "date": "2026-07-16T17:20:40"
       }
     ]
   },
   {
     "id": "6a58f74c5fddff14",
-    "board": "general",
-    "date": "2026-07-16",
+    "pinned": false,
+    "date": "2026-07-16T17:22:54",
     "author": "Theis",
     "title": "Glemte Solbriller i UP1",
     "text": "Jeg har mistet mine solbriller:(",
