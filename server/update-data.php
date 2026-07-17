@@ -22,6 +22,10 @@
 
 require __DIR__ . '/config.php';
 
+// Every stored/returned timestamp (posts, comments) is a floating local
+// Danish time, no UTC offset — same convention as the calendar .ics feed.
+date_default_timezone_set('Europe/Copenhagen');
+
 // CORS: only the live site is allowed to call this endpoint.
 $allowedOrigin = 'https://matematikrevy.dk';
 header("Access-Control-Allow-Origin: $allowedOrigin");
@@ -138,8 +142,8 @@ if (isset($POST_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$POST_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
-  if ($action === 'posts_create') posts_create($body, $level === 'boss' || $level === 'admin');
-  else comments_create($body, $level);
+  if ($action === 'posts_create') posts_create($body);
+  else comments_create($body);
 }
 
 if ($action !== 'save') {
@@ -824,21 +828,14 @@ function save_calendar($payload) {
 // posts_create appends exactly ONE server-built post, unlike save_posts
 // below (a full-array replace, boss/admin only) — see the dispatch note
 // near $POST_ACTIONS for why revyst can't use the full-array path.
-function posts_create($body, $callerIsBossOrAbove) {
+function posts_create($body) {
   $author = $body['author'] ?? '';
   $title  = $body['title'] ?? '';
   $text   = $body['text'] ?? '';
-  $board  = $body['board'] ?? 'general';
   if (!is_string($author) || trim($author) === ''
       || !is_string($title) || trim($title) === ''
-      || !is_string($text) || trim($text) === ''
-      || !in_array($board, ['general', 'boss'], true)) {
+      || !is_string($text) || trim($text) === '') {
     respond(400, ['error' => 'invalid_shape']);
-  }
-  // A revyst-level caller can never place a post on the boss board, no
-  // matter what the request body claims.
-  if (!$callerIsBossOrAbove) {
-    $board = 'general';
   }
 
   $id = dechex(time()) . bin2hex(random_bytes(4));
@@ -867,8 +864,8 @@ function posts_create($body, $callerIsBossOrAbove) {
 
   $post = [
     'id'       => $id,
-    'board'    => $board,
-    'date'     => date('Y-m-d'),
+    'pinned'   => false,
+    'date'     => date('Y-m-d\TH:i:s'),
     'author'   => trim($author),
     'title'    => trim($title),
     'text'     => trim($text),
@@ -883,11 +880,9 @@ function posts_create($body, $callerIsBossOrAbove) {
   respond(200, ['ok' => true, 'id' => $post['id'], 'image' => $post['image']]);
 }
 
-// Revyst+ can comment on a general-board post; only boss+ can comment on a
-// boss-board post — unlike posts_create (which silently redirects a
-// sub-boss caller's board to 'general'), a revyst caller commenting on a
-// boss post has no other board to redirect to, so this BLOCKS with 403.
-function comments_create($body, $level) {
+// Any revyst+ caller can comment on any post — there's no per-post
+// visibility restriction to gate against.
+function comments_create($body) {
   $postId = $body['postId'] ?? '';
   $author = $body['author'] ?? '';
   $text   = $body['text'] ?? '';
@@ -901,20 +896,15 @@ function comments_create($body, $level) {
     'id'     => dechex(time()) . bin2hex(random_bytes(4)),
     'author' => trim($author),
     'text'   => trim($text),
-    'date'   => date('Y-m-d'),
+    'date'   => date('Y-m-d\TH:i:s'),
   ];
 
   $found = false;
-  $forbidden = false;
-  update_file('data/posts.json', function ($json) use ($postId, $comment, $level, &$found, &$forbidden) {
+  update_file('data/posts.json', function ($json) use ($postId, $comment, &$found) {
     $posts = $json['posts'] ?? [];
     foreach ($posts as &$p) {
       if (($p['id'] ?? null) === $postId) {
         $found = true;
-        if (($p['board'] ?? 'general') === 'boss' && $level !== 'boss' && $level !== 'admin') {
-          $forbidden = true;
-          break;
-        }
         if (!isset($p['comments']) || !is_array($p['comments'])) $p['comments'] = [];
         $p['comments'][] = $comment;
         break;
@@ -926,14 +916,13 @@ function comments_create($body, $level) {
   }, 'Ny kommentar via forsiden');
 
   if (!$found) respond(400, ['error' => 'post_not_found']);
-  if ($forbidden) respond(403, ['error' => 'insufficient_level']);
   respond(200, ['ok' => true, 'comment' => $comment]);
 }
 
-// Boss/admin: full-array replace, used for editing/deleting a post (either
-// board) and for deleting an individual comment (client filters it out of
-// the relevant post's comments array before calling this) — safe here since
-// only boss/admin can reach this resource.
+// Boss/admin: full-array replace, used for editing/deleting a post
+// (including toggling pinned) and for deleting an individual comment
+// (client filters it out of the relevant post's comments array before
+// calling this) — safe here since only boss/admin can reach this resource.
 function save_posts($payload) {
   $list = $payload['posts'] ?? null;
   if (!is_array($list)) {
@@ -941,10 +930,10 @@ function save_posts($payload) {
   }
   foreach ($list as $p) {
     if (!is_array($p)
-        || !isset($p['id'], $p['board'], $p['date'], $p['author'], $p['text'])
+        || !isset($p['id'], $p['pinned'], $p['date'], $p['author'], $p['text'])
         || !is_string($p['id']) || $p['id'] === ''
-        || !in_array($p['board'], ['general', 'boss'], true)
-        || !is_string($p['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $p['date'])
+        || !is_bool($p['pinned'])
+        || !is_string($p['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $p['date'])
         || !is_string($p['author'])
         || !is_string($p['text']) || $p['text'] === '') {
       respond(400, ['error' => 'invalid_posts_shape']);
@@ -971,7 +960,7 @@ function save_posts($payload) {
           || !is_string($c['id']) || $c['id'] === ''
           || !is_string($c['author'])
           || !is_string($c['text']) || $c['text'] === ''
-          || !is_string($c['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $c['date'])) {
+          || !is_string($c['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/', $c['date'])) {
         respond(400, ['error' => 'invalid_posts_shape']);
       }
     }

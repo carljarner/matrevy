@@ -1,9 +1,12 @@
 /* =========================================================
-   Matematikrevyen – Two-board forum on Forside
-   Renders POSTS_DATA (embedded from data/posts.json), split into
-   a general board (revyst+ can create; boss/admin edit/delete)
-   and a boss board (boss/admin create/edit/delete, read-only for
-   revyst, hidden below revyst).
+   Matematikrevyen – Post board with pinning, on Forside
+   Renders POSTS_DATA (embedded from data/posts.json) as two
+   columns: a normal list (revyst+ can create; boss/admin
+   edit/delete/pin) and a pinned column fed purely by boss/admin
+   flipping a post's `pinned` flag from the edit modal — pinning
+   MOVES a post out of the normal list, it never duplicates it.
+   Both columns share the same audience: public read, revyst+
+   write/comment.
 
    Each post has a title + optional picture and a comments thread.
    The list view shows only date/title/author; clicking a post opens
@@ -14,9 +17,9 @@
    post (or a comment) needs an ANY-level authenticated call (revyst
    included) — postsApi()/postsResolvePassword() below mirror
    budget.js's budgetApi()/budgetResolvePassword() for exactly that
-   reason. Editing/deleting a post, and deleting an individual
-   comment, are boss/admin only and reuse siteSaveResource (a full
-   posts-array replace) exactly like today.
+   reason. Editing/deleting a post (including toggling pinned), and
+   deleting an individual comment, are boss/admin only and reuse
+   siteSaveResource (a full posts-array replace) exactly like today.
 
    DOM is built via createElement/textContent only — no innerHTML.
    ========================================================= */
@@ -156,34 +159,35 @@ async function postImageToBase64(file) {
 }
 
 // ── Rendering: list view (date/title/author only) ────────────
-function renderBoard(board, listId, adminId, canCreate) {
+// `posts` is an already-filtered/sorted array; `adminId` may be null for
+// the pinned column, which never gets its own create button.
+function renderPostList(posts, listId, adminId, canCreate) {
   const list = document.getElementById(listId);
-  const adminSlot = document.getElementById(adminId);
-  if (!list || !adminSlot) return;
+  if (!list) return;
 
-  adminSlot.textContent = '';
-  if (canCreate) {
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-small';
-    addBtn.textContent = '+ Ny post';
-    addBtn.addEventListener('click', () => openPostCreateModal(board));
-    adminSlot.appendChild(addBtn);
+  if (adminId) {
+    const adminSlot = document.getElementById(adminId);
+    if (adminSlot) {
+      adminSlot.textContent = '';
+      if (canCreate) {
+        const addBtn = document.createElement('button');
+        addBtn.className = 'btn-small';
+        addBtn.textContent = '+ Ny post';
+        addBtn.addEventListener('click', () => openPostCreateModal());
+        adminSlot.appendChild(addBtn);
+      }
+    }
   }
 
-  const visible = getEffectivePosts()
-    .filter(p => p.board === board)
-    .slice()
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-
   list.textContent = '';
-  if (visible.length === 0) {
+  if (posts.length === 0) {
     const empty = document.createElement('p');
     empty.textContent = 'Ingen opslag endnu.';
     list.appendChild(empty);
     return;
   }
 
-  for (const post of visible) {
+  for (const post of posts) {
     const article = document.createElement('article');
     article.className = 'post-summary';
     article.setAttribute('role', 'button');
@@ -197,7 +201,7 @@ function renderBoard(board, listId, adminId, canCreate) {
 
     const meta = document.createElement('div');
     meta.className = 'post-summary-meta';
-    meta.textContent = `${formatDaDate(post.date)} · ${post.author}`;
+    meta.textContent = `${formatDaDateTime(post.date)} · ${post.author}`;
     article.appendChild(meta);
 
     const open = () => openPostDetail(post);
@@ -211,23 +215,24 @@ function renderBoard(board, listId, adminId, canCreate) {
 }
 
 function renderPosts() {
-  renderBoard('general', 'posts-general-list', 'posts-general-admin', siteHasLevel('revyst'));
+  const all = getEffectivePosts()
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  const pinned = all.filter(p => p.pinned);
+  const unpinned = all.filter(p => !p.pinned);
 
-  // The boss board is entirely absent for public/logged-out visitors —
-  // only revyst+ ever see it exists (read-only below boss level).
-  const bossSection = document.getElementById('posts-boss-section');
-  if (!bossSection) return;
-  if (siteHasLevel('revyst')) {
-    bossSection.style.display = '';
-    renderBoard('boss', 'posts-boss-list', 'posts-boss-admin', siteHasLevel('boss'));
-  } else {
-    bossSection.style.display = 'none';
-  }
+  renderPostList(unpinned, 'posts-list', 'posts-admin', siteHasLevel('revyst'));
+  renderPostList(pinned, 'posts-pinned-list', null, false);
 }
 
 // ── Detail modal: image, full text, comments, admin actions ──
 function openPostDetail(post) {
-  const { form, actions, close } = siteOpenModalWithClose(postTitle(post));
+  const { form, error, actions, close } = siteOpenModalWithClose(postTitle(post));
+  // Unused here (Rediger/Slet/comment-form live directly in `form` instead)
+  // — remove rather than leave empty, since their own top-margin/min-height
+  // would otherwise pad out extra space below the actual content.
+  error.remove();
+  actions.remove();
 
   if (post.image) {
     const cover = document.createElement('div');
@@ -237,41 +242,25 @@ function openPostDetail(post) {
     img.alt = postTitle(post);
     img.loading = 'lazy';
     img.decoding = 'async';
+    img.addEventListener('click', () => window.open(post.image, '_blank'));
     cover.appendChild(img);
     form.appendChild(cover);
   }
 
   const meta = document.createElement('div');
   meta.className = 'post-detail-meta';
-  meta.textContent = `${formatDaDate(post.date)} · ${post.author}`;
+  meta.textContent = `${formatDaDateTime(post.date)} · ${post.author}`;
   form.appendChild(meta);
 
-  // Boss/admin manage the post itself from here, not from the list view.
-  if (siteHasLevel('boss')) {
-    const actionsRow = document.createElement('div');
-    actionsRow.className = 'post-detail-actions';
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'site-pill-btn site-pill-warm';
-    editBtn.textContent = 'Rediger';
-    editBtn.addEventListener('click', () => { close(); openPostEditModal(post); });
-    actionsRow.appendChild(editBtn);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'site-pill-btn site-pill-danger';
-    delBtn.textContent = 'Slet';
-    delBtn.addEventListener('click', () => { close(); deletePost(post); });
-    actionsRow.appendChild(delBtn);
-
-    form.appendChild(actionsRow);
-  }
-
+  const textBox = document.createElement('div');
+  textBox.className = 'post-detail-text';
   for (const line of String(post.text).split('\n')) {
     if (!line.trim()) continue;
     const p = document.createElement('p');
     p.textContent = line;
-    form.appendChild(p);
+    textBox.appendChild(p);
   }
+  form.appendChild(textBox);
 
   // ── Comments (oldest first — a thread reads top-to-bottom) ──
   const commentsWrap = document.createElement('div');
@@ -289,7 +278,7 @@ function openPostDetail(post) {
       const cmeta = document.createElement('div');
       cmeta.className = 'message-meta';
       const cmetaText = document.createElement('span');
-      cmetaText.textContent = `${formatDaDate(c.date)} · ${c.author}`;
+      cmetaText.textContent = `${formatDaDateTime(c.date)} · ${c.author}`;
       cmeta.appendChild(cmetaText);
       if (siteHasLevel('boss')) {
         const delBtn = document.createElement('button');
@@ -309,59 +298,93 @@ function openPostDetail(post) {
   }
   form.appendChild(commentsWrap);
 
-  // Comment form: revyst+ on a general post, boss+ on a boss post — mirrors
-  // the same board-gating renderBoard's canCreate uses for new posts.
-  const canComment = post.board === 'boss' ? siteHasLevel('boss') : siteHasLevel('revyst');
-  if (canComment) {
-    const commentForm = document.createElement('div');
-    commentForm.className = 'post-comment-form';
+  // Comment input: collapsed to a small trigger button by default; clicking
+  // it swaps itself out for the real Afsender/Kommentar form in place.
+  if (siteHasLevel('revyst')) {
+    const commentSlot = document.createElement('div');
+    commentSlot.className = 'post-comment-form';
 
-    const authorInput = document.createElement('input');
-    authorInput.type = 'text';
-    commentForm.appendChild(siteEditField('Afsender', authorInput));
-
-    const textArea = document.createElement('textarea');
-    commentForm.appendChild(siteEditField('Kommentar', textArea));
-
-    const commentError = document.createElement('div');
-    commentError.className = 'login-error';
-    commentForm.appendChild(commentError);
-
-    const submitBtn = document.createElement('button');
-    submitBtn.className = 'site-pill-btn site-pill-primary';
-    submitBtn.textContent = 'Kommentér';
-    submitBtn.addEventListener('click', async () => {
-      const author = authorInput.value.trim();
-      const text = textArea.value.trim();
-      if (!author || !text) {
-        commentError.textContent = 'Udfyld både afsender og kommentar.';
-        return;
-      }
-      submitBtn.disabled = true;
-      submitBtn.textContent = 'Sender…';
-      commentError.textContent = '';
-      const result = await postComment(post, author, text);
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Kommentér';
-      if (result.ok) {
-        close();
-        const updated = getEffectivePosts().find(p => p.id === post.id);
-        if (updated) openPostDetail(updated);
-      } else {
-        commentError.textContent = result.message;
-      }
+    const trigger = document.createElement('button');
+    trigger.className = 'btn-small post-comment-trigger';
+    trigger.textContent = '+ Kommentér';
+    trigger.addEventListener('click', () => {
+      commentSlot.textContent = '';
+      renderCommentForm(commentSlot, post, close);
     });
-    commentForm.appendChild(submitBtn);
+    commentSlot.appendChild(trigger);
 
-    form.appendChild(commentForm);
+    form.appendChild(commentSlot);
+  }
+
+  // Boss/admin manage the post itself from the bottom of the overlay.
+  if (siteHasLevel('boss')) {
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'post-detail-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'site-pill-btn site-pill-warm';
+    editBtn.textContent = 'Rediger';
+    editBtn.addEventListener('click', () => { close(); openPostEditModal(post); });
+    actionsRow.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'site-pill-btn site-pill-danger';
+    delBtn.textContent = 'Slet';
+    delBtn.addEventListener('click', () => { close(); deletePost(post); });
+    actionsRow.appendChild(delBtn);
+
+    form.appendChild(actionsRow);
   }
 }
 
-// ── Comments: create (any level, board-gated) / delete (boss/admin) ──
+// Expands the collapsed comment trigger into the actual Afsender/Kommentar
+// inputs, in place, inside `container`.
+function renderCommentForm(container, post, closeDetailModal) {
+  const authorInput = document.createElement('input');
+  authorInput.type = 'text';
+  container.appendChild(siteEditField('Afsender', authorInput));
+
+  const textArea = document.createElement('textarea');
+  container.appendChild(siteEditField('Kommentar', textArea));
+
+  const commentError = document.createElement('div');
+  commentError.className = 'login-error';
+  container.appendChild(commentError);
+
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'site-pill-btn site-pill-primary post-comment-submit';
+  submitBtn.textContent = 'Kommentér';
+  submitBtn.addEventListener('click', async () => {
+    const author = authorInput.value.trim();
+    const text = textArea.value.trim();
+    if (!author || !text) {
+      commentError.textContent = 'Udfyld både afsender og kommentar.';
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sender…';
+    commentError.textContent = '';
+    const result = await postComment(post, author, text);
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Kommentér';
+    if (result.ok) {
+      closeDetailModal();
+      const updated = getEffectivePosts().find(p => p.id === post.id);
+      if (updated) openPostDetail(updated);
+    } else {
+      commentError.textContent = result.message;
+    }
+  });
+  container.appendChild(submitBtn);
+
+  authorInput.focus();
+}
+
+// ── Comments: create (revyst+) / delete (boss/admin) ──────────
 async function postComment(post, author, text) {
   const result = await postsApi('comments_create', { postId: post.id, author, text });
   if (result.ok) {
-    const localComment = { id: result.data.comment.id, author, text, date: todayIso() };
+    const localComment = { id: result.data.comment.id, author, text, date: nowIso() };
     const next = getEffectivePosts().map(p =>
       p.id === post.id ? { ...p, comments: (p.comments || []).concat([localComment]) } : p
     );
@@ -417,12 +440,12 @@ async function savePosts(next) {
   return result;
 }
 
-// ── Create (revyst+ on the general board, boss+ on the boss board) ──
+// ── Create (revyst+) ──────────────────────────────────────────
 // A dedicated append-only server action (posts_create), not siteSaveResource
-// — see the file header for why.
-function openPostCreateModal(board) {
-  const modalTitle = board === 'boss' ? 'Nyt bosse-opslag' : 'Nyt opslag';
-  const { form, error, actions, close } = siteOpenModalWithClose(modalTitle);
+// — see the file header for why. New posts are always unpinned; boss/admin
+// pin a post afterwards via the edit modal.
+function openPostCreateModal() {
+  const { form, error, actions, close } = siteOpenModalWithClose('Nyt opslag');
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -472,7 +495,7 @@ function openPostCreateModal(board) {
     }
 
     save.textContent = 'Gemmer…';
-    const body = { board, title, author, text };
+    const body = { title, author, text };
     if (imageBase64) body.imageBase64 = imageBase64;
     const result = await postsApi('posts_create', body);
     save.disabled = false;
@@ -480,8 +503,8 @@ function openPostCreateModal(board) {
     if (result.ok) {
       const localPost = {
         id: result.data.id,
-        board,
-        date: todayIso(),
+        pinned: false,
+        date: nowIso(),
         author,
         title,
         text,
@@ -503,8 +526,12 @@ function openPostCreateModal(board) {
 function openPostEditModal(existing) {
   const { form, error, actions, close } = siteOpenModalWithClose('Rediger opslag');
 
-  const dateInput = siteCreateDateField(existing.date);
+  const [existingDate, existingTime] = existing.date.split('T');
+  const dateInput = siteCreateDateField(existingDate);
   form.appendChild(siteEditField('Dato', dateInput));
+
+  const timeInput = siteCreateTimeField((existingTime || '00:00:00').slice(0, 5));
+  form.appendChild(siteEditField('Tidspunkt', timeInput));
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -520,6 +547,11 @@ function openPostEditModal(existing) {
   textArea.value = existing.text;
   form.appendChild(siteEditField('Besked', textArea));
 
+  const pinnedInput = document.createElement('input');
+  pinnedInput.type = 'checkbox';
+  pinnedInput.checked = !!existing.pinned;
+  form.appendChild(siteEditField('Fastgør opslag', pinnedInput));
+
   const save = document.createElement('button');
   save.className = 'site-pill-btn site-pill-primary';
   save.textContent = 'Gem';
@@ -527,16 +559,17 @@ function openPostEditModal(existing) {
 
   save.addEventListener('click', async () => {
     const date = dateInput.value;
+    const time = timeInput.value;
     const title = titleInput.value.trim();
     const text = textArea.value.trim();
-    if (!date || !title || !text) {
-      error.textContent = 'Udfyld dato, titel og besked.';
+    if (!date || !time || !title || !text) {
+      error.textContent = 'Udfyld dato, tidspunkt, titel og besked.';
       return;
     }
     const item = {
       id: existing.id,
-      board: existing.board,
-      date,
+      pinned: pinnedInput.checked,
+      date: `${date}T${time}:00`,
       author: authorInput.value.trim() || existing.author,
       title,
       text,

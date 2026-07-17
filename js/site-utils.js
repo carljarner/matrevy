@@ -44,6 +44,29 @@ function todayIso() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function nowIso() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${todayIso()}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+// Like parseIsoDate but also reads an optional THH:MM(:SS) suffix — still
+// always constructs from parts, never `new Date(isoString)`, for the same
+// UTC-shift reason. Tolerates a bare date-only string (time defaults to 0).
+function parseIsoDateTime(iso) {
+  const [datePart, timePart] = iso.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  const [h, mi, s] = (timePart || '0:0:0').split(':').map(Number);
+  return new Date(y, m - 1, d, h || 0, mi || 0, s || 0);
+}
+
+function formatDaDateTime(iso) {
+  const d = parseIsoDateTime(iso);
+  const pad = n => String(n).padStart(2, '0');
+  const datePart = iso.split('T')[0];
+  return `${formatDaDate(datePart)} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 // ── Global save ──────────────────────────────────────────────
 // Mirrors import.js's applyImport save flow (same endpoint, same
 // error mapping, same sessionStorage-cached prompt fallback and

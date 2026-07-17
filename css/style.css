@@ -939,6 +939,12 @@ body.site-menu-open {
   cursor: pointer;
 }
 
+/* Opslagstavle (the normal, unpinned list) gets an orange left border to
+   set it apart from the pinned column's default blue. */
+#posts-list .post-summary {
+  border-left-color: #e8590c;
+}
+
 @media (hover: hover) {
   .post-summary:hover { background: var(--surface-2); }
 }
@@ -969,12 +975,11 @@ body.site-menu-open {
   max-height: 280px;
   object-fit: cover;
   border-radius: 8px 8px 0 0;
+  cursor: pointer;
 }
 
-.post-detail-title {
-  font-size: 1.3rem;
-  font-weight: 700;
-  margin-bottom: 0.25rem;
+@media (hover: hover) {
+  .post-detail-cover img:hover { filter: brightness(0.93); }
 }
 
 .post-detail-meta {
@@ -983,10 +988,29 @@ body.site-menu-open {
   margin-bottom: 0.75rem;
 }
 
+.post-detail-text {
+  background: var(--accent-warm-fill);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.post-detail-text p {
+  margin: 0;
+  color: #000;
+}
+
+.post-detail-text p + p {
+  margin-top: 0.6rem;
+}
+
 .post-detail-actions {
   display: flex;
-  gap: 0.5rem;
-  margin: 0.75rem 0;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
 }
 
 .post-comments {
@@ -1002,6 +1026,30 @@ body.site-menu-open {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.post-comment-trigger {
+  display: block;
+  margin-left: auto;
+}
+
+.post-comment-submit {
+  display: block;
+  margin-left: auto;
+}
+
+/* The shared .login-error reserves a min-height + top margin even when
+   empty (so a validation error doesn't shift layout when it appears) —
+   but that means dead space above the button on every open. Collapse it
+   until there's actually an error to show. */
+.post-comment-form .login-error {
+  min-height: 0;
+  margin-top: 0;
+}
+
+.post-comment-form .login-error:not(:empty) {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
 }
 
 /* --- Footer ---------------------------------------------- */

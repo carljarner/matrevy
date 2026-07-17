@@ -16,24 +16,24 @@
   <main class="page-content">
     <h1>Matematikrevyen</h1>
 
-    <!-- Two-board forum, rendered by posts.js from posts-data.js.
-         General board: revyst+ can create; boss/admin edit/delete.
-         Boss board: boss/admin create/edit/delete; hidden below revyst. -->
+    <!-- Post board, rendered by posts.js from posts-data.js.
+         Left: normal list, revyst+ can create, boss/admin edit/delete/pin.
+         Right: pinned posts, fed only by boss/admin flipping a post's
+         `pinned` flag from the edit modal — no create button of its own. -->
     <div class="dashboard-columns">
       <section class="card dashboard-board">
         <div class="card-head">
           <h2>Opslagstavle</h2>
-          <span id="posts-general-admin"></span>
+          <span id="posts-admin"></span>
         </div>
-        <div class="message-list" id="posts-general-list"></div>
+        <div class="message-list" id="posts-list"></div>
       </section>
 
-      <section class="card dashboard-board" id="posts-boss-section">
+      <section class="card dashboard-board">
         <div class="card-head">
-          <h2>Vigtige Beskeder</h2>
-          <span id="posts-boss-admin"></span>
+          <h2>Fastgjorte opslag</h2>
         </div>
-        <div class="message-list" id="posts-boss-list"></div>
+        <div class="message-list" id="posts-pinned-list"></div>
       </section>
     </div>
 
