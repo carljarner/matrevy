@@ -3,7 +3,7 @@
 const POSTS_DATA = [
   {
     "id": "6a58e735af93939f",
-    "pinned": false,
+    "pinned": true,
     "date": "2026-07-16T13:15:00",
     "author": "Carl",
     "title": "Tester",
