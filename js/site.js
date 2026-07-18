@@ -303,6 +303,24 @@ function openLoginModal() {
   input.focus();
 }
 
+// ── Nav prefetch ─────────────────────────────────────────────
+// Hints the browser to fetch every other reachable page's HTML at
+// idle priority, so a later nav click is a cache hit instead of a
+// fresh request. Skipped over file:// (nothing to prefetch from).
+// Only the page's HTML is hinted — its own JS/data bundles are
+// small and get cached the first time it's actually visited.
+function injectSitePrefetchLinks() {
+  if (siteIsFileProtocol()) return;
+  const current = siteCurrentPage();
+  for (const page of SITE_PAGES) {
+    if (page.href === current || !siteHasLevel(page.level)) continue;
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = page.href;
+    document.head.appendChild(link);
+  }
+}
+
 // ── Page-level gate ──────────────────────────────────────────
 // Hides the page's <main> and shows a login prompt instead when
 // the visitor's level is insufficient. Cosmetic only (the data is
@@ -341,4 +359,5 @@ function applyPageGate() {
 document.addEventListener('DOMContentLoaded', () => {
   renderSiteHeader();
   applyPageGate();
+  injectSitePrefetchLinks();
 });
