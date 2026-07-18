@@ -40,5 +40,15 @@ const POSTS_DATA = [
         "date": "2026-07-17T13:09:58"
       }
     ]
+  },
+  {
+    "id": "6a5bc2003970a939",
+    "pinned": false,
+    "date": "2026-07-18T20:12:16",
+    "author": "Carl Jarner",
+    "title": "Yesss",
+    "text": "Tak for en god revyyyy!",
+    "image": "",
+    "comments": []
   }
 ];
