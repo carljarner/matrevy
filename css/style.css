@@ -432,6 +432,7 @@ body.site-menu-open {
 .dashboard-columns {
   display: grid;
   grid-template-columns: 2fr 1fr;
+  align-items: start;
   gap: 1.25rem;
   margin-bottom: 1.25rem;
 }
@@ -487,6 +488,42 @@ body.site-menu-open {
 
 .dashboard-board-bosses .boss-role {
   font-size: 0.75rem;
+}
+
+/* --- Bosses edit modal (bosses.js openBossesEditModal) ----- */
+.boss-edit-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.boss-edit-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.boss-edit-row .edit-field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.boss-edit-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0.5rem 0.35rem;
+  line-height: 1;
+  font-size: 1.1rem;
+  color: #57606a;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .boss-edit-remove:hover { background: var(--surface-2); color: #c0392b; }
 }
 
 /* --- Edit modal (site-utils.js siteOpenEditModal) --------- */

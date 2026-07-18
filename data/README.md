@@ -13,6 +13,7 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 | `calendar.json` | Events shown on the Kalender page |
 | `archive.json` | Previous years' manus/videos shown on the Arkiv page |
 | `posts.json` | Post board with a boss/admin-pinnable column, shown on Forside |
+| `bosses.json` | The static "Bosser for ..." info card on Forside |
 
 ## Updating for a New Production
 
@@ -155,6 +156,21 @@ optionally writes an inline image; `comments_create` — assigns a comment's own
 replace** (the `posts` resource in `$RESOURCES`, `save_posts`) for
 editing/deleting a post (including toggling `pinned`), or deleting one of its
 comments.
+
+## Schema: bosses.json
+
+```json
+{
+  "title": "Bosser for MatRevy 2025",
+  "roles": [
+    { "names": "Frida Nøhr Larsen, Carl Jarner", "role": "Koordinatorer" }
+  ]
+}
+```
+
+- `title` — the card's heading text, required non-empty string.
+- `roles` — ordered list of `{names, role}`, rendered top-to-bottom exactly as stored (no client-side sorting). `names` is one free-text string (comma-separated when there's more than one person), not an array — matches how the card originally hand-listed multiple names per role. Both fields are plain strings server-side (empty allowed) since this is admin-only cosmetic content, not validated further.
+- Edited entirely from the Forside card itself (admin-only "Rediger" button next to the title) via the `bosses` resource (full-array replace, like `calendar`/`archive`) — no manual git step needed for day-to-day edits, same as the other data-driven pages.
 
 ## Adding a year to the archive
 

@@ -970,6 +970,32 @@ function save_posts($payload) {
   }, 'Opdater posts.json via forsiden');
 }
 
+// Admin-only: the static "Bosser for ..." info card on Forside. Just a
+// title plus a small list of {names, role} rows — no per-item unique key
+// needed since it's a full-array replace like save_calendar/save_archive,
+// not append-only like posts_create.
+function save_bosses($payload) {
+  $title = $payload['title'] ?? '';
+  $roles = $payload['roles'] ?? null;
+  if (!is_string($title) || $title === '' || !is_array($roles)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($roles as $r) {
+    if (!is_array($r)
+        || !isset($r['names'], $r['role'])
+        || !is_string($r['names'])
+        || !is_string($r['role'])) {
+      respond(400, ['error' => 'invalid_bosses_shape']);
+    }
+  }
+
+  update_file('data/bosses.json', function ($json) use ($title, $roles) {
+    $json['title'] = $title;
+    $json['roles'] = $roles;
+    return $json;
+  }, 'Opdater bosses.json via forsiden');
+}
+
 function save_archive($payload) {
   $years = $payload['years'] ?? null;
   if (!is_array($years)) {
@@ -1011,6 +1037,7 @@ $RESOURCES = [
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
   'archive'       => ['level' => 'admin', 'save' => 'save_archive'],
   'posts'         => ['level' => 'boss',  'save' => 'save_posts'],
+  'bosses'        => ['level' => 'admin', 'save' => 'save_bosses'],
 ];
 
 $resource = $body['resource'] ?? '';
