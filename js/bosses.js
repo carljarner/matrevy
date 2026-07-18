@@ -33,15 +33,15 @@ function renderBosses() {
     for (const r of data.roles) {
       const li = document.createElement('li');
 
-      const namesEl = document.createElement('span');
-      namesEl.className = 'boss-name';
-      namesEl.textContent = r.names;
-      li.appendChild(namesEl);
-
       const roleEl = document.createElement('span');
       roleEl.className = 'boss-role';
       roleEl.textContent = r.role;
       li.appendChild(roleEl);
+
+      const namesEl = document.createElement('span');
+      namesEl.className = 'boss-name';
+      namesEl.textContent = r.names;
+      li.appendChild(namesEl);
 
       list.appendChild(li);
     }
