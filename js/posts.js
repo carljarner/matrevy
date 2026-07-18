@@ -202,18 +202,25 @@ function postsPinIcon(filled) {
 }
 
 // Boss/admin-only quick toggle from the list row — not routed through the
-// edit modal. Mirrors archive.js's deleteYear: mutate, save, alert() on
-// failure (no modal error slot to show it in for a one-click action).
+// edit modal. Applies the flip and re-sorts the feed immediately (optimistic
+// update) so the card jumps to its new section right away instead of waiting
+// on the save round-trip; rolled back (card snaps back, alert() shown) only
+// if the save actually fails. No modal error slot to show a failure in, so
+// alert() is the fallback, same as archive.js's deleteYear.
 async function togglePinned(post) {
+  const previousOverride = postsOverride;
   const next = getEffectivePosts().map(p =>
     p.id === post.id ? { ...p, pinned: !p.pinned } : p
   );
-  const result = await savePosts(next);
-  if (!result.ok) {
-    if (result.message) alert(result.message);
-    return;
-  }
   siteShowToast(post.pinned ? 'Opslag er ikke længere fastgjort' : 'Opslag er fastgjort');
+  postsOverride = next;
+  renderPosts();
+  const result = await siteSaveResource('posts', { posts: next });
+  if (!result.ok) {
+    postsOverride = previousOverride;
+    renderPosts();
+    if (result.message) alert(result.message);
+  }
 }
 
 // Deterministically picks one of 5 warm avatar colours (css/style.css's
