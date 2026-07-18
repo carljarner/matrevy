@@ -4,7 +4,7 @@ const BOSSES_DATA = {
   "title": "Bosser for MatRevy 2025",
   "roles": [
     {
-      "names": "Frida Nøhr Larsen, Carl Jarner, Carl Kareem Saleh Brandt, Louise Carøe, Thea Deleuran Christensen, Thor Nilsson Pedersen, Frederikke Trolle Hansen",
+      "names": "Frida Nøhr Larsen, Carl J, Carl Kareem Saleh Brandt, Louise Carøe, Thea Deleuran Christensen, Thor Nilsson Pedersen, Frederikke Trolle Hansen",
       "role": "Koordinatorer"
     },
     {
