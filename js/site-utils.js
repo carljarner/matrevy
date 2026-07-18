@@ -67,6 +67,28 @@ function formatDaDateTime(iso) {
   return `${formatDaDate(datePart)} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ── Toast (brief bottom-of-page confirmation) ─────────────────
+let siteToastEl = null;
+let siteToastTimer = null;
+
+function siteShowToast(message) {
+  if (siteToastTimer) clearTimeout(siteToastTimer);
+  if (!siteToastEl) {
+    siteToastEl = document.createElement('div');
+    siteToastEl.className = 'site-toast';
+    document.body.appendChild(siteToastEl);
+  }
+  siteToastEl.textContent = message;
+  // Force a reflow so re-triggering the class while already visible
+  // still restarts the transition instead of being a no-op.
+  siteToastEl.classList.remove('site-toast-visible');
+  void siteToastEl.offsetWidth;
+  siteToastEl.classList.add('site-toast-visible');
+  siteToastTimer = setTimeout(() => {
+    siteToastEl.classList.remove('site-toast-visible');
+  }, 2200);
+}
+
 // ── Global save ──────────────────────────────────────────────
 // Mirrors import.js's applyImport save flow (same endpoint, same
 // error mapping, same sessionStorage-cached prompt fallback and

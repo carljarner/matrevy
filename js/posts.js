@@ -209,7 +209,11 @@ async function togglePinned(post) {
     p.id === post.id ? { ...p, pinned: !p.pinned } : p
   );
   const result = await savePosts(next);
-  if (!result.ok && result.message) alert(result.message);
+  if (!result.ok) {
+    if (result.message) alert(result.message);
+    return;
+  }
+  siteShowToast(post.pinned ? 'Opslag er ikke længere fastgjort' : 'Opslag er fastgjort');
 }
 
 // Deterministically picks one of 5 warm avatar colours (css/style.css's

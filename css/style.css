@@ -450,7 +450,7 @@ body.site-menu-open {
   height: 1px;
 }
 
-.boss-list {
+.card .boss-list {
   list-style: none;
   padding-left: 0;
   display: flex;
@@ -478,6 +478,7 @@ body.site-menu-open {
    smaller font so it reads as a supporting column, not a competing one. */
 .dashboard-board-bosses .boss-list {
   gap: 0.45rem;
+  margin-top: 1.1rem;
 }
 
 .dashboard-board-bosses .boss-name {
@@ -1234,6 +1235,31 @@ body.site-menu-open {
   color: #57606a;
   border-top: 1px solid var(--border);
   margin-top: auto;
+}
+
+/* --- Toast (brief bottom-of-page confirmation, e.g. pin toggle) --- */
+.site-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translate(-50%, 8px);
+  background: var(--header);
+  color: #fff;
+  padding: 0.65rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 300;
+  pointer-events: none;
+  max-width: min(90vw, 360px);
+  text-align: center;
+}
+
+.site-toast.site-toast-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 /* --- Utility --------------------------------------------- */
