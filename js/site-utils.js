@@ -199,6 +199,45 @@ function siteDeleteFile(path) {
   return siteFileAction('delete', { path });
 }
 
+// ── Override persistence (survive a refresh during the ~1-2 min embed regen) ──
+// A save sets a page's in-memory shadow (postsOverride/calendarOverride/
+// archiveOverride) so the saving tab sees its own change immediately,
+// without waiting for the GitHub Action to regenerate the embedded data
+// file and Pages to redeploy it. These two helpers back that shadow with
+// localStorage so it also survives a refresh during that window — trusted
+// for SITE_OVERRIDE_TTL_MS, so a tab reopened well later falls back to the
+// real embedded data instead of masking someone else's concurrent edit
+// behind a stale snapshot. manus-data.js's shadow deliberately stays
+// in-memory-only and does not use these.
+const SITE_OVERRIDE_TTL_MS = 5 * 60 * 1000;
+
+function siteSaveOverride(resource, data) {
+  const key = `matrevy-override-${resource}`;
+  try {
+    if (data == null) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify({ data, savedAt: Date.now() }));
+    }
+  } catch (e) { /* storage unavailable/full — override just won't survive a refresh */ }
+}
+
+function siteLoadOverride(resource) {
+  const key = `matrevy-override-${resource}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.savedAt !== 'number' || Date.now() - parsed.savedAt > SITE_OVERRIDE_TTL_MS) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return parsed.data;
+  } catch (e) {
+    return null;
+  }
+}
+
 // ── Edit modal ───────────────────────────────────────────────
 // Imperative overlay in the openLoginModal (site.js) style.
 // Returns { overlay, modal, form, error, actions, close } — the

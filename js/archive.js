@@ -20,8 +20,8 @@
 
 const ARCHIVE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
-// ── Data (with in-memory shadow after a save) ────────────────
-let archiveOverride = null;
+// ── Data (with a localStorage-backed shadow after a save) ────
+let archiveOverride = siteLoadOverride('archive');
 
 function getEffectiveYears() {
   return archiveOverride || ARCHIVE_DATA;
@@ -301,6 +301,7 @@ async function saveYears(next) {
   const result = await siteSaveResource('archive', { years: next });
   if (result.ok) {
     archiveOverride = next;
+    siteSaveOverride('archive', next);
     renderArchive();
   }
   return result;

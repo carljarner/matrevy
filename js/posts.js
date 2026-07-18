@@ -37,10 +37,11 @@
 const POSTS_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const POSTS_BATCH_SIZE = 10;
 
-// ── Data (with in-memory shadow after a create/save) ─────────
+// ── Data (with a localStorage-backed shadow after a create/save) ──
 // Same idea as calendar.js/archive.js: the embed regeneration takes ~1-2
-// min, so a successful create/save shows immediately in this tab only.
-let postsOverride = null;
+// min, so a successful create/save shows immediately, and survives a
+// refresh during that window too (see site-utils.js's siteSaveOverride).
+let postsOverride = siteLoadOverride('posts');
 
 function getEffectivePosts() {
   return postsOverride || POSTS_DATA;
@@ -214,10 +215,12 @@ async function togglePinned(post) {
   );
   siteShowToast(post.pinned ? 'Opslag er ikke længere fastgjort' : 'Opslag er fastgjort');
   postsOverride = next;
+  siteSaveOverride('posts', next);
   renderPosts();
   const result = await siteSaveResource('posts', { posts: next });
   if (!result.ok) {
     postsOverride = previousOverride;
+    siteSaveOverride('posts', previousOverride);
     renderPosts();
     if (result.message) alert(result.message);
   }
@@ -665,6 +668,7 @@ async function postComment(post, author, text) {
       p.id === post.id ? { ...p, comments: (p.comments || []).concat([localComment]) } : p
     );
     postsOverride = next;
+    siteSaveOverride('posts', next);
     renderPosts();
   }
   return result;
@@ -711,6 +715,7 @@ async function savePosts(next) {
   const result = await siteSaveResource('posts', { posts: next });
   if (result.ok) {
     postsOverride = next;
+    siteSaveOverride('posts', next);
     renderPosts();
   }
   return result;
@@ -789,6 +794,7 @@ function openPostCreateModal() {
         comments: [],
       };
       postsOverride = getEffectivePosts().concat([localPost]);
+      siteSaveOverride('posts', postsOverride);
       renderPosts();
       close();
     } else {

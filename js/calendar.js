@@ -28,8 +28,8 @@ function calCategoryLabel(category) {
   return CAL_CATEGORIES[category] ? CAL_CATEGORIES[category].label : 'Andet';
 }
 
-// ── Data (with in-memory shadow after a save) ────────────────
-let calendarOverride = null;
+// ── Data (with a localStorage-backed shadow after a save) ────
+let calendarOverride = siteLoadOverride('calendar');
 
 function getEffectiveEvents() {
   return calendarOverride || CALENDAR_DATA;
@@ -345,6 +345,7 @@ async function saveEvents(next) {
   const result = await siteSaveResource('calendar', { events: next });
   if (result.ok) {
     calendarOverride = next;
+    siteSaveOverride('calendar', next);
     renderCalendar();
   }
   return result;
