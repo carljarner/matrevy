@@ -1,18 +1,25 @@
 /* =========================================================
-   Matematikrevyen – Post board with pinning, on Forside
-   Renders POSTS_DATA (embedded from data/posts.json) as two
-   columns: a normal list (revyst+ can create; boss/admin
-   edit/delete/pin) and a pinned column fed purely by boss/admin
-   flipping a post's `pinned` flag via a pin-icon button on the list
-   row (togglePinned, not the edit modal) — pinning MOVES a post out
-   of the normal list, it never duplicates it. Both columns share the
-   same audience: public read, revyst+ write/comment.
+   Matematikrevyen – Facebook-style post feed on Forside
+   Renders POSTS_DATA (embedded from data/posts.json) as a single
+   scrolling feed (revyst+ can create; boss/admin edit/delete/pin).
+   Pinning is a SORT KEY, not a separate column: getEffectivePosts()
+   is sorted pinned-first then date-desc, and boss/admin flip a post's
+   `pinned` flag via a pin-icon button on each card (togglePinned, not
+   the edit modal) — toggling just re-sorts the single feed, it never
+   moves a post into/out of a structurally separate list.
 
-   Each post has a title + optional picture and a comments thread.
-   The list view shows only date/title/author (plus, for boss/admin,
-   the pin toggle); clicking a post opens a detail modal with the full
-   text, image, comments and (for boss/admin) the Rediger/Slet buttons
-   for the post itself.
+   Each post has a title (repurposed as a small category tag in the
+   card's meta line, alongside the date with no time-of-day) + optional
+   picture and a comments thread. The feed shows every post as a full
+   card (avatar initials, author, category/date, full text, image); a
+   "Kommentér" button opens a detail modal with the full text, image,
+   comments and (for boss/admin) the Rediger/Slet buttons for the post
+   itself — unchanged from before this redesign.
+
+   The feed renders in batches (see "Infinite scroll" below) since all
+   posts are already in memory (POSTS_DATA/postsOverride) — there's no
+   server-side pagination on this static site, so "loading more" is
+   purely incremental DOM rendering triggered by an IntersectionObserver.
 
    Unlike calendar.js/archive.js's siteSaveResource-only flow, creating a
    post (or a comment) needs an ANY-level authenticated call (revyst
@@ -28,6 +35,7 @@
 'use strict';
 
 const POSTS_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const POSTS_BATCH_SIZE = 10;
 
 // ── Data (with in-memory shadow after a create/save) ─────────
 // Same idea as calendar.js/archive.js: the embed regeneration takes ~1-2
@@ -204,10 +212,220 @@ async function togglePinned(post) {
   if (!result.ok && result.message) alert(result.message);
 }
 
-// ── Rendering: list view (date/title/author only) ────────────
-// `posts` is an already-filtered/sorted array; `adminId` may be null for
-// the pinned column, which never gets its own create button.
-function renderPostList(posts, listId, adminId, canCreate) {
+// Deterministically picks one of 5 warm avatar colours (css/style.css's
+// .message-avatar-1..5) keyed on a stable id, so the palette doesn't
+// reshuffle on re-render — shared by comment avatars and post avatars.
+function avatarVariantForKey(key) {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  return `message-avatar-${(Math.abs(hash) % 5) + 1}`;
+}
+
+function commentAvatarVariant(comment) {
+  return avatarVariantForKey(String(comment.id || comment.author || ''));
+}
+
+function postAvatarVariant(post) {
+  return avatarVariantForKey(String(post.id || post.author || ''));
+}
+
+// ── Shared header (avatar + name + category/date) ────────────
+// Used by both the feed card and the detail overlay so the two show an
+// identical top section — `showPin` only applies in the card, never the
+// overlay (which has no pin control of its own).
+function createPostHeaderElement(post, { showPin = false } = {}) {
+  const header = document.createElement('div');
+  header.className = 'post-card-header';
+
+  const avatar = document.createElement('div');
+  avatar.className = `message-avatar ${postAvatarVariant(post)}`;
+  avatar.textContent = (post.author || '?').trim().charAt(0).toUpperCase();
+  header.appendChild(avatar);
+
+  const headtext = document.createElement('div');
+  headtext.className = 'post-card-headtext';
+
+  const author = document.createElement('div');
+  author.className = 'post-card-author';
+  author.textContent = post.author;
+  headtext.appendChild(author);
+
+  const meta = document.createElement('div');
+  meta.className = 'post-card-meta';
+  if (post.title) {
+    const category = document.createElement('span');
+    category.className = 'post-card-category';
+    category.textContent = post.title;
+    meta.appendChild(category);
+  }
+  meta.appendChild(document.createTextNode(formatDaDate(post.date.split('T')[0])));
+  headtext.appendChild(meta);
+
+  header.appendChild(headtext);
+
+  if (showPin && siteHasLevel('boss')) {
+    const pinBtn = document.createElement('button');
+    pinBtn.type = 'button';
+    pinBtn.className = 'post-pin-btn' + (post.pinned ? ' pinned' : '');
+    const label = post.pinned ? 'Frigør opslag' : 'Fastgør opslag';
+    pinBtn.setAttribute('aria-label', label);
+    pinBtn.title = label;
+    pinBtn.appendChild(postsPinIcon(post.pinned));
+    pinBtn.addEventListener('click', () => togglePinned(post));
+    header.appendChild(pinBtn);
+  }
+
+  return header;
+}
+
+// ── Shared body text (paragraph-per-line, URLs auto-linked) ──
+const POST_URL_RE = /(https?:\/\/\S+|www\.\S+)/g;
+
+// Appends `line`'s text into `p`, turning any http(s)/www URL into a real
+// <a> — built via createElement/textContent, never innerHTML, so this is
+// exactly as safe as the plain-text rendering it replaces.
+function appendLineWithLinks(p, line) {
+  POST_URL_RE.lastIndex = 0;
+  let lastIndex = 0;
+  let match;
+  while ((match = POST_URL_RE.exec(line)) !== null) {
+    let url = match[0];
+    // Trailing punctuation (a sentence's period/comma/etc.) is usually not
+    // part of the URL itself — trim it back out of the link.
+    const trailing = url.match(/[).,;:!?\]}'"]+$/);
+    const trail = trailing ? trailing[0] : '';
+    if (trail) url = url.slice(0, url.length - trail.length);
+
+    if (match.index > lastIndex) p.appendChild(document.createTextNode(line.slice(lastIndex, match.index)));
+    const a = document.createElement('a');
+    a.href = url.startsWith('www.') ? `https://${url}` : url;
+    a.textContent = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    p.appendChild(a);
+    if (trail) p.appendChild(document.createTextNode(trail));
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < line.length) p.appendChild(document.createTextNode(line.slice(lastIndex)));
+}
+
+function createPostTextElement(text) {
+  const box = document.createElement('div');
+  box.className = 'post-detail-text';
+  for (const line of String(text).split('\n')) {
+    if (!line.trim()) continue;
+    const p = document.createElement('p');
+    appendLineWithLinks(p, line);
+    box.appendChild(p);
+  }
+  return box;
+}
+
+// ── Rendering: Facebook-style feed card ───────────────────────
+function createPostCardElement(post) {
+  const article = document.createElement('article');
+  article.className = 'post-card';
+
+  article.appendChild(createPostHeaderElement(post, { showPin: true }));
+  article.appendChild(createPostTextElement(post.text));
+
+  if (post.image) {
+    const cover = document.createElement('div');
+    cover.className = 'post-detail-cover';
+    const img = document.createElement('img');
+    img.src = post.image;
+    img.alt = postTitle(post);
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.addEventListener('click', () => window.open(post.image, '_blank'));
+    cover.appendChild(img);
+    article.appendChild(cover);
+  }
+
+  const footer = document.createElement('div');
+  footer.className = 'post-card-footer';
+
+  const commentCount = document.createElement('span');
+  commentCount.className = 'post-card-comment-count';
+  const n = (post.comments || []).length;
+  commentCount.textContent = `${n} kommentar${n === 1 ? '' : 'er'}`;
+  footer.appendChild(commentCount);
+
+  const commentBtn = document.createElement('button');
+  commentBtn.className = 'btn-small post-comment-trigger';
+  commentBtn.textContent = 'Se';
+  commentBtn.addEventListener('click', () => openPostDetail(post));
+  footer.appendChild(commentBtn);
+
+  article.appendChild(footer);
+
+  return article;
+}
+
+// ── Feed section dividers (pinned "Fastgjorte posts" vs. plain "Opslag") ──
+// A plain rule opens the pinned section (only if it's non-empty), and a
+// labeled "Opslag" rule marks the start of the regular posts that follow —
+// `postsFeedAll` is always pinned-first (see renderPosts' sort), so the
+// boundary between the two is exactly `postsFeedPinnedCount`.
+function createPostFeedDivider() {
+  const div = document.createElement('div');
+  div.className = 'post-feed-divider';
+  return div;
+}
+
+function createPostFeedSectionLabel(text) {
+  const div = document.createElement('div');
+  div.className = 'post-feed-section-label';
+  div.textContent = text;
+  return div;
+}
+
+function createPostFeedEmptyPinnedNotice() {
+  const p = document.createElement('p');
+  p.className = 'post-feed-empty-pinned';
+  p.textContent = 'Ingen fastgjorte opslag';
+  return p;
+}
+
+// ── Infinite scroll (batch-reveal of already-in-memory posts) ──
+// All posts are already loaded (POSTS_DATA/postsOverride) — "loading
+// more" just means rendering more of the already-sorted array into the
+// DOM as the user approaches the bottom of the feed, via a single
+// sentinel element watched by an IntersectionObserver.
+let postsFeedAll = [];
+let postsFeedPinnedCount = 0;
+let postsFeedRendered = 0;
+let postsFeedObserver = null;
+
+// Appends the divider/section-label for index `i`, if any, then the post
+// card itself — shared by the batch loop and the no-sentinel fallback so
+// the section breaks render identically either way.
+function appendPostAtIndex(list, i) {
+  if (i === 0) {
+    list.appendChild(createPostFeedDivider());
+    if (postsFeedPinnedCount === 0) list.appendChild(createPostFeedEmptyPinnedNotice());
+  }
+  if (i === postsFeedPinnedCount && postsFeedAll.length > postsFeedPinnedCount) {
+    list.appendChild(createPostFeedSectionLabel('Opslag'));
+    list.appendChild(createPostFeedDivider());
+  }
+  list.appendChild(createPostCardElement(postsFeedAll[i]));
+}
+
+// `sentinel` sits as a sibling right after `list` (see index.html) —
+// cards are simply appended into `list`, never relative to `sentinel`.
+function appendNextPostsBatch(list, sentinel) {
+  const end = Math.min(postsFeedRendered + POSTS_BATCH_SIZE, postsFeedAll.length);
+  for (let i = postsFeedRendered; i < end; i++) appendPostAtIndex(list, i);
+  postsFeedRendered = end;
+  if (postsFeedRendered >= postsFeedAll.length && postsFeedObserver) {
+    postsFeedObserver.disconnect();
+    postsFeedObserver = null;
+  }
+}
+
+// ── Rendering: the feed (single merged, pinned-first, sorted list) ──
+function renderPostFeed(posts, listId, adminId, canCreate) {
   const list = document.getElementById(listId);
   if (!list) return;
 
@@ -218,13 +436,14 @@ function renderPostList(posts, listId, adminId, canCreate) {
       if (canCreate) {
         const addBtn = document.createElement('button');
         addBtn.className = 'btn-small';
-        addBtn.textContent = '+ Ny post';
+        addBtn.textContent = '+ Opslag';
         addBtn.addEventListener('click', () => openPostCreateModal());
         adminSlot.appendChild(addBtn);
       }
     }
   }
 
+  if (postsFeedObserver) { postsFeedObserver.disconnect(); postsFeedObserver = null; }
   list.textContent = '';
   if (posts.length === 0) {
     const empty = document.createElement('p');
@@ -233,97 +452,52 @@ function renderPostList(posts, listId, adminId, canCreate) {
     return;
   }
 
-  for (const post of posts) {
-    const article = document.createElement('article');
-    article.className = 'post-summary';
-    article.setAttribute('role', 'button');
-    article.tabIndex = 0;
-    article.setAttribute('aria-label', postTitle(post));
+  postsFeedAll = posts;
+  postsFeedPinnedCount = posts.filter(p => p.pinned).length;
+  postsFeedRendered = 0;
 
-    const main = document.createElement('div');
-    main.className = 'post-summary-main';
-
-    const title = document.createElement('h3');
-    title.className = 'post-summary-title';
-    title.textContent = postTitle(post);
-    main.appendChild(title);
-
-    const meta = document.createElement('div');
-    meta.className = 'post-summary-meta';
-    meta.textContent = `${formatDaDateTime(post.date)} · ${post.author}`;
-    main.appendChild(meta);
-
-    article.appendChild(main);
-
-    if (siteHasLevel('boss')) {
-      const pinBtn = document.createElement('button');
-      pinBtn.type = 'button';
-      pinBtn.className = 'post-pin-btn' + (post.pinned ? ' pinned' : '');
-      const label = post.pinned ? 'Frigør opslag' : 'Fastgør opslag';
-      pinBtn.setAttribute('aria-label', label);
-      pinBtn.title = label;
-      pinBtn.appendChild(postsPinIcon(post.pinned));
-      pinBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        togglePinned(post);
-      });
-      article.appendChild(pinBtn);
+  const sentinel = document.getElementById('posts-sentinel');
+  if (sentinel) {
+    appendNextPostsBatch(list, sentinel);
+    if (postsFeedRendered < postsFeedAll.length) {
+      postsFeedObserver = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) appendNextPostsBatch(list, sentinel);
+      }, { rootMargin: '400px' });
+      postsFeedObserver.observe(sentinel);
     }
-
-    const open = () => openPostDetail(post);
-    article.addEventListener('click', open);
-    article.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
-    });
-
-    list.appendChild(article);
+  } else {
+    // No sentinel in the DOM (shouldn't happen) — render everything at once.
+    for (let i = 0; i < postsFeedAll.length; i++) appendPostAtIndex(list, i);
+    postsFeedRendered = postsFeedAll.length;
   }
 }
 
 function renderPosts() {
   const all = getEffectivePosts()
     .slice()
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  const pinned = all.filter(p => p.pinned);
-  const unpinned = all.filter(p => !p.pinned);
-
-  renderPostList(unpinned, 'posts-list', 'posts-admin', siteHasLevel('revyst'));
-  renderPostList(pinned, 'posts-pinned-list', null, false);
-}
-
-// Deterministically picks one of 5 warm avatar colours (css/style.css's
-// .message-avatar-1..5) per comment, keyed on its id so the palette stays
-// stable across re-renders instead of reshuffling on every open/comment add.
-function commentAvatarVariant(comment) {
-  const key = String(comment.id || comment.author || '');
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
-  return `message-avatar-${(Math.abs(hash) % 5) + 1}`;
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+    });
+  renderPostFeed(all, 'posts-list', 'posts-admin', siteHasLevel('revyst'));
 }
 
 // ── Detail modal: image, full text, comments, admin actions ──
 function openPostDetail(post) {
-  const { form, error, actions, close } = siteOpenModalWithClose(postTitle(post));
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('');
+  // The plain text heading is replaced by the same avatar/name/category-date
+  // header the feed card uses (see createPostHeaderElement) — remove it
+  // rather than show a redundant second title above that header.
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
   // Unused here (Rediger/Slet/comment-form live directly in `form` instead)
   // — remove rather than leave empty, since their own top-margin/min-height
   // would otherwise pad out extra space below the actual content.
   error.remove();
   actions.remove();
 
-  const meta = document.createElement('div');
-  meta.className = 'post-detail-meta';
-  meta.textContent = `${formatDaDateTime(post.date)} · ${post.author}`;
-  form.appendChild(meta);
-
-  const textBox = document.createElement('div');
-  textBox.className = 'post-detail-text';
-  for (const line of String(post.text).split('\n')) {
-    if (!line.trim()) continue;
-    const p = document.createElement('p');
-    p.textContent = line;
-    textBox.appendChild(p);
-  }
-  form.appendChild(textBox);
+  form.appendChild(createPostHeaderElement(post));
+  form.appendChild(createPostTextElement(post.text));
 
   if (post.image) {
     const cover = document.createElement('div');
@@ -397,7 +571,7 @@ function openPostDetail(post) {
 
     const trigger = document.createElement('button');
     trigger.className = 'btn-small post-comment-trigger';
-    trigger.textContent = '+ Kommentér';
+    trigger.textContent = '+ Kommenter';
     trigger.addEventListener('click', () => {
       commentSlot.textContent = '';
       renderCommentForm(commentSlot, post, close);
@@ -444,7 +618,7 @@ function renderCommentForm(container, post, closeDetailModal) {
 
   const submitBtn = document.createElement('button');
   submitBtn.className = 'site-pill-btn site-pill-primary post-comment-submit';
-  submitBtn.textContent = 'Kommentér';
+  submitBtn.textContent = 'Tilføj';
   submitBtn.addEventListener('click', async () => {
     const author = authorInput.value.trim();
     const text = textArea.value.trim();
@@ -457,7 +631,7 @@ function renderCommentForm(container, post, closeDetailModal) {
     commentError.textContent = '';
     const result = await postComment(post, author, text);
     submitBtn.disabled = false;
-    submitBtn.textContent = 'Kommentér';
+    submitBtn.textContent = 'Tilføj';
     if (result.ok) {
       closeDetailModal();
       const updated = getEffectivePosts().find(p => p.id === post.id);
@@ -540,7 +714,7 @@ function openPostCreateModal() {
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
-  form.appendChild(siteEditField('Titel', titleInput));
+  form.appendChild(siteEditField('Titel (valgfrit)', titleInput));
 
   const authorInput = document.createElement('input');
   authorInput.type = 'text';
@@ -552,6 +726,7 @@ function openPostCreateModal() {
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.accept = 'image/*';
+  fileInput.className = 'post-file-input';
   form.appendChild(siteEditField('Billede (valgfrit)', fileInput));
 
   const save = document.createElement('button');
@@ -563,8 +738,8 @@ function openPostCreateModal() {
     const title = titleInput.value.trim();
     const author = authorInput.value.trim();
     const text = textArea.value.trim();
-    if (!title || !author || !text) {
-      error.textContent = 'Udfyld titel, afsender og besked.';
+    if (!author || !text) {
+      error.textContent = 'Udfyld afsender og besked.';
       return;
     }
 
@@ -627,7 +802,7 @@ function openPostEditModal(existing) {
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
   titleInput.value = existing.title || '';
-  form.appendChild(siteEditField('Titel', titleInput));
+  form.appendChild(siteEditField('Titel (valgfrit)', titleInput));
 
   const authorInput = document.createElement('input');
   authorInput.type = 'text';
@@ -648,8 +823,8 @@ function openPostEditModal(existing) {
     const time = timeInput.value;
     const title = titleInput.value.trim();
     const text = textArea.value.trim();
-    if (!date || !time || !title || !text) {
-      error.textContent = 'Udfyld dato, tidspunkt, titel og besked.';
+    if (!date || !time || !text) {
+      error.textContent = 'Udfyld dato, tidspunkt og besked.';
       return;
     }
     const item = {

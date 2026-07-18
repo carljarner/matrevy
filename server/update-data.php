@@ -833,7 +833,7 @@ function posts_create($body) {
   $title  = $body['title'] ?? '';
   $text   = $body['text'] ?? '';
   if (!is_string($author) || trim($author) === ''
-      || !is_string($title) || trim($title) === ''
+      || !is_string($title)
       || !is_string($text) || trim($text) === '') {
     respond(400, ['error' => 'invalid_shape']);
   }
@@ -938,10 +938,8 @@ function save_posts($payload) {
         || !is_string($p['text']) || $p['text'] === '') {
       respond(400, ['error' => 'invalid_posts_shape']);
     }
-    // title is required for every post created after this schema landed
-    // (posts_create always sets one) but optional here so a handful of
-    // live posts that predate it can still pass through a full-array
-    // edit/delete of some other post without failing validation.
+    // title is optional (posts_create allows an empty one, and a handful
+    // of live posts predate the title field entirely).
     $title = $p['title'] ?? '';
     if (!is_string($title)) {
       respond(400, ['error' => 'invalid_posts_shape']);

@@ -428,10 +428,10 @@ body.site-menu-open {
   padding-left: 1.2rem;
 }
 
-/* --- Dashboard two-board layout (Forside) ----------------- */
+/* --- Dashboard feed + bosses sidebar layout (Forside) ------ */
 .dashboard-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 1.25rem;
   margin-bottom: 1.25rem;
 }
@@ -444,21 +444,10 @@ body.site-menu-open {
 .dashboard-board {
   display: flex;
   flex-direction: column;
-  height: 840px;
 }
 
-.dashboard-board .message-list {
-  flex: 1;
-  overflow-y: auto;
-  /* overflow-y:auto forces overflow-x to compute 'auto' too (per the CSS
-     overflow spec, mixing 'visible' with a non-visible axis isn't allowed),
-     which clips anything a child pushes past this box via negative margin —
-     silently hiding .post-summary's accent border. Shift the box itself
-     left and pad it back in, so children render inside it with no negative
-     margin of their own and nothing gets clipped. */
-  margin-left: -0.75rem;
-  padding-left: 0.75rem;
-  padding-right: 2px;
+#posts-sentinel {
+  height: 1px;
 }
 
 .boss-list {
@@ -483,6 +472,20 @@ body.site-menu-open {
 .boss-role {
   font-size: 0.85rem;
   color: #57606a;
+}
+
+/* Narrower sidebar context (Forside's right column) — same markup,
+   smaller font so it reads as a supporting column, not a competing one. */
+.dashboard-board-bosses .boss-list {
+  gap: 0.45rem;
+}
+
+.dashboard-board-bosses .boss-name {
+  font-size: 0.85rem;
+}
+
+.dashboard-board-bosses .boss-role {
+  font-size: 0.75rem;
 }
 
 /* --- Edit modal (site-utils.js siteOpenEditModal) --------- */
@@ -907,6 +910,30 @@ body.site-menu-open {
   }
 }
 
+/* Native file input's "Choose file" button, styled to match .btn-small
+   (idle warm-cream fill, warm-amber hover) — the browser-default button
+   otherwise looks out of place next to the rest of the form. */
+.post-file-input::file-selector-button {
+  background: #fdf8ec;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  margin-right: 0.6rem;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .post-file-input::file-selector-button:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+
 .btn-small-danger {
   color: #c0392b;
   border-color: var(--border);
@@ -921,6 +948,7 @@ body.site-menu-open {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  margin-top: 1rem;
 }
 
 /* Facebook-style comment row: round initial avatar + a rounded "bubble"
@@ -995,37 +1023,86 @@ body.site-menu-open {
   .message-delete:hover { background: var(--surface-2); color: #c0392b; }
 }
 
-/* --- Post list summary (Forside boards) ------------------- */
-.post-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  border-left: 3px solid var(--accent-warm-text);
-  padding: 0.4rem 0.75rem;
-  border-radius: 0 6px 6px 0;
-  cursor: pointer;
+/* --- Post feed section breaks (Forside) -------------------- */
+/* Plain rule opening the pinned section; a second, labeled one ("Opslag")
+   marks where the regular posts start — see posts.js's appendPostAtIndex. */
+.post-feed-divider {
+  border-top: 1px solid var(--border);
 }
 
-.post-summary-main {
+.post-feed-section-label {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.post-feed-empty-pinned {
+  font-size: 0.85rem;
+  color: #57606a;
+}
+
+/* --- Post feed card (Forside) ----------------------------- */
+.post-card {
+  border-left: 3px solid var(--accent-warm-text);
+  border-radius: 0 8px 8px 0;
+  padding: 0.85rem 1rem;
+  background: var(--surface-2);
+}
+
+.post-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.post-card-headtext {
+  flex: 1;
   min-width: 0;
 }
 
-@media (hover: hover) {
-  .post-summary:hover { background: var(--surface-2); }
-}
-.post-summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-
-.post-summary-title {
+.post-card-author {
+  font-weight: 700;
   font-size: 0.95rem;
-  font-weight: 600;
-  margin: 0.15rem 0 0;
+  color: var(--text);
 }
 
-.post-summary-meta {
+.post-card-meta {
+  font-size: 0.8rem;
+  color: #57606a;
+  margin-top: 0.1rem;
+}
+
+.post-card-category {
+  display: inline-block;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  margin-right: 0.3rem;
+}
+
+.post-card .post-detail-text {
+  margin: 0.75rem 0 0;
+}
+
+.post-card .post-detail-cover {
+  margin-top: 0.75rem;
+}
+
+.post-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.75rem;
+}
+
+.post-card-comment-count {
   font-size: 0.8rem;
   color: #57606a;
 }
@@ -1081,16 +1158,11 @@ body.site-menu-open {
   .post-detail-cover img:hover { filter: brightness(0.93); }
 }
 
-.post-detail-meta {
-  font-size: 0.8rem;
-  color: #57606a;
-  margin-bottom: 0.75rem;
-}
-
 .post-detail-text {
   background: var(--accent-warm-fill);
   border-radius: 8px;
   padding: 0.75rem 1rem;
+  margin-top: 0.75rem;
   margin-bottom: 1rem;
 }
 
@@ -1101,6 +1173,11 @@ body.site-menu-open {
 
 .post-detail-text p + p {
   margin-top: 0.6rem;
+}
+
+.post-detail-text a {
+  color: var(--accent);
+  word-break: break-word;
 }
 
 .post-detail-actions {
@@ -1194,14 +1271,6 @@ p:last-child {
 
   .dashboard-columns {
     grid-template-columns: 1fr;
-  }
-
-  .dashboard-board {
-    height: auto;
-  }
-
-  .dashboard-board .message-list {
-    overflow-y: visible;
   }
 
   /* iOS Safari zooms into focused inputs with font-size < 16px. */
