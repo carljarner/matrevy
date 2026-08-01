@@ -298,7 +298,7 @@ function renderBottomActions() {
   mount.textContent = '';
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'site-btn-primary';
+  btn.className = 'site-pill-btn site-pill-warm';
   if (siteHasLevel('boss')) {
     btn.textContent = 'Aktfordeling';
     btn.addEventListener('click', openAktfordelingBuilder);
