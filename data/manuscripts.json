@@ -170,6 +170,15 @@
             "pdfPath": "manus/sketch/Dygtig_Vejleder.pdf",
             "texPath": "manus/sketch/Dygtig_Vejleder.tex",
             "createdAt": "2026-08-01T16:31:06"
+        },
+        {
+            "id": "6a6e0348dd12e709",
+            "type": "sketch",
+            "title": "En Imponerende Rekvisit",
+            "sender": "Frida",
+            "pdfPath": "manus/sketch/En_Imponerende_Rekvisit.pdf",
+            "texPath": "manus/sketch/En_Imponerende_Rekvisit.tex",
+            "createdAt": "2026-08-01T16:31:36"
         }
     ]
 }
