@@ -54,5 +54,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Hun_Skriver_På_Den.pdf",
     "texPath": "manus/sang/Hun_Skriver_På_Den.tex",
     "createdAt": "2026-08-01T16:20:48"
+  },
+  {
+    "id": "6a6e00d6df4b4b0d",
+    "type": "sang",
+    "title": "Hvad Nu Hvis",
+    "sender": "Lise",
+    "pdfPath": "manus/sang/Hvad_Nu_Hvis.pdf",
+    "texPath": "manus/sang/Hvad_Nu_Hvis.tex",
+    "createdAt": "2026-08-01T16:21:10"
   }
 ];
