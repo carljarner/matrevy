@@ -105,12 +105,33 @@ function manusFileToBase64(file) {
 // the server), so it just falls away once the override's TTL expires.
 let manusPendingPollTimer = null;
 
+// Rotates every MANUS_PENDING_MESSAGE_INTERVAL_MS based on elapsed time
+// since the upload, not a per-row timer — renderPdfRow just recomputes the
+// index each time it's called, and the poll interval below re-renders
+// often enough to keep it moving.
+const MANUS_PENDING_MESSAGES = [
+  'Uploading...',
+  'Forbinder til Github...',
+  'Gratis services tager tid...',
+  'Et øjeblik mere...',
+  'Næsten færdig...',
+];
+const MANUS_PENDING_MESSAGE_INTERVAL_MS = 10000;
+
+function manusPendingMessage(item) {
+  const startedAt = item.createdAt ? new Date(item.createdAt).getTime() : Date.now();
+  const step = Math.floor((Date.now() - startedAt) / MANUS_PENDING_MESSAGE_INTERVAL_MS);
+  const idx = Math.max(0, Math.min(step, MANUS_PENDING_MESSAGES.length - 1));
+  return MANUS_PENDING_MESSAGES[idx];
+}
+
 function manusHasPendingDeploys() {
   return getEffectiveManuscripts().some(s => s.pendingDeploy);
 }
 
 async function manusCheckPendingDeploys() {
   const items = getEffectiveManuscripts();
+  const anyPending = items.some(s => s.pendingDeploy);
   let changed = false;
   for (const item of items) {
     if (!item.pendingDeploy) continue;
@@ -122,8 +143,10 @@ async function manusCheckPendingDeploys() {
   if (changed) {
     manuscriptsOverride = items;
     siteSaveOverride('manuscripts', manuscriptsOverride);
-    renderColumns();
   }
+  // Re-render even when nothing became ready yet, so the rotating wait
+  // message stays in sync with elapsed time.
+  if (anyPending) renderColumns();
   if (!manusHasPendingDeploys() && manusPendingPollTimer) {
     clearInterval(manusPendingPollTimer);
     manusPendingPollTimer = null;
@@ -132,7 +155,7 @@ async function manusCheckPendingDeploys() {
 
 function manusStartPendingPoll() {
   if (manusPendingPollTimer || !manusHasPendingDeploys()) return;
-  manusPendingPollTimer = setInterval(manusCheckPendingDeploys, 4000);
+  manusPendingPollTimer = setInterval(manusCheckPendingDeploys, 2000);
 }
 
 // ── Upload pool: two-column render ────────────────────────────
@@ -148,7 +171,7 @@ function renderPdfRow(item) {
 
     const status = document.createElement('span');
     status.className = 'manus-pdf-pending-label';
-    status.textContent = 'Uploader stadig…';
+    status.textContent = manusPendingMessage(item);
     row.appendChild(status);
   } else {
     const link = document.createElement('a');
