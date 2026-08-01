@@ -36,5 +36,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Ernsts_Hus.pdf",
     "texPath": "manus/sang/Ernsts_Hus.tex",
     "createdAt": "2026-08-01T16:18:50"
+  },
+  {
+    "id": "6a6e009fcc22d57f",
+    "type": "sang",
+    "title": "Forklar For Mig",
+    "sender": "Stine",
+    "pdfPath": "manus/sang/Forklar_For_Mig.pdf",
+    "texPath": "manus/sang/Forklar_For_Mig.tex",
+    "createdAt": "2026-08-01T16:20:15"
   }
 ];
