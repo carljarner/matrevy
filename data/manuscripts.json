@@ -80,6 +80,15 @@
             "pdfPath": "manus/sang/Kærlighed_På_Matematik.pdf",
             "texPath": "manus/sang/Kærlighed_På_Matematik.tex",
             "createdAt": "2026-08-01T16:24:40"
+        },
+        {
+            "id": "6a6e01bd7bea9607",
+            "type": "sang",
+            "title": "Malene",
+            "sender": "Lise & Frigg",
+            "pdfPath": "manus/sang/Malene.pdf",
+            "texPath": "manus/sang/Malene.tex",
+            "createdAt": "2026-08-01T16:25:01"
         }
     ]
 }
