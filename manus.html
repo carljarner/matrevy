@@ -7,6 +7,7 @@
   <title>Manus · Matematikrevyen</title>
   <link rel="stylesheet" href="css/style.css" />
   <link rel="icon" type="image/png" href="img/favicon.png" />
+  <link rel="stylesheet" href="css/manus.css" />
 </head>
 <body>
   <!-- Nav + login rendered by site.js from its central page registry -->
@@ -16,9 +17,27 @@
 
   <main class="page-content">
     <h1>Manus</h1>
-    <section class="card">
-      <p>Manussiden er under opbygning.</p>
+
+    <!-- Upload pool (Sketches / Songs), rendered by manus.js from
+         MANUSCRIPTS_DATA (manuscripts-data.js). Each column becomes a
+         closed-by-default toggle once this year's manus (scenes.json)
+         has content; otherwise it's a plain always-open list. -->
+    <div class="manus-columns" id="manus-columns"></div>
+
+    <!-- Upload button (revyst+) / Aktfordeling button (boss+), rendered
+         by manus.js — a single mount point since only one is ever shown. -->
+    <div class="manus-bottom-actions" id="manus-bottom-actions"></div>
+
+    <!-- Read-only "Dette års manus" act list, shown once scenes.json has
+         content — rendered by manus.js from getEffectiveScenesData(). -->
+    <section class="card" id="manus-year-section" style="display:none">
+      <h2>Dette års manus</h2>
+      <div id="manus-year-acts"></div>
     </section>
+
+    <!-- "Hent stemmeark" print target — hidden on screen (see manus.css's
+         @media print block), filled in just before window.print(). -->
+    <div class="manus-print-only" id="manus-print-sheet"></div>
   </main>
 
   <footer class="site-footer">
@@ -26,5 +45,10 @@
   </footer>
 
   <script src="js/site.js"></script>
+  <script src="js/site-utils.js"></script>
+  <script src="js/scenes-data.js"></script>
+  <script src="js/manus-data.js"></script>
+  <script src="js/manuscripts-data.js"></script>
+  <script src="js/manus.js"></script>
 </body>
 </html>

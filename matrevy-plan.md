@@ -139,47 +139,64 @@ covers already in the repo were committed directly via git, not through this end
 
 ### Phase 4 — Manus production pipeline
 
-**Intent**: supersedes the original one-line placeholder now that requirements exist
-(gathered 2026-07-14). The full flow the user wants: revyster upload `.tex`/`.pdf` for
-scenes they've written → boss selects/lays out which scenes make the cut → boss assigns
-cast/roles → the site compiles `.tex` sources into manuscript PDFs. This is the biggest
-change on the roadmap and the next thing to build (session order: 4.1 → 4.2 → 4.3 → 4.4 →
-4.5 → 4.6, though each may be its own session).
+**Intent**: supersedes the original one-line placeholder now that requirements exist.
+The original 2026-07-14 sketch (one-stage catalog with a `submitted`/`selected`/`cut`
+`status` field) was superseded 2026-08-01 once the user described the actual flow they
+want, which splits upload and selection into two distinct data stores instead: revyster
+upload `.tex`/`.pdf` into a standing pool → boss votes/selects from that pool and builds
+this year's act structure → boss assigns cast/roles (reusing Øveplan's existing "Rediger
+Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
 
-**Resolved design decisions**: one-stage data model — revyst uploads write directly into
-the production catalog (`data/scenes.json`-equivalent) with a `status` field, rather than
-a separate submissions store; once a season's manus is finalized, the submit/upload UI is
-simply removed for that season. PDF generation is a GitHub Action running a LaTeX engine
-on push, the same pattern as `embed-scenes.yml`.
-
-**Sub-phases**:
-- **4.1 — Upload**: revyst uploads `.tex`/`.pdf` for scenes they've written, writing
-  directly into the catalog with a `status` (e.g. `submitted`/`selected`/`cut`). This is
-  the first revyst-level write to the *production catalog itself* (unlike Budget's
-  separate private store) — needs a dedicated design pass on scoping it safely (a revyst
-  user should only add new submissions or edit their own still-pending ones, never touch
-  someone else's or an already-selected scene). Open question for this session.
-- **4.2 — Selection & layout**: boss chooses which submitted scenes make the cut and
-  arranges act structure/order (`status` submitted→selected/cut; act/number assignment)
-  — reuses `import.js`'s existing act-grouping/drag-reorder UI.
-- **4.3 — Role assignment**: boss assigns cast/role-categories per scene — exactly
-  `import.js`'s existing per-scene cast editor; reused directly.
-- **4.4 — Move priority + cast-editing from Øveplan into Manus**: the scene-priority
-  selector and Rekvisitten/per-cell cast-override tooling currently in `schedule.js`'s
-  sidebar relocate to Manus's boss view; the "Rediger manus" entry point moves off
-  Øveplan's sidebar onto the Manus page (`import.js`'s modal logic is reused, only its
-  entry point and host page change).
-- **4.5 — `.tex` → PDF compilation**: new GitHub Action (e.g. `compile-manus.yml`),
-  triggered like `embed-scenes.yml`, runs a LaTeX engine and commits generated PDFs back
-  to the repo. **Blocked on the user sharing example `.tex`/PDF files** — need real
-  package/class dependencies before picking an engine (tectonic vs. a full texlive
-  image) and the generated-file layout (per-actor scripts? full manus?).
-- **4.6 — Full manuscript assembly**: combine the season's selected/laid-out scenes into
+**Sub-phases** (session order 4.1 → 4.2 → 4.3 → 4.4 → 4.5, each its own session):
+- **4.1 — Upload** — [x] done 2026-08-01. `data/manuscripts.json` (new resource, embedded
+  as `MANUSCRIPTS_DATA`): any revyst+ submits a sketch/song (Titel/Afsender/`.pdf`/`.tex`)
+  via a new revyst-level append-only `manuscripts_create` server action (mirrors
+  `posts_create`) — **not** a `status` field on the production catalog itself, a fully
+  separate standing pool, so a submission never touches `data/scenes.json` until Boss
+  explicitly promotes it via Aktfordeling (4.2). Files are renamed server-side to
+  `manus/<sketch|sang>/<slug>.pdf`/`.tex` (spaces → `_`, `_2`/`_3`… on a same-type title
+  collision). Boss/admin remove a submission via a small ✕ (full-array-replace
+  `manuscripts` resource) — the underlying files are left in the repo, not deleted (same
+  accepted trade-off as a deleted Post's orphaned image). `manus.html` renders the pool as
+  two alphabetical columns (Sketches/Sange); PDFs open in a new tab, `.tex` is never
+  displayed. See CLAUDE.md's "Manus page" section for the full architecture.
+- **4.2 — Selection** — [x] done 2026-08-01, built together with 4.1. Boss/admin get
+  **"Hent stemmeark"** per column (a browser-print Navn/Point/Kommentar voting sheet,
+  `@media print`, no new file-generation infra) and an **"Aktfordeling"** builder
+  (replaces the revyst "Upload manus" button for boss/admin) that seeds a fixed Akt
+  1/2/3/Ekstranumre skeleton from the *current* `data/scenes.json` (existing scenes keep
+  every field — cast, priority, etc. — untouched) and lets Boss drag in not-yet-placed
+  pool submissions, per-scene, with a manually-entered **Tidsestimat** (`duration`,
+  minutes — reintroduced to the schema specifically for this, since the two reference
+  PDFs the user shared show it and it's no longer auto-derivable). Saving reuses the
+  *existing* boss-level `manus` resource (`{scenes, cast}`) — no new server-side
+  scenes.json validator was needed, since `save_manus()` never validated per-scene shape.
+  A `sourcePdf`/`sourceTex` pointer is carried onto each pool-originated scene so a future
+  4.5 compile phase can find its `.tex`. Once `scenes.json` has any content, the pool
+  columns become closed-by-default toggle sections and a read-only "Dette års manus" act
+  list renders below. **"Intast point"** (voting results entry) is a stub button for
+  now — deliberately left for the user to detail in a later session.
+- **4.3 — Role assignment / move "Rediger manus" onto this page**: reuse Øveplan's
+  existing per-scene cast editor (`import.js`) for assigning cast/role-categories to the
+  scenes Aktfordeling produces, and relocate its entry point off Øveplan's sidebar onto
+  this page. **Deliberately left open** — the user has specific ideas about this step not
+  yet gathered. Also still pending: moving the scene-priority (0–3) selector and
+  Rekvisitten/per-cell cast-override tooling from `schedule.js`'s sidebar into Manus's
+  boss view (originally slated as part of this step in the pre-2026-08-01 plan).
+- **4.4 — `.tex` → PDF compilation & printing**: Aktoversigt/Rolleoversigt/per-person
+  manuscript PDFs (the user shared 2025's real `Aktoversigt.pdf`/`Rolleoversigt.pdf` as
+  reference — an act-numbered scene list with duration, and a scene-by-cast role matrix,
+  respectively). **Blocked on the user sharing the LaTeX/PDF-generation repo** they
+  previously used — need real package/class dependencies before picking an engine
+  (tectonic vs. a full texlive image) and deciding whether this reuses a GitHub Action
+  (like `embed-scenes.yml`) or renders client-side.
+- **4.5 — Full manuscript assembly**: combine the season's selected/laid-out scenes into
   one `manus.tex` → `manus.pdf`, feeding Arkiv's existing `manusPdf` slot once the season
   is archived.
 
-**Status**: [ ] not started — 4.1 is the next session; needs Phase 6 (boss level) live
-first, and example `.tex`/PDF files from the user before 4.5/4.6 can be scoped.
+**Status**: 4.1 + 4.2 done 2026-08-01 (needs the usual manual `update-data.php` re-upload
+to Simply.com before live on `matematikrevy.dk`). 4.3 is next but explicitly open pending
+the user's further input; 4.4/4.5 need the user's LaTeX repo before they can be scoped.
 
 ---
 

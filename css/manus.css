@@ -1,0 +1,379 @@
+/* =========================================================
+   Matematikrevyen – Manus page styles (manus.html only)
+   Page-scoped like calendar.css/archive.css/budget.css; shared
+   shell styles (cards, .btn-small, .site-pill-btn, modals) live
+   in style.css and are reused as-is.
+   ========================================================= */
+
+/* --- Two-column upload pool (Songs / Sketches) ------------ */
+.manus-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.manus-columns .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.manus-col-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+button.manus-col-header {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.manus-col-header h2 {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.manus-chevron {
+  color: var(--accent-warm-text);
+  font-size: 0.8rem;
+  transition: transform 0.15s ease;
+}
+
+.manus-col-header[aria-expanded="false"] .manus-chevron {
+  transform: rotate(-90deg);
+}
+
+.manus-col-count {
+  font-size: 0.8rem;
+  color: #57606a;
+  font-weight: 400;
+}
+
+.manus-col-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.manus-col-empty {
+  color: #57606a;
+  font-size: 0.9rem;
+}
+
+.manus-pdf-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.manus-pdf-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .manus-pdf-title:hover { text-decoration: underline; }
+}
+
+.manus-pdf-sender {
+  flex: none;
+  font-size: 0.78rem;
+  color: #57606a;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manus-pdf-remove {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.2rem;
+  border-radius: 6px;
+  color: #57606a;
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: color 0.15s, box-shadow 0.15s;
+}
+
+@media (hover: hover) {
+  .manus-pdf-remove:hover { color: #c0392b; }
+}
+
+.manus-pdf-remove:focus-visible {
+  outline: none;
+  color: #c0392b;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
+}
+
+.manus-col-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 0.85rem;
+}
+
+.manus-col-actions .site-pill-btn {
+  flex: 0 0 auto;
+  width: 7rem;
+  justify-content: center;
+}
+
+.manus-bottom-actions {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+}
+
+/* --- "Dette års manus" read view --------------------------- */
+.manus-year-act {
+  margin-bottom: 1.25rem;
+}
+
+.manus-year-act:last-child {
+  margin-bottom: 0;
+}
+
+.manus-year-act h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.manus-year-list {
+  list-style: decimal;
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.manus-year-type-badge {
+  display: inline-block;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  margin-left: 0.4rem;
+}
+
+.manus-year-duration {
+  color: #57606a;
+  font-size: 0.85rem;
+  margin-left: 0.4rem;
+}
+
+/* --- Aktfordeling builder ----------------------------------- */
+/* Widens the shared siteOpenModalWithClose chrome for this one modal,
+   same pattern as archive.js's .arkiv-edit-modal — the shared
+   .edit-modal/.site-modal styling itself stays untouched. */
+.manus-akt-modal {
+  width: min(900px, 95vw);
+  max-height: 90vh;
+}
+
+.manus-akt-columns {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.manus-akt-pool,
+.manus-akt-structure {
+  min-width: 0;
+}
+
+.manus-akt-pool h3,
+.manus-akt-structure h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.manus-akt-pool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 2rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 0.5rem;
+}
+
+.manus-akt-section {
+  margin-bottom: 0.75rem;
+}
+
+.manus-akt-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+}
+
+.manus-akt-label {
+  flex: 1;
+  font-weight: 600;
+}
+
+.manus-akt-count {
+  font-size: 0.8rem;
+  color: #57606a;
+}
+
+.manus-akt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0 0.25rem;
+  min-height: 0.5rem;
+}
+
+.manus-akt-section.manus-drop-target > .manus-akt-list,
+.manus-akt-pool-list.manus-drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+.manus-akt-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+
+.manus-akt-row.manus-drop-target { border-color: var(--accent); }
+
+.manus-akt-drag-handle {
+  cursor: grab;
+  color: #9ca3af;
+  flex: none;
+}
+
+.manus-akt-row:active .manus-akt-drag-handle { cursor: grabbing; }
+
+.manus-akt-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manus-akt-duration {
+  flex: none;
+  width: 3.6rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.manus-akt-duration-suffix {
+  flex: none;
+  font-size: 0.78rem;
+  color: #57606a;
+}
+
+.manus-akt-row-remove {
+  flex: none;
+  background: none;
+  border: none;
+  color: #57606a;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 6px;
+}
+
+@media (hover: hover) {
+  .manus-akt-row-remove:hover { color: #c0392b; }
+}
+
+/* --- Mobile (≤719px, site-wide breakpoint) ------------------ */
+@media (max-width: 719px) {
+  .manus-columns { grid-template-columns: 1fr; }
+  .manus-akt-columns { grid-template-columns: 1fr; }
+}
+
+/* --- "Hent stemmeark" print view ----------------------------
+   Hidden on screen; only shown (and only content shown) when
+   window.print() is invoked, mirroring schedule.css's print
+   approach: explicit black/white ruling, Courier New, in-flow
+   padding since Safari often ignores @page's margin. */
+.manus-print-only { display: none; }
+
+@media print {
+  @page { size: A4 portrait; margin: 15mm; }
+
+  .site-header, .site-footer, .manus-columns, .manus-bottom-actions,
+  #manus-year-section, .page-content > h1 {
+    display: none !important;
+  }
+
+  .manus-print-only { display: block !important; }
+
+  body { background: #fff; }
+  html { font-size: 12px; }
+
+  .manus-print-title {
+    font-family: "Courier New", Courier, monospace;
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  .manus-print-table {
+    font-family: "Courier New", Courier, monospace;
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .manus-print-table th,
+  .manus-print-table td {
+    border: 1px solid #000;
+    padding: 8px 10px;
+    text-align: left;
+    color: #000;
+    background: #fff;
+  }
+
+  .manus-print-table td { height: 26pt; }
+
+  .manus-print-col-point { width: 60pt; }
+  .manus-print-col-comment { width: 160pt; }
+
+  .manus-print-table tr { page-break-inside: avoid; }
+}

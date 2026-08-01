@@ -93,6 +93,11 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 // the admin-gated upload action — this is the only guard on that path, so it
 // must live above the dispatch same as ARCHIVE_PATH_RE (see comment above).
 const POST_IMAGE_PATH_RE = '#^posts/[0-9a-f]+/image\.jpg$#';
+// Manuscript pdf/tex are written inline from manuscripts_create (revyst-level),
+// same posture as POST_IMAGE_PATH_RE — the path is server-built from a
+// server-slugified title, but is still checked unconditionally.
+const MANUS_PDF_PATH_RE = '#^manus/(sketch|sang)/[^/]+\.pdf$#';
+const MANUS_TEX_PATH_RE = '#^manus/(sketch|sang)/[^/]+\.tex$#';
 
 $action = $body['action'] ?? '';
 
@@ -143,15 +148,17 @@ if (isset($BUDGET_ACTIONS[$action])) {
 // the caller with a full-array replace, which a revyst-level client must
 // never be given (they could edit/delete anyone's post by omission).
 $POST_ACTIONS = [
-  'posts_create'    => 'revyst',
-  'comments_create' => 'revyst',
+  'posts_create'       => 'revyst',
+  'comments_create'    => 'revyst',
+  'manuscripts_create' => 'revyst',
 ];
 if (isset($POST_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$POST_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
   if ($action === 'posts_create') posts_create($body);
-  else comments_create($body);
+  else if ($action === 'comments_create') comments_create($body);
+  else manuscripts_create($body);
 }
 
 if ($action !== 'save') {
@@ -938,6 +945,129 @@ function comments_create($body) {
   respond(200, ['ok' => true, 'comment' => $comment]);
 }
 
+// ── Manuscripts (public, git-backed upload pool for the Manus page) ──
+// Revyster append one submission (pdf + tex, renamed to <title>.pdf/.tex)
+// via manuscripts_create; boss/admin remove one via the full-array-replace
+// save_manuscripts resource below (client filters the array, files are left
+// as harmless orphans in the repo — same accepted trade-off as posts_create's
+// image never being cleaned up on post delete).
+
+// Spaces -> underscore, per the user's spec; strips path separators since
+// the result becomes a repo path segment. Danish letters are left as-is —
+// GitHub Contents API paths handle UTF-8 fine.
+function manus_slugify($title) {
+  $slug = preg_replace('/\s+/', '_', trim($title));
+  $slug = preg_replace('#[/\\\\]#', '', $slug);
+  return $slug === '' ? 'uden_titel' : $slug;
+}
+
+function manus_existing_slugs($type, $submissions) {
+  $slugs = [];
+  foreach ($submissions as $s) {
+    if (($s['type'] ?? null) !== $type) continue;
+    $pdf = $s['pdfPath'] ?? '';
+    if (preg_match('#^manus/' . preg_quote($type, '#') . '/([^/]+)\.pdf$#', $pdf, $m)) {
+      $slugs[$m[1]] = true;
+    }
+  }
+  return $slugs;
+}
+
+// Appends _2, _3, ... on a collision within the same type, so two
+// same-titled submissions never overwrite each other's files.
+function manus_unique_slug($type, $title, $submissions) {
+  $base = manus_slugify($title);
+  $taken = manus_existing_slugs($type, $submissions);
+  if (!isset($taken[$base])) return $base;
+  $n = 2;
+  while (isset($taken[$base . '_' . $n])) $n++;
+  return $base . '_' . $n;
+}
+
+function manuscripts_create($body) {
+  $type      = $body['type'] ?? '';
+  $title     = $body['title'] ?? '';
+  $sender    = $body['sender'] ?? '';
+  $pdfBase64 = $body['pdfBase64'] ?? '';
+  $texBase64 = $body['texBase64'] ?? '';
+  if (!in_array($type, ['sketch', 'sang'], true)
+      || !is_string($title) || trim($title) === ''
+      || !is_string($sender) || trim($sender) === ''
+      || !is_string($pdfBase64) || $pdfBase64 === ''
+      || !is_string($texBase64) || $texBase64 === '') {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $pdfRaw = base64_decode($pdfBase64, true);
+  $texRaw = base64_decode($texBase64, true);
+  if ($pdfRaw === false || $texRaw === false) {
+    respond(400, ['error' => 'bad_base64']);
+  }
+  if (strlen($pdfRaw) > MAX_UPLOAD_BYTES || strlen($texRaw) > MAX_UPLOAD_BYTES) {
+    respond(413, ['error' => 'too_large']);
+  }
+
+  [$getStatus, $current] = github_api('GET', 'contents/data/manuscripts.json');
+  $existing = [];
+  if ($getStatus === 200) {
+    $decoded = json_decode(base64_decode($current['content']), true);
+    $existing = (is_array($decoded) && isset($decoded['submissions']) && is_array($decoded['submissions']))
+      ? $decoded['submissions'] : [];
+  }
+  $slug = manus_unique_slug($type, trim($title), $existing);
+
+  $pdfPath = 'manus/' . $type . '/' . $slug . '.pdf';
+  $texPath = 'manus/' . $type . '/' . $slug . '.tex';
+  if (!preg_match(MANUS_PDF_PATH_RE, $pdfPath) || !preg_match(MANUS_TEX_PATH_RE, $texPath)) {
+    respond(400, ['error' => 'bad_path']);
+  }
+  put_file($pdfPath, $pdfBase64, 'Nyt manus-upload: ' . trim($title));
+  put_file($texPath, $texBase64, 'Nyt manus-upload: ' . trim($title));
+
+  $submission = [
+    'id'        => dechex(time()) . bin2hex(random_bytes(4)),
+    'type'      => $type,
+    'title'     => trim($title),
+    'sender'    => trim($sender),
+    'pdfPath'   => $pdfPath,
+    'texPath'   => $texPath,
+    'createdAt' => date('Y-m-d\TH:i:s'),
+  ];
+  update_file('data/manuscripts.json', function ($json) use ($submission) {
+    if (!isset($json['submissions']) || !is_array($json['submissions'])) $json['submissions'] = [];
+    $json['submissions'][] = $submission;
+    return $json;
+  }, 'Nyt manus-upload: ' . $submission['title']);
+  respond(200, ['ok' => true, 'id' => $submission['id'], 'pdfPath' => $pdfPath, 'texPath' => $texPath]);
+}
+
+// Boss/admin: full-array replace, used only for removing a submission (the
+// client filters it out and re-saves the reduced list) — the pdf/tex blobs
+// themselves are left in the repo, not deleted (see file header comment).
+function save_manuscripts($payload) {
+  $list = $payload['submissions'] ?? null;
+  if (!is_array($list)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($list as $s) {
+    if (!is_array($s)
+        || !isset($s['id'], $s['type'], $s['title'], $s['sender'], $s['pdfPath'], $s['texPath'], $s['createdAt'])
+        || !is_string($s['id']) || $s['id'] === ''
+        || !in_array($s['type'], ['sketch', 'sang'], true)
+        || !is_string($s['title']) || trim($s['title']) === ''
+        || !is_string($s['sender'])
+        || !is_string($s['pdfPath']) || !preg_match(MANUS_PDF_PATH_RE, $s['pdfPath'])
+        || !is_string($s['texPath']) || !preg_match(MANUS_TEX_PATH_RE, $s['texPath'])
+        || !is_string($s['createdAt'])) {
+      respond(400, ['error' => 'invalid_manuscripts_shape']);
+    }
+  }
+
+  update_file('data/manuscripts.json', function ($json) use ($list) {
+    $json['submissions'] = $list;
+    return $json;
+  }, 'Opdater manuscripts.json via manussiden');
+}
+
 // Boss/admin: full-array replace, used for editing/deleting a post
 // (including toggling pinned) and for deleting an individual comment
 // (client filters it out of the relevant post's comments array before
@@ -1087,6 +1217,7 @@ $RESOURCES = [
   'posts'         => ['level' => 'boss',  'save' => 'save_posts'],
   'bosses'        => ['level' => 'admin', 'save' => 'save_bosses'],
   'wiki'          => ['level' => 'boss',  'save' => 'save_wiki'],
+  'manuscripts'   => ['level' => 'boss',  'save' => 'save_manuscripts'],
 ];
 
 $resource = $body['resource'] ?? '';

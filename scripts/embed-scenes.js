@@ -80,6 +80,15 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/manuscripts-data.js',
+    sources: 'data/manuscripts.json',
+    globals: () => {
+      const submissions = readJson('data/manuscripts.json').submissions;
+      console.log(`  ${submissions.length} manuscript submissions`);
+      return { MANUSCRIPTS_DATA: submissions };
+    },
+  },
+  {
     // Static .ics feed, served directly by GitHub Pages at
     // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
     // the calendar data is already fully public (see CLAUDE.md's access-level
