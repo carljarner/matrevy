@@ -162,5 +162,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Den_Store_Klagedyst.pdf",
     "texPath": "manus/sketch/Den_Store_Klagedyst.tex",
     "createdAt": "2026-08-01T16:30:22"
+  },
+  {
+    "id": "6a6e032a4562bfe9",
+    "type": "sketch",
+    "title": "Dygtig Vejleder",
+    "sender": "Malthe '20 & Hugo '21",
+    "pdfPath": "manus/sketch/Dygtig_Vejleder.pdf",
+    "texPath": "manus/sketch/Dygtig_Vejleder.tex",
+    "createdAt": "2026-08-01T16:31:06"
   }
 ];
