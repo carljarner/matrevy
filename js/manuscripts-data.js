@@ -216,5 +216,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Forskønnelsen.pdf",
     "texPath": "manus/sketch/Forskønnelsen.tex",
     "createdAt": "2026-08-01T16:33:31"
+  },
+  {
+    "id": "6a6e03d79df050ee",
+    "type": "sketch",
+    "title": "Kender Du Det?",
+    "sender": "Carl & Anders",
+    "pdfPath": "manus/sketch/Kender_Du_Det?.pdf",
+    "texPath": "manus/sketch/Kender_Du_Det?.tex",
+    "createdAt": "2026-08-01T16:33:59"
   }
 ];
