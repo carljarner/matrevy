@@ -126,5 +126,23 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/SS_SS.pdf",
     "texPath": "manus/sang/SS_SS.tex",
     "createdAt": "2026-08-01T16:27:20"
+  },
+  {
+    "id": "6a6e02684a87b83f",
+    "type": "sang",
+    "title": "Venter Til I Morgen",
+    "sender": "Johan",
+    "pdfPath": "manus/sang/Venter_Til_I_Morgen.pdf",
+    "texPath": "manus/sang/Venter_Til_I_Morgen.tex",
+    "createdAt": "2026-08-01T16:27:52"
+  },
+  {
+    "id": "6a6e027e6ead3914",
+    "type": "sang",
+    "title": "Whist",
+    "sender": "Carl '21",
+    "pdfPath": "manus/sang/Whist.pdf",
+    "texPath": "manus/sang/Whist.tex",
+    "createdAt": "2026-08-01T16:28:14"
   }
 ];
