@@ -153,5 +153,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Chi_Faktor.pdf",
     "texPath": "manus/sketch/Chi_Faktor.tex",
     "createdAt": "2026-08-01T16:29:30"
+  },
+  {
+    "id": "6a6e02fef40bb97d",
+    "type": "sketch",
+    "title": "Den Store Klagedyst",
+    "sender": "Augusta '20",
+    "pdfPath": "manus/sketch/Den_Store_Klagedyst.pdf",
+    "texPath": "manus/sketch/Den_Store_Klagedyst.tex",
+    "createdAt": "2026-08-01T16:30:22"
   }
 ];
