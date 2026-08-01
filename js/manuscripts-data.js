@@ -18,5 +18,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Ah_Ah.pdf",
     "texPath": "manus/sang/Ah_Ah.tex",
     "createdAt": "2026-08-01T16:17:54"
+  },
+  {
+    "id": "6a6e003078e87079",
+    "type": "sang",
+    "title": "Check Ind",
+    "sender": "Carl Jarner",
+    "pdfPath": "manus/sang/Check_Ind.pdf",
+    "texPath": "manus/sang/Check_Ind.tex",
+    "createdAt": "2026-08-01T16:18:24"
   }
 ];
