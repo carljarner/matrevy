@@ -189,5 +189,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/En_Instruktor_Siger_Op.pdf",
     "texPath": "manus/sketch/En_Instruktor_Siger_Op.tex",
     "createdAt": "2026-08-01T16:31:59"
+  },
+  {
+    "id": "6a6e03807123c31d",
+    "type": "sketch",
+    "title": "Er Der Nogen Spørgsmål",
+    "sender": "Villads",
+    "pdfPath": "manus/sketch/Er_Der_Nogen_Spørgsmål.pdf",
+    "texPath": "manus/sketch/Er_Der_Nogen_Spørgsmål.tex",
+    "createdAt": "2026-08-01T16:32:32"
   }
 ];
