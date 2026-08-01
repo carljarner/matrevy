@@ -238,6 +238,24 @@
   padding: 0;
 }
 
+/* Word/Docs-style nested numbering: 1./2./3. → a./b./c. → i./ii./iii.,
+   then back to numbers from the 4th level on. Descendant selectors, not
+   direct-child, since a level's <ol> sits inside its parent level's <li>
+   (see normalizeNestedLists() in wiki.js) — "ol ol ol ol" therefore also
+   correctly matches any deeper level too (more ancestors still satisfy
+   the same chain), and its higher specificity keeps that rule winning. */
+.wiki-chapter-body ol ol {
+  list-style-type: lower-alpha;
+}
+
+.wiki-chapter-body ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.wiki-chapter-body ol ol ol ol {
+  list-style-type: decimal;
+}
+
 .wiki-chapter-body li {
   margin-bottom: 0.25rem;
   line-height: 1.5;
@@ -337,6 +355,20 @@
 .wiki-edit-body ol {
   margin: 0 0 0.6rem 1.25rem;
   padding: 0;
+}
+
+/* Same nested-numbering convention as .wiki-chapter-body above, applied
+   live in the editor too. */
+.wiki-edit-body ol ol {
+  list-style-type: lower-alpha;
+}
+
+.wiki-edit-body ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.wiki-edit-body ol ol ol ol {
+  list-style-type: decimal;
 }
 
 .wiki-edit-body h2 {
