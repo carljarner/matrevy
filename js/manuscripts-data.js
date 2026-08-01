@@ -99,5 +99,23 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Matrevy_Sound.pdf",
     "texPath": "manus/sang/Matrevy_Sound.tex",
     "createdAt": "2026-08-01T16:25:38"
+  },
+  {
+    "id": "6a6e0208670e4508",
+    "type": "sang",
+    "title": "Omdrejningsfladen",
+    "sender": "Augusta",
+    "pdfPath": "manus/sang/Omdrejningsfladen.pdf",
+    "texPath": "manus/sang/Omdrejningsfladen.tex",
+    "createdAt": "2026-08-01T16:26:16"
+  },
+  {
+    "id": "6a6e022377eeb847",
+    "type": "sang",
+    "title": "Spørg Om Hjælp",
+    "sender": "Carl '21",
+    "pdfPath": "manus/sang/Spørg_Om_Hjælp.pdf",
+    "texPath": "manus/sang/Spørg_Om_Hjælp.tex",
+    "createdAt": "2026-08-01T16:26:43"
   }
 ];
