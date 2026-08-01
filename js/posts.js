@@ -742,7 +742,7 @@ function openPostCreateModal() {
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.accept = 'image/*';
-  fileInput.className = 'post-file-input';
+  fileInput.className = 'site-file-input';
   form.appendChild(siteEditField('Billede (valgfrit)', fileInput));
 
   const save = document.createElement('button');

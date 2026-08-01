@@ -7,6 +7,7 @@
   <title>Wiki · Matematikrevyen</title>
   <link rel="stylesheet" href="css/style.css" />
   <link rel="icon" type="image/png" href="img/favicon.png" />
+  <link rel="stylesheet" href="css/wiki.css" />
 </head>
 <body>
   <!-- Nav + login rendered by site.js from its central page registry -->
@@ -16,9 +17,24 @@
 
   <main class="page-content">
     <h1>Wiki</h1>
-    <section class="card">
-      <p>Wiki-siden er under opbygning.</p>
-    </section>
+
+    <!-- Two-column layout, same 2:1 grid ratio as Forside's dashboard-columns
+         but mirrored: the smaller column (chapters) is on the left, the
+         larger one (selected chapter's content) on the right. Each chapter
+         is a single continuous rich-text record; clicking one re-renders
+         the right column with either its read view or, for boss/admin
+         while editing, an in-place rich-text edit view (see wiki.js). -->
+    <div class="wiki-columns">
+      <section class="card wiki-chapters">
+        <div class="card-head">
+          <h2>Kapitler</h2>
+        </div>
+        <nav class="wiki-chapter-list" id="wiki-chapter-list"></nav>
+        <div class="wiki-chapter-actions" id="wiki-chapter-actions"></div>
+      </section>
+
+      <section class="card wiki-content" id="wiki-content-body"></section>
+    </div>
   </main>
 
   <footer class="site-footer">
@@ -26,5 +42,8 @@
   </footer>
 
   <script src="js/site.js"></script>
+  <script src="js/site-utils.js"></script>
+  <script src="js/wiki-data.js"></script>
+  <script src="js/wiki.js"></script>
 </body>
 </html>

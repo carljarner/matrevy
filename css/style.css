@@ -231,6 +231,10 @@ body:has(.sched-layout) .site-footer {
   .site-btn-primary:hover { background: #2f6cb3; }
 }
 .site-btn-primary:disabled { opacity: 0.6; cursor: default; }
+.site-btn-primary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 212, 0.35);
+}
 
 /* --- Overlay pill buttons (site-wide second-level standard) -----
    Every button inside a .login-overlay/.login-modal (login, editor,
@@ -948,10 +952,17 @@ body.site-menu-open {
   }
 }
 
+.btn-small:focus-visible {
+  outline: none;
+  border-color: #9ca3af;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
 /* Native file input's "Choose file" button, styled to match .btn-small
    (idle warm-cream fill, warm-amber hover) — the browser-default button
-   otherwise looks out of place next to the rest of the form. */
-.post-file-input::file-selector-button {
+   otherwise looks out of place next to the rest of the form. Shared by
+   posts.js's image picker and wiki.js's PDF picker. */
+.site-file-input::file-selector-button {
   background: #fdf8ec;
   color: var(--text);
   border: 1px solid var(--border);
@@ -965,7 +976,7 @@ body.site-menu-open {
 }
 
 @media (hover: hover) {
-  .post-file-input::file-selector-button:hover {
+  .site-file-input::file-selector-button:hover {
     background: var(--accent-warm-fill);
     border-color: var(--accent-warm);
     color: var(--accent-warm-text);
@@ -979,6 +990,12 @@ body.site-menu-open {
 
 @media (hover: hover) {
   .btn-small-danger:hover { background: #fbf1f0; border-color: #e0b4ae; }
+}
+
+.btn-small-danger:focus-visible {
+  outline: none;
+  border-color: #c0392b;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
 /* --- Messages -------------------------------------------- */

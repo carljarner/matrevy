@@ -71,6 +71,15 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/wiki-data.js',
+    sources: 'data/wiki.json',
+    globals: () => {
+      const chapters = readJson('data/wiki.json').chapters;
+      console.log(`  ${chapters.length} wiki chapters`);
+      return { WIKI_DATA: chapters };
+    },
+  },
+  {
     // Static .ics feed, served directly by GitHub Pages at
     // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
     // the calendar data is already fully public (see CLAUDE.md's access-level

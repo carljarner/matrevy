@@ -407,10 +407,12 @@ function calCreateCategoryField(initialKey) {
   render();
 
   btn.addEventListener('click', () => {
-    openCalCategoryPicker(btn, _value, (key) => {
-      _value = key;
-      render();
-      btn.dispatchEvent(new Event('change'));
+    siteToggleFieldPopup(btn, () => {
+      openCalCategoryPicker(btn, _value, (key) => {
+        _value = key;
+        render();
+        btn.dispatchEvent(new Event('change'));
+      });
     });
   });
   return btn;

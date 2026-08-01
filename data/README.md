@@ -14,6 +14,7 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 | `archive.json` | Previous years' manus/videos shown on the Arkiv page |
 | `posts.json` | Post board with a boss/admin-pinnable column, shown on Forside |
 | `bosses.json` | The static "Bosser for ..." info card on Forside |
+| `wiki.json` | Flat list of rich-text chapters shown on the Wiki page |
 
 ## Updating for a New Production
 
@@ -171,6 +172,27 @@ comments.
 - `title` — the card's heading text, required non-empty string.
 - `roles` — ordered list of `{names, role}`, rendered top-to-bottom exactly as stored (no client-side sorting). `names` is one free-text string (comma-separated when there's more than one person), not an array — matches how the card originally hand-listed multiple names per role. Both fields are plain strings server-side (empty allowed) since this is admin-only cosmetic content, not validated further.
 - Edited entirely from the Forside card itself (admin-only "Rediger" button next to the title) via the `bosses` resource (full-array replace, like `calendar`/`archive`) — no manual git step needed for day-to-day edits, same as the other data-driven pages.
+
+## Schema: wiki.json
+
+```json
+{
+  "chapters": [
+    {
+      "id": "m3k2j1ab",
+      "title": "Grupper",
+      "body": "<h2>Bandet</h2><p>Fri, sanitized HTML — se WIKI_ALLOWED_TAGS i wiki.js.</p>",
+      "pdf": "wiki/m3k2j1ab/attachment.pdf"
+    }
+  ]
+}
+```
+
+- One flat list, one record per chapter — deliberately not a nested chapter/section tree, and not grouped by category; a chapter reads and edits as a single continuous piece of rich text, shown top-to-bottom exactly in the array's stored order (the editor's up/down arrows reorder it).
+- `id` — unique string, client-generated (`Date.now().toString(36)`) when the chapter is created — same convention as `calendar.json`'s event `id`. Stable for the chapter's lifetime; also the folder key for its optional PDF attachment.
+- `title` — required, non-empty.
+- `body` — a sanitized HTML string restricted to a small allow-list (`b/strong`, `i/em`, `u`, `ul`, `ol`, `li`, `p`, `br`, `h2`, `h3` — see `WIKI_ALLOWED_TAGS` in `wiki.js`), produced by the page's own rich-text toolbar. `<a>` is deliberately not allowed — links are never stored as markup, only auto-detected from plain-text `http(s)://`/`www.` URLs at render time. `h2` sections also drive the page's per-chapter outline (click-to-scroll sidebar list).
+- `pdf` — optional repo-relative path, `wiki/<id>/attachment.pdf`, or `""`. **Uploaded directly through the Wiki editor** (no manual git step) via `server/update-data.php`'s `upload` action — the same generic action Arkiv uses for cover/manus uploads, but boss-level here (Arkiv's own `archive/...` uploads stay admin-only; the endpoint decides the required level from which path prefix the request matches). Uploads are capped at ~5 MB. Deleting a chapter does **not** delete an already-uploaded PDF from the repo (same accepted trade-off as Arkiv's `manusPdf`/`coverImage`).
 
 ## Adding a year to the archive
 

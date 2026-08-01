@@ -1,0 +1,406 @@
+/* =========================================================
+   Matematikrevyen – Wiki page styles (wiki.html only)
+   Page-scoped like calendar.css/archive.css; shared shell
+   styles (.card, .card-head, .btn-small, .edit-field,
+   .site-btn-primary, .site-field-btn, ...) live in style.css.
+
+   Two-column layout mirrors Forside's .dashboard-columns grid
+   (same 2:1 ratio, mirrored: the smaller column is on the left).
+   Left = chapters, clickable, with a "+ Tilføj kapitel" action
+   at the bottom; right = the selected chapter's rendered body,
+   swapped in place for a rich-text edit view while editing
+   (no modal) — see wiki.js's renderChapterReadView/EditView.
+   ========================================================= */
+
+.wiki-columns {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
+  gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.wiki-columns .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+/* Left column stays pinned 20px below the sticky site header (56px tall)
+   once the page scrolls past it, so "Kapitler" (and the active chapter's
+   outline) stays reachable while only the right column's content scrolls
+   underneath. max-height + its own overflow-y keeps a chapter list longer
+   than the viewport from being pinned with its bottom cut off. Desktop-only
+   (see the ≤719px override below) — on the stacked mobile layout the
+   chapters list sits above the content, so pinning it would just cover
+   the article underneath. */
+.wiki-chapters {
+  position: sticky;
+  top: 76px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+.wiki-empty {
+  text-align: center;
+  color: #57606a;
+}
+
+/* --- Left column: chapter list + add-chapter action --------- */
+.wiki-chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.wiki-chapter-btn {
+  display: block;
+  width: calc(100% + 0.7rem);
+  margin-left: -0.7rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wiki-chapter-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (hover: hover) {
+  .wiki-chapter-btn:hover:not(:disabled) {
+    background: var(--surface-2);
+  }
+}
+
+.wiki-chapter-btn.wiki-chapter-active {
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-weight: 600;
+}
+
+.wiki-chapter-outline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.15rem 0 0.3rem;
+}
+
+.wiki-outline-item {
+  display: block;
+  width: calc(100% + 0.7rem);
+  margin-left: -0.7rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem 0.3rem 1.25rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  color: #57606a;
+  cursor: pointer;
+}
+
+.wiki-outline-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (hover: hover) {
+  .wiki-outline-item:hover:not(:disabled) {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+}
+
+/* Scroll-spy highlight (wiki.js's setupWikiScrollSpy) — the outline item
+   for whichever Overskrift 1 section is currently scrolled to the top of
+   the right column. An inset left bar rather than a filled background so
+   it doesn't compete visually with .wiki-chapter-active on the chapter
+   button above it. */
+.wiki-outline-item.wiki-outline-active {
+  color: var(--accent-warm-text);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent-warm);
+}
+
+.wiki-chapter-actions {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.wiki-manage-chapters-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+/* --- Rediger kapitler modal: reorder + add ------------------- */
+.wiki-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.wiki-manage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.wiki-manage-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-manage-row-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.wiki-manage-move-btn {
+  padding: 0.05rem 0.4rem;
+  font-size: 0.65rem;
+  line-height: 1.3;
+}
+
+.wiki-manage-add-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.wiki-manage-add-row .edit-field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.wiki-manage-add-btn {
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* --- Right column: selected chapter's content ---------------- */
+.wiki-content-head {
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.wiki-content-title {
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.wiki-pdf-badge {
+  display: inline-flex;
+  color: var(--accent-warm-text);
+  flex-shrink: 0;
+}
+
+.wiki-chapter-body h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+
+.wiki-chapter-body h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin: 0.9rem 0 0.4rem;
+}
+
+.wiki-chapter-body h2:first-child,
+.wiki-chapter-body h3:first-child {
+  margin-top: 0;
+}
+
+.wiki-chapter-body p {
+  margin: 0 0 0.6rem;
+  line-height: 1.5;
+}
+
+.wiki-chapter-body ul,
+.wiki-chapter-body ol {
+  margin: 0 0 0.6rem 1.25rem;
+  padding: 0;
+}
+
+.wiki-chapter-body li {
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+}
+
+.wiki-pdf-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-decoration: none;
+  margin-bottom: 0.6rem;
+}
+
+/* --- In-place edit view --------------------------------------- */
+.wiki-edit-title-input {
+  font-size: 1.3rem;
+  font-weight: 600;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  background: transparent;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.wiki-edit-title-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  background: var(--input-bg);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.wiki-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 56px;
+  z-index: 10;
+  background: var(--surface);
+  padding: 0.35rem 0;
+}
+
+.wiki-toolbar-btn {
+  min-width: 2rem;
+  text-align: center;
+}
+
+.wiki-toolbar-btn-bold {
+  font-weight: 700;
+}
+
+.wiki-toolbar-btn-italic {
+  font-style: italic;
+}
+
+.wiki-toolbar-btn-underline {
+  text-decoration: underline;
+}
+
+.wiki-toolbar-btn.wiki-toolbar-btn-active {
+  background: var(--accent-warm-fill);
+  border-color: var(--accent-warm);
+  color: var(--accent-warm-text);
+}
+
+.wiki-toolbar-style {
+  width: 150px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.wiki-edit-body {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  min-height: 200px;
+  background: var(--input-bg);
+  line-height: 1.5;
+}
+
+.wiki-edit-body:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.wiki-edit-body p {
+  margin: 0 0 0.6rem;
+}
+
+.wiki-edit-body p:last-child {
+  margin-bottom: 0;
+}
+
+.wiki-edit-body ul,
+.wiki-edit-body ol {
+  margin: 0 0 0.6rem 1.25rem;
+  padding: 0;
+}
+
+.wiki-edit-body h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0.8rem 0 0.4rem;
+}
+
+.wiki-edit-body h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin: 0.7rem 0 0.35rem;
+}
+
+.wiki-edit-pdf-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.wiki-edit-current-link {
+  font-size: 0.9rem;
+}
+
+.wiki-edit-progress {
+  font-size: 0.9rem;
+  color: #57606a;
+}
+
+.wiki-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 719px) {
+  .wiki-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .wiki-chapters {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}

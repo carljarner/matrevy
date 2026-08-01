@@ -269,11 +269,41 @@ rank) — see verification notes below. Needs a real `BOSS_PASSWORD` value + a m
 **Intent**: structured FAQ/knowledge-base for general revyst info (not a forum) — same
 editorial pattern as Announcements/Kalender/Arkiv.
 
-**Expected outcomes**: `data/wiki.json` (articles: title, category, body) + embedded
-`wiki-data.js`; boss/admin write via a new `wiki` `$RESOURCES` entry; revyst+ read on
-`wiki.html`. Content itself (FAQ text) comes from the user, continuously.
+**What was built** (2026-07-18, planned against a user-supplied work-in-progress PDF
+handbook, "Revyhåndbogen"; reworked 2026-07-25 to the model below): a flat list of
+rich-text **chapters** — `{id, title, body, pdf}`, one record per chapter, no category
+grouping. The original plan called for a flat "articles + free-text category" model
+(reusing the existing data-driven-page pattern verbatim), but once real content was in
+place a chapter read/edited better as one continuous piece of text than as a stack of
+same-category articles, so the category level was collapsed away — see CLAUDE.md's
+"Wiki" section for the full current architecture (in-place rich-text edit view with a
+formatting toolbar, per-chapter `h2`-driven outline in the left column, sanitized-HTML
+storage). `data/wiki.json` (`chapters: [{id, title, body, pdf}]`) + embedded
+`wiki-data.js`; `wiki` resource in `$RESOURCES` at **boss** level (matches
+Kalender/Manus/Posts-edit, not Arkiv's admin-only); revyst+ read-only on `wiki.html`.
+Each chapter optionally attaches one PDF, uploaded via the same generic
+`upload`/`delete` action Arkiv uses — that action's level gate was generalized from a
+single hardcoded `admin` check to a per-path-prefix one (`archive/...` stays
+admin-only, `wiki/...` is boss+), since a single hardcoded level no longer fit once a
+second, lower-privilege resource needed the same upload mechanism. Seeded from the
+PDF's sections that already had real prose (Velkommen, Hvem må være med, the six group
+descriptions, Nyttige links) — empty stub sections from the PDF were **not** seeded as
+placeholder chapters; boss/admin add them once there's real content. One
+credential-looking string in the PDF's Nyttige Links page was deliberately left out of
+the seed, since `data/wiki.json` lands in the public repo. A follow-up pass
+(2026-07-25/08-01) polished the reading experience: the left column's chapter list
+(and the selected chapter's outline) is sticky, pinned 20px below the site header
+while the right column scrolls under it; the outline highlights whichever `h2` section
+is currently scrolled into view and jumps to a section with one click; switching
+chapters scrolls the right column back to the top without visibly moving the sticky
+left column (an instant jump, not animated — animating it fought the browser's own
+scroll-position clamp when a long chapter's content is replaced by a much shorter
+one, producing a visible "snap-then-glide" double motion).
 
-**Status**: [ ] not started
+**Status**: [x] done — built and verified locally (headless-browser drive across
+public/revyst/boss/admin levels + mobile viewport, see CLAUDE.md). Like every other
+phase touching `server/update-data.php`, the live save/upload round-trip needs a
+manual re-upload of that file to Simply.com before it works on `matematikrevy.dk`.
 
 ---
 

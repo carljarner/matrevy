@@ -1,0 +1,925 @@
+/* =========================================================
+   Matematikrevyen – Wiki (wiki.html)
+   Renders WIKI_DATA (embedded from data/wiki.json) as a two-column
+   "chapters + content" view, mirroring Forside's dashboard-columns
+   grid (same 2:1 ratio, mirrored: chapters is the smaller column).
+   Each chapter is a single continuous rich-text record
+   ({id, title, body, pdf}) — a clickable link in the left column;
+   clicking one re-renders the right column with that chapter's
+   rendered body (+ an optional PDF attachment). The selected chapter
+   also gets an inline outline of its own Overskrift 1 (H2) sections
+   beneath its button, click-to-scroll. Boss/admin get a "Rediger
+   kapitler" button at the bottom of the left column (opens a modal to
+   add new chapters and reorder the whole list via up/down arrows) and,
+   per chapter, a top-right "Rediger" button that swaps the read view
+   for an in-place rich-text edit view (title input + formatting
+   toolbar + contenteditable body) — no modal, same position on the
+   page. Delete and PDF attach/detach live inside that edit view's
+   action row.
+
+   PDFs are optionally uploaded per chapter and committed under
+   wiki/<id>/attachment.pdf via server/update-data.php's 'upload'
+   action (see siteUploadFile in site-utils.js); metadata saves
+   globally via siteSaveResource ('wiki' resource, whole-array
+   replace like every other data-driven page).
+
+   Rich-text storage/rendering: `body` is a sanitized HTML string
+   (bold/italic/underline/lists/h2/h3/p only — see WIKI_ALLOWED_TAGS).
+   This is a deliberate, scoped exception to the site-wide "DOM is
+   built via createElement/textContent only, never innerHTML" rule —
+   the exception is made safe by never assigning untrusted HTML to
+   `.innerHTML` on a *live* document node. Stored/typed HTML is only
+   ever parsed via `DOMParser` into a fully detached document, then
+   walked and rebuilt one allow-listed element at a time via
+   createElement/createTextNode into the live DOM (renderSanitizedBody)
+   or into a detached scratch node whose OWN innerHTML we then read
+   back (sanitizeHtmlString) — at no point does raw/untrusted markup
+   reach a live node's innerHTML setter. Links are deliberately never
+   stored as <a> markup — appendTextWithLinks re-detects plain-text
+   URLs at render time only, so a stray pasted <a> just becomes plain
+   text on save and gets re-linkified on the next render (idempotent,
+   no persisted-attribute XSS surface).
+   ========================================================= */
+
+'use strict';
+
+const WIKI_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+// Outline click-to-scroll and scroll-spy activation share one offset: the
+// sticky site header (56px) plus a landing gap in the middle of the
+// requested 75–100px "below the navbar" band. Sharing the constant means a
+// clicked heading lands exactly where the spy considers it "active", so its
+// own outline item is highlighted immediately rather than a neighbour's.
+const WIKI_OUTLINE_OFFSET = 56 + 88;
+
+// A landing exactly at WIKI_OUTLINE_OFFSET sometimes lands a hair below it
+// (sub-pixel rounding in smooth-scroll's final position), which fails the
+// scroll-spy's `<= WIKI_OUTLINE_OFFSET` check and leaves the just-clicked
+// item unhighlighted. Scrolling 5px further (landing 5px higher) gives it
+// enough margin to always register as active.
+const WIKI_OUTLINE_CLICK_EXTRA = 5;
+
+// Matches .wiki-chapters' sticky `top` in wiki.css (56px header + 20px
+// resting gap) — the y-position the left column already rests at once
+// scrolled past it. Switching chapters scrolls the page so the new
+// chapter's content top lands at this same y — the left column, already
+// stuck there via position: sticky, visually doesn't move at all; only the
+// right column "jumps" to the top of the newly selected chapter.
+const WIKI_SIDEBAR_STICKY_TOP = 76;
+
+// Deliberately `behavior: 'instant'`, not 'smooth': switching from a long
+// chapter to a much shorter one shrinks the document out from under the
+// current scroll position, so the browser itself snaps scrollY to the new
+// (smaller) max instantly, un-animated, the moment the shorter content is
+// rendered — before this call ever runs. A 'smooth' scrollTo from there
+// only animates the short remaining hop to the real target, so the visible
+// result was an instant snap immediately followed by a separate glide —
+// exactly the "jumpy" two-step motion. Making our own correction instant
+// too collapses both into one atomic, un-animated jump — a clean chapter
+// switch, matching how switching pages/documents normally behaves.
+function scrollWikiContentToSidebarTop() {
+  const contentBody = document.getElementById('wiki-content-body');
+  if (!contentBody) return;
+  const targetY = window.scrollY + contentBody.getBoundingClientRect().top - WIKI_SIDEBAR_STICKY_TOP;
+  window.scrollTo({ top: Math.max(targetY, 0), behavior: 'instant' });
+}
+
+// ── Data (with a localStorage-backed shadow after a save) ────
+let wikiOverride = siteLoadOverride('wiki');
+
+function getEffectiveChapters() {
+  return wikiOverride || WIKI_DATA;
+}
+
+// Which chapter is shown in the right column, and whether it's
+// currently being edited in place — kept outside render() so both
+// survive a re-render. Fall back to the first chapter, and drop a
+// stale editing id, whenever the underlying data no longer has it.
+let wikiSelectedChapterId = null;
+let wikiEditingChapterId = null;
+
+// ── Rendering ────────────────────────────────────────────────
+function renderWiki() {
+  const chapterList = document.getElementById('wiki-chapter-list');
+  const contentBody = document.getElementById('wiki-content-body');
+  const actionsSlot = document.getElementById('wiki-chapter-actions');
+  if (!chapterList || !contentBody) return;
+
+  const canEdit = siteHasLevel('boss');
+  const chapters = getEffectiveChapters();
+
+  chapterList.textContent = '';
+  contentBody.textContent = '';
+  actionsSlot.textContent = '';
+
+  const outlineSpyItems = [];
+
+  if (chapters.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'wiki-empty';
+    empty.textContent = 'Wikien er tom endnu.';
+    contentBody.appendChild(empty);
+  } else {
+    if (!wikiSelectedChapterId || !chapters.some((c) => c.id === wikiSelectedChapterId)) {
+      wikiSelectedChapterId = chapters[0].id;
+    }
+    if (wikiEditingChapterId && !chapters.some((c) => c.id === wikiEditingChapterId)) {
+      wikiEditingChapterId = null;
+    }
+
+    // Chapter switching and adding are disabled while a chapter is being
+    // edited — simplest, deliberate answer to "what if you switch
+    // mid-edit": you can't, until Gem/Annuller.
+    for (const chapter of chapters) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'wiki-chapter-btn';
+      if (chapter.id === wikiSelectedChapterId) btn.classList.add('wiki-chapter-active');
+      btn.textContent = chapter.title;
+      btn.disabled = !!wikiEditingChapterId;
+      btn.addEventListener('click', () => {
+        if (chapter.id === wikiSelectedChapterId) return;
+        wikiSelectedChapterId = chapter.id;
+        renderWiki();
+        scrollWikiContentToSidebarTop();
+      });
+      chapterList.appendChild(btn);
+
+      if (chapter.id === wikiSelectedChapterId) {
+        const h2Titles = getChapterH2Titles(chapter);
+        if (h2Titles.length > 0) {
+          const outline = document.createElement('div');
+          outline.className = 'wiki-chapter-outline';
+          h2Titles.forEach((title, index) => {
+            const headingId = `wiki-h2-${chapter.id}-${index}`;
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'wiki-outline-item';
+            item.textContent = title;
+            item.disabled = !!wikiEditingChapterId;
+            item.addEventListener('click', () => {
+              const el = document.getElementById(headingId);
+              if (!el) return;
+              const targetY = window.scrollY + el.getBoundingClientRect().top - WIKI_OUTLINE_OFFSET + WIKI_OUTLINE_CLICK_EXTRA;
+              window.scrollTo({ top: Math.max(targetY, 0), behavior: 'smooth' });
+            });
+            outline.appendChild(item);
+            outlineSpyItems.push({ btn: item, headingId });
+          });
+          chapterList.appendChild(outline);
+        }
+      }
+    }
+
+    const selected = chapters.find((c) => c.id === wikiSelectedChapterId);
+    contentBody.appendChild(
+      wikiEditingChapterId === selected.id
+        ? renderChapterEditView(selected)
+        : renderChapterReadView(selected, canEdit)
+    );
+  }
+
+  // Read view only — the edit view never stamps heading ids, so there's
+  // nothing to spy on while editing (its outline items are also disabled
+  // above).
+  setupWikiScrollSpy(wikiEditingChapterId ? [] : outlineSpyItems);
+  adjustWikiScrollRoom(!wikiEditingChapterId && outlineSpyItems.length > 0 ? outlineSpyItems[outlineSpyItems.length - 1].headingId : null);
+
+  if (canEdit) {
+    const manageBtn = document.createElement('button');
+    manageBtn.type = 'button';
+    manageBtn.className = 'btn-small wiki-manage-chapters-btn';
+    manageBtn.textContent = 'Rediger kapitler';
+    manageBtn.disabled = !!wikiEditingChapterId;
+    manageBtn.addEventListener('click', openManageChaptersModal);
+    actionsSlot.appendChild(manageBtn);
+  }
+}
+
+function renderChapterReadView(chapter, canEdit) {
+  const wrap = document.createElement('div');
+
+  const head = document.createElement('div');
+  head.className = 'card-head wiki-content-head';
+
+  const heading = document.createElement('h2');
+  heading.className = 'wiki-content-title';
+  heading.textContent = chapter.title;
+  head.appendChild(heading);
+
+  if (chapter.pdf) {
+    const badge = document.createElement('span');
+    badge.className = 'wiki-pdf-badge';
+    badge.title = 'Har en vedhæftet PDF';
+    badge.appendChild(buildPdfIcon());
+    head.appendChild(badge);
+  }
+
+  if (canEdit) {
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'btn-small';
+    editBtn.textContent = 'Rediger';
+    editBtn.addEventListener('click', () => {
+      wikiEditingChapterId = chapter.id;
+      renderWiki();
+    });
+    head.appendChild(editBtn);
+  }
+
+  wrap.appendChild(head);
+
+  const body = document.createElement('div');
+  body.className = 'wiki-chapter-body';
+  renderSanitizedBody(body, chapter.body, { assignHeadingIds: true, headingIdPrefix: `wiki-h2-${chapter.id}-` });
+  wrap.appendChild(body);
+
+  if (chapter.pdf) {
+    const pdfLink = document.createElement('a');
+    pdfLink.className = 'wiki-pdf-link';
+    pdfLink.href = chapter.pdf;
+    pdfLink.target = '_blank';
+    pdfLink.rel = 'noopener';
+    pdfLink.appendChild(buildPdfIcon());
+    const pdfText = document.createElement('span');
+    pdfText.textContent = 'Åbn PDF';
+    pdfLink.appendChild(pdfText);
+    wrap.appendChild(pdfLink);
+  }
+
+  return wrap;
+}
+
+function renderChapterEditView(chapter) {
+  const wrap = document.createElement('div');
+
+  const head = document.createElement('div');
+  head.className = 'card-head wiki-content-head';
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.className = 'wiki-edit-title-input';
+  titleInput.value = chapter.title;
+  head.appendChild(titleInput);
+  wrap.appendChild(head);
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'wiki-edit-body';
+  bodyEl.contentEditable = 'true';
+  bodyEl.spellcheck = false;
+  // Chrome's default is to wrap each new line in a <div> on Enter, which
+  // falls outside our storage allow-list (WIKI_ALLOWED_TAGS has no DIV);
+  // asking for 'p' keeps typed paragraphs matching what's actually stored.
+  bodyEl.addEventListener('focus', () => {
+    document.execCommand('defaultParagraphSeparator', false, 'p');
+  });
+
+  const toolbar = buildWikiToolbar(bodyEl);
+  wrap.appendChild(toolbar);
+
+  renderSanitizedBody(bodyEl, chapter.body, { linkify: false });
+  wrap.appendChild(bodyEl);
+
+  // ── PDF attach/detach ──
+  const pdfRow = document.createElement('div');
+  pdfRow.className = 'wiki-edit-pdf-row';
+  let pendingPdf = null;
+  let pdfRemoved = false;
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'application/pdf,.pdf';
+  fileInput.className = 'site-file-input';
+  fileInput.addEventListener('change', () => {
+    pendingPdf = fileInput.files[0] || null;
+    if (pendingPdf) pdfRemoved = false;
+    renderPdfRow();
+  });
+
+  function renderPdfRow() {
+    pdfRow.textContent = '';
+    if (pendingPdf) {
+      const label = document.createElement('span');
+      label.textContent = `Ny PDF: ${pendingPdf.name}`;
+      pdfRow.appendChild(label);
+      const undoBtn = document.createElement('button');
+      undoBtn.type = 'button';
+      undoBtn.className = 'btn-small';
+      undoBtn.textContent = 'Fortryd';
+      undoBtn.addEventListener('click', () => { pendingPdf = null; fileInput.value = ''; renderPdfRow(); });
+      pdfRow.appendChild(undoBtn);
+    } else if (chapter.pdf && !pdfRemoved) {
+      const link = document.createElement('a');
+      link.href = chapter.pdf;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.className = 'wiki-edit-current-link';
+      link.textContent = 'Nuværende PDF';
+      pdfRow.appendChild(link);
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn-small';
+      removeBtn.textContent = 'Fjern PDF';
+      removeBtn.addEventListener('click', () => { pdfRemoved = true; renderPdfRow(); });
+      pdfRow.appendChild(removeBtn);
+    } else {
+      const noneLabel = document.createElement('span');
+      noneLabel.className = 'wiki-edit-progress';
+      noneLabel.textContent = 'Ingen PDF vedhæftet.';
+      pdfRow.appendChild(noneLabel);
+    }
+    pdfRow.appendChild(fileInput);
+  }
+  renderPdfRow();
+  wrap.appendChild(pdfRow);
+
+  const error = document.createElement('div');
+  error.className = 'login-error';
+  wrap.appendChild(error);
+
+  // ── Actions ──
+  const actions = document.createElement('div');
+  actions.className = 'wiki-edit-actions';
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'site-pill-btn site-pill-danger edit-actions-left';
+  del.textContent = 'Slet kapitel';
+  del.addEventListener('click', () => openDeleteChapterConfirm(chapter));
+  actions.appendChild(del);
+
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'site-pill-btn';
+  cancel.textContent = 'Annuller';
+  cancel.addEventListener('click', () => {
+    toolbar.destroy();
+    wikiEditingChapterId = null;
+    renderWiki();
+  });
+  actions.appendChild(cancel);
+
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'site-pill-btn site-pill-primary';
+  save.textContent = 'Gem';
+  actions.appendChild(save);
+
+  const progress = document.createElement('span');
+  progress.className = 'wiki-edit-progress';
+  actions.appendChild(progress);
+
+  wrap.appendChild(actions);
+
+  save.addEventListener('click', async () => {
+    const title = titleInput.value.trim();
+    if (!title) {
+      error.textContent = 'Titel er påkrævet.';
+      return;
+    }
+    if (pendingPdf) {
+      const isPdf = pendingPdf.type === 'application/pdf' || /\.pdf$/i.test(pendingPdf.name);
+      if (!isPdf) {
+        error.textContent = 'Den vedhæftede fil skal være en PDF.';
+        return;
+      }
+      if (pendingPdf.size > WIKI_MAX_UPLOAD_BYTES) {
+        error.textContent = 'PDF-filen er for stor (maks. 5 MB).';
+        return;
+      }
+    }
+
+    save.disabled = true;
+    save.textContent = 'Gemmer…';
+    error.textContent = '';
+
+    let pdf = pdfRemoved ? '' : (chapter.pdf || '');
+    if (pendingPdf) {
+      progress.textContent = 'Uploader PDF…';
+      const dataUrl = await readFileAsDataURL(pendingPdf);
+      const uploadResult = await siteUploadFile(buildWikiPdfPath(chapter.id), stripDataUrlPrefix(dataUrl));
+      if (!uploadResult.ok) {
+        save.disabled = false;
+        save.textContent = 'Gem';
+        progress.textContent = '';
+        error.textContent = uploadResult.message;
+        return;
+      }
+      pdf = buildWikiPdfPath(chapter.id);
+    }
+    progress.textContent = '';
+
+    const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML), pdf };
+    const current = getEffectiveChapters();
+    const next = current.map((c) => (c.id === chapter.id ? draft : c));
+    const result = await saveChapters(next); // clears wikiEditingChapterId + re-renders on success
+    if (result.ok) {
+      toolbar.destroy();
+    } else {
+      save.disabled = false;
+      save.textContent = 'Gem';
+      error.textContent = result.message;
+    }
+  });
+
+  titleInput.focus();
+  return wrap;
+}
+
+// ── Formatting toolbar ──────────────────────────────────────
+// Google-Docs-style layout: block-style dropdown first, then B/I/U
+// toggle buttons (highlighted when the caret/selection has that
+// formatting, also bound to Cmd/Ctrl+B/I/U), then list buttons last.
+// Call toolbar.destroy() when the edit view unmounts (Annuller or a
+// successful Gem) to remove the document-level selectionchange listener.
+function buildWikiToolbar(bodyEl) {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'wiki-toolbar';
+
+  // The style dropdown opens an async popup (site-utils.js), so unlike
+  // the buttons below, bodyEl's selection WILL be lost by the time
+  // 'change' fires (the user clicked a row inside the popup, which
+  // steals focus). Capture the range up front on mousedown and restore
+  // it right before running the command.
+  let savedRange = null;
+  const styleDropdown = siteCreateDropdownField([
+    { value: 'p', label: 'Normal' },
+    { value: 'h3', label: 'Overskrift 2' },
+    { value: 'h2', label: 'Overskrift 1' },
+  ], 'p');
+  styleDropdown.classList.add('wiki-toolbar-style');
+  styleDropdown.addEventListener('mousedown', () => {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0 && bodyEl.contains(sel.anchorNode)) {
+      savedRange = sel.getRangeAt(0).cloneRange();
+    }
+  });
+  styleDropdown.addEventListener('change', () => {
+    bodyEl.focus();
+    if (savedRange) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    }
+    // Angle-bracket tag form is the cross-browser-safe one for
+    // formatBlock (older Firefox rejects the bare tag name).
+    document.execCommand('formatBlock', false, `<${styleDropdown.value}>`);
+    updateToolbarState();
+  });
+  toolbar.appendChild(styleDropdown);
+
+  // mousedown + preventDefault (not click) so focus/selection never
+  // leaves bodyEl before the execCommand fires — the standard,
+  // load-bearing gotcha for any execCommand-based toolbar.
+  function addFormatBtn(label, title, command, extraClass) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn-small wiki-toolbar-btn${extraClass ? ' ' + extraClass : ''}`;
+    btn.textContent = label;
+    btn.title = title;
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      document.execCommand(command);
+      updateToolbarState();
+    });
+    toolbar.appendChild(btn);
+    return btn;
+  }
+
+  const boldBtn = addFormatBtn('B', 'Fed', 'bold', 'wiki-toolbar-btn-bold');
+  const italicBtn = addFormatBtn('I', 'Kursiv', 'italic', 'wiki-toolbar-btn-italic');
+  const underlineBtn = addFormatBtn('U', 'Understreget', 'underline', 'wiki-toolbar-btn-underline');
+  addFormatBtn('•', 'Punktopstilling', 'insertUnorderedList');
+  addFormatBtn('1.', 'Nummereret liste', 'insertOrderedList');
+
+  // Walks up from the caret to the nearest h2/h3/p ancestor within
+  // bodyEl (renderSanitizedBody only ever nests those three as direct
+  // children of bodyEl; inline b/i/u nest inside a p). Falls back to
+  // 'p' when nothing matches (e.g. caret inside a list item, which
+  // execCommand('insertUnorderedList') doesn't wrap in a p).
+  function detectBlockTag() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !bodyEl.contains(sel.anchorNode)) return null;
+    const node = sel.anchorNode;
+    const startEl = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    const block = startEl && startEl.closest ? startEl.closest('h2, h3, p') : null;
+    return block && bodyEl.contains(block) ? block.tagName.toLowerCase() : 'p';
+  }
+
+  function updateToolbarState() {
+    const sel = window.getSelection();
+    const focused = document.activeElement === bodyEl || (sel.rangeCount > 0 && bodyEl.contains(sel.anchorNode));
+    if (!focused) return; // leave last-known display as-is when focus is elsewhere on the page
+    boldBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('bold'));
+    italicBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('italic'));
+    underlineBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('underline'));
+    const tag = detectBlockTag();
+    // .value's setter only re-renders the dropdown's display, it never
+    // dispatches 'change' (site-utils.js), so this can't loop back into
+    // another formatBlock call.
+    if (tag) styleDropdown.value = tag;
+  }
+
+  function onSelectionChange() { updateToolbarState(); }
+  bodyEl.addEventListener('keyup', updateToolbarState);
+  bodyEl.addEventListener('mouseup', updateToolbarState);
+  document.addEventListener('selectionchange', onSelectionChange);
+
+  bodyEl.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+    const command = { b: 'bold', i: 'italic', u: 'underline' }[e.key.toLowerCase()];
+    if (!command) return;
+    e.preventDefault();
+    document.execCommand(command);
+    updateToolbarState();
+  });
+
+  updateToolbarState();
+  toolbar.destroy = () => document.removeEventListener('selectionchange', onSelectionChange);
+
+  return toolbar;
+}
+
+// ── Sanitized rendering (see the file-level comment for why this is
+// safe despite storing/rendering HTML) ──────────────────────────
+const WIKI_ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'P', 'BR', 'H2', 'H3']);
+const WIKI_TAG_MAP = { B: 'strong', STRONG: 'strong', I: 'em', EM: 'em', U: 'u', UL: 'ul', OL: 'ol', LI: 'li', P: 'p', BR: 'br', H2: 'h2', H3: 'h3' };
+
+// Renders a stored/typed HTML string into `container` by parsing it into
+// a fully detached document (DOMParser never executes scripts, and the
+// result is never attached to the live document) and rebuilding only the
+// allow-listed tags as real DOM nodes via createElement/createTextNode —
+// `.innerHTML` is never assigned on a live node.
+//
+// `assignHeadingIds`/`headingIdPrefix` optionally stamp a synthesized
+// `id="<headingIdPrefix><index>"` onto each rebuilt H2 (used by the
+// left-column outline to scroll a heading into view) — the id is
+// generated by our own counter, never copied from the source node, so
+// this doesn't weaken the "no attributes copied from source" property.
+function renderSanitizedBody(container, html, { linkify = true, assignHeadingIds = false, headingIdPrefix = '' } = {}) {
+  container.textContent = '';
+  const doc = new DOMParser().parseFromString(html || '', 'text/html');
+  const headingCounter = assignHeadingIds ? { h2: 0 } : null;
+  appendSanitizedChildren(container, doc.body, linkify, headingCounter, headingIdPrefix);
+}
+
+function appendSanitizedChildren(target, sourceNode, linkify, headingCounter, headingIdPrefix) {
+  for (const node of sourceNode.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (linkify) appendTextWithLinks(target, node.textContent);
+      else target.appendChild(document.createTextNode(node.textContent));
+    } else if (node.nodeType === Node.ELEMENT_NODE && WIKI_ALLOWED_TAGS.has(node.tagName)) {
+      const el = document.createElement(WIKI_TAG_MAP[node.tagName]);
+      if (headingCounter && node.tagName === 'H2') {
+        el.id = `${headingIdPrefix}${headingCounter.h2}`;
+        headingCounter.h2 += 1;
+      }
+      appendSanitizedChildren(el, node, linkify, headingCounter, headingIdPrefix);
+      target.appendChild(el);
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      // Disallowed wrapper (e.g. a stray <div>/<span style=...>/<font>
+      // produced by execCommand or a paste) — drop the wrapper itself
+      // but keep walking its children so their text/allowed formatting
+      // survives.
+      appendSanitizedChildren(target, node, linkify, headingCounter, headingIdPrefix);
+    }
+  }
+}
+
+// ── Outline scroll-spy ──────────────────────────────────────
+// Highlights whichever outline item's heading is currently scrolled to the
+// top of the (window-scrolled) page, mirroring the sticky left column's
+// 20px-below-the-header resting position (see .wiki-chapters in wiki.css).
+// Re-run on every renderWiki() call since the outline buttons/headings are
+// fresh DOM nodes each time — always tears down the previous listener
+// first so re-renders (chapter switch, edit/save, ...) never stack them.
+let wikiScrollSpyCleanup = null;
+
+function setupWikiScrollSpy(items) {
+  if (wikiScrollSpyCleanup) {
+    wikiScrollSpyCleanup();
+    wikiScrollSpyCleanup = null;
+  }
+  if (!items || items.length === 0) return;
+
+  function update() {
+    let activeIndex = -1;
+    for (let i = 0; i < items.length; i++) {
+      const el = document.getElementById(items[i].headingId);
+      if (!el) continue;
+      if (el.getBoundingClientRect().top <= WIKI_OUTLINE_OFFSET) {
+        activeIndex = i;
+      } else {
+        break;
+      }
+    }
+    items.forEach((item, i) => {
+      item.btn.classList.toggle('wiki-outline-active', i === activeIndex);
+    });
+  }
+
+  let ticking = false;
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      update();
+      ticking = false;
+    });
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  update();
+  wikiScrollSpyCleanup = () => window.removeEventListener('scroll', onScroll);
+}
+
+// Adds just enough bottom room inside #wiki-content-body for the LAST
+// outline item to be reachable — no more. Two cases, matching how far the
+// chapter's real content already runs past its last heading:
+//  - Already far enough (the natural end of the box is at or past the point
+//    where the last heading would reach WIKI_OUTLINE_OFFSET once its own
+//    bottom scrolls into view): no spacer — the box just ends after its own
+//    text, same as any other chapter.
+//  - Not far enough (a short trailing section, e.g. "Ikke skrevet endnu…"):
+//    add exactly the spacer needed so scrolling to the box's new bottom
+//    lands the heading exactly at WIKI_OUTLINE_OFFSET — you can't scroll
+//    any further than that, and what you see at the bottom of the viewport
+//    at that point is the box's own (now slightly taller) bottom edge, not
+//    a further stretch of empty page.
+// Always re-measures from a clean slate (removes any previous spacer first)
+// since chapter switches/edits change both the heading's position and the
+// box's natural height.
+function adjustWikiScrollRoom(lastHeadingId) {
+  const existingSpacer = document.getElementById('wiki-scroll-spacer');
+  if (existingSpacer) existingSpacer.remove();
+  if (!lastHeadingId) return;
+
+  const contentBody = document.getElementById('wiki-content-body');
+  const headingEl = document.getElementById(lastHeadingId);
+  if (!contentBody || !headingEl) return;
+
+  const viewportHeight = window.innerHeight;
+  const headingAbsoluteTop = headingEl.getBoundingClientRect().top + window.scrollY;
+  const boxBottomAbsolute = contentBody.getBoundingClientRect().bottom + window.scrollY;
+  // Trimmed 50px off the strict "box bottom reaches the viewport's bottom
+  // edge exactly as the heading crosses WIKI_OUTLINE_OFFSET" requirement —
+  // the last item's own click target already lands it correctly (see
+  // WIKI_OUTLINE_CLICK_EXTRA above), so the spacer only needs to get it
+  // close, not exact, and a shorter minimum reads better.
+  const requiredBoxBottom = headingAbsoluteTop - WIKI_OUTLINE_OFFSET + viewportHeight - 50;
+  const extra = requiredBoxBottom - boxBottomAbsolute;
+  if (extra <= 0) return;
+
+  const spacer = document.createElement('div');
+  spacer.id = 'wiki-scroll-spacer';
+  spacer.setAttribute('aria-hidden', 'true');
+  spacer.style.height = `${Math.ceil(extra)}px`;
+  contentBody.appendChild(spacer);
+}
+
+// Plain text of every <h2> in a chapter's stored body, in document order —
+// used by the left-column outline. Parsed the same way (DOMParser into a
+// detached document) as renderSanitizedBody, over the same string, so its
+// order always matches the heading ids assignHeadingIds stamps above.
+function getChapterH2Titles(chapter) {
+  const doc = new DOMParser().parseFromString(chapter.body || '', 'text/html');
+  return Array.from(doc.body.querySelectorAll('h2')).map((h2) => h2.textContent);
+}
+
+// Canonicalizes whatever execCommand produced in the live contenteditable
+// region down to the allow-listed subset before it's ever written to
+// data/wiki.json. `scratch` is a detached <div> built entirely from the
+// allow-list with zero attributes ever copied from the source, so reading
+// `.innerHTML` back off it is safe.
+function sanitizeHtmlString(rawHtml) {
+  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+  const scratch = document.createElement('div');
+  appendSanitizedChildren(scratch, doc.body, false); // linkify:false — links are render-time only, never stored
+  return scratch.innerHTML;
+}
+
+// One <a> per http(s)/www URL found in `text`, appended directly into
+// `target` alongside plain text nodes for everything else.
+const WIKI_URL_RE = /((https?:\/\/|www\.)\S+)/g;
+
+function appendTextWithLinks(target, text) {
+  let lastIndex = 0;
+  let match;
+  WIKI_URL_RE.lastIndex = 0;
+  while ((match = WIKI_URL_RE.exec(text)) !== null) {
+    if (match.index > lastIndex) target.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+    let url = match[0];
+    const trailingMatch = url.match(/[.,)]+$/);
+    if (trailingMatch) url = url.slice(0, -trailingMatch[0].length);
+    const a = document.createElement('a');
+    a.href = url.startsWith('http') ? url : `https://${url}`;
+    a.textContent = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    target.appendChild(a);
+    if (trailingMatch) target.appendChild(document.createTextNode(trailingMatch[0]));
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) target.appendChild(document.createTextNode(text.slice(lastIndex)));
+}
+
+// ── PDF icon ───────────────────────────────────────────────────
+// Built via SVG DOM methods, never innerHTML. Duplicated from
+// archive.js's buildPdfIcon() per the one-file-per-feature convention.
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const key in attrs) el.setAttribute(key, attrs[key]);
+  return el;
+}
+
+function buildPdfIcon() {
+  const svg = svgEl('svg', {
+    viewBox: '0 0 24 24', width: '16', height: '16', fill: 'none',
+    stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+  });
+  svg.appendChild(svgEl('path', { d: 'M6 2h9l5 5v15H6z' }));
+  svg.appendChild(svgEl('path', { d: 'M15 2v5h5' }));
+  return svg;
+}
+
+// ── Saving ───────────────────────────────────────────────────
+async function saveChapters(next) {
+  const result = await siteSaveResource('wiki', { chapters: next });
+  if (result.ok) {
+    wikiOverride = next;
+    siteSaveOverride('wiki', next);
+    wikiEditingChapterId = null;
+    renderWiki();
+  }
+  return result;
+}
+
+// A rounded "pill" button — see style.css's shared .site-pill-btn for the
+// styling (also used by every other page's modals).
+function wikiPillBtn(label, variant) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-pill-btn' + (variant ? ' ' + variant : '');
+  btn.textContent = label;
+  return btn;
+}
+
+function openDeleteChapterConfirm(existing) {
+  const { form, error, actions, close } = siteOpenEditModal('Slet kapitel');
+
+  const info = document.createElement('p');
+  info.textContent = `Slet kapitlet "${existing.title}"? En evt. vedhæftet PDF bliver ikke slettet fra reposet.`;
+  form.appendChild(info);
+
+  const cancelBtn = wikiPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = wikiPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const next = getEffectiveChapters().filter((c) => c.id !== existing.id);
+    const result = await saveChapters(next);
+    if (result.ok) {
+      close();
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// ── Binary file helpers ───────────────────────────────────────
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function stripDataUrlPrefix(dataUrl) {
+  const i = dataUrl.indexOf(',');
+  return i === -1 ? dataUrl : dataUrl.slice(i + 1);
+}
+
+function buildWikiPdfPath(id) {
+  return `wiki/${id}/attachment.pdf`;
+}
+
+// ── Manage-chapters modal (add + reorder) ───────────────────
+function openManageChaptersModal() {
+  const { form, error, actions, close } = siteOpenModalWithClose('Rediger kapitler');
+
+  // Local draft of {id, title} only — body/pdf are never touched here,
+  // only reattached from the current saved chapters at save time, so a
+  // reorder/add can never lose a chapter's content.
+  let draft = getEffectiveChapters().map((c) => ({ id: c.id, title: c.title }));
+
+  const listWrap = document.createElement('div');
+  listWrap.className = 'wiki-manage-list';
+  form.appendChild(listWrap);
+
+  function renderList() {
+    listWrap.textContent = '';
+    draft.forEach((item, index) => {
+      const row = document.createElement('div');
+      row.className = 'wiki-manage-row';
+
+      const title = document.createElement('span');
+      title.className = 'wiki-manage-row-title';
+      title.textContent = item.title;
+      row.appendChild(title);
+
+      const btnGroup = document.createElement('div');
+      btnGroup.className = 'wiki-manage-row-btns';
+
+      const up = document.createElement('button');
+      up.type = 'button';
+      up.className = 'btn-small wiki-manage-move-btn';
+      up.textContent = '▲';
+      up.title = 'Flyt op';
+      up.disabled = index === 0;
+      up.addEventListener('click', () => {
+        [draft[index - 1], draft[index]] = [draft[index], draft[index - 1]];
+        renderList();
+      });
+      btnGroup.appendChild(up);
+
+      const down = document.createElement('button');
+      down.type = 'button';
+      down.className = 'btn-small wiki-manage-move-btn';
+      down.textContent = '▼';
+      down.title = 'Flyt ned';
+      down.disabled = index === draft.length - 1;
+      down.addEventListener('click', () => {
+        [draft[index], draft[index + 1]] = [draft[index + 1], draft[index]];
+        renderList();
+      });
+      btnGroup.appendChild(down);
+
+      row.appendChild(btnGroup);
+      listWrap.appendChild(row);
+    });
+  }
+  renderList();
+
+  // ── Inline "+ Ny kapitel" row ──
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'F.eks. Nye traditioner';
+  const nameField = siteEditField('Nyt kapitel', nameInput);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn-small wiki-manage-add-btn';
+  addBtn.textContent = '+';
+  addBtn.title = 'Tilføj kapitel';
+  addBtn.addEventListener('click', () => {
+    const t = nameInput.value.trim();
+    if (!t) return;
+    draft.push({ id: Date.now().toString(36), title: t });
+    nameInput.value = '';
+    renderList();
+  });
+
+  const addRow = document.createElement('div');
+  addRow.className = 'wiki-manage-add-row';
+  addRow.appendChild(nameField);
+  addRow.appendChild(addBtn);
+  form.appendChild(addRow);
+
+  const save = wikiPillBtn('Gem', 'site-pill-primary');
+  actions.appendChild(save);
+
+  save.addEventListener('click', async () => {
+    if (draft.length === 0) {
+      error.textContent = 'Der skal være mindst ét kapitel.';
+      return;
+    }
+    save.disabled = true;
+    save.textContent = 'Gemmer…';
+    error.textContent = '';
+
+    const current = getEffectiveChapters();
+    const next = draft.map((d) => {
+      const existing = current.find((c) => c.id === d.id);
+      return existing
+        ? { id: d.id, title: d.title, body: existing.body, pdf: existing.pdf }
+        : { id: d.id, title: d.title, body: '', pdf: '' };
+    });
+
+    const result = await saveChapters(next);
+    if (result.ok) {
+      close();
+    } else {
+      save.disabled = false;
+      save.textContent = 'Gem';
+      error.textContent = result.message;
+    }
+  });
+}
+
+// ── Init ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', renderWiki);

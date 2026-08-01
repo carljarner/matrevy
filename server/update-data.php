@@ -88,6 +88,9 @@ $LEVEL_RANK = ['revyst' => 1, 'boss' => 2, 'admin' => 3];
 // declaration placed lower in the file is undefined when an early-dispatched
 // handler runs. (Budget handlers avoid consts entirely — see budget_*() fns.)
 const ARCHIVE_PATH_RE = '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf)$#';
+// Wiki article PDF attachments — id is always a client-generated
+// Date.now().toString(36), hence the lowercase-alphanumeric charset.
+const WIKI_PATH_RE = '#^wiki/[a-z0-9]+/attachment\.pdf$#';
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 // Posts images are written inline from posts_create (revyst-level), not via
 // the admin-gated upload action — this is the only guard on that path, so it
@@ -100,7 +103,15 @@ if ($action === 'login') {
   respond(200, ['ok' => true, 'level' => $level]);
 }
 if ($action === 'upload' || $action === 'delete') {
-  if ($LEVEL_RANK[$level] < $LEVEL_RANK['admin']) {
+  // The required level depends on which allow-listed prefix the path matches
+  // (archive/... is admin-only, wiki/... is boss+) — see upload_path_level()
+  // and assert_allowed_upload_path() below. A path matching neither is a
+  // 400 here, before any level check, same as an unknown resource elsewhere.
+  $requiredLevel = upload_path_level($body['path'] ?? '');
+  if ($requiredLevel === null) {
+    respond(400, ['error' => 'bad_path']);
+  }
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$requiredLevel]) {
     respond(403, ['error' => 'insufficient_level']);
   }
   if ($action === 'upload') handle_upload($body);
@@ -205,13 +216,25 @@ function update_file($filePath, $mutate, $commitMessage) {
   }
 }
 
-// ── Archive file uploads (binary content at admin-chosen paths) ─
-// GITHUB_TOKEN has whole-repo write access, so ARCHIVE_PATH_RE (declared at
-// the top of this file — see the note there for why it lives up there) is the
-// only thing standing between an arbitrary "path" in the request body and
-// overwriting any file in the repo. Keep it strict.
-function assert_allowed_archive_path($path) {
-  if (!is_string($path) || !preg_match(ARCHIVE_PATH_RE, $path)) {
+// ── File uploads (binary content at boss/admin-chosen paths) ────
+// GITHUB_TOKEN has whole-repo write access, so matching against an allow-listed
+// path regex is the only thing standing between an arbitrary "path" in the
+// request body and overwriting any file in the repo. Keep both regexes strict.
+// A function, not a `const` array, so it's safely callable from the early
+// upload/delete dispatch regardless of where in the file it's defined (PHP
+// hoists function declarations, unlike top-level `const` — see the
+// const-ordering note above ARCHIVE_PATH_RE/WIKI_PATH_RE).
+function upload_path_level($path) {
+  if (!is_string($path)) return null;
+  if (preg_match(ARCHIVE_PATH_RE, $path)) return 'admin';
+  if (preg_match(WIKI_PATH_RE, $path)) return 'boss';
+  return null;
+}
+
+// Re-validated inside handle_upload/handle_delete themselves — never trust the
+// path format just because upload_path_level() already looked at it once.
+function assert_allowed_upload_path($path) {
+  if (upload_path_level($path) === null) {
     respond(400, ['error' => 'bad_path']);
   }
 }
@@ -252,7 +275,7 @@ function delete_file($filePath, $commitMessage) {
 
 function handle_upload($body) {
   $path = $body['path'] ?? '';
-  assert_allowed_archive_path($path);
+  assert_allowed_upload_path($path);
   $contentBase64 = $body['contentBase64'] ?? '';
   if (!is_string($contentBase64) || $contentBase64 === '') {
     respond(400, ['error' => 'invalid_shape']);
@@ -264,14 +287,14 @@ function handle_upload($body) {
   if (strlen($raw) > MAX_UPLOAD_BYTES) {
     respond(413, ['error' => 'too_large']);
   }
-  put_file($path, $contentBase64, 'Upload ' . $path . ' via arkivet');
+  put_file($path, $contentBase64, 'Upload ' . $path);
   respond(200, ['ok' => true, 'path' => $path]);
 }
 
 function handle_delete($body) {
   $path = $body['path'] ?? '';
-  assert_allowed_archive_path($path);
-  delete_file($path, 'Slet ' . $path . ' via arkivet');
+  assert_allowed_upload_path($path);
+  delete_file($path, 'Slet ' . $path);
   respond(200, ['ok' => true, 'path' => $path]);
 }
 
@@ -1032,12 +1055,46 @@ function save_archive($payload) {
   }, 'Opdater archive.json via arkivet');
 }
 
+// Boss/admin: full-array replace of the wiki's flat chapter list. `pdf` is
+// either "" or a path this same request could also legally upload/delete to
+// (WIKI_PATH_RE), so a save can reference an attachment uploaded moments
+// earlier via the generic 'upload' action. Each chapter is one continuous
+// rich-text record ({id, title, body, pdf}) — `body` is a sanitized HTML
+// string produced client-side (see wiki.js's sanitizeHtmlString), stored
+// as-is; there is no server-side HTML sanitization since this is already a
+// boss-level-only, trusted-caller write.
+function save_wiki($payload) {
+  $chapters = $payload['chapters'] ?? null;
+  if (!is_array($chapters)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $seenId = [];
+  foreach ($chapters as $c) {
+    if (!is_array($c)
+        || !isset($c['id'], $c['title'], $c['body'], $c['pdf'])
+        || !is_string($c['id']) || $c['id'] === ''
+        || isset($seenId[$c['id']])
+        || !is_string($c['title']) || trim($c['title']) === ''
+        || !is_string($c['body'])
+        || !is_string($c['pdf']) || ($c['pdf'] !== '' && !preg_match(WIKI_PATH_RE, $c['pdf']))) {
+      respond(400, ['error' => 'invalid_wiki_shape']);
+    }
+    $seenId[$c['id']] = true;
+  }
+
+  update_file('data/wiki.json', function ($json) use ($chapters) {
+    $json['chapters'] = $chapters;
+    return $json;
+  }, 'Opdater wiki.json via wikien');
+}
+
 $RESOURCES = [
   'manus'         => ['level' => 'boss',  'save' => 'save_manus'],
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
   'archive'       => ['level' => 'admin', 'save' => 'save_archive'],
   'posts'         => ['level' => 'boss',  'save' => 'save_posts'],
   'bosses'        => ['level' => 'admin', 'save' => 'save_bosses'],
+  'wiki'          => ['level' => 'boss',  'save' => 'save_wiki'],
 ];
 
 $resource = $body['resource'] ?? '';

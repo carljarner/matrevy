@@ -332,9 +332,19 @@ function siteEditField(labelText, inputEl) {
 // colored dot per option, stays in calendar.js but builds on the
 // siteOpenFieldPopup primitive below).
 let siteFieldPopupClose = null; // the one currently-open popup's close fn, if any
+let siteFieldPopupAnchor = null; // the button that currently owns the open popup, if any
 
 function siteCloseFieldPopup() {
   if (siteFieldPopupClose) { siteFieldPopupClose(); siteFieldPopupClose = null; }
+  siteFieldPopupAnchor = null;
+}
+
+// Toggle helper for a field's open button: closes the popup if it's already
+// open for this exact anchor (so a second click closes instead of
+// re-opening an identical popup), otherwise runs `openFn` to open it fresh.
+function siteToggleFieldPopup(anchor, openFn) {
+  if (siteFieldPopupAnchor === anchor) { siteCloseFieldPopup(); return; }
+  openFn();
 }
 
 // Positions `pop` (already appended to <body>) below its anchor button,
@@ -378,9 +388,10 @@ function siteOpenFieldPopup(anchor, pop) {
     window.removeEventListener('resize', onReposition);
     document.removeEventListener('scroll', onReposition, true);
     pop.remove();
-    if (siteFieldPopupClose === close) siteFieldPopupClose = null;
+    if (siteFieldPopupClose === close) { siteFieldPopupClose = null; siteFieldPopupAnchor = null; }
   }
   siteFieldPopupClose = close;
+  siteFieldPopupAnchor = anchor;
   return close;
 }
 
@@ -486,10 +497,12 @@ function siteCreateDateField(initialIso) {
   render();
 
   btn.addEventListener('click', () => {
-    siteOpenDatePicker(btn, _value, (iso) => {
-      _value = iso;
-      render();
-      btn.dispatchEvent(new Event('change'));
+    siteToggleFieldPopup(btn, () => {
+      siteOpenDatePicker(btn, _value, (iso) => {
+        _value = iso;
+        render();
+        btn.dispatchEvent(new Event('change'));
+      });
     });
   });
   return btn;
@@ -623,7 +636,9 @@ function siteCreateTimeField(initialValue) {
   });
 
   toggle.addEventListener('click', () => {
-    siteOpenTimePicker(toggle, _value, (t) => commit(t, true));
+    siteToggleFieldPopup(toggle, () => {
+      siteOpenTimePicker(toggle, _value, (t) => commit(t, true));
+    });
   });
 
   return wrap;
@@ -676,10 +691,12 @@ function siteCreateDropdownField(options, initialValue) {
   render();
 
   btn.addEventListener('click', () => {
-    siteOpenDropdownPicker(btn, options, _value, (v) => {
-      _value = v;
-      render();
-      btn.dispatchEvent(new Event('change'));
+    siteToggleFieldPopup(btn, () => {
+      siteOpenDropdownPicker(btn, options, _value, (v) => {
+        _value = v;
+        render();
+        btn.dispatchEvent(new Event('change'));
+      });
     });
   });
   return btn;
