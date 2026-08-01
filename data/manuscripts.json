@@ -134,6 +134,15 @@
             "pdfPath": "manus/sang/Venter_Til_I_Morgen.pdf",
             "texPath": "manus/sang/Venter_Til_I_Morgen.tex",
             "createdAt": "2026-08-01T16:27:52"
+        },
+        {
+            "id": "6a6e027e6ead3914",
+            "type": "sang",
+            "title": "Whist",
+            "sender": "Carl '21",
+            "pdfPath": "manus/sang/Whist.pdf",
+            "texPath": "manus/sang/Whist.tex",
+            "createdAt": "2026-08-01T16:28:14"
         }
     ]
 }
