@@ -242,6 +242,15 @@
             "pdfPath": "manus/sketch/Kaffebarista.pdf",
             "texPath": "manus/sketch/Kaffebarista.tex",
             "createdAt": "2026-08-01T16:35:08"
+        },
+        {
+            "id": "6a6e044e5c85c80e",
+            "type": "sketch",
+            "title": "KuMail",
+            "sender": "Carl & Baldur",
+            "pdfPath": "manus/sketch/KuMail.pdf",
+            "texPath": "manus/sketch/KuMail.tex",
+            "createdAt": "2026-08-01T16:35:58"
         }
     ]
 }
