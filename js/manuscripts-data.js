@@ -72,5 +72,23 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/IT_Konsulent_Baby.pdf",
     "texPath": "manus/sang/IT_Konsulent_Baby.tex",
     "createdAt": "2026-08-01T16:24:00"
+  },
+  {
+    "id": "6a6e01a8e2476589",
+    "type": "sang",
+    "title": "Kærlighed På Matematik",
+    "sender": "Stine '18",
+    "pdfPath": "manus/sang/Kærlighed_På_Matematik.pdf",
+    "texPath": "manus/sang/Kærlighed_På_Matematik.tex",
+    "createdAt": "2026-08-01T16:24:40"
+  },
+  {
+    "id": "6a6e01bd7bea9607",
+    "type": "sang",
+    "title": "Malene",
+    "sender": "Lise & Frigg",
+    "pdfPath": "manus/sang/Malene.pdf",
+    "texPath": "manus/sang/Malene.tex",
+    "createdAt": "2026-08-01T16:25:01"
   }
 ];
