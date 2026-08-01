@@ -376,8 +376,8 @@ function buildWikiToolbar(bodyEl) {
   const boldBtn = addFormatBtn('B', 'Fed', 'bold', 'wiki-toolbar-btn-bold');
   const italicBtn = addFormatBtn('I', 'Kursiv', 'italic', 'wiki-toolbar-btn-italic');
   const underlineBtn = addFormatBtn('U', 'Understreget', 'underline', 'wiki-toolbar-btn-underline');
-  addFormatBtn('•', 'Punktopstilling', 'insertUnorderedList');
-  addFormatBtn('1.', 'Nummereret liste', 'insertOrderedList');
+  const bulletBtn = addFormatBtn('•', 'Punktopstilling', 'insertUnorderedList');
+  const orderedBtn = addFormatBtn('1.', 'Nummereret liste', 'insertOrderedList');
 
   // Walks up from the caret to the nearest h2/h3/p ancestor within
   // bodyEl (renderSanitizedBody only ever nests those three as direct
@@ -400,6 +400,8 @@ function buildWikiToolbar(bodyEl) {
     boldBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('bold'));
     italicBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('italic'));
     underlineBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('underline'));
+    bulletBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('insertUnorderedList'));
+    orderedBtn.classList.toggle('wiki-toolbar-btn-active', document.queryCommandState('insertOrderedList'));
     const tag = detectBlockTag();
     // .value's setter only re-renders the dropdown's display, it never
     // dispatches 'change' (site-utils.js), so this can't loop back into
@@ -418,6 +420,66 @@ function buildWikiToolbar(bodyEl) {
     if (!command) return;
     e.preventDefault();
     document.execCommand(command);
+    updateToolbarState();
+  });
+
+  // ── Markdown-style list autocorrect (Word/Docs convention): typing
+  // "* ", "- ", or "1. " converts the current, still-empty line into a
+  // bullet/numbered list. Only fires when the marker is the block's entire
+  // content so far — never mid-sentence — so `before === marker text` and
+  // the caret sitting at the end of that same text node is the trigger.
+  const BULLET_MARKERS = new Set(['*', '-']);
+  const ORDERED_MARKER = '1.';
+
+  function getCaretBlock(node) {
+    const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!el || !bodyEl.contains(el)) return null;
+    return el.closest('p, h2, h3, li') || bodyEl;
+  }
+
+  function textBeforeCaret(block, range) {
+    const pre = document.createRange();
+    pre.selectNodeContents(block);
+    pre.setEnd(range.startContainer, range.startOffset);
+    return pre.toString();
+  }
+
+  bodyEl.addEventListener('keydown', (e) => {
+    if (e.key !== ' ') return;
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !sel.isCollapsed || !bodyEl.contains(sel.anchorNode)) return;
+    const range = sel.getRangeAt(0);
+    if (range.startContainer.nodeType !== Node.TEXT_NODE) return;
+    const block = getCaretBlock(range.startContainer);
+    if (!block) return;
+    const before = textBeforeCaret(block, range);
+    const isBullet = BULLET_MARKERS.has(before);
+    const isOrdered = before === ORDERED_MARKER;
+    if ((!isBullet && !isOrdered) || range.startOffset !== before.length) return;
+    e.preventDefault();
+    const textNode = range.startContainer;
+    textNode.deleteData(0, before.length);
+    const caret = document.createRange();
+    caret.setStart(textNode, 0);
+    caret.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(caret);
+    document.execCommand(isBullet ? 'insertUnorderedList' : 'insertOrderedList');
+    updateToolbarState();
+  });
+
+  // ── Tab / Shift+Tab nests/un-nests the current list item, matching how
+  // Word/Docs handle sub-items. Only intercepted inside a list item — a Tab
+  // press anywhere else keeps its normal (focus-moving) behaviour.
+  bodyEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !bodyEl.contains(sel.anchorNode)) return;
+    const el = sel.anchorNode.nodeType === Node.ELEMENT_NODE ? sel.anchorNode : sel.anchorNode.parentElement;
+    const li = el && el.closest ? el.closest('li') : null;
+    if (!li || !bodyEl.contains(li)) return;
+    e.preventDefault();
+    document.execCommand(e.shiftKey ? 'outdent' : 'indent');
     updateToolbarState();
   });
 

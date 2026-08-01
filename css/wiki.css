@@ -288,6 +288,10 @@
 
 .wiki-toolbar-btn-italic {
   font-style: italic;
+  /* A sans-serif italic capital "I" is just a slanted stroke, indistinguishable
+     from a lowercase "l" — a serif font's flourishes on the top/bottom of the
+     stroke are what make it legible as a capital I. */
+  font-family: Georgia, 'Times New Roman', serif;
 }
 
 .wiki-toolbar-btn-underline {
