@@ -90,7 +90,13 @@ button.manus-col-header {
 }
 
 @media (hover: hover) {
-  a.manus-pdf-title:hover { text-decoration: underline; }
+  a.manus-pdf-title:hover { color: var(--accent-warm-text); }
+}
+
+a.manus-pdf-title:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .manus-pdf-pending {
@@ -169,7 +175,12 @@ button.manus-col-header {
   margin-bottom: 1.5rem;
 }
 
-/* --- Upload modal: Sketch/Sang type toggle ------------------ */
+/* --- Upload modal: Sketch/Sang type toggle -------------------
+   Reuses .btn-small (site.css) as-is for background/border/hover/
+   focus-visible — same first-level button system as the rest of the
+   site — this class only adds the side-by-side full-width layout and
+   the permanent "selected" look (identical colors to .btn-small's own
+   hover, so a selected box reads the same as a hovered one). */
 .manus-type-toggle {
   display: flex;
   gap: 0.6rem;
@@ -178,25 +189,8 @@ button.manus-col-header {
 .manus-type-box {
   flex: 1;
   padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font: inherit;
   font-weight: 600;
   text-align: center;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
-}
-
-@media (hover: hover) {
-  .manus-type-box:hover { border-color: var(--accent-warm); }
-}
-
-.manus-type-box:focus-visible {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .manus-type-box.active {

@@ -351,7 +351,7 @@ function createManusTypeToggle() {
   for (const opt of [{ value: 'sketch', label: 'Sketch' }, { value: 'sang', label: 'Sang' }]) {
     const box = document.createElement('button');
     box.type = 'button';
-    box.className = 'manus-type-box';
+    box.className = 'btn-small manus-type-box';
     box.textContent = opt.label;
     box.addEventListener('click', () => {
       selected = opt.value;
