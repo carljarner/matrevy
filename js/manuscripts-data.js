@@ -252,5 +252,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/KuMail.pdf",
     "texPath": "manus/sketch/KuMail.tex",
     "createdAt": "2026-08-01T16:35:58"
+  },
+  {
+    "id": "6a6e0468a4934fda",
+    "type": "sketch",
+    "title": "Matemagiske Familie",
+    "sender": "Stiner, Sommer & Carl",
+    "pdfPath": "manus/sketch/Matemagiske_Familie.pdf",
+    "texPath": "manus/sketch/Matemagiske_Familie.tex",
+    "createdAt": "2026-08-01T16:36:24"
   }
 ];
