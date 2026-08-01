@@ -270,5 +270,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Matematiker_Ved_Himlens_Porte.pdf",
     "texPath": "manus/sketch/Matematiker_Ved_Himlens_Porte.tex",
     "createdAt": "2026-08-01T16:37:03"
+  },
+  {
+    "id": "6a6e04b8c421a5c9",
+    "type": "sketch",
+    "title": "Hos Numerologen",
+    "sender": "KE & Carl",
+    "pdfPath": "manus/sketch/Hos_Numerologen.pdf",
+    "texPath": "manus/sketch/Hos_Numerologen.tex",
+    "createdAt": "2026-08-01T16:37:44"
   }
 ];
