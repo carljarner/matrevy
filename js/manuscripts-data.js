@@ -63,5 +63,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Hvad_Nu_Hvis.pdf",
     "texPath": "manus/sang/Hvad_Nu_Hvis.tex",
     "createdAt": "2026-08-01T16:21:10"
+  },
+  {
+    "id": "6a6e01801321d6ea",
+    "type": "sang",
+    "title": "IT Konsulent Baby",
+    "sender": "Augusta '20",
+    "pdfPath": "manus/sang/IT_Konsulent_Baby.pdf",
+    "texPath": "manus/sang/IT_Konsulent_Baby.tex",
+    "createdAt": "2026-08-01T16:24:00"
   }
 ];
