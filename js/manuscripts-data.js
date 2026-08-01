@@ -279,5 +279,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Start_Med_En_Trekant.pdf",
     "texPath": "manus/sketch/Start_Med_En_Trekant.tex",
     "createdAt": "2026-08-01T16:38:12"
+  },
+  {
+    "id": "6a6e0b8a5a7f72c7",
+    "type": "sketch",
+    "title": "Kender Du Det?",
+    "sender": "Carl & Anders",
+    "pdfPath": "manus/sketch/Kender_Du_Det.pdf",
+    "texPath": "manus/sketch/Kender_Du_Det.tex",
+    "createdAt": "2026-08-01T17:06:50"
   }
 ];
