@@ -116,6 +116,15 @@
             "pdfPath": "manus/sang/Spørg_Om_Hjælp.pdf",
             "texPath": "manus/sang/Spørg_Om_Hjælp.tex",
             "createdAt": "2026-08-01T16:26:43"
+        },
+        {
+            "id": "6a6e02480bb50637",
+            "type": "sang",
+            "title": "SS SS",
+            "sender": "Johan",
+            "pdfPath": "manus/sang/SS_SS.pdf",
+            "texPath": "manus/sang/SS_SS.tex",
+            "createdAt": "2026-08-01T16:27:20"
         }
     ]
 }
