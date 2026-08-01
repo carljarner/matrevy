@@ -419,6 +419,12 @@ a.manus-pdf-title:focus-visible {
     text-align: left;
     color: #000;
     background: #fff;
+    /* Chrome/Firefox/Safari drop background colors when printing unless a
+       page opts in — without this, the alternating row tint below is
+       silently discarded regardless of the browser's "background graphics"
+       print-dialog checkbox. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .manus-print-table td { height: 26pt; }
