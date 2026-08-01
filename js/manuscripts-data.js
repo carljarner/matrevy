@@ -234,5 +234,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Hvorfor_Er_Der_To_Af_Dem.pdf",
     "texPath": "manus/sketch/Hvorfor_Er_Der_To_Af_Dem.tex",
     "createdAt": "2026-08-01T16:34:37"
+  },
+  {
+    "id": "6a6e041cfb74d37a",
+    "type": "sketch",
+    "title": "Kaffebarista",
+    "sender": "Carl & Frida",
+    "pdfPath": "manus/sketch/Kaffebarista.pdf",
+    "texPath": "manus/sketch/Kaffebarista.tex",
+    "createdAt": "2026-08-01T16:35:08"
   }
 ];
