@@ -261,5 +261,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Matemagiske_Familie.pdf",
     "texPath": "manus/sketch/Matemagiske_Familie.tex",
     "createdAt": "2026-08-01T16:36:24"
+  },
+  {
+    "id": "6a6e048f7d7a9162",
+    "type": "sketch",
+    "title": "Matematiker Ved Himlens Porte",
+    "sender": "Villads",
+    "pdfPath": "manus/sketch/Matematiker_Ved_Himlens_Porte.pdf",
+    "texPath": "manus/sketch/Matematiker_Ved_Himlens_Porte.tex",
+    "createdAt": "2026-08-01T16:37:03"
   }
 ];
