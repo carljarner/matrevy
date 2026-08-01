@@ -4,24 +4,19 @@
    "chapters + content" view, mirroring Forside's dashboard-columns
    grid (same 2:1 ratio, mirrored: chapters is the smaller column).
    Each chapter is a single continuous rich-text record
-   ({id, title, body, pdf}) — a clickable link in the left column;
+   ({id, title, body}) — a clickable link in the left column;
    clicking one re-renders the right column with that chapter's
-   rendered body (+ an optional PDF attachment). The selected chapter
-   also gets an inline outline of its own Overskrift 1 (H2) sections
-   beneath its button, click-to-scroll. Boss/admin get a "Rediger
-   kapitler" button at the bottom of the left column (opens a modal to
-   add new chapters and reorder the whole list via up/down arrows) and,
-   per chapter, a top-right "Rediger" button that swaps the read view
-   for an in-place rich-text edit view (title input + formatting
-   toolbar + contenteditable body) — no modal, same position on the
-   page. Delete and PDF attach/detach live inside that edit view's
-   action row.
+   rendered body. The selected chapter also gets an inline outline of
+   its own Overskrift 1 (H2) sections beneath its button, click-to-scroll.
+   Boss/admin get a "Rediger kapitler" button at the bottom of the left
+   column (opens a modal to add new chapters and reorder the whole list
+   via up/down arrows) and, per chapter, a top-right "Rediger" button
+   that swaps the read view for an in-place rich-text edit view (title
+   input + formatting toolbar + contenteditable body) — no modal, same
+   position on the page. Delete lives inside that edit view's action row.
 
-   PDFs are optionally uploaded per chapter and committed under
-   wiki/<id>/attachment.pdf via server/update-data.php's 'upload'
-   action (see siteUploadFile in site-utils.js); metadata saves
-   globally via siteSaveResource ('wiki' resource, whole-array
-   replace like every other data-driven page).
+   Metadata saves globally via siteSaveResource ('wiki' resource,
+   whole-array replace like every other data-driven page).
 
    Rich-text storage/rendering: `body` is a sanitized HTML string
    (bold/italic/underline/lists/h2/h3/p only — see WIKI_ALLOWED_TAGS).
@@ -42,8 +37,6 @@
    ========================================================= */
 
 'use strict';
-
-const WIKI_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 // Outline click-to-scroll and scroll-spy activation share one offset: the
 // sticky site header (56px) plus a landing gap in the middle of the
@@ -207,14 +200,6 @@ function renderChapterReadView(chapter, canEdit) {
   heading.textContent = chapter.title;
   head.appendChild(heading);
 
-  if (chapter.pdf) {
-    const badge = document.createElement('span');
-    badge.className = 'wiki-pdf-badge';
-    badge.title = 'Har en vedhæftet PDF';
-    badge.appendChild(buildPdfIcon());
-    head.appendChild(badge);
-  }
-
   if (canEdit) {
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
@@ -233,19 +218,6 @@ function renderChapterReadView(chapter, canEdit) {
   body.className = 'wiki-chapter-body';
   renderSanitizedBody(body, chapter.body, { assignHeadingIds: true, headingIdPrefix: `wiki-h2-${chapter.id}-` });
   wrap.appendChild(body);
-
-  if (chapter.pdf) {
-    const pdfLink = document.createElement('a');
-    pdfLink.className = 'wiki-pdf-link';
-    pdfLink.href = chapter.pdf;
-    pdfLink.target = '_blank';
-    pdfLink.rel = 'noopener';
-    pdfLink.appendChild(buildPdfIcon());
-    const pdfText = document.createElement('span');
-    pdfText.textContent = 'Åbn PDF';
-    pdfLink.appendChild(pdfText);
-    wrap.appendChild(pdfLink);
-  }
 
   return wrap;
 }
@@ -279,59 +251,6 @@ function renderChapterEditView(chapter) {
   renderSanitizedBody(bodyEl, chapter.body, { linkify: false });
   wrap.appendChild(bodyEl);
 
-  // ── PDF attach/detach ──
-  const pdfRow = document.createElement('div');
-  pdfRow.className = 'wiki-edit-pdf-row';
-  let pendingPdf = null;
-  let pdfRemoved = false;
-
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'application/pdf,.pdf';
-  fileInput.className = 'site-file-input';
-  fileInput.addEventListener('change', () => {
-    pendingPdf = fileInput.files[0] || null;
-    if (pendingPdf) pdfRemoved = false;
-    renderPdfRow();
-  });
-
-  function renderPdfRow() {
-    pdfRow.textContent = '';
-    if (pendingPdf) {
-      const label = document.createElement('span');
-      label.textContent = `Ny PDF: ${pendingPdf.name}`;
-      pdfRow.appendChild(label);
-      const undoBtn = document.createElement('button');
-      undoBtn.type = 'button';
-      undoBtn.className = 'btn-small';
-      undoBtn.textContent = 'Fortryd';
-      undoBtn.addEventListener('click', () => { pendingPdf = null; fileInput.value = ''; renderPdfRow(); });
-      pdfRow.appendChild(undoBtn);
-    } else if (chapter.pdf && !pdfRemoved) {
-      const link = document.createElement('a');
-      link.href = chapter.pdf;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      link.className = 'wiki-edit-current-link';
-      link.textContent = 'Nuværende PDF';
-      pdfRow.appendChild(link);
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'btn-small';
-      removeBtn.textContent = 'Fjern PDF';
-      removeBtn.addEventListener('click', () => { pdfRemoved = true; renderPdfRow(); });
-      pdfRow.appendChild(removeBtn);
-    } else {
-      const noneLabel = document.createElement('span');
-      noneLabel.className = 'wiki-edit-progress';
-      noneLabel.textContent = 'Ingen PDF vedhæftet.';
-      pdfRow.appendChild(noneLabel);
-    }
-    pdfRow.appendChild(fileInput);
-  }
-  renderPdfRow();
-  wrap.appendChild(pdfRow);
-
   const error = document.createElement('div');
   error.className = 'login-error';
   wrap.appendChild(error);
@@ -364,10 +283,6 @@ function renderChapterEditView(chapter) {
   save.textContent = 'Gem';
   actions.appendChild(save);
 
-  const progress = document.createElement('span');
-  progress.className = 'wiki-edit-progress';
-  actions.appendChild(progress);
-
   wrap.appendChild(actions);
 
   save.addEventListener('click', async () => {
@@ -376,39 +291,12 @@ function renderChapterEditView(chapter) {
       error.textContent = 'Titel er påkrævet.';
       return;
     }
-    if (pendingPdf) {
-      const isPdf = pendingPdf.type === 'application/pdf' || /\.pdf$/i.test(pendingPdf.name);
-      if (!isPdf) {
-        error.textContent = 'Den vedhæftede fil skal være en PDF.';
-        return;
-      }
-      if (pendingPdf.size > WIKI_MAX_UPLOAD_BYTES) {
-        error.textContent = 'PDF-filen er for stor (maks. 5 MB).';
-        return;
-      }
-    }
 
     save.disabled = true;
     save.textContent = 'Gemmer…';
     error.textContent = '';
 
-    let pdf = pdfRemoved ? '' : (chapter.pdf || '');
-    if (pendingPdf) {
-      progress.textContent = 'Uploader PDF…';
-      const dataUrl = await readFileAsDataURL(pendingPdf);
-      const uploadResult = await siteUploadFile(buildWikiPdfPath(chapter.id), stripDataUrlPrefix(dataUrl));
-      if (!uploadResult.ok) {
-        save.disabled = false;
-        save.textContent = 'Gem';
-        progress.textContent = '';
-        error.textContent = uploadResult.message;
-        return;
-      }
-      pdf = buildWikiPdfPath(chapter.id);
-    }
-    progress.textContent = '';
-
-    const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML), pdf };
+    const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML) };
     const current = getEffectiveChapters();
     const next = current.map((c) => (c.id === chapter.id ? draft : c));
     const result = await saveChapters(next); // clears wikiEditingChapterId + re-renders on success
@@ -722,25 +610,6 @@ function appendTextWithLinks(target, text) {
   if (lastIndex < text.length) target.appendChild(document.createTextNode(text.slice(lastIndex)));
 }
 
-// ── PDF icon ───────────────────────────────────────────────────
-// Built via SVG DOM methods, never innerHTML. Duplicated from
-// archive.js's buildPdfIcon() per the one-file-per-feature convention.
-function svgEl(tag, attrs) {
-  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  for (const key in attrs) el.setAttribute(key, attrs[key]);
-  return el;
-}
-
-function buildPdfIcon() {
-  const svg = svgEl('svg', {
-    viewBox: '0 0 24 24', width: '16', height: '16', fill: 'none',
-    stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-  });
-  svg.appendChild(svgEl('path', { d: 'M6 2h9l5 5v15H6z' }));
-  svg.appendChild(svgEl('path', { d: 'M15 2v5h5' }));
-  return svg;
-}
-
 // ── Saving ───────────────────────────────────────────────────
 async function saveChapters(next) {
   const result = await siteSaveResource('wiki', { chapters: next });
@@ -767,7 +636,7 @@ function openDeleteChapterConfirm(existing) {
   const { form, error, actions, close } = siteOpenEditModal('Slet kapitel');
 
   const info = document.createElement('p');
-  info.textContent = `Slet kapitlet "${existing.title}"? En evt. vedhæftet PDF bliver ikke slettet fra reposet.`;
+  info.textContent = `Slet kapitlet "${existing.title}"?`;
   form.appendChild(info);
 
   const cancelBtn = wikiPillBtn('Annuller');
@@ -789,31 +658,12 @@ function openDeleteChapterConfirm(existing) {
   actions.appendChild(confirmBtn);
 }
 
-// ── Binary file helpers ───────────────────────────────────────
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-function stripDataUrlPrefix(dataUrl) {
-  const i = dataUrl.indexOf(',');
-  return i === -1 ? dataUrl : dataUrl.slice(i + 1);
-}
-
-function buildWikiPdfPath(id) {
-  return `wiki/${id}/attachment.pdf`;
-}
-
 // ── Manage-chapters modal (add + reorder) ───────────────────
 function openManageChaptersModal() {
   const { form, error, actions, close } = siteOpenModalWithClose('Rediger kapitler');
 
-  // Local draft of {id, title} only — body/pdf are never touched here,
-  // only reattached from the current saved chapters at save time, so a
+  // Local draft of {id, title} only — body is never touched here, only
+  // reattached from the current saved chapters at save time, so a
   // reorder/add can never lose a chapter's content.
   let draft = getEffectiveChapters().map((c) => ({ id: c.id, title: c.title }));
 
@@ -906,8 +756,8 @@ function openManageChaptersModal() {
     const next = draft.map((d) => {
       const existing = current.find((c) => c.id === d.id);
       return existing
-        ? { id: d.id, title: d.title, body: existing.body, pdf: existing.pdf }
-        : { id: d.id, title: d.title, body: '', pdf: '' };
+        ? { id: d.id, title: d.title, body: existing.body }
+        : { id: d.id, title: d.title, body: '' };
     });
 
     const result = await saveChapters(next);

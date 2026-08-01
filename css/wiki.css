@@ -210,12 +210,6 @@
   font-weight: 600;
 }
 
-.wiki-pdf-badge {
-  display: inline-flex;
-  color: var(--accent-warm-text);
-  flex-shrink: 0;
-}
-
 .wiki-chapter-body h2 {
   font-size: 1.15rem;
   font-weight: 600;
@@ -247,20 +241,6 @@
 .wiki-chapter-body li {
   margin-bottom: 0.25rem;
   line-height: 1.5;
-}
-
-.wiki-pdf-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999px;
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-decoration: none;
-  margin-bottom: 0.6rem;
 }
 
 /* --- In-place edit view --------------------------------------- */
@@ -365,24 +345,6 @@
   font-size: 1.02rem;
   font-weight: 600;
   margin: 0.7rem 0 0.35rem;
-}
-
-.wiki-edit-pdf-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0.75rem 0;
-  flex-wrap: wrap;
-  font-size: 0.9rem;
-}
-
-.wiki-edit-current-link {
-  font-size: 0.9rem;
-}
-
-.wiki-edit-progress {
-  font-size: 0.9rem;
-  color: #57606a;
 }
 
 .wiki-edit-actions {

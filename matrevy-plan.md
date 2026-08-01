@@ -271,21 +271,22 @@ editorial pattern as Announcements/Kalender/Arkiv.
 
 **What was built** (2026-07-18, planned against a user-supplied work-in-progress PDF
 handbook, "Revyhåndbogen"; reworked 2026-07-25 to the model below): a flat list of
-rich-text **chapters** — `{id, title, body, pdf}`, one record per chapter, no category
+rich-text **chapters** — `{id, title, body}`, one record per chapter, no category
 grouping. The original plan called for a flat "articles + free-text category" model
 (reusing the existing data-driven-page pattern verbatim), but once real content was in
 place a chapter read/edited better as one continuous piece of text than as a stack of
 same-category articles, so the category level was collapsed away — see CLAUDE.md's
 "Wiki" section for the full current architecture (in-place rich-text edit view with a
 formatting toolbar, per-chapter `h2`-driven outline in the left column, sanitized-HTML
-storage). `data/wiki.json` (`chapters: [{id, title, body, pdf}]`) + embedded
+storage). `data/wiki.json` (`chapters: [{id, title, body}]`) + embedded
 `wiki-data.js`; `wiki` resource in `$RESOURCES` at **boss** level (matches
 Kalender/Manus/Posts-edit, not Arkiv's admin-only); revyst+ read-only on `wiki.html`.
-Each chapter optionally attaches one PDF, uploaded via the same generic
-`upload`/`delete` action Arkiv uses — that action's level gate was generalized from a
-single hardcoded `admin` check to a per-path-prefix one (`archive/...` stays
-admin-only, `wiki/...` is boss+), since a single hardcoded level no longer fit once a
-second, lower-privilege resource needed the same upload mechanism. Seeded from the
+Chapters originally could also each attach one PDF (uploaded via the same generic
+`upload`/`delete` action Arkiv uses, gated per-path-prefix rather than a single
+hardcoded `admin` check); that attach/detach feature was removed 2026-08-01 as
+unneeded — chapters are text-only now, and `upload_path_level()`/the server's
+`WIKI_PATH_RE` regex were removed along with it, leaving `upload`/`delete` admin-only
+again (Arkiv's cover/manus paths). Seeded from the
 PDF's sections that already had real prose (Velkommen, Hvem må være med, the six group
 descriptions, Nyttige links) — empty stub sections from the PDF were **not** seeded as
 placeholder chapters; boss/admin add them once there's real content. One

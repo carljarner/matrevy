@@ -960,8 +960,8 @@ body.site-menu-open {
 
 /* Native file input's "Choose file" button, styled to match .btn-small
    (idle warm-cream fill, warm-amber hover) — the browser-default button
-   otherwise looks out of place next to the rest of the form. Shared by
-   posts.js's image picker and wiki.js's PDF picker. */
+   otherwise looks out of place next to the rest of the form. Used by
+   posts.js's image picker. */
 .site-file-input::file-selector-button {
   background: #fdf8ec;
   color: var(--text);

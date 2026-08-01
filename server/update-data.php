@@ -88,9 +88,6 @@ $LEVEL_RANK = ['revyst' => 1, 'boss' => 2, 'admin' => 3];
 // declaration placed lower in the file is undefined when an early-dispatched
 // handler runs. (Budget handlers avoid consts entirely — see budget_*() fns.)
 const ARCHIVE_PATH_RE = '#^archive/[A-Za-z0-9_-]+/(cover\.jpg|manus\.pdf)$#';
-// Wiki article PDF attachments — id is always a client-generated
-// Date.now().toString(36), hence the lowercase-alphanumeric charset.
-const WIKI_PATH_RE = '#^wiki/[a-z0-9]+/attachment\.pdf$#';
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 // Posts images are written inline from posts_create (revyst-level), not via
 // the admin-gated upload action — this is the only guard on that path, so it
@@ -104,9 +101,9 @@ if ($action === 'login') {
 }
 if ($action === 'upload' || $action === 'delete') {
   // The required level depends on which allow-listed prefix the path matches
-  // (archive/... is admin-only, wiki/... is boss+) — see upload_path_level()
-  // and assert_allowed_upload_path() below. A path matching neither is a
-  // 400 here, before any level check, same as an unknown resource elsewhere.
+  // — see upload_path_level() and assert_allowed_upload_path() below. A path
+  // matching no allow-listed prefix is a 400 here, before any level check,
+  // same as an unknown resource elsewhere.
   $requiredLevel = upload_path_level($body['path'] ?? '');
   if ($requiredLevel === null) {
     respond(400, ['error' => 'bad_path']);
@@ -223,11 +220,10 @@ function update_file($filePath, $mutate, $commitMessage) {
 // A function, not a `const` array, so it's safely callable from the early
 // upload/delete dispatch regardless of where in the file it's defined (PHP
 // hoists function declarations, unlike top-level `const` — see the
-// const-ordering note above ARCHIVE_PATH_RE/WIKI_PATH_RE).
+// const-ordering note above ARCHIVE_PATH_RE).
 function upload_path_level($path) {
   if (!is_string($path)) return null;
   if (preg_match(ARCHIVE_PATH_RE, $path)) return 'admin';
-  if (preg_match(WIKI_PATH_RE, $path)) return 'boss';
   return null;
 }
 
@@ -1055,14 +1051,11 @@ function save_archive($payload) {
   }, 'Opdater archive.json via arkivet');
 }
 
-// Boss/admin: full-array replace of the wiki's flat chapter list. `pdf` is
-// either "" or a path this same request could also legally upload/delete to
-// (WIKI_PATH_RE), so a save can reference an attachment uploaded moments
-// earlier via the generic 'upload' action. Each chapter is one continuous
-// rich-text record ({id, title, body, pdf}) — `body` is a sanitized HTML
-// string produced client-side (see wiki.js's sanitizeHtmlString), stored
-// as-is; there is no server-side HTML sanitization since this is already a
-// boss-level-only, trusted-caller write.
+// Boss/admin: full-array replace of the wiki's flat chapter list. Each
+// chapter is one continuous rich-text record ({id, title, body}) — `body`
+// is a sanitized HTML string produced client-side (see wiki.js's
+// sanitizeHtmlString), stored as-is; there is no server-side HTML
+// sanitization since this is already a boss-level-only, trusted-caller write.
 function save_wiki($payload) {
   $chapters = $payload['chapters'] ?? null;
   if (!is_array($chapters)) {
@@ -1071,12 +1064,11 @@ function save_wiki($payload) {
   $seenId = [];
   foreach ($chapters as $c) {
     if (!is_array($c)
-        || !isset($c['id'], $c['title'], $c['body'], $c['pdf'])
+        || !isset($c['id'], $c['title'], $c['body'])
         || !is_string($c['id']) || $c['id'] === ''
         || isset($seenId[$c['id']])
         || !is_string($c['title']) || trim($c['title']) === ''
-        || !is_string($c['body'])
-        || !is_string($c['pdf']) || ($c['pdf'] !== '' && !preg_match(WIKI_PATH_RE, $c['pdf']))) {
+        || !is_string($c['body'])) {
       respond(400, ['error' => 'invalid_wiki_shape']);
     }
     $seenId[$c['id']] = true;
