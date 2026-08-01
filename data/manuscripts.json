@@ -278,6 +278,15 @@
             "pdfPath": "manus/sketch/Hos_Numerologen.pdf",
             "texPath": "manus/sketch/Hos_Numerologen.tex",
             "createdAt": "2026-08-01T16:37:44"
+        },
+        {
+            "id": "6a6e04d4db19dc38",
+            "type": "sketch",
+            "title": "Start Med En Trekant",
+            "sender": "Villads",
+            "pdfPath": "manus/sketch/Start_Med_En_Trekant.pdf",
+            "texPath": "manus/sketch/Start_Med_En_Trekant.tex",
+            "createdAt": "2026-08-01T16:38:12"
         }
     ]
 }
