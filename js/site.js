@@ -25,8 +25,8 @@ const SITE_PAGES = [
   { href: 'kalender.html',    label: 'Kalender',    level: 'public' },
   { href: 'arkiv.html',       label: 'Arkiv',       level: 'revyst' },
   { href: 'wiki.html',        label: 'Wiki',        level: 'revyst' },
-  { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
   { href: 'manus.html',       label: 'Manus',       level: 'revyst' },
+  { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
   { href: 'schedule.html',    label: 'Øveplan',     level: 'boss' },
   { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
 ];
