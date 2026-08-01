@@ -33,6 +33,21 @@ header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Content-Type: application/json; charset=utf-8');
 
+// A PHP fatal error partway through a request (as opposed to one of our own
+// respond() calls) would otherwise produce a raw, header-less error page —
+// which a cross-origin fetch() can't distinguish from a network outage
+// (browsers report "Failed to fetch" for any response missing the CORS
+// header, masking the real status/body). The headers above are only queued,
+// not yet flushed, so as long as nothing has been echoed yet we can still
+// turn a fatal error into a clean JSON response that carries them.
+register_shutdown_function(function () {
+  $err = error_get_last();
+  if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true) && !headers_sent()) {
+    http_response_code(500);
+    echo json_encode(['ok' => false, 'error' => 'server_fatal_error']);
+  }
+});
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   http_response_code(204);
   exit;
@@ -176,6 +191,13 @@ function github_api($method, $path, $payload = null) {
     ],
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_CUSTOMREQUEST => $method,
+    // Without an explicit timeout, a stalled connection to GitHub's API can
+    // run long enough to hit the host's own gateway timeout, which kills the
+    // PHP process outright — losing the CORS header along with it (see the
+    // shutdown handler above). Failing fast here keeps us inside our own
+    // respond()-based error handling instead.
+    CURLOPT_CONNECTTIMEOUT => 10,
+    CURLOPT_TIMEOUT => 20,
   ]);
   if ($payload !== null) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));

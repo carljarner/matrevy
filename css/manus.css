@@ -148,6 +148,42 @@ button.manus-col-header {
   margin-bottom: 1.5rem;
 }
 
+/* --- Upload modal: Sketch/Sang type toggle ------------------ */
+.manus-type-toggle {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.manus-type-box {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+@media (hover: hover) {
+  .manus-type-box:hover { border-color: var(--accent-warm); }
+}
+
+.manus-type-box:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.manus-type-box.active {
+  background: var(--accent-warm-fill);
+  border-color: var(--accent-warm);
+  color: var(--accent-warm-text);
+}
+
 /* --- "Dette års manus" read view --------------------------- */
 .manus-year-act {
   margin-bottom: 1.25rem;

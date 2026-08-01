@@ -291,15 +291,32 @@ function renderYearView() {
   }
 }
 
+// Two mutually-exclusive clickable boxes (Sketch/Sang) replacing a plain
+// dropdown, since there are only two options and neither is a sensible
+// default — the uploader must actively choose one.
+function createManusTypeToggle() {
+  const wrap = document.createElement('div');
+  wrap.className = 'manus-type-toggle';
+  let selected = null;
+  const boxes = {};
+  for (const opt of [{ value: 'sketch', label: 'Sketch' }, { value: 'sang', label: 'Sang' }]) {
+    const box = document.createElement('button');
+    box.type = 'button';
+    box.className = 'manus-type-box';
+    box.textContent = opt.label;
+    box.addEventListener('click', () => {
+      selected = opt.value;
+      for (const v in boxes) boxes[v].classList.toggle('active', v === selected);
+    });
+    boxes[opt.value] = box;
+    wrap.appendChild(box);
+  }
+  return { element: wrap, get value() { return selected; } };
+}
+
 // ── Upload (revyst+) ──────────────────────────────────────────
 function openUploadModal() {
   const { form, error, actions, close } = siteOpenModalWithClose('Upload manus');
-
-  const typeField = siteCreateDropdownField(
-    [{ value: 'sketch', label: 'Sketch' }, { value: 'sang', label: 'Sang' }],
-    'sketch'
-  );
-  form.appendChild(siteEditField('Type', typeField));
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -321,17 +338,24 @@ function openUploadModal() {
   texInput.className = 'site-file-input';
   form.appendChild(siteEditField('Kildefil (.tex)', texInput));
 
+  const typeToggle = createManusTypeToggle();
+  form.appendChild(siteEditField('Type', typeToggle.element));
+
   const save = document.createElement('button');
   save.className = 'site-pill-btn site-pill-primary';
   save.textContent = 'Upload';
   actions.appendChild(save);
 
   save.addEventListener('click', async () => {
-    const type = typeField.value;
+    const type = typeToggle.value;
     const title = titleInput.value.trim();
     const sender = senderInput.value.trim();
     const pdfFile = pdfInput.files[0] || null;
     const texFile = texInput.files[0] || null;
+    if (!type) {
+      error.textContent = 'Vælg om det er en sketch eller en sang.';
+      return;
+    }
     if (!title || !sender || !pdfFile || !texFile) {
       error.textContent = 'Udfyld titel, afsender, og vælg både en .pdf- og en .tex-fil.';
       return;
