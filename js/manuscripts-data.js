@@ -9,5 +9,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Foreleasningen.pdf",
     "texPath": "manus/sang/Foreleasningen.tex",
     "createdAt": "2026-08-01T14:38:52"
+  },
+  {
+    "id": "6a6deaeb2b7601a7",
+    "type": "sang",
+    "title": "Hun Skrive På Den",
+    "sender": "Carl",
+    "pdfPath": "manus/sang/Hun_Skrive_På_Den.pdf",
+    "texPath": "manus/sang/Hun_Skrive_På_Den.tex",
+    "createdAt": "2026-08-01T14:47:39"
   }
 ];
