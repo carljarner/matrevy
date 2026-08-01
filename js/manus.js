@@ -537,9 +537,7 @@ function manusOpenVotingSheet(type) {
   const colPoint = document.createElement('col');
   colPoint.className = 'manus-print-col-point';
   colgroup.appendChild(colPoint);
-  const colComment = document.createElement('col');
-  colComment.className = 'manus-print-col-comment';
-  colgroup.appendChild(colComment);
+  colgroup.appendChild(document.createElement('col'));
   table.appendChild(colgroup);
 
   const thead = document.createElement('thead');

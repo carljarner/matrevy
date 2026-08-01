@@ -981,12 +981,16 @@ function comments_create($body) {
 // as harmless orphans in the repo — same accepted trade-off as posts_create's
 // image never being cleaned up on post delete).
 
-// Spaces -> underscore, per the user's spec; strips path separators since
-// the result becomes a repo path segment. Danish letters are left as-is —
-// GitHub Contents API paths handle UTF-8 fine.
+// Spaces -> underscore, per the user's spec; strips anything else unsafe in a
+// filename/URL since the result becomes a repo path segment AND an <a href>
+// (a literal "?" here previously broke the link — browsers read it as the
+// start of a query string). Danish letters are left as-is — GitHub Contents
+// API paths and href unicode handle UTF-8 fine.
 function manus_slugify($title) {
   $slug = preg_replace('/\s+/', '_', trim($title));
-  $slug = preg_replace('#[/\\\\]#', '', $slug);
+  // Strip anything unsafe in a filename/URL (path separators, "?", "&", quotes, …) —
+  // keep only letters (incl. æøå), digits, underscores and hyphens.
+  $slug = preg_replace('/[^\p{L}\p{N}_\-]/u', '', $slug);
   return $slug === '' ? 'uden_titel' : $slug;
 }
 

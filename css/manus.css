@@ -407,7 +407,7 @@ a.manus-pdf-title:focus-visible {
 
   .manus-print-table {
     font-family: "Courier New", Courier, monospace;
-    table-layout: fixed;
+    table-layout: auto;
     width: 100%;
     border-collapse: collapse;
   }
@@ -423,8 +423,19 @@ a.manus-pdf-title:focus-visible {
 
   .manus-print-table td { height: 26pt; }
 
+  /* Name column shrinks to its longest (unwrapped) title; Point stays a
+     fixed, comfortable width; Comment (no width set) absorbs the rest. */
+  .manus-print-table th:first-child,
+  .manus-print-table td:first-child {
+    width: 1%;
+    white-space: nowrap;
+  }
+
   .manus-print-col-point { width: 60pt; }
-  .manus-print-col-comment { width: 160pt; }
+
+  .manus-print-table tbody tr:nth-child(even) td {
+    background: #eee;
+  }
 
   .manus-print-table tr { page-break-inside: avoid; }
 }
