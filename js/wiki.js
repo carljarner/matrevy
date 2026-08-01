@@ -457,16 +457,51 @@ function buildWikiToolbar(bodyEl) {
     const isOrdered = before === ORDERED_MARKER;
     if ((!isBullet && !isOrdered) || range.startOffset !== before.length) return;
     e.preventDefault();
-    const textNode = range.startContainer;
-    textNode.deleteData(0, before.length);
-    const caret = document.createRange();
-    caret.setStart(textNode, 0);
-    caret.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(caret);
+    // 'delete' once per marker character — like real Backspace presses —
+    // rather than mutating the text node directly. Leaving the text node
+    // manually emptied (via Text.deleteData) confused execCommand right
+    // after: on an otherwise-empty line, insertUnorderedList/insertOrderedList
+    // sometimes picked up the *next* paragraph as "the current block"
+    // instead of the (now content-less) one the caret was actually in.
+    // Routing the deletion through execCommand keeps the browser's own
+    // editing state consistent, so the following list command always
+    // targets the right line.
+    for (let i = 0; i < before.length; i++) {
+      document.execCommand('delete');
+    }
     document.execCommand(isBullet ? 'insertUnorderedList' : 'insertOrderedList');
     updateToolbarState();
   });
+
+  // Chrome's execCommand('indent') nests a sub-list as a *sibling* of the
+  // preceding <li> (`<ul><li>A</li><ul><li>B</li></ul></ul>`) rather than
+  // inside it — invalid HTML (a list's only valid children are <li>s) that
+  // also confuses the browser's own backspace/delete merging on the
+  // now-oddly-parented sub-item (deleting on an empty nested line could
+  // eat the *previous* line's content instead of just the empty line).
+  // Re-parent any list that ends up as a direct child of another list into
+  // the end of its immediately preceding <li>, matching the nesting
+  // Word/Docs produce. Moves the actual node (never clones it), so any
+  // selection/caret inside it stays valid.
+  function normalizeNestedLists() {
+    bodyEl.querySelectorAll('ul, ol').forEach((list) => {
+      const parent = list.parentElement;
+      if (!parent || (parent.tagName !== 'UL' && parent.tagName !== 'OL')) return;
+      const prevLi = list.previousElementSibling;
+      if (prevLi && prevLi.tagName === 'LI') prevLi.appendChild(list);
+    });
+    // The flip side: running execCommand('outdent') on a *properly* nested
+    // list (the shape the fix above just produced) can leave the un-nested
+    // <li> as a direct child of its former parent <li> — also invalid (an
+    // <li> can only contain block content, never another <li> without an
+    // intervening <ul>/<ol>). Hoist any such <li> to be its parent's next
+    // sibling instead, in document order so multi-level cases cascade
+    // correctly in one pass.
+    bodyEl.querySelectorAll('li').forEach((li) => {
+      const parent = li.parentElement;
+      if (parent && parent.tagName === 'LI') parent.after(li);
+    });
+  }
 
   // ── Tab / Shift+Tab nests/un-nests the current list item, matching how
   // Word/Docs handle sub-items. Only intercepted inside a list item — a Tab
@@ -480,6 +515,7 @@ function buildWikiToolbar(bodyEl) {
     if (!li || !bodyEl.contains(li)) return;
     e.preventDefault();
     document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+    normalizeNestedLists();
     updateToolbarState();
   });
 
