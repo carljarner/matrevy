@@ -197,6 +197,15 @@
             "pdfPath": "manus/sketch/Er_Der_Nogen_Spørgsmål.pdf",
             "texPath": "manus/sketch/Er_Der_Nogen_Spørgsmål.tex",
             "createdAt": "2026-08-01T16:32:32"
+        },
+        {
+            "id": "6a6e03a60262607a",
+            "type": "sketch",
+            "title": "Fluer i S01",
+            "sender": "Augusta & Villads",
+            "pdfPath": "manus/sketch/Fluer_i_S01.pdf",
+            "texPath": "manus/sketch/Fluer_i_S01.tex",
+            "createdAt": "2026-08-01T16:33:10"
         }
     ]
 }
