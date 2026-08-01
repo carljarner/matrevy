@@ -144,5 +144,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Whist.pdf",
     "texPath": "manus/sang/Whist.tex",
     "createdAt": "2026-08-01T16:28:14"
+  },
+  {
+    "id": "6a6e02cafc969a8e",
+    "type": "sketch",
+    "title": "Chi Faktor",
+    "sender": "Sommer, Stine & Carl",
+    "pdfPath": "manus/sketch/Chi_Faktor.pdf",
+    "texPath": "manus/sketch/Chi_Faktor.tex",
+    "createdAt": "2026-08-01T16:29:30"
   }
 ];
