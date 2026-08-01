@@ -182,7 +182,14 @@ if ($action !== 'save') {
 
 // ── GitHub Contents API helpers ──────────────────────────────
 function github_api($method, $path, $payload = null) {
-  $ch = curl_init('https://api.github.com/repos/' . GITHUB_OWNER . '/' . GITHUB_REPO . '/' . $path);
+  // $path is always 'contents/<file-path>' — a file path can contain
+  // non-ASCII characters (e.g. a manuscript title with æ/ø/å, left as
+  // real UTF-8 by manus_slugify() on purpose), which must be percent-encoded
+  // per path segment to form a valid request line; encode only here, at the
+  // point of building the URL, so the raw UTF-8 path is still what's
+  // validated, stored in JSON, and returned to the client everywhere else.
+  $encodedPath = implode('/', array_map('rawurlencode', explode('/', $path)));
+  $ch = curl_init('https://api.github.com/repos/' . GITHUB_OWNER . '/' . GITHUB_REPO . '/' . $encodedPath);
   curl_setopt_array($ch, [
     CURLOPT_HTTPHEADER => [
       'Authorization: Bearer ' . GITHUB_TOKEN,
