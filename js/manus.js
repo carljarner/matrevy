@@ -303,7 +303,7 @@ function renderBottomActions() {
     btn.textContent = 'Aktfordeling';
     btn.addEventListener('click', openAktfordelingBuilder);
   } else if (siteHasLevel('revyst')) {
-    btn.textContent = 'Upload manus';
+    btn.textContent = 'Upload';
     btn.addEventListener('click', openUploadModal);
   } else {
     return;
