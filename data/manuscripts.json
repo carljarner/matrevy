@@ -179,6 +179,15 @@
             "pdfPath": "manus/sketch/En_Imponerende_Rekvisit.pdf",
             "texPath": "manus/sketch/En_Imponerende_Rekvisit.tex",
             "createdAt": "2026-08-01T16:31:36"
+        },
+        {
+            "id": "6a6e035f6e214bba",
+            "type": "sketch",
+            "title": "En Instruktor Siger Op",
+            "sender": "Villads",
+            "pdfPath": "manus/sketch/En_Instruktor_Siger_Op.pdf",
+            "texPath": "manus/sketch/En_Instruktor_Siger_Op.tex",
+            "createdAt": "2026-08-01T16:31:59"
         }
     ]
 }
