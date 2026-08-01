@@ -23,9 +23,12 @@
   gap: 1.25rem;
 }
 
-.manus-guide {
-  margin-bottom: 0;
+.manus-guide-col {
   min-width: 0;
+}
+
+.manus-guide {
+  margin-bottom: 1rem;
 }
 
 .manus-guide-text {
@@ -222,7 +225,6 @@ a.manus-pdf-title:focus-visible {
 .manus-bottom-actions {
   display: flex;
   justify-content: center;
-  margin-top: 1rem;
 }
 
 /* --- Upload modal: Sketch/Sang type toggle -------------------

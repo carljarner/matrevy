@@ -25,17 +25,20 @@
            has content; otherwise it's a plain always-open list. -->
       <div class="manus-columns" id="manus-columns"></div>
 
-      <!-- Static guide box. Holds the Upload (revyst+) / Aktfordeling
-           (boss+) button at its bottom, rendered by manus.js — a single
-           mount point since only one is ever shown. -->
-      <aside class="manus-guide card">
-        <h2>Manus Guide</h2>
-        <div class="manus-guide-text" id="manus-guide-text">
-          <p>Læg .sty filen i dit projekt: <a class="manus-guide-link" href="manus/revy.sty" download="revy.sty">revy.sty</a></p>
-          <p>Brug følgende skabeloner: <a class="manus-guide-link" href="manus/skabelon-sang.tex" download="sang.tex">sang.tex</a> <a class="manus-guide-link" href="manus/skabelon-sketch.tex" download="sketch.tex">sketch.tex</a></p>
-        </div>
+      <!-- Static guide box + Upload (revyst+) / Aktfordeling (boss+)
+           button, rendered by manus.js — a single mount point since
+           only one is ever shown. The button sits below the guide
+           box, not inside it. -->
+      <div class="manus-guide-col">
+        <aside class="manus-guide card">
+          <h2>Manus Guide</h2>
+          <div class="manus-guide-text" id="manus-guide-text">
+            <p>Læg .sty filen i dit projekt: <a class="manus-guide-link" href="manus/revy.sty" download="revy.sty">revy.sty</a></p>
+            <p>Brug følgende skabeloner: <a class="manus-guide-link" href="manus/skabelon-sang.tex" download="sang.tex">sang.tex</a> <a class="manus-guide-link" href="manus/skabelon-sketch.tex" download="sketch.tex">sketch.tex</a></p>
+          </div>
+        </aside>
         <div class="manus-bottom-actions" id="manus-bottom-actions"></div>
-      </aside>
+      </div>
     </div>
 
     <!-- Read-only "Dette års manus" act list, shown once scenes.json has
