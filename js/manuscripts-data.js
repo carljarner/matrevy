@@ -27,5 +27,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sang/Check_Ind.pdf",
     "texPath": "manus/sang/Check_Ind.tex",
     "createdAt": "2026-08-01T16:18:24"
+  },
+  {
+    "id": "6a6e004ad90a742a",
+    "type": "sang",
+    "title": "Ernsts Hus",
+    "sender": "Adam",
+    "pdfPath": "manus/sang/Ernsts_Hus.pdf",
+    "texPath": "manus/sang/Ernsts_Hus.tex",
+    "createdAt": "2026-08-01T16:18:50"
   }
 ];
