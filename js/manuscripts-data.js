@@ -27,5 +27,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "manus/sketch/Test.pdf",
     "texPath": "manus/sketch/Test.tex",
     "createdAt": "2026-08-01T15:00:57"
+  },
+  {
+    "id": "6a6df0f644aade57",
+    "type": "sketch",
+    "title": "Test 2",
+    "sender": "Carl",
+    "pdfPath": "manus/sketch/Test_2.pdf",
+    "texPath": "manus/sketch/Test_2.tex",
+    "createdAt": "2026-08-01T15:13:26"
   }
 ];
