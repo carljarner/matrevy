@@ -98,18 +98,67 @@ function manusFileToBase64(file) {
   });
 }
 
+// ── Poll a just-uploaded file until GitHub Pages has actually deployed it
+// (a push to main takes ~1-2 min to go live, per CLAUDE.md's Deployment
+// section) so the pool never shows a link that 404s in the meantime. The
+// pending flag lives only in the local override (never sent to/read from
+// the server), so it just falls away once the override's TTL expires.
+let manusPendingPollTimer = null;
+
+function manusHasPendingDeploys() {
+  return getEffectiveManuscripts().some(s => s.pendingDeploy);
+}
+
+async function manusCheckPendingDeploys() {
+  const items = getEffectiveManuscripts();
+  let changed = false;
+  for (const item of items) {
+    if (!item.pendingDeploy) continue;
+    try {
+      const res = await fetch(item.pdfPath, { method: 'HEAD', cache: 'no-store' });
+      if (res.ok) { item.pendingDeploy = false; changed = true; }
+    } catch (e) { /* not live yet, or offline — keep polling */ }
+  }
+  if (changed) {
+    manuscriptsOverride = items;
+    siteSaveOverride('manuscripts', manuscriptsOverride);
+    renderColumns();
+  }
+  if (!manusHasPendingDeploys() && manusPendingPollTimer) {
+    clearInterval(manusPendingPollTimer);
+    manusPendingPollTimer = null;
+  }
+}
+
+function manusStartPendingPoll() {
+  if (manusPendingPollTimer || !manusHasPendingDeploys()) return;
+  manusPendingPollTimer = setInterval(manusCheckPendingDeploys, 4000);
+}
+
 // ── Upload pool: two-column render ────────────────────────────
 function renderPdfRow(item) {
   const row = document.createElement('div');
   row.className = 'manus-pdf-row';
 
-  const link = document.createElement('a');
-  link.className = 'manus-pdf-title';
-  link.href = item.pdfPath;
-  link.target = '_blank';
-  link.rel = 'noopener noreferrer';
-  link.textContent = item.title;
-  row.appendChild(link);
+  if (item.pendingDeploy) {
+    const pending = document.createElement('span');
+    pending.className = 'manus-pdf-title manus-pdf-pending';
+    pending.textContent = item.title;
+    row.appendChild(pending);
+
+    const status = document.createElement('span');
+    status.className = 'manus-pdf-pending-label';
+    status.textContent = 'Uploader stadig…';
+    row.appendChild(status);
+  } else {
+    const link = document.createElement('a');
+    link.className = 'manus-pdf-title';
+    link.href = item.pdfPath;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = item.title;
+    row.appendChild(link);
+  }
 
   const sender = document.createElement('span');
   sender.className = 'manus-pdf-sender';
@@ -391,10 +440,12 @@ function openUploadModal() {
         pdfPath: result.data.pdfPath,
         texPath: result.data.texPath,
         createdAt: nowIso(),
+        pendingDeploy: true,
       };
       manuscriptsOverride = getEffectiveManuscripts().concat([local]);
       siteSaveOverride('manuscripts', manuscriptsOverride);
       renderColumns();
+      manusStartPendingPoll();
       close();
     } else {
       error.textContent = result.message;
@@ -830,6 +881,7 @@ function renderAll() {
   renderColumns();
   renderBottomActions();
   renderYearView();
+  manusStartPendingPoll();
 }
 
 document.addEventListener('DOMContentLoaded', renderAll);

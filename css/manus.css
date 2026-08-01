@@ -85,12 +85,33 @@ button.manus-col-header {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
-  color: var(--accent);
+  color: var(--text);
   text-decoration: none;
 }
 
 @media (hover: hover) {
-  .manus-pdf-title:hover { text-decoration: underline; }
+  a.manus-pdf-title:hover { text-decoration: underline; }
+}
+
+.manus-pdf-pending {
+  color: #57606a;
+  cursor: default;
+}
+
+.manus-pdf-pending-label {
+  flex: none;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: #57606a;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .manus-pdf-pending-label { animation: manus-pending-pulse 1.4s ease-in-out infinite; }
+}
+
+@keyframes manus-pending-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
 .manus-pdf-sender {
