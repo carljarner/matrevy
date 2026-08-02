@@ -291,19 +291,24 @@ a.manus-pdf-title:focus-visible {
   margin-left: 0.4rem;
 }
 
-/* --- Main Manus View (boss/admin only) ----------------------- */
+/* --- Main Manus View (boss/admin only) -----------------------
+   Row, not stacked: error text (if any) sits left of the button, both
+   pushed to the right edge — so the only vertical space above the button is
+   the last tab column's own .card margin-bottom, matching the
+   .manus-main-view card's own bottom padding below it exactly (both
+   1.25rem, the site-wide stacked-card gap), rather than an extra
+   margin-top plus a reserved empty error row doubling the gap above
+   versus below. */
 .manus-main-view-actions {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
+  justify-content: flex-end;
+  gap: 1rem;
 }
 
 .manus-main-view-error {
   color: #c0392b;
   font-size: 0.85rem;
-  min-height: 1.1em;
 }
 
 /* --- Tab bar — browser-style folder tabs, filling the row evenly --- */
@@ -412,19 +417,6 @@ a.manus-pdf-title:focus-visible {
   border-radius: 4px;
   background: var(--input-bg);
   color: var(--text);
-}
-
-.manus-select-discard-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1rem;
-  padding: 0.6rem 0.9rem;
-  border-radius: 8px;
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
-  font-size: 0.88rem;
 }
 
 /* --- Tab: Aktfordeling — act columns in a row, "Ikke placeret" below --

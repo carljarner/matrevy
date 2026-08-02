@@ -154,12 +154,14 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   `posts_create`) — **not** a `status` field on the production catalog itself, a fully
   separate standing pool, so a submission never touches `data/scenes.json` until Boss
   explicitly promotes it via Aktfordeling (4.2). Files are renamed server-side to
-  `manus/<sketch|sang>/<slug>.pdf`/`.tex` (spaces → `_`, `_2`/`_3`… on a same-type title
-  collision). Boss/admin remove a submission via a small ✕ (full-array-replace
-  `manuscripts` resource) — the underlying files are left in the repo, not deleted (same
-  accepted trade-off as a deleted Post's orphaned image). `manus.html` renders the pool as
-  two alphabetical columns (Sketches/Sange); PDFs open in a new tab, `.tex` is never
-  displayed. See CLAUDE.md's "Manus page" section for the full architecture.
+  `<slug>.pdf`/`.tex` (spaces → `_`, `_2`/`_3`… on a same-type title collision) and written
+  into `archive/<currentProductionFolder>/submitted/` (amended 2026-08-02: originally
+  `manus/<sketch|sang>/`, moved to the archive's 3-folder model — see 4.3's amendment
+  below). Boss/admin remove a submission via a small ✕ (full-array-replace `manuscripts`
+  resource) — the underlying files are left in the repo, not deleted (same accepted
+  trade-off as a deleted Post's orphaned image). `manus.html` renders the pool as two
+  alphabetical columns (Sketches/Sange); PDFs open in a new tab, `.tex` is never displayed.
+  See CLAUDE.md's "Manus page" section for the full architecture.
 - **4.2 — Selection** — [x] done 2026-08-01, built together with 4.1. Boss/admin get
   **"Hent stemmeark"** per column (a browser-print Navn/Point/Kommentar voting sheet,
   `@media print`, no new file-generation infra) and an **"Aktfordeling"** builder
@@ -174,8 +176,9 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   A `sourcePdf`/`sourceTex` pointer is carried onto each pool-originated scene so a future
   4.5 compile phase can find its `.tex`. Once `scenes.json` has any content, the pool
   columns become closed-by-default toggle sections and a read-only "Dette års manus" act
-  list renders below. **"Intast point"** (voting results entry) is a stub button for
-  now — deliberately left for the user to detail in a later session.
+  list renders below. **"Intast point"** (voting results entry) was a stub button here —
+  removed 2026-08-02, since voting/point entry will be handled outside the website
+  entirely, not built into a later session as originally planned.
 - **4.3 — Main Manus View (selection, act-building, roles, priority)** — [x] done
   2026-08-01. The single-modal Aktfordeling builder from 4.2 was retired and rebuilt as a
   boss/admin-only tabbed section on `manus.html` — **Vælg scener** / **Aktfordeling** /
@@ -183,9 +186,9 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   (`manusDraft`, `js/manus.js`) so edits made in one tab survive switching to another,
   with a single shared "Gem" saving everything at once through the existing boss-level
   `manus` resource. Vælg scener replaces the old per-column Stemmeark/Point buttons and
-  adds select/deselect per pool submission (deselecting only marks a row locally — a
-  separate explicit "Bekræft fravalg" step is what actually archives the files, so it's
-  freely reversible until then) plus the duration field (moved from the old builder).
+  adds select/deselect per pool submission plus the duration field (moved from the old
+  builder). (Amended 2026-08-02: selecting/deselecting a row only marks it locally until
+  Gem — no separate confirm step; see the discard-flow amendment below.)
   Aktfordeling keeps the same drag-and-drop row model but renders acts as side-by-side
   kanban columns instead of stacked sections. Rollefordeling is the "assign cast/roles"
   half of this sub-phase — `ROLE_CATEGORIES`/`classifyRoleCode`/`classifyOrKeep` were
@@ -198,13 +201,28 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   combines `dans`+`sketch`/`sang` shown as two independent rows (a new `dansPriority`
   field holds the "(Dans)" half's value) exactly like Øveplan's own dance-split display —
   `schedule.js`'s dance-split helpers were duplicated the same way the role-classification
-  helpers were. A new discard flow needed two small additions: a `data/config.json` +
+  helpers were. A discard flow needed two small additions: a `data/config.json` +
   admin-level `config` resource naming the active `archive/<folder>` (no real "current
   season" concept exists yet, so this is a small manually-set stand-in, not a step toward
-  full season-switching), and a boss-level `manuscripts_discard` server action that moves
-  a discarded submission's pdf/tex into `archive/<folder>/not_selected/` before removing
-  it from `data/manuscripts.json`. `not_selected/` folders (with a `.gitkeep` placeholder)
-  were backfilled into every non-jubilee `archive/MatRevy_<year>/` from 2019 through 2025.
+  full season-switching), and a boss-level server action that moves files between the
+  archive and the pool. **Amended 2026-08-02**: the original one-way `manuscripts_discard`
+  (moved a discarded submission's pdf/tex into `archive/<folder>/not_selected/` and
+  permanently dropped it from `data/manuscripts.json`) was replaced by
+  `manuscripts_sync_selection` — a bidirectional, idempotent reconciliation run silently on
+  *every* Gem click rather than a separate explicit confirm step: every non-graduated pool
+  submission's file is moved to `archive/<folder>/sketches/` or `.../songs/` (by type) if
+  currently selected, or back to `archive/<folder>/submitted/` (renamed from
+  `not_selected/`) if not — nothing is ever removed from `data/manuscripts.json` by this
+  flow anymore, only the pre-existing ✕-button full-array-replace can still do that. A
+  submission's `selected` state is no longer a separate persisted flag at all — it's
+  derived purely from which of the three folders its file currently sits in. Uploads
+  (`manuscripts_create`) now land directly in `archive/<folder>/submitted/` instead of the
+  old flat `manus/<sketch|sang>/` pool folder, which no longer exists. `submitted/` folders
+  (with a `.gitkeep` placeholder, renamed from `not_selected/`) exist in every non-jubilee
+  `archive/MatRevy_<year>/` from 2019 through 2026; `MatRevy_2026` additionally got
+  `sketches/`/`songs/` placeholders backfilled to match the older years' existing
+  convention, and its ~32 existing pool submissions were migrated from `manus/sketch/`
+  /`manus/sang/` into `submitted/` in the same pass.
   **Still pending, deliberately not part of this sub-phase**: moving the *scheduling*
   scene-priority (0–3) selector and the Rekvisitten/per-cell cast-override tooling from
   `schedule.js`'s own sidebar into Manus's boss view — Stjerneark's priority is a

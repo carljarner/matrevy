@@ -108,16 +108,24 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 // the admin-gated upload action — this is the only guard on that path, so it
 // must live above the dispatch same as ARCHIVE_PATH_RE (see comment above).
 const POST_IMAGE_PATH_RE = '#^posts/[0-9a-f]+/image\.jpg$#';
-// Manuscript pdf/tex are written inline from manuscripts_create (revyst-level),
-// same posture as POST_IMAGE_PATH_RE — the path is server-built from a
-// server-slugified title, but is still checked unconditionally.
-const MANUS_PDF_PATH_RE = '#^manus/(sketch|sang)/[^/]+\.pdf$#';
-const MANUS_TEX_PATH_RE = '#^manus/(sketch|sang)/[^/]+\.tex$#';
-// Manuscripts discarded via the Manus page's "Vælg scener" tab are moved
-// here from manus/<type>/ — same posture as the two regexes above, the
-// destination is server-built from data/config.json's currentProductionFolder
-// (never a client-supplied path) but still checked unconditionally.
-const ARCHIVE_NOT_SELECTED_RE = '#^archive/[A-Za-z0-9_-]+/not_selected/[^/]+\.(pdf|tex)$#';
+// Manuscript pdf/tex live under archive/<folder>/{submitted,sketches,songs}/
+// — "submitted" is where an upload lands immediately (manuscripts_create)
+// and where a deselected submission returns to; "sketches"/"songs" (reusing
+// Arkiv's existing plural per-year folder-naming convention, not the pool's
+// old singular "sketch"/"sang") are where a *selected* one moves. All three
+// are server-built from data/config.json's currentProductionFolder (never a
+// client-supplied path) but still checked unconditionally, same posture as
+// every regex above.
+const ARCHIVE_MANUS_SUBMITTED_RE = '#^archive/[A-Za-z0-9_-]+/submitted/[^/]+\.(pdf|tex)$#';
+const ARCHIVE_MANUS_SKETCHES_RE  = '#^archive/[A-Za-z0-9_-]+/sketches/[^/]+\.(pdf|tex)$#';
+const ARCHIVE_MANUS_SONGS_RE     = '#^archive/[A-Za-z0-9_-]+/songs/[^/]+\.(pdf|tex)$#';
+// Union of the three — used only where "is this any valid manus-archive
+// path" is the question (save_manuscripts' shape validator, which doesn't
+// care which of the three folders a given record currently sits in). Every
+// path-construction site instead checks against one of the three specific
+// regexes above, so a freshly built path is always checked against exactly
+// the folder it's meant to land in.
+const ARCHIVE_MANUS_ANY_RE = '#^archive/[A-Za-z0-9_-]+/(submitted|sketches|songs)/[^/]+\.(pdf|tex)$#';
 
 $action = $body['action'] ?? '';
 
@@ -181,14 +189,15 @@ if (isset($POST_ACTIONS[$action])) {
   else manuscripts_create($body);
 }
 
-// manuscripts_discard is boss-level (not revyst, unlike the actions above) —
-// it moves/deletes files, so it isn't safely append-only-trustable at revyst.
-// Not in $RESOURCES either, since it never accepts a full-array replace.
-if ($action === 'manuscripts_discard') {
+// manuscripts_sync_selection is boss-level (not revyst, unlike the actions
+// above) — it moves files, so it isn't safely append-only-trustable at
+// revyst. Not in $RESOURCES either, since it never accepts a full-array
+// replace, only {id, selected} pairs.
+if ($action === 'manuscripts_sync_selection') {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
-  manuscripts_discard($body);
+  manuscripts_sync_selection($body);
 }
 
 if ($action !== 'save') {
@@ -1009,12 +1018,16 @@ function manus_slugify($title) {
   return $slug === '' ? 'uden_titel' : $slug;
 }
 
+// Slug collisions are checked per type using each submission's own `type`
+// field plus its pdf filename's basename — not the path's folder segment,
+// since a submission's *current* pdfPath now depends on where it sits
+// (submitted/sketches/songs), not on its type alone.
 function manus_existing_slugs($type, $submissions) {
   $slugs = [];
   foreach ($submissions as $s) {
     if (($s['type'] ?? null) !== $type) continue;
     $pdf = $s['pdfPath'] ?? '';
-    if (preg_match('#^manus/' . preg_quote($type, '#') . '/([^/]+)\.pdf$#', $pdf, $m)) {
+    if (is_string($pdf) && preg_match('#([^/]+)\.pdf$#', $pdf, $m)) {
       $slugs[$m[1]] = true;
     }
   }
@@ -1030,6 +1043,21 @@ function manus_unique_slug($type, $title, $submissions) {
   $n = 2;
   while (isset($taken[$base . '_' . $n])) $n++;
   return $base . '_' . $n;
+}
+
+// Shared by manuscripts_create and manuscripts_sync_selection — both need
+// data/config.json's currentProductionFolder as the base of every manus
+// archive path they build. Returns null on any failure (missing file,
+// missing/invalid field) so callers can respond with a single clear error.
+function manus_current_production_folder() {
+  [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
+  $folder = ($cfgStatus === 200)
+    ? (json_decode(base64_decode($cfg['content']), true)['currentProductionFolder'] ?? '')
+    : '';
+  if (!is_string($folder) || $folder === '' || !preg_match('#^[A-Za-z0-9_-]+$#', $folder)) {
+    return null;
+  }
+  return $folder;
 }
 
 function manuscripts_create($body) {
@@ -1054,6 +1082,11 @@ function manuscripts_create($body) {
     respond(413, ['error' => 'too_large']);
   }
 
+  $folder = manus_current_production_folder();
+  if ($folder === null) {
+    respond(400, ['error' => 'no_production_folder']);
+  }
+
   [$getStatus, $current] = github_api('GET', 'contents/data/manuscripts.json');
   $existing = [];
   if ($getStatus === 200) {
@@ -1063,9 +1096,9 @@ function manuscripts_create($body) {
   }
   $slug = manus_unique_slug($type, trim($title), $existing);
 
-  $pdfPath = 'manus/' . $type . '/' . $slug . '.pdf';
-  $texPath = 'manus/' . $type . '/' . $slug . '.tex';
-  if (!preg_match(MANUS_PDF_PATH_RE, $pdfPath) || !preg_match(MANUS_TEX_PATH_RE, $texPath)) {
+  $pdfPath = 'archive/' . $folder . '/submitted/' . $slug . '.pdf';
+  $texPath = 'archive/' . $folder . '/submitted/' . $slug . '.tex';
+  if (!preg_match(ARCHIVE_MANUS_SUBMITTED_RE, $pdfPath) || !preg_match(ARCHIVE_MANUS_SUBMITTED_RE, $texPath)) {
     respond(400, ['error' => 'bad_path']);
   }
   put_file($pdfPath, $pdfBase64, 'Nyt manus-upload: ' . trim($title));
@@ -1090,34 +1123,70 @@ function manuscripts_create($body) {
 
 // Boss-level (matches the `manuscripts` resource's own level — unlike
 // manuscripts_create this can't be revyst-append-only-safe, since it moves
-// and deletes files). Moves each discarded submission's pdf/tex from
-// manus/<type>/ to archive/<currentProductionFolder>/not_selected/, then
-// removes those submissions from data/manuscripts.json. The target folder
-// always comes from data/config.json server-side — the client sends ids
-// only, never a path or folder (same "server is the source of truth for the
-// destination" posture as posts_create's image path).
+// files). Not in $RESOURCES either — never accepts a full-array replace,
+// only {id, selected} pairs. Nothing is ever permanently "discarded" via Gem
+// anymore — a submission just cycles between
+// archive/<folder>/{submitted,sketches,songs}/. Only the boss/admin ✕
+// button's full-array-replace (save_manuscripts) can still truly remove a
+// submission's *record*, and even that never deletes its files (see
+// save_manuscripts' own comment).
 //
-// Multi-request, non-atomic: files are moved (GET+PUT+DELETE per file) BEFORE
-// data/manuscripts.json is rewritten, so a mid-loop failure leaves at worst an
-// orphaned copy under archive/, never a submission whose files are gone but
-// whose record still claims it's live. Re-running with the same ids is safe
-// either way — put_file() overwrites, delete_file() treats a missing source
-// as already-done.
-function manuscripts_discard($body) {
-  $ids = $body['ids'] ?? null;
-  if (!is_array($ids) || !$ids) {
+// Runs as a full reconciliation every time it's called (i.e. on every Gem
+// click on the Main Manus View, not just once): for each {id, selected} pair
+// sent, looks up that submission's current pdfPath/texPath/type in
+// data/manuscripts.json, works out which of the three folders it *should* be
+// in (submitted if selected=false; sketches/songs by type if selected=true),
+// and moves it there if it isn't already — so re-running with the same
+// selections is a no-op, and a submission that was selected then later
+// deselected moves itself straight back to submitted/ on the very next Gem
+// click, with no separate "un-discard" step.
+//
+// Submissions already "graduated" into a real scene (data/scenes.json has a
+// scene whose sourcePdf equals this submission's current pdfPath) are always
+// skipped, regardless of what the client sent for their id — manusInitDraft()
+// on the client already permanently excludes a graduated submission from
+// Vælg scener's pool, so the client should never send one, but this is
+// checked server-side too as defense-in-depth.
+//
+// Multi-request, non-atomic, same posture as the old manuscripts_discard:
+// files are moved (GET+put_file()+delete_file() per file) BEFORE
+// data/manuscripts.json is rewritten once at the end with every reconciled
+// submission's current pdfPath/texPath.
+function manuscripts_sync_selection($body) {
+  $selections = $body['selections'] ?? null;
+  if (!is_array($selections)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  foreach ($ids as $id) {
-    if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
+  $selectedById = [];
+  foreach ($selections as $sel) {
+    if (!is_array($sel) || !isset($sel['id'], $sel['selected'])
+        || !is_string($sel['id']) || $sel['id'] === '' || !is_bool($sel['selected'])) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $selectedById[$sel['id']] = $sel['selected'];
+  }
+  if (!$selectedById) {
+    respond(200, ['ok' => true, 'results' => []]);
   }
 
-  [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
-  $folder = ($cfgStatus === 200)
-    ? (json_decode(base64_decode($cfg['content']), true)['currentProductionFolder'] ?? '')
-    : '';
-  if (!is_string($folder) || $folder === '' || !preg_match('#^[A-Za-z0-9_-]+$#', $folder)) {
+  $folder = manus_current_production_folder();
+  if ($folder === null) {
     respond(400, ['error' => 'no_production_folder']);
+  }
+
+  // Graduated submissions (already placed+saved as a real scene) are never
+  // touched — same "sourcePdf" linkage manusInitDraft() uses client-side.
+  [$scenesStatus, $scenesFile] = github_api('GET', 'contents/data/scenes.json');
+  $graduatedPaths = [];
+  if ($scenesStatus === 200) {
+    $scenesDecoded = json_decode(base64_decode($scenesFile['content']), true);
+    $acts = (is_array($scenesDecoded) && isset($scenesDecoded['acts']) && is_array($scenesDecoded['acts']))
+      ? $scenesDecoded['acts'] : [];
+    foreach ($acts as $act) {
+      foreach (($act['scenes'] ?? []) as $scene) {
+        if (!empty($scene['sourcePdf'])) $graduatedPaths[$scene['sourcePdf']] = true;
+      }
+    }
   }
 
   [$getStatus, $current] = github_api('GET', 'contents/data/manuscripts.json');
@@ -1128,42 +1197,57 @@ function manuscripts_discard($body) {
   $submissions = (is_array($decoded) && isset($decoded['submissions']) && is_array($decoded['submissions']))
     ? $decoded['submissions'] : [];
 
-  $idSet = array_flip($ids);
-  $toDiscard = array_values(array_filter($submissions, function ($s) use ($idSet) {
-    return isset($idSet[$s['id'] ?? '']);
-  }));
-  $kept = array_values(array_filter($submissions, function ($s) use ($idSet) {
-    return !isset($idSet[$s['id'] ?? '']);
-  }));
+  $destFolderByType = ['sketch' => 'sketches', 'sang' => 'songs'];
+  $destRegexByFolder = [
+    'submitted' => ARCHIVE_MANUS_SUBMITTED_RE,
+    'sketches'  => ARCHIVE_MANUS_SKETCHES_RE,
+    'songs'     => ARCHIVE_MANUS_SONGS_RE,
+  ];
 
-  $moved = [];
-  foreach ($toDiscard as $s) {
-    $fields = ['pdfPath' => MANUS_PDF_PATH_RE, 'texPath' => MANUS_TEX_PATH_RE];
-    foreach ($fields as $field => $srcRe) {
+  $results = [];
+  $updatedSubmissions = [];
+  foreach ($submissions as $s) {
+    $id = $s['id'] ?? '';
+    if (!isset($selectedById[$id]) || isset($graduatedPaths[$s['pdfPath'] ?? ''])) {
+      $updatedSubmissions[] = $s; // not in this request, or graduated — untouched
+      continue;
+    }
+    $type = $s['type'] ?? '';
+    $destFolder = $selectedById[$id] ? ($destFolderByType[$type] ?? null) : 'submitted';
+    if ($destFolder === null) {
+      $updatedSubmissions[] = $s; // unrecognized type — leave untouched, defensive
+      continue;
+    }
+    foreach (['pdfPath', 'texPath'] as $field) {
       $src = $s[$field] ?? '';
-      if (!is_string($src) || $src === '' || !preg_match($srcRe, $src)) continue; // texPath optional/legacy-missing
-      $dest = 'archive/' . $folder . '/not_selected/' . basename($src);
-      if (!preg_match(ARCHIVE_NOT_SELECTED_RE, $dest)) {
+      if (!is_string($src) || $src === '') continue; // texPath optional/legacy-missing
+      $dest = 'archive/' . $folder . '/' . $destFolder . '/' . basename($src);
+      if (!preg_match($destRegexByFolder[$destFolder], $dest)) {
         respond(400, ['error' => 'bad_path']);
       }
-      [$srcStatus, $srcFile] = github_api('GET', 'contents/' . $src);
-      if ($srcStatus !== 200) continue; // already moved/gone — treat as done
-      // Re-encode rather than forwarding GitHub's own content field verbatim
-      // (it comes chunked with embedded newlines) — put_file()'s other
-      // callers always pass clean, freshly-encoded base64.
-      $cleanBase64 = base64_encode(base64_decode($srcFile['content']));
-      put_file($dest, $cleanBase64, 'Arkiver fravalgt manus: ' . $s['title']);
-      delete_file($src, 'Fjern fravalgt manus: ' . $s['title']);
+      if ($dest !== $src) {
+        [$srcStatus, $srcFile] = github_api('GET', 'contents/' . $src);
+        if ($srcStatus === 200) {
+          // Re-encode rather than forwarding GitHub's own content field
+          // verbatim (chunked with embedded newlines) — put_file()'s other
+          // callers always pass clean, freshly-encoded base64.
+          $cleanBase64 = base64_encode(base64_decode($srcFile['content']));
+          put_file($dest, $cleanBase64, 'Flyt manus: ' . ($s['title'] ?? $id));
+          delete_file($src, 'Flyt manus: ' . ($s['title'] ?? $id));
+        } // else: already moved/gone — treat as done, still record the new path
+        $s[$field] = $dest;
+      }
     }
-    $moved[] = $s['id'];
+    $updatedSubmissions[] = $s;
+    $results[] = ['id' => $id, 'pdfPath' => $s['pdfPath'], 'texPath' => $s['texPath'] ?? ''];
   }
 
-  update_file('data/manuscripts.json', function ($json) use ($kept) {
-    $json['submissions'] = $kept;
+  update_file('data/manuscripts.json', function ($json) use ($updatedSubmissions) {
+    $json['submissions'] = $updatedSubmissions;
     return $json;
-  }, 'Fjern fravalgte manus-uploads');
+  }, 'Synkroniser manus-udvælgelse');
 
-  respond(200, ['ok' => true, 'discarded' => $moved, 'targetFolder' => $folder]);
+  respond(200, ['ok' => true, 'results' => $results]);
 }
 
 // Boss/admin: full-array replace, used only for removing a submission (the
@@ -1181,8 +1265,8 @@ function save_manuscripts($payload) {
         || !in_array($s['type'], ['sketch', 'sang'], true)
         || !is_string($s['title']) || trim($s['title']) === ''
         || !is_string($s['sender'])
-        || !is_string($s['pdfPath']) || !preg_match(MANUS_PDF_PATH_RE, $s['pdfPath'])
-        || !is_string($s['texPath']) || !preg_match(MANUS_TEX_PATH_RE, $s['texPath'])
+        || !is_string($s['pdfPath']) || !preg_match(ARCHIVE_MANUS_ANY_RE, $s['pdfPath'])
+        || !is_string($s['texPath']) || !preg_match(ARCHIVE_MANUS_ANY_RE, $s['texPath'])
         || !is_string($s['createdAt'])) {
       respond(400, ['error' => 'invalid_manuscripts_shape']);
     }
@@ -1338,9 +1422,10 @@ function save_wiki($payload) {
 
 // Admin-only site-wide setting: which archive/MatRevy_<year> folder is the
 // active production, used server-side (never a client-supplied value) as the
-// move target for manuscripts_discard. There's no real "current season"
-// concept yet (see matrevy-plan.md's Phase 13) — this is a small, deliberately
-// minimal stand-in, set by hand once per production cycle via the Manus page.
+// base of every path manuscripts_create/manuscripts_sync_selection build.
+// There's no real "current season" concept yet (see matrevy-plan.md's
+// Phase 13) — this is a small, deliberately minimal stand-in, set by hand
+// once per production cycle via the Manus page.
 function save_config($payload) {
   $folder = $payload['currentProductionFolder'] ?? '';
   if (!is_string($folder) || ($folder !== '' && !preg_match('#^[A-Za-z0-9_-]+$#', $folder))) {

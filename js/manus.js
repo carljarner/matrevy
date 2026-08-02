@@ -5,8 +5,10 @@
 
    1. Upload pool (data/manuscripts.json, embedded as MANUSCRIPTS_DATA):
       any revyst+ can submit a sketch/song (title/sender/.pdf/.tex),
-      shown as two alphabetical columns, each an open-by-default toggle
-      section. Boss/admin can remove a submission via a small ✕.
+      shown as two alphabetical columns, each a toggle section — open by
+      default for revyst, closed by default for boss/admin (who have the
+      much longer Main Manus View below to get to; same split applies to
+      the Manus Guide box). Boss/admin can remove a submission via a small ✕.
       Modeled directly on posts.js's create-post flow —
       manusApi()/manusResolvePassword() mirror
       postsApi()/postsResolvePassword() since posts_create-style
@@ -23,8 +25,11 @@
       manusInitDraft() from the CURRENT data/scenes.json + not-yet-used
       pool submissions). Vælg scener is a click-to-select row (no
       checkbox — amber highlight, not a blue checked box) per pool
-      submission, unselected by default; a selected count replaces the
-      old "(total)" in each column's header. Aktfordeling/Rollefordeling/
+      submission; a row's initial selection is derived from which of
+      archive/<folder>/{submitted,sketches,songs}/ its file currently sits
+      in (manusSubmissionIsSelected()) — there's no separate persisted
+      selected flag, the folder itself is the record. A selected count
+      replaces the old "(total)" in each column's header. Aktfordeling/Rollefordeling/
       Stjerneark all share one act-columns grid (renderActColumnsGrid(),
       N columns = manusDraft.acts.length, 4 for the fixed skeleton) —
       Aktfordeling additionally renders "Ikke placeret" as its own
@@ -45,15 +50,18 @@
       dance-combined scene into two independent rows exactly like
       Øveplan does (splitDanceScene()/applyDanceSplits-style helpers
       duplicated from schedule.js). One shared "Gem" (manusSaveMain())
-      saves everything via the existing boss-level `manus` resource
-      (siteSaveResource('manus', {scenes, cast})). Deselecting a pool
-      row in Vælg scener only marks it locally — a separate "Bekræft
-      fravalg" step calls the new manuscripts_discard server action,
-      which moves the files into archive/<folder>/not_selected/ (folder
+      saves everything: first a silent manuscripts_sync_selection call
+      reconciles every non-graduated pool submission's archive folder to
+      match its current Vælg-scener selection (selected → .../sketches/
+      or .../songs/ by type; deselected → .../submitted/ — folder
       hardcoded server-side in data/config.json's currentProductionFolder
-      for now, not read or shown client-side) and removes them from
-      data/manuscripts.json. "Intast point" is still a stub (see
-      matrevy-plan.md).
+      for now, not read or shown client-side), then the existing
+      boss-level `manus` resource save (siteSaveResource('manus',
+      {scenes, cast})) runs as before. No separate confirm step — toggling
+      a row in Vælg scener only changes local draft state until Gem is
+      clicked, and the reconciliation re-runs on every Gem, in both
+      directions, so a later deselect moves a submission's files straight
+      back to submitted/.
 
    DOM is built via createElement/textContent only — never innerHTML.
    ========================================================= */
@@ -305,7 +313,10 @@ function renderPdfRow(item) {
   return row;
 }
 
-// Each pool column is a toggle section, open by default.
+// Each pool column is a toggle section — open by default for a plain
+// revyst visitor (who has nothing else on the page to look at), closed by
+// default for boss/admin (who land on a much longer page, Main Manus View
+// included, and don't need the raw pool expanded every time).
 function renderColumn(type) {
   const section = document.createElement('section');
   section.className = 'card manus-column';
@@ -315,7 +326,7 @@ function renderColumn(type) {
     .slice()
     .sort((a, b) => a.title.localeCompare(b.title, 'da'));
 
-  let expanded = true;
+  let expanded = !siteHasLevel('boss');
 
   const list = document.createElement('div');
   list.className = 'manus-col-list';
@@ -674,13 +685,26 @@ function manusBuildActSkeleton(existingScenes) {
   return fixed.concat(extra);
 }
 
+// A pool submission's file currently sitting under archive/<folder>/sketches/
+// or .../songs/ means a previous Gem already reconciled it as "selected";
+// anything else (archive/<folder>/submitted/, or a not-yet-migrated legacy
+// manus/<type>/ path) means it isn't. There is no separate persisted
+// `selected` boolean anymore — the folder a file currently sits in on the
+// server IS the persistent record (see manuscripts_sync_selection on the
+// server, which moves a file to match this exact rule on every Gem click).
+const MANUS_SELECTED_PATH_RE = /^archive\/[^/]+\/(sketches|songs)\//;
+function manusSubmissionIsSelected(sub) {
+  return MANUS_SELECTED_PATH_RE.test(sub.pdfPath || '');
+}
+
 // Seeds the draft from the CURRENT production (existing scenes keep all
 // their fields — cast, priority, etc. — untouched, just re-shaped into a row)
 // plus every pool submission not already referenced by an existing scene's
-// sourcePdf. Pool rows default to selected:false — Vælg scener starts with
-// nothing chosen, and a coordinator clicks each submission they want to keep
-// in the running; anything left unselected is what "Bekræft fravalg" offers
-// to archive.
+// sourcePdf. A pool row's `selected` is seeded from manusSubmissionIsSelected()
+// — toggling a row in Vælg scener only changes local draft state; the actual
+// file move for every non-graduated submission happens as part of the
+// shared Gem click (manusSaveMain → manuscripts_sync_selection), not via a
+// separate confirm step, and runs as a full reconciliation every time.
 function manusInitDraft() {
   const existing = getEffectiveScenesData();
   const acts = manusBuildActSkeleton(existing);
@@ -714,7 +738,7 @@ function manusInitDraft() {
       origin: 'pool',
       lane: 'pool',
       submission: sub,
-      selected: false,
+      selected: manusSubmissionIsSelected(sub),
       duration: null,
       cast: [],
       priority: 0,
@@ -989,12 +1013,6 @@ function renderSelectColumn(type) {
   voteBtn.textContent = 'Stemmeark';
   voteBtn.addEventListener('click', () => manusOpenVotingSheet(type));
   actions.appendChild(voteBtn);
-  const pointBtn = document.createElement('button');
-  pointBtn.type = 'button';
-  pointBtn.className = 'site-pill-btn site-pill-warm';
-  pointBtn.textContent = 'Point';
-  pointBtn.addEventListener('click', () => siteShowToast('Intast point kommer i en senere session.'));
-  actions.appendChild(pointBtn);
   section.appendChild(actions);
 
   return section;
@@ -1052,77 +1070,6 @@ function renderSelectTab() {
   columns.className = 'manus-select-columns';
   for (const type of MANUS_TYPES) columns.appendChild(renderSelectColumn(type));
   mount.appendChild(columns);
-
-  const discardBar = document.createElement('div');
-  discardBar.className = 'manus-select-discard-bar';
-  const deselected = manusDraft.rows.filter(r => r.origin === 'pool' && r.selected === false);
-  const countSpan = document.createElement('span');
-  countSpan.textContent = deselected.length
-    ? `${deselected.length} fravalgt${deselected.length === 1 ? '' : 'e'}, klar til arkivering.`
-    : 'Ingen fravalgte endnu.';
-  discardBar.appendChild(countSpan);
-
-  const discardBtn = document.createElement('button');
-  discardBtn.type = 'button';
-  discardBtn.className = 'site-pill-btn site-pill-danger';
-  discardBtn.textContent = 'Bekræft fravalg';
-  discardBtn.disabled = deselected.length === 0;
-  discardBtn.addEventListener('click', () => confirmDiscardRows(deselected));
-  discardBar.appendChild(discardBtn);
-
-  mount.appendChild(discardBar);
-}
-
-// Explicit confirm step (per design): unchecking a row only marks it locally
-// — nothing server-side happens until this is confirmed, so it's freely
-// reversible (re-check the row) any time before this click.
-function confirmDiscardRows(rows) {
-  const { form, error, actions, close } = siteOpenEditModal('Arkiver fravalgte');
-
-  const info = document.createElement('p');
-  info.textContent = rows.length === 1
-    ? `Arkiver "${rows[0].submission.title}"? Filerne flyttes til arkivets "not_selected"-mappe.`
-    : `Arkiver ${rows.length} fravalgte manus? Filerne flyttes til arkivets "not_selected"-mappe.`;
-  form.appendChild(info);
-
-  const list = document.createElement('ul');
-  for (const row of rows) {
-    const li = document.createElement('li');
-    li.textContent = row.submission.title;
-    list.appendChild(li);
-  }
-  form.appendChild(list);
-
-  const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'site-pill-btn';
-  cancelBtn.textContent = 'Annuller';
-  cancelBtn.addEventListener('click', close);
-
-  const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'site-pill-btn site-pill-danger';
-  confirmBtn.textContent = 'Arkiver fravalgte';
-  confirmBtn.addEventListener('click', async () => {
-    confirmBtn.disabled = true;
-    error.textContent = '';
-    const ids = rows.map(r => r.submission.id);
-    const result = await siteFileAction('manuscripts_discard', { ids });
-    if (result.ok) {
-      const idSet = new Set(ids);
-      manuscriptsOverride = getEffectiveManuscripts().filter(s => !idSet.has(s.id));
-      siteSaveOverride('manuscripts', manuscriptsOverride);
-      manusDraft.rows = manusDraft.rows.filter(r => !(r.origin === 'pool' && idSet.has(r.submission.id)));
-      renderColumns();
-      renderSelectTab();
-      if (manusActiveTab === 'aktfordeling') renderAktfordelingTab();
-      close();
-    } else {
-      confirmBtn.disabled = false;
-      if (result.message) error.textContent = result.message;
-    }
-  });
-
-  actions.appendChild(cancelBtn);
-  actions.appendChild(confirmBtn);
 }
 
 // ── Shared: one column per act, laid out in a row of N equal columns ──
@@ -1477,10 +1424,51 @@ function renderActiveTabPanel() {
   if (active) active.render();
 }
 
+// Patches getEffectiveManuscripts()'s shadow array (and every manusDraft
+// pool row pointing at one of the patched submissions) with the
+// server-confirmed pdfPath/texPath returned by manuscripts_sync_selection —
+// so manusRowScene() (called immediately afterwards, still within the same
+// Gem click) reads the post-move path when it builds sourcePdf/sourceTex for
+// any submission being placed into an act this save.
+function manusApplySyncResults(results) {
+  if (!results.length) return;
+  const byId = new Map(results.map(r => [r.id, r]));
+  const updated = getEffectiveManuscripts().map(s =>
+    byId.has(s.id) ? { ...s, pdfPath: byId.get(s.id).pdfPath, texPath: byId.get(s.id).texPath } : s
+  );
+  manuscriptsOverride = updated;
+  siteSaveOverride('manuscripts', manuscriptsOverride);
+  const updatedById = new Map(updated.map(s => [s.id, s]));
+  for (const row of manusDraft.rows) {
+    if (row.origin === 'pool' && updatedById.has(row.submission.id)) {
+      row.submission = updatedById.get(row.submission.id);
+    }
+  }
+}
+
 async function manusSaveMain(saveBtn, error) {
   saveBtn.disabled = true;
   saveBtn.textContent = 'Gemmer…';
   error.textContent = '';
+
+  // Reconcile every non-graduated pool submission's archive location against
+  // its current selected state, as part of this same Gem click — silent, no
+  // separate confirm step (replaces the old "Bekræft fravalg" flow). Runs on
+  // every save, in both directions, so a submission selected then later
+  // deselected moves itself straight back to "submitted" on the next Gem.
+  const selections = manusDraft.rows
+    .filter(r => r.origin === 'pool')
+    .map(r => ({ id: r.submission.id, selected: r.selected === true }));
+  if (selections.length) {
+    const syncResult = await manusApi('manuscripts_sync_selection', { selections });
+    if (!syncResult.ok) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Gem';
+      error.textContent = syncResult.message;
+      return;
+    }
+    manusApplySyncResults(syncResult.data.results || []);
+  }
 
   const scenesActs = manusBuildActsPayload();
   // Extends the existing cast roster with any new name typed in
@@ -1547,13 +1535,20 @@ function renderMainManusView() {
 // The Manus Guide box is static markup (not JS-rendered), so its toggle is
 // wired once at load rather than re-wired on every renderAll() (renderAll
 // re-runs after a save, which would otherwise stack duplicate listeners).
+// Its default open/closed state can't be baked into manus.html's static
+// markup (the level isn't known until site.js reads localStorage), so it's
+// set here instead — same open-for-revyst/closed-for-boss split as the pool
+// columns above (renderColumn()).
 function wireManusGuideToggle() {
   const header = document.getElementById('manus-guide-header');
   const body = document.getElementById('manus-guide-text');
+  const expanded = !siteHasLevel('boss');
+  header.setAttribute('aria-expanded', String(expanded));
+  body.style.display = expanded ? '' : 'none';
   header.addEventListener('click', () => {
-    const expanded = header.getAttribute('aria-expanded') !== 'false';
-    header.setAttribute('aria-expanded', String(!expanded));
-    body.style.display = expanded ? 'none' : '';
+    const nowExpanded = header.getAttribute('aria-expanded') !== 'false';
+    header.setAttribute('aria-expanded', String(!nowExpanded));
+    body.style.display = nowExpanded ? 'none' : '';
   });
 }
 
