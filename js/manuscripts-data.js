@@ -6,8 +6,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "1612",
     "sender": "Snow",
-    "pdfPath": "archive/MatRevy_2026/submitted/1612.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/1612.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/1612.pdf",
+    "texPath": "archive/MatRevy_2026/songs/1612.tex",
     "createdAt": "2026-08-01T16:15:57"
   },
   {
@@ -15,8 +15,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Ah Ah",
     "sender": "Snow",
-    "pdfPath": "archive/MatRevy_2026/submitted/Ah_Ah.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Ah_Ah.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Ah_Ah.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Ah_Ah.tex",
     "createdAt": "2026-08-01T16:17:54"
   },
   {
@@ -24,8 +24,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Check Ind",
     "sender": "Carl Jarner",
-    "pdfPath": "archive/MatRevy_2026/submitted/Check_Ind.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Check_Ind.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Check_Ind.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Check_Ind.tex",
     "createdAt": "2026-08-01T16:18:24"
   },
   {
@@ -33,8 +33,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Ernsts Hus",
     "sender": "Adam",
-    "pdfPath": "archive/MatRevy_2026/submitted/Ernsts_Hus.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Ernsts_Hus.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Ernsts_Hus.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Ernsts_Hus.tex",
     "createdAt": "2026-08-01T16:18:50"
   },
   {
@@ -42,8 +42,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Forklar For Mig",
     "sender": "Stine",
-    "pdfPath": "archive/MatRevy_2026/submitted/Forklar_For_Mig.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Forklar_For_Mig.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Forklar_For_Mig.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Forklar_For_Mig.tex",
     "createdAt": "2026-08-01T16:20:15"
   },
   {
@@ -51,8 +51,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Hun Skriver På Den",
     "sender": "KE",
-    "pdfPath": "archive/MatRevy_2026/submitted/Hun_Skriver_På_Den.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Hun_Skriver_På_Den.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Hun_Skriver_På_Den.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Hun_Skriver_På_Den.tex",
     "createdAt": "2026-08-01T16:20:48"
   },
   {
@@ -60,8 +60,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Hvad Nu Hvis",
     "sender": "Lise",
-    "pdfPath": "archive/MatRevy_2026/submitted/Hvad_Nu_Hvis.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Hvad_Nu_Hvis.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Hvad_Nu_Hvis.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Hvad_Nu_Hvis.tex",
     "createdAt": "2026-08-01T16:21:10"
   },
   {
@@ -69,8 +69,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "IT Konsulent Baby",
     "sender": "Augusta '20",
-    "pdfPath": "archive/MatRevy_2026/submitted/IT_Konsulent_Baby.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/IT_Konsulent_Baby.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/IT_Konsulent_Baby.pdf",
+    "texPath": "archive/MatRevy_2026/songs/IT_Konsulent_Baby.tex",
     "createdAt": "2026-08-01T16:24:00"
   },
   {
@@ -78,8 +78,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Kærlighed På Matematik",
     "sender": "Stine '18",
-    "pdfPath": "archive/MatRevy_2026/submitted/Kærlighed_På_Matematik.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Kærlighed_På_Matematik.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Kærlighed_På_Matematik.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Kærlighed_På_Matematik.tex",
     "createdAt": "2026-08-01T16:24:40"
   },
   {
@@ -87,8 +87,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Malene",
     "sender": "Lise & Frigg",
-    "pdfPath": "archive/MatRevy_2026/submitted/Malene.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Malene.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Malene.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Malene.tex",
     "createdAt": "2026-08-01T16:25:01"
   },
   {
@@ -96,8 +96,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Matrevy Sound",
     "sender": "Johan '19",
-    "pdfPath": "archive/MatRevy_2026/submitted/Matrevy_Sound.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Matrevy_Sound.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Matrevy_Sound.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Matrevy_Sound.tex",
     "createdAt": "2026-08-01T16:25:38"
   },
   {
@@ -105,8 +105,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Omdrejningsfladen",
     "sender": "Augusta",
-    "pdfPath": "archive/MatRevy_2026/submitted/Omdrejningsfladen.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Omdrejningsfladen.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Omdrejningsfladen.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Omdrejningsfladen.tex",
     "createdAt": "2026-08-01T16:26:16"
   },
   {
@@ -114,8 +114,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Spørg Om Hjælp",
     "sender": "Carl '21",
-    "pdfPath": "archive/MatRevy_2026/submitted/Spørg_Om_Hjælp.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Spørg_Om_Hjælp.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Spørg_Om_Hjælp.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Spørg_Om_Hjælp.tex",
     "createdAt": "2026-08-01T16:26:43"
   },
   {
@@ -123,8 +123,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "SS SS",
     "sender": "Johan",
-    "pdfPath": "archive/MatRevy_2026/submitted/SS_SS.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/SS_SS.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/SS_SS.pdf",
+    "texPath": "archive/MatRevy_2026/songs/SS_SS.tex",
     "createdAt": "2026-08-01T16:27:20"
   },
   {
@@ -132,8 +132,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Venter Til I Morgen",
     "sender": "Johan",
-    "pdfPath": "archive/MatRevy_2026/submitted/Venter_Til_I_Morgen.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Venter_Til_I_Morgen.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Venter_Til_I_Morgen.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Venter_Til_I_Morgen.tex",
     "createdAt": "2026-08-01T16:27:52"
   },
   {
@@ -141,8 +141,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sang",
     "title": "Whist",
     "sender": "Carl '21",
-    "pdfPath": "archive/MatRevy_2026/submitted/Whist.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Whist.tex",
+    "pdfPath": "archive/MatRevy_2026/songs/Whist.pdf",
+    "texPath": "archive/MatRevy_2026/songs/Whist.tex",
     "createdAt": "2026-08-01T16:28:14"
   },
   {
@@ -150,8 +150,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Chi Faktor",
     "sender": "Sommer, Stine & Carl",
-    "pdfPath": "archive/MatRevy_2026/submitted/Chi_Faktor.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Chi_Faktor.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Chi_Faktor.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Chi_Faktor.tex",
     "createdAt": "2026-08-01T16:29:30"
   },
   {
@@ -159,8 +159,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Den Store Klagedyst",
     "sender": "Augusta '20",
-    "pdfPath": "archive/MatRevy_2026/submitted/Den_Store_Klagedyst.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Den_Store_Klagedyst.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Den_Store_Klagedyst.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Den_Store_Klagedyst.tex",
     "createdAt": "2026-08-01T16:30:22"
   },
   {
@@ -168,8 +168,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Dygtig Vejleder",
     "sender": "Malthe '20 & Hugo '21",
-    "pdfPath": "archive/MatRevy_2026/submitted/Dygtig_Vejleder.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Dygtig_Vejleder.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Dygtig_Vejleder.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Dygtig_Vejleder.tex",
     "createdAt": "2026-08-01T16:31:06"
   },
   {
@@ -177,8 +177,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "En Imponerende Rekvisit",
     "sender": "Frida",
-    "pdfPath": "archive/MatRevy_2026/submitted/En_Imponerende_Rekvisit.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/En_Imponerende_Rekvisit.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/En_Imponerende_Rekvisit.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/En_Imponerende_Rekvisit.tex",
     "createdAt": "2026-08-01T16:31:36"
   },
   {
@@ -186,8 +186,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "En Instruktor Siger Op",
     "sender": "Villads",
-    "pdfPath": "archive/MatRevy_2026/submitted/En_Instruktor_Siger_Op.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/En_Instruktor_Siger_Op.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/En_Instruktor_Siger_Op.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/En_Instruktor_Siger_Op.tex",
     "createdAt": "2026-08-01T16:31:59"
   },
   {
@@ -195,8 +195,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Er Der Nogen Spørgsmål",
     "sender": "Villads",
-    "pdfPath": "archive/MatRevy_2026/submitted/Er_Der_Nogen_Spørgsmål.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Er_Der_Nogen_Spørgsmål.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Er_Der_Nogen_Spørgsmål.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Er_Der_Nogen_Spørgsmål.tex",
     "createdAt": "2026-08-01T16:32:32"
   },
   {
@@ -204,8 +204,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Fluer i S01",
     "sender": "Augusta & Villads",
-    "pdfPath": "archive/MatRevy_2026/submitted/Fluer_i_S01.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Fluer_i_S01.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Fluer_i_S01.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Fluer_i_S01.tex",
     "createdAt": "2026-08-01T16:33:10"
   },
   {
@@ -213,8 +213,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Forskønnelsen",
     "sender": "Carl & Snow",
-    "pdfPath": "archive/MatRevy_2026/submitted/Forskønnelsen.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Forskønnelsen.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Forskønnelsen.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Forskønnelsen.tex",
     "createdAt": "2026-08-01T16:33:31"
   },
   {
@@ -222,8 +222,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Hvorfor Er Der To Af Dem",
     "sender": "Sommer",
-    "pdfPath": "archive/MatRevy_2026/submitted/Hvorfor_Er_Der_To_Af_Dem.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Hvorfor_Er_Der_To_Af_Dem.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Hvorfor_Er_Der_To_Af_Dem.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Hvorfor_Er_Der_To_Af_Dem.tex",
     "createdAt": "2026-08-01T16:34:37"
   },
   {
@@ -231,8 +231,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Kaffebarista",
     "sender": "Carl & Frida",
-    "pdfPath": "archive/MatRevy_2026/submitted/Kaffebarista.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Kaffebarista.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Kaffebarista.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Kaffebarista.tex",
     "createdAt": "2026-08-01T16:35:08"
   },
   {
@@ -240,8 +240,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "KuMail",
     "sender": "Carl & Baldur",
-    "pdfPath": "archive/MatRevy_2026/submitted/KuMail.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/KuMail.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/KuMail.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/KuMail.tex",
     "createdAt": "2026-08-01T16:35:58"
   },
   {
@@ -249,8 +249,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Matemagiske Familie",
     "sender": "Stiner, Sommer & Carl",
-    "pdfPath": "archive/MatRevy_2026/submitted/Matemagiske_Familie.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Matemagiske_Familie.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Matemagiske_Familie.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Matemagiske_Familie.tex",
     "createdAt": "2026-08-01T16:36:24"
   },
   {
@@ -258,8 +258,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Matematiker Ved Himlens Porte",
     "sender": "Villads",
-    "pdfPath": "archive/MatRevy_2026/submitted/Matematiker_Ved_Himlens_Porte.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Matematiker_Ved_Himlens_Porte.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Matematiker_Ved_Himlens_Porte.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Matematiker_Ved_Himlens_Porte.tex",
     "createdAt": "2026-08-01T16:37:03"
   },
   {
@@ -267,8 +267,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Hos Numerologen",
     "sender": "KE & Carl",
-    "pdfPath": "archive/MatRevy_2026/submitted/Hos_Numerologen.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Hos_Numerologen.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Hos_Numerologen.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Hos_Numerologen.tex",
     "createdAt": "2026-08-01T16:37:44"
   },
   {
@@ -276,8 +276,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Start Med En Trekant",
     "sender": "Villads",
-    "pdfPath": "archive/MatRevy_2026/submitted/Start_Med_En_Trekant.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Start_Med_En_Trekant.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Start_Med_En_Trekant.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Start_Med_En_Trekant.tex",
     "createdAt": "2026-08-01T16:38:12"
   },
   {
@@ -285,8 +285,8 @@ const MANUSCRIPTS_DATA = [
     "type": "sketch",
     "title": "Kender Du Det?",
     "sender": "Carl & Anders",
-    "pdfPath": "archive/MatRevy_2026/submitted/Kender_Du_Det.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Kender_Du_Det.tex",
+    "pdfPath": "archive/MatRevy_2026/sketches/Kender_Du_Det.pdf",
+    "texPath": "archive/MatRevy_2026/sketches/Kender_Du_Det.tex",
     "createdAt": "2026-08-01T17:06:50"
   }
 ];
