@@ -223,6 +223,17 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   `sketches/`/`songs/` placeholders backfilled to match the older years' existing
   convention, and its ~32 existing pool submissions were migrated from `manus/sketch/`
   /`manus/sang/` into `submitted/` in the same pass.
+  **Amended 2026-08-02**: the 4.2-era read-only "Dette års manus" act list (`renderYearView()`)
+  was removed outright as redundant now that Vælg scener/Aktfordeling already show the same
+  scenes with more control. Vælg scener's row filter changed from pool-origin rows only to
+  every row of that type (`manusRowType()`/`manusRowTitle()` made origin-agnostic) — the old
+  filter meant a submission vanished from Vælg scener the moment it graduated into an
+  existing scene (i.e. after being placed in Aktfordeling and saved), which read as a bug
+  ("scenes disappeared after I saved"); deselecting an existing scene there now sends it back
+  to the `pool` lane exactly like a not-yet-placed submission. Aktfordeling's card
+  (`renderDraftRowCard()`) dropped its type badge and duration field entirely — duration is
+  still set in Vælg scener (which every row now passes through) and simply carried along into
+  the save payload, just no longer shown or re-editable on the Aktfordeling card itself.
   **Still pending, deliberately not part of this sub-phase**: moving the *scheduling*
   scene-priority (0–3) selector and the Rekvisitten/per-cell cast-override tooling from
   `schedule.js`'s own sidebar into Manus's boss view — Stjerneark's priority is a

@@ -15,8 +15,7 @@
       append-only actions need an ANY-level authenticated call, not
       just boss/admin (siteSaveResource only trusts boss/admin logins).
       Revyst-level visitors see only the pool columns + the guide box —
-      everything below (the read-only "Dette års manus" list and the
-      whole Main Manus View) is boss/admin only.
+      the whole Main Manus View below is boss/admin only.
 
    2. Main Manus View (boss/admin only): a tabbed section below the pool
       — Vælg scener / Aktfordeling / Rollefordeling / Stjerneark, styled
@@ -71,7 +70,6 @@
 const MANUS_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MANUS_TYPES = ['sang', 'sketch'];
 const MANUS_TYPE_COLUMN_LABEL = { sketch: 'Sketches', sang: 'Sange' };
-const MANUS_SCENE_TYPE_LABELS = { sketch: 'Sketch', sang: 'Sang', dans: 'Dans', bandsang: 'Bandsang', video: 'Video' };
 
 // ── Duplicated from import.js/schedule.js ───────────────────────
 // manus.html doesn't load either script, and this file already reimplements
@@ -388,60 +386,6 @@ function renderBottomActions() {
   mount.appendChild(btn);
 }
 
-// ── "Dette års manus" read view (from getEffectiveScenesData()) ──
-function manusGroupByAct(scenes) {
-  const order = [];
-  const map = new Map();
-  for (const s of scenes) {
-    const label = s.actLabel || '';
-    if (!map.has(label)) { map.set(label, []); order.push(label); }
-    map.get(label).push(s);
-  }
-  return order.map(label => ({ label, scenes: map.get(label) }));
-}
-
-// Boss/admin only — revyst only ever sees the upload pool columns + guide,
-// per the page's access-level split (see file header).
-function renderYearView() {
-  const scenes = getEffectiveScenesData();
-  const section = document.getElementById('manus-year-section');
-  const mount = document.getElementById('manus-year-acts');
-  mount.textContent = '';
-  if (!siteHasLevel('boss') || !scenes.length) { section.style.display = 'none'; return; }
-  section.style.display = '';
-
-  for (const group of manusGroupByAct(scenes)) {
-    const wrap = document.createElement('div');
-    wrap.className = 'manus-year-act';
-
-    const h3 = document.createElement('h3');
-    h3.textContent = group.label || 'Uden akt';
-    wrap.appendChild(h3);
-
-    const ol = document.createElement('ol');
-    ol.className = 'manus-year-list';
-    for (const s of group.scenes.slice().sort((a, b) => (a.number || 0) - (b.number || 0))) {
-      const li = document.createElement('li');
-      li.appendChild(document.createTextNode(s.name));
-      if (s.types && s.types.length) {
-        const badge = document.createElement('span');
-        badge.className = 'manus-year-type-badge';
-        badge.textContent = MANUS_SCENE_TYPE_LABELS[s.types[0]] || s.types[0];
-        li.appendChild(badge);
-      }
-      if (s.duration != null && s.duration !== '') {
-        const dur = document.createElement('span');
-        dur.className = 'manus-year-duration';
-        dur.textContent = `${s.duration} min`;
-        li.appendChild(dur);
-      }
-      ol.appendChild(li);
-    }
-    wrap.appendChild(ol);
-    mount.appendChild(wrap);
-  }
-}
-
 // Two mutually-exclusive clickable boxes (Sketch/Sang) replacing a plain
 // dropdown, since there are only two options and neither is a sensible
 // default — the uploader must actively choose one.
@@ -750,8 +694,8 @@ function manusInitDraft() {
   return { acts, rows };
 }
 
-function manusDraftRowsForLane(lane) {
-  return manusDraft.rows.filter(r => r.lane === lane);
+function manusDraftRowsForLane(lane, draft = manusDraft) {
+  return draft.rows.filter(r => r.lane === lane);
 }
 
 function manusRowTitle(row) {
@@ -759,7 +703,9 @@ function manusRowTitle(row) {
 }
 
 function manusRowType(row) {
-  return row.origin === 'existing' ? ((row.scene.types || [])[0] || '') : row.submission.type;
+  if (row.origin !== 'existing') return row.submission.type;
+  const types = row.scene.types || [];
+  return types.find(t => t === 'sketch' || t === 'sang') || types[0] || '';
 }
 
 // Unselecting a row that's currently placed in an act also forces it back to
@@ -872,12 +818,15 @@ function manusRowScene(row, act, idx) {
   return scene;
 }
 
-// Walks manusDraft.acts, building the nested acts/scenes shape
-// data/scenes.json actually uses — the save payload.
-function manusBuildActsPayload() {
+// Walks draft.acts, building the nested acts/scenes shape data/scenes.json
+// actually uses — the save payload. Takes an explicit draft (defaulting to
+// the live manusDraft) so manusSaveMain can rebuild the payload from a
+// snapshot taken at click time, after manusDraft itself has moved on to a
+// fresh optimistic draft — see manusSaveMain below.
+function manusBuildActsPayload(draft = manusDraft) {
   const scenesActs = [];
-  for (const act of manusDraft.acts) {
-    const rowsInAct = manusDraftRowsForLane(act.code);
+  for (const act of draft.acts) {
+    const rowsInAct = manusDraftRowsForLane(act.code, draft);
     const scenes = rowsInAct.map((row, idx) => manusRowScene(row, act, idx));
     scenesActs.push({ act: act.code, label: act.label, scenes });
   }
@@ -923,40 +872,6 @@ function renderDraftRowCard(row) {
   title.textContent = manusRowTitle(row);
   el.appendChild(title);
 
-  const type = manusRowType(row);
-  if (type) {
-    const badge = document.createElement('span');
-    badge.className = 'manus-year-type-badge';
-    badge.textContent = MANUS_SCENE_TYPE_LABELS[type] || type;
-    el.appendChild(badge);
-  }
-
-  // Duration was already set in Vælg scener for pool-origin rows — this card
-  // only offers an editable field for already-placed (existing-origin) rows,
-  // which never appear in that tab.
-  if (row.origin === 'existing') {
-    const durationInput = document.createElement('input');
-    durationInput.type = 'number';
-    durationInput.min = '0';
-    durationInput.step = '0.5';
-    durationInput.className = 'manus-akt-duration';
-    durationInput.placeholder = '–';
-    durationInput.value = row.duration != null ? row.duration : '';
-    durationInput.addEventListener('input', () => {
-      row.duration = durationInput.value === '' ? null : Number(durationInput.value);
-    });
-    el.appendChild(durationInput);
-    const suffix = document.createElement('span');
-    suffix.className = 'manus-akt-duration-suffix';
-    suffix.textContent = 'min';
-    el.appendChild(suffix);
-  } else if (row.duration != null && row.duration !== '') {
-    const dur = document.createElement('span');
-    dur.className = 'manus-akt-duration-suffix';
-    dur.textContent = `${row.duration} min`;
-    el.appendChild(dur);
-  }
-
   if (row.lane !== 'pool') {
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
@@ -977,9 +892,9 @@ function renderSelectColumn(type) {
   section.className = 'card manus-column';
 
   const rows = manusDraft.rows
-    .filter(r => r.origin === 'pool' && r.submission.type === type)
+    .filter(r => manusRowType(r) === type)
     .slice()
-    .sort((a, b) => a.submission.title.localeCompare(b.submission.title, 'da'));
+    .sort((a, b) => manusRowTitle(a).localeCompare(manusRowTitle(b), 'da'));
   const selectedCount = rows.filter(r => r.selected === true).length;
 
   const header = document.createElement('div');
@@ -1030,7 +945,7 @@ function renderSelectRow(row) {
 
   const title = document.createElement('span');
   title.className = 'manus-pdf-title';
-  title.textContent = row.submission.title;
+  title.textContent = manusRowTitle(row);
   el.appendChild(title);
 
   const durationInput = document.createElement('input');
@@ -1424,12 +1339,11 @@ function renderActiveTabPanel() {
   if (active) active.render();
 }
 
-// Patches getEffectiveManuscripts()'s shadow array (and every manusDraft
-// pool row pointing at one of the patched submissions) with the
-// server-confirmed pdfPath/texPath returned by manuscripts_sync_selection —
-// so manusRowScene() (called immediately afterwards, still within the same
-// Gem click) reads the post-move path when it builds sourcePdf/sourceTex for
-// any submission being placed into an act this save.
+// Patches getEffectiveManuscripts()'s shadow array with the server-confirmed
+// pdfPath/texPath returned by manuscripts_sync_selection — this is a real,
+// already-happened server-side change (the sync call moved the files),
+// independent of whether the scenes.json save that follows it succeeds, so
+// it's never rolled back (see manusSaveMain below).
 function manusApplySyncResults(results) {
   if (!results.length) return;
   const byId = new Map(results.map(r => [r.id, r]));
@@ -1438,66 +1352,115 @@ function manusApplySyncResults(results) {
   );
   manuscriptsOverride = updated;
   siteSaveOverride('manuscripts', manuscriptsOverride);
-  const updatedById = new Map(updated.map(s => [s.id, s]));
-  for (const row of manusDraft.rows) {
-    if (row.origin === 'pool' && updatedById.has(row.submission.id)) {
-      row.submission = updatedById.get(row.submission.id);
+}
+
+// Same idea, but patches an explicit rows array (a manusSaveMain draft
+// snapshot, not necessarily the live manusDraft — see manusSaveMain) so the
+// final save payload's sourcePdf/sourceTex reflect the post-move path.
+function manusApplySyncResultsToRows(rows, results) {
+  if (!results.length) return;
+  const byId = new Map(results.map(r => [r.id, r]));
+  for (const row of rows) {
+    if (row.origin === 'pool' && byId.has(row.submission.id)) {
+      row.submission = { ...row.submission, ...byId.get(row.submission.id) };
     }
   }
 }
 
-async function manusSaveMain(saveBtn, error) {
-  saveBtn.disabled = true;
-  saveBtn.textContent = 'Gemmer…';
-  error.textContent = '';
+// Extends the existing cast roster with any new name typed in
+// Rollefordeling — needed since, unlike the old Aktfordeling, this flow
+// actually edits cast (mirrors import.js's applyImport()).
+function manusBuildCastRoster(scenesActs) {
+  const castRoster = getEffectiveCastData().map(c => ({ name: c.name, index: c.index }));
+  const castNameSet = new Set(castRoster.map(c => c.name));
+  for (const act of scenesActs) {
+    for (const scene of act.scenes) {
+      for (const c of scene.cast) {
+        if (!castNameSet.has(c.name)) {
+          castNameSet.add(c.name);
+          castRoster.push({ name: c.name, index: castRoster.length });
+        }
+      }
+    }
+  }
+  castRoster.forEach((c, i) => c.index = i);
+  return castRoster;
+}
+
+// Optimistic save, mirroring posts.js's togglePinned: assume success and
+// update the page immediately (toast + re-render), then do the actual
+// network round-trip(s) in the background, rolling back only if something
+// genuinely fails — the same pattern the rest of the site already uses for
+// single-click writes, instead of disabling the UI and blocking on two
+// sequential awaited requests (sync then save) the way this used to.
+// Trade-off: any further edits made in the few seconds while the background
+// save is in flight are lost if that save then fails and rolls back to the
+// pre-click snapshot — accepted, same as elsewhere on the site.
+// renderAll() (called both optimistically and on rollback, below) replaces
+// #manus-main-view-actions' children wholesale each time, including the
+// error div — so a reference to that div captured before any render is
+// stale by the time an awaited call resolves. Always re-query the live one
+// right before writing to it, and always write *after* the render that
+// would otherwise wipe it back to empty.
+function manusMainViewErrorEl() {
+  return document.querySelector('#manus-main-view-actions .manus-main-view-error');
+}
+
+async function manusSaveMain() {
+  const startError = manusMainViewErrorEl();
+  if (startError) startError.textContent = '';
+
+  const draftSnapshot = manusDraft;
+  const scenesActs = manusBuildActsPayload(draftSnapshot);
+  const castRoster = manusBuildCastRoster(scenesActs);
+  const previousManusOverride = manusSavedOverride;
+
+  setManusSavedOverride({ scenes: manusFlattenActs(scenesActs), cast: castRoster });
+  manusDraft = null; // forces a fresh manusInitDraft() next render
+  siteShowToast('Manus gemt');
+  renderAll();
 
   // Reconcile every non-graduated pool submission's archive location against
   // its current selected state, as part of this same Gem click — silent, no
   // separate confirm step (replaces the old "Bekræft fravalg" flow). Runs on
   // every save, in both directions, so a submission selected then later
   // deselected moves itself straight back to "submitted" on the next Gem.
-  const selections = manusDraft.rows
+  const selections = draftSnapshot.rows
     .filter(r => r.origin === 'pool')
     .map(r => ({ id: r.submission.id, selected: r.selected === true }));
+
+  let finalScenesActs = scenesActs;
   if (selections.length) {
     const syncResult = await manusApi('manuscripts_sync_selection', { selections });
     if (!syncResult.ok) {
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Gem';
-      error.textContent = syncResult.message;
+      setManusSavedOverride(previousManusOverride);
+      manusDraft = draftSnapshot;
+      renderAll();
+      const errEl = manusMainViewErrorEl();
+      if (errEl) errEl.textContent = syncResult.message;
       return;
     }
+    // A real, already-happened server-side change (moved files) — kept
+    // regardless of whether the scenes.json save below succeeds.
     manusApplySyncResults(syncResult.data.results || []);
+    manusApplySyncResultsToRows(draftSnapshot.rows, syncResult.data.results || []);
+    finalScenesActs = manusBuildActsPayload(draftSnapshot);
   }
 
-  const scenesActs = manusBuildActsPayload();
-  // Extends the existing cast roster with any new name typed in
-  // Rollefordeling — needed now since, unlike the old Aktfordeling, this
-  // flow actually edits cast (mirrors import.js's applyImport()).
-  const castRoster = getEffectiveCastData().map(c => ({ name: c.name, index: c.index }));
-  const castNameSet = new Set(castRoster.map(c => c.name));
-  function ensureCastMember(name) {
-    if (!castNameSet.has(name)) {
-      castNameSet.add(name);
-      castRoster.push({ name, index: castRoster.length });
-    }
-  }
-  for (const act of scenesActs) {
-    for (const scene of act.scenes) {
-      for (const c of scene.cast) ensureCastMember(c.name);
-    }
-  }
-  castRoster.forEach((c, i) => c.index = i);
-
-  const result = await siteSaveResource('manus', { scenes: scenesActs, cast: castRoster });
-  saveBtn.disabled = false;
-  saveBtn.textContent = 'Gem';
-  if (result.ok) {
-    setManusSavedOverride({ scenes: manusFlattenActs(scenesActs), cast: castRoster });
-    manusDraft = null; // forces a fresh manusInitDraft() next render
+  const result = await siteSaveResource('manus', { scenes: finalScenesActs, cast: castRoster });
+  if (!result.ok) {
+    setManusSavedOverride(previousManusOverride);
+    manusDraft = draftSnapshot;
     renderAll();
-  } else {
-    error.textContent = result.message;
+    const errEl = manusMainViewErrorEl();
+    if (errEl) errEl.textContent = result.message;
+    return;
+  }
+  // Silently correct the shadow with the sync-corrected sourcePdf/sourceTex
+  // now that it's known — invisible to the user, just keeps future
+  // "graduated submission" detection (manusSubmissionIsSelected) accurate.
+  if (finalScenesActs !== scenesActs) {
+    setManusSavedOverride({ scenes: manusFlattenActs(finalScenesActs), cast: castRoster });
   }
 }
 
@@ -1513,7 +1476,7 @@ function renderMainViewActions() {
   saveBtn.type = 'button';
   saveBtn.className = 'site-pill-btn site-pill-primary';
   saveBtn.textContent = 'Gem';
-  saveBtn.addEventListener('click', () => manusSaveMain(saveBtn, error));
+  saveBtn.addEventListener('click', () => manusSaveMain());
   mount.appendChild(saveBtn);
 }
 
@@ -1555,7 +1518,6 @@ function wireManusGuideToggle() {
 function renderAll() {
   renderColumns();
   renderBottomActions();
-  renderYearView();
   renderMainManusView();
   manusStartPendingPoll();
 }

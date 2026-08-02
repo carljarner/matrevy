@@ -251,46 +251,6 @@ a.manus-pdf-title:focus-visible {
   color: var(--accent-warm-text);
 }
 
-/* --- "Dette års manus" read view --------------------------- */
-.manus-year-act {
-  margin-bottom: 1.25rem;
-}
-
-.manus-year-act:last-child {
-  margin-bottom: 0;
-}
-
-.manus-year-act h3 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.manus-year-list {
-  list-style: decimal;
-  padding-left: 1.4rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.manus-year-type-badge {
-  display: inline-block;
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 4px;
-  padding: 0.05rem 0.4rem;
-  margin-left: 0.4rem;
-}
-
-.manus-year-duration {
-  color: #57606a;
-  font-size: 0.85rem;
-  margin-left: 0.4rem;
-}
-
 /* --- Main Manus View (boss/admin only) -----------------------
    Row, not stacked: error text (if any) sits left of the button, both
    pushed to the right edge — so the only vertical space above the button is
@@ -518,17 +478,6 @@ a.manus-pdf-title:focus-visible {
   white-space: nowrap;
 }
 
-.manus-akt-duration {
-  flex: none;
-  width: 3.6rem;
-  padding: 0.2rem 0.35rem;
-  font-size: 0.85rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--input-bg);
-  color: var(--text);
-}
-
 .manus-akt-duration-suffix {
   flex: none;
   font-size: 0.78rem;
@@ -709,7 +658,7 @@ a.manus-pdf-title:focus-visible {
   @page { size: A4 portrait; margin: 15mm; }
 
   .site-header, .site-footer, .manus-layout, .manus-main-view,
-  #manus-year-section, .page-content > h1 {
+  .page-content > h1 {
     display: none !important;
   }
 
