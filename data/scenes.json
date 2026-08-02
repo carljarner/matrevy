@@ -2,6 +2,141 @@
     "_schema": "scenes for Matematikrevyen 2024",
     "_note": "Replace each production. 'schedulable' is false for videos and band jingles with no rehearsable cast. 'cast' maps each person in the scene to their role code from the script.",
     "production": "Matematikrevyen 2024",
-    "version": "2026-08-01",
-    "acts": []
+    "version": "2026-08-02",
+    "acts": [
+        {
+            "act": "1",
+            "label": "Akt 1",
+            "scenes": [
+                {
+                    "id": "1-1",
+                    "number": 1,
+                    "name": "En Imponerende Rekvisit",
+                    "types": [
+                        "sketch"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/sketches/En_Imponerende_Rekvisit.pdf",
+                    "sourceTex": "archive/MatRevy_2026/sketches/En_Imponerende_Rekvisit.tex",
+                    "priority": 0,
+                    "repeat": false
+                },
+                {
+                    "id": "1-2",
+                    "number": 2,
+                    "name": "En Instruktor Siger Op",
+                    "types": [
+                        "sketch"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/sketches/En_Instruktor_Siger_Op.pdf",
+                    "sourceTex": "archive/MatRevy_2026/sketches/En_Instruktor_Siger_Op.tex",
+                    "priority": 0,
+                    "repeat": false
+                },
+                {
+                    "id": "1-3",
+                    "number": 3,
+                    "name": "Dygtig Vejleder",
+                    "types": [
+                        "sketch"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/sketches/Dygtig_Vejleder.pdf",
+                    "sourceTex": "archive/MatRevy_2026/sketches/Dygtig_Vejleder.tex",
+                    "priority": 0,
+                    "repeat": false
+                }
+            ]
+        },
+        {
+            "act": "2",
+            "label": "Akt 2",
+            "scenes": [
+                {
+                    "id": "2-1",
+                    "number": 1,
+                    "name": "Ah Ah",
+                    "types": [
+                        "sang"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/songs/Ah_Ah.pdf",
+                    "sourceTex": "archive/MatRevy_2026/songs/Ah_Ah.tex",
+                    "priority": 3,
+                    "repeat": false
+                },
+                {
+                    "id": "2-2",
+                    "number": 2,
+                    "name": "Check Ind",
+                    "types": [
+                        "sang"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/songs/Check_Ind.pdf",
+                    "sourceTex": "archive/MatRevy_2026/songs/Check_Ind.tex",
+                    "priority": 2,
+                    "repeat": false
+                },
+                {
+                    "id": "2-3",
+                    "number": 3,
+                    "name": "Den Store Klagedyst",
+                    "types": [
+                        "sketch"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/sketches/Den_Store_Klagedyst.pdf",
+                    "sourceTex": "archive/MatRevy_2026/sketches/Den_Store_Klagedyst.tex",
+                    "priority": 1,
+                    "repeat": true
+                },
+                {
+                    "id": "2-4",
+                    "number": 4,
+                    "name": "Chi Faktor",
+                    "types": [
+                        "sketch"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/sketches/Chi_Faktor.pdf",
+                    "sourceTex": "archive/MatRevy_2026/sketches/Chi_Faktor.tex",
+                    "priority": 0,
+                    "repeat": true
+                },
+                {
+                    "id": "2-5",
+                    "number": 5,
+                    "name": "Er Der Nogen Spørgsmål",
+                    "types": [
+                        "sketch"
+                    ],
+                    "schedulable": true,
+                    "cast": [],
+                    "sourcePdf": "archive/MatRevy_2026/sketches/Er_Der_Nogen_Spørgsmål.pdf",
+                    "sourceTex": "archive/MatRevy_2026/sketches/Er_Der_Nogen_Spørgsmål.tex",
+                    "priority": 0,
+                    "repeat": false
+                }
+            ]
+        },
+        {
+            "act": "3",
+            "label": "Akt 3",
+            "scenes": []
+        },
+        {
+            "act": "E",
+            "label": "Ekstranumre",
+            "scenes": []
+        }
+    ]
 }
