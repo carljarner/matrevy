@@ -291,49 +291,170 @@ a.manus-pdf-title:focus-visible {
   margin-left: 0.4rem;
 }
 
-/* --- Aktfordeling builder ----------------------------------- */
-/* Widens the shared siteOpenModalWithClose chrome for this one modal,
-   same pattern as archive.js's .arkiv-edit-modal — the shared
-   .edit-modal/.site-modal styling itself stays untouched. */
-.manus-akt-modal {
-  width: min(900px, 95vw);
-  max-height: 90vh;
+/* --- Main Manus View (boss/admin only) ----------------------- */
+.manus-main-view-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
 }
 
-.manus-akt-columns {
+.manus-main-view-error {
+  color: #c0392b;
+  font-size: 0.85rem;
+  min-height: 1.1em;
+}
+
+/* --- Tab bar — browser-style folder tabs, filling the row evenly --- */
+.manus-tab-bar {
+  display: flex;
+  margin-bottom: 1.25rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.manus-tab-btn {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -2px;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.manus-tab-btn + .manus-tab-btn {
+  margin-left: -1px;
+}
+
+@media (hover: hover) {
+  .manus-tab-btn:not(.active):hover { background: var(--accent-warm-fill); }
+}
+
+.manus-tab-btn:focus-visible {
+  outline: none;
+  z-index: 2;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* The active tab merges into the panel below it (same background as the
+   surrounding .card, border-bottom painted over the bar's rule line). */
+.manus-tab-btn.active {
+  position: relative;
+  z-index: 1;
+  background: var(--surface);
+  border-color: var(--border);
+  border-bottom: 2px solid var(--surface);
+  color: var(--accent-warm-text);
+}
+
+.manus-tab-panel { min-width: 0; }
+
+/* --- Tab: Vælg scener ------------------------------------------ */
+.manus-select-columns {
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 1.25rem;
+  grid-template-columns: 1fr 1fr;
   align-items: start;
+  gap: 1.25rem;
 }
 
-.manus-akt-pool,
-.manus-akt-structure {
+.manus-select-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+@media (hover: hover) {
+  /* A shade between the unselected (--surface-2) and selected
+     (--accent-warm-fill) backgrounds, so hover reads as its own state
+     rather than looking identical to "selected." */
+  .manus-select-row:not(.manus-select-row-selected):hover { background: #f2e7d2; }
+}
+
+.manus-select-row:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* No border for a selected row — a lighter (warm-tinted) background plus
+   orange, bold text (same var(--accent-warm-text) as the active tab label
+   in .manus-tab-btn.active) are the selection indicators. The title span
+   (.manus-pdf-title) sets its own `color`, which wins over inheriting the
+   row's — so the title needs its own override too, not just the row. */
+.manus-select-row-selected {
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-weight: 600;
+}
+
+.manus-select-row-selected .manus-pdf-title {
+  color: var(--accent-warm-text);
+}
+
+.manus-select-duration {
+  flex: none;
+  width: 3.6rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.manus-select-discard-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-size: 0.88rem;
+}
+
+/* --- Tab: Aktfordeling — act columns in a row, "Ikke placeret" below --
+   .manus-kanban is a CSS grid with one column per act (column count set
+   inline per render — see renderActColumnsGrid() — so it always matches
+   however many acts there are, 4 for the fixed skeleton); Rollefordeling
+   and Stjerneark reuse the exact same grid for their own act columns.
+   .manus-kanban-pool-section is Aktfordeling-only: "Ikke placeret" as a
+   full-width row below the acts, its own grid using the same column
+   template so widths line up, filled row-wise (CSS grid's default
+   auto-placement — no extra JS needed for that part). Dropping anywhere in
+   a column (not just precisely on the card list) still works — see
+   wireLaneDropZone()/wireDropHighlight() in manus.js — but deliberately has
+   no visible box/outline around the column while hovering; it reads fine
+   without one and a box there felt like visual noise. Same card DnD
+   (.manus-akt-row and friends, below) as the old single-modal Aktfordeling
+   builder. */
+.manus-kanban {
+  display: grid;
+  align-items: start;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.manus-kanban-col {
   min-width: 0;
 }
 
-.manus-akt-pool h3,
-.manus-akt-structure h3 {
-  font-size: 0.95rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.manus-akt-pool-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  min-height: 2rem;
-  border: 1px dashed var(--border);
-  border-radius: 6px;
-  padding: 0.5rem;
-}
-
-.manus-akt-section {
-  margin-bottom: 0.75rem;
-}
-
-.manus-akt-header {
+.manus-kanban-col-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -352,18 +473,28 @@ a.manus-pdf-title:focus-visible {
   color: #57606a;
 }
 
-.manus-akt-list {
+.manus-kanban-col-list {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.5rem 0 0.25rem;
-  min-height: 0.5rem;
+  min-height: 2rem;
 }
 
-.manus-akt-section.manus-drop-target > .manus-akt-list,
-.manus-akt-pool-list.manus-drop-target {
-  outline: 2px dashed var(--accent);
-  outline-offset: 2px;
+.manus-kanban-pool-section {
+  margin-top: 1.25rem;
+}
+
+.manus-kanban-pool-section .manus-kanban-col-header {
+  margin-bottom: 0.5rem;
+}
+
+.manus-kanban-pool-grid {
+  display: grid;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  min-height: 2rem;
 }
 
 .manus-akt-row {
@@ -374,9 +505,10 @@ a.manus-pdf-title:focus-visible {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
+  transition: border-color 0.15s;
 }
 
-.manus-akt-row.manus-drop-target { border-color: var(--accent); }
+.manus-akt-row.manus-drop-target { border-color: var(--accent-warm); }
 
 .manus-akt-drag-handle {
   cursor: grab;
@@ -425,11 +557,153 @@ a.manus-pdf-title:focus-visible {
   .manus-akt-row-remove:hover { color: #c0392b; }
 }
 
+/* --- Tab: Rollefordeling -----------------------------------
+   Each scene is a button (styled like .manus-akt-row) that opens an
+   overlay (openRoleSceneModal() in manus.js) to edit its cast — Øveplan-
+   style, rather than an always-expanded inline card. Buttons sit in a
+   Aktfordeling-style act column (.manus-kanban-col-list), which already
+   supplies the vertical gap between them. */
+.manus-role-scene-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+@media (hover: hover) {
+  .manus-role-scene-btn:hover { background: var(--accent-warm-fill); border-color: var(--accent-warm); }
+}
+
+.manus-role-scene-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.manus-role-cast-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0.4rem;
+}
+
+.manus-role-cast-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.manus-role-cast-code { width: 120px; flex-shrink: 0; }
+.manus-role-cast-name { flex: 1; }
+
+.manus-role-cast-row input,
+.manus-role-cast-row select {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.manus-role-add-cast-btn {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.65rem;
+}
+
+/* --- Tab: Stjerneark -----------------------------------------
+   Rows are styled identically to Rollefordeling/Aktfordeling's boxes — the
+   .manus-akt-row class supplies background/border/padding/radius, applied
+   directly on the row element (see renderStarRow() in manus.js) — and sit
+   in a Aktfordeling-style act column (.manus-kanban-col-list), which
+   already supplies the vertical gap between them. */
+.manus-star-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: auto;
+}
+
+/* Priority (0-3): four always-visible circles, grey until the active one
+   picks up its .manus-prio-N color below (or previewed on hover, before
+   clicking) — click to select, no dropdown. */
+.manus-prio-circle,
+.manus-repeat-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  background: #f0f1f2;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.manus-prio-circle:focus-visible,
+.manus-repeat-circle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Each value's own color (a fair bit more saturated than a typical pale
+   pastel badge, so it reads clearly at 20px) applies both when it's the
+   active pick (.manus-prio-active, permanent) and on hover of *that*
+   circle specifically (a preview of what clicking it would select) — every
+   circle carries its own manus-prio-N class permanently (see
+   renderStarRow() in manus.js), not just while active, so :hover can
+   target it without any JS involvement. */
+.manus-prio-0.manus-prio-active { background: #86efac; color: #14532d; }
+.manus-prio-1.manus-prio-active { background: #93c5fd; color: #1e3a8a; }
+.manus-prio-2.manus-prio-active { background: #fcd34d; color: #78350f; }
+.manus-prio-3.manus-prio-active { background: #fca5a5; color: #7f1d1d; }
+
+@media (hover: hover) {
+  .manus-prio-0:hover { background: #86efac; color: #14532d; }
+  .manus-prio-1:hover { background: #93c5fd; color: #1e3a8a; }
+  .manus-prio-2:hover { background: #fcd34d; color: #78350f; }
+  .manus-prio-3:hover { background: #fca5a5; color: #7f1d1d; }
+  .manus-repeat-circle:hover { background: var(--accent-warm-fill); color: var(--accent-warm-text); }
+}
+
+/* "Skal øves igen dagen efter" — a separate on/off toggle, so it gets the
+   site's warm accent (not a priority color) and a bit of extra gap to read
+   as its own control, not a fifth priority level. */
+.manus-repeat-circle {
+  font-size: 0.85rem;
+  margin-left: 0.35rem;
+}
+
+.manus-repeat-circle.manus-repeat-active {
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+}
+
 /* --- Mobile (≤719px, site-wide breakpoint) ------------------ */
 @media (max-width: 719px) {
   .manus-layout { grid-template-columns: 1fr; }
   .manus-columns { grid-template-columns: 1fr; }
-  .manus-akt-columns { grid-template-columns: 1fr; }
+  .manus-select-columns { grid-template-columns: 1fr; }
+  /* .manus-kanban keeps horizontal scroll rather than stacking, consistent
+     with Kalender's own month-grid overflow-x:auto mobile pattern. */
+  .manus-tab-btn { padding: 0.55rem 0.3rem; font-size: 0.78rem; }
 }
 
 /* --- "Hent stemmeark" print view ----------------------------
@@ -442,7 +716,7 @@ a.manus-pdf-title:focus-visible {
 @media print {
   @page { size: A4 portrait; margin: 15mm; }
 
-  .site-header, .site-footer, .manus-layout,
+  .site-header, .site-footer, .manus-layout, .manus-main-view,
   #manus-year-section, .page-content > h1 {
     display: none !important;
   }

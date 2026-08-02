@@ -176,13 +176,40 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   columns become closed-by-default toggle sections and a read-only "Dette års manus" act
   list renders below. **"Intast point"** (voting results entry) is a stub button for
   now — deliberately left for the user to detail in a later session.
-- **4.3 — Role assignment / move "Rediger manus" onto this page**: reuse Øveplan's
-  existing per-scene cast editor (`import.js`) for assigning cast/role-categories to the
-  scenes Aktfordeling produces, and relocate its entry point off Øveplan's sidebar onto
-  this page. **Deliberately left open** — the user has specific ideas about this step not
-  yet gathered. Also still pending: moving the scene-priority (0–3) selector and
-  Rekvisitten/per-cell cast-override tooling from `schedule.js`'s sidebar into Manus's
-  boss view (originally slated as part of this step in the pre-2026-08-01 plan).
+- **4.3 — Main Manus View (selection, act-building, roles, priority)** — [x] done
+  2026-08-01. The single-modal Aktfordeling builder from 4.2 was retired and rebuilt as a
+  boss/admin-only tabbed section on `manus.html` — **Vælg scener** / **Aktfordeling** /
+  **Rollefordeling** / **Stjerneark** — all four sharing one flat draft-state row list
+  (`manusDraft`, `js/manus.js`) so edits made in one tab survive switching to another,
+  with a single shared "Gem" saving everything at once through the existing boss-level
+  `manus` resource. Vælg scener replaces the old per-column Stemmeark/Point buttons and
+  adds select/deselect per pool submission (deselecting only marks a row locally — a
+  separate explicit "Bekræft fravalg" step is what actually archives the files, so it's
+  freely reversible until then) plus the duration field (moved from the old builder).
+  Aktfordeling keeps the same drag-and-drop row model but renders acts as side-by-side
+  kanban columns instead of stacked sections. Rollefordeling is the "assign cast/roles"
+  half of this sub-phase — `ROLE_CATEGORIES`/`classifyRoleCode`/`classifyOrKeep` were
+  **duplicated from `import.js`** into `manus.js` rather than reusing "Rediger Manus"
+  directly (that tool stays on Øveplan, untouched — see CLAUDE.md's "Manus" section for
+  why cross-file reuse wasn't a fit here, same reasoning Aktfordeling's row model already
+  established in 4.2). Stjerneark is the scene-priority half: a real 0-3 `priority` is now
+  persisted into `data/scenes.json` (this changes the schema's old "priority must always
+  be 0 here" invariant — see CLAUDE.md's "Data schemas" section), with a scene that
+  combines `dans`+`sketch`/`sang` shown as two independent rows (a new `dansPriority`
+  field holds the "(Dans)" half's value) exactly like Øveplan's own dance-split display —
+  `schedule.js`'s dance-split helpers were duplicated the same way the role-classification
+  helpers were. A new discard flow needed two small additions: a `data/config.json` +
+  admin-level `config` resource naming the active `archive/<folder>` (no real "current
+  season" concept exists yet, so this is a small manually-set stand-in, not a step toward
+  full season-switching), and a boss-level `manuscripts_discard` server action that moves
+  a discarded submission's pdf/tex into `archive/<folder>/not_selected/` before removing
+  it from `data/manuscripts.json`. `not_selected/` folders (with a `.gitkeep` placeholder)
+  were backfilled into every non-jubilee `archive/MatRevy_<year>/` from 2019 through 2025.
+  **Still pending, deliberately not part of this sub-phase**: moving the *scheduling*
+  scene-priority (0–3) selector and the Rekvisitten/per-cell cast-override tooling from
+  `schedule.js`'s own sidebar into Manus's boss view — Stjerneark's priority is a
+  different, persisted concept (see above), not a replacement for Øveplan's own
+  per-rehearsal-day selector.
 - **4.4 — `.tex` → PDF compilation & printing**: Aktoversigt/Rolleoversigt/per-person
   manuscript PDFs (the user shared 2025's real `Aktoversigt.pdf`/`Rolleoversigt.pdf` as
   reference — an act-numbered scene list with duration, and a scene-by-cast role matrix,
@@ -194,9 +221,9 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   one `manus.tex` → `manus.pdf`, feeding Arkiv's existing `manusPdf` slot once the season
   is archived.
 
-**Status**: 4.1 + 4.2 done 2026-08-01 (needs the usual manual `update-data.php` re-upload
-to Simply.com before live on `matematikrevy.dk`). 4.3 is next but explicitly open pending
-the user's further input; 4.4/4.5 need the user's LaTeX repo before they can be scoped.
+**Status**: 4.1 + 4.2 + 4.3 done 2026-08-01 (needs the usual manual `update-data.php`
+re-upload to Simply.com before live on `matematikrevy.dk`). 4.4/4.5 need the user's LaTeX
+repo before they can be scoped.
 
 ---
 

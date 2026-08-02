@@ -31,12 +31,16 @@
            box, not inside it. -->
       <div class="manus-guide-col">
         <aside class="manus-guide card">
-          <h2>Manus Guide</h2>
+          <button type="button" class="manus-col-header" id="manus-guide-header" aria-expanded="true">
+            <span class="manus-chevron">▾</span>
+            <h2>Manus Guide</h2>
+          </button>
           <div class="manus-guide-text" id="manus-guide-text">
             <p>Læg .sty filen i dit projekt:<br><a class="manus-guide-link" href="manus/revy.sty" download="revy.sty">revy.sty</a></p>
             <p>Brug følgende skabeloner:<br><a class="manus-guide-link" href="manus/skabelon-sang.tex" download="sang.tex">sang.tex</a> <a class="manus-guide-link" href="manus/skabelon-sketch.tex" download="sketch.tex">sketch.tex</a></p>
-            <p>Tidligere års sange:<br><a class="manus-guide-link" href="https://docs.google.com/spreadsheets/d/1BSXL_RKFqfp6Vy7VXyH-7191tjBnJVlsWFN7HFIzILE/edit?usp=sharing" target="_blank" rel="noopener">Link til sheets</a></p>
-            <p>Manusdrevet:<br><a class="manus-guide-link" href="https://drive.google.com/drive/folders/1H9RHvqZThozdlrgUjNzBMwJRQEI29YSW?usp=drive_link" target="_blank" rel="noopener">Link til drev</a></p>
+            <p>Tidligere års sange:<br><a class="manus-guide-link" href="https://docs.google.com/spreadsheets/d/1BSXL_RKFqfp6Vy7VXyH-7191tjBnJVlsWFN7HFIzILE/edit?usp=sharing" target="_blank" rel="noopener">link til sheets</a></p>
+            <p>Tidligere års manus:<br><a class="manus-guide-link" href="https://github.com/carljarner/matrevy/tree/main/archive" target="_blank" rel="noopener">link til github</a></p>
+            <p>Manusdrevet:<br><a class="manus-guide-link" href="https://drive.google.com/drive/folders/1H9RHvqZThozdlrgUjNzBMwJRQEI29YSW?usp=drive_link" target="_blank" rel="noopener">link til drev</a></p>
           </div>
         </aside>
         <div class="manus-bottom-actions" id="manus-bottom-actions"></div>
@@ -48,6 +52,18 @@
     <section class="card" id="manus-year-section" style="display:none">
       <h2>Dette års manus</h2>
       <div id="manus-year-acts"></div>
+    </section>
+
+    <!-- Main Manus View (boss/admin only) — tabbed selection / act-building /
+         cast / priority workspace, rendered by manus.js. Hidden entirely
+         (display:none, mount left empty) below boss level. -->
+    <section class="card manus-main-view" id="manus-main-view" style="display:none">
+      <nav class="manus-tab-bar" id="manus-tab-bar"></nav>
+      <div class="manus-tab-panel" id="manus-tab-select"></div>
+      <div class="manus-tab-panel" id="manus-tab-aktfordeling"></div>
+      <div class="manus-tab-panel" id="manus-tab-rollefordeling"></div>
+      <div class="manus-tab-panel" id="manus-tab-stjerneark"></div>
+      <div class="manus-main-view-actions" id="manus-main-view-actions"></div>
     </section>
 
     <!-- "Hent stemmeark" print target — hidden on screen (see manus.css's

@@ -16,15 +16,16 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 | `bosses.json` | The static "Bosser for ..." info card on Forside |
 | `wiki.json` | Flat list of rich-text chapters shown on the Wiki page |
 | `manuscripts.json` | Upload pool of submitted sketch/song `.pdf`/`.tex` pairs, shown on the Manus page |
+| `config.json` | Small site-wide settings, currently just the active archive production folder |
 
 ## Updating for a New Production
 
 1. **`scenes.json`** — Replace the `acts` array with the new production's scenes.
    - Set `schedulable: false` for videos, band jingles, and anything else with no rehearsable cast.
-   - Set all `priority` values to `0` — the coordinator sets priorities per rehearsal day in the scheduling tool.
+   - Set `priority` values to `0` for a fresh start — the Manus page's Stjerneark tab is where real 0-3 priorities get entered by Boss going forward; this is a different concept from the scheduling tool's own per-rehearsal-day priority selector, which only reads this field once as its starting seed and otherwise lives entirely in `localStorage` (see `CLAUDE.md`'s "Data schemas" note).
    - The `id` field must be unique (format: `"act-number"`, e.g. `"1-3"` or `"E-2"`).
    - `types` is optional but recommended: an array from `sketch`/`sang`/`dans`/`bandsang`/`video` (e.g. `["sang", "dans"]` for a choreographed song). Without it, the scheduling tool and manus editor can only guess `sketch` vs `video` from `schedulable` — a real `types` array is what drives correct role classification (Sang/Rap vs. Skuespil, etc. — see `CLAUDE.md`) and the dance/actor-split feature (a `dans`+`sketch`/`sang` combo splits into two independently-schedulable placements).
-   - `duration` (optional, minutes) and `sourcePdf`/`sourceTex` (optional, repo-relative paths back into `manus/<type>/`) are written by the Manus page's Aktfordeling builder — `duration` is entered by hand by Boss during selection (not derived), `sourcePdf`/`sourceTex` carry over the originating upload-pool submission's files for a future `.tex`→PDF compile phase. Nothing else reads these three fields yet; they're safe to omit on hand-edited/legacy scenes.
+   - `duration` (optional, minutes) and `sourcePdf`/`sourceTex` (optional, repo-relative paths back into `manus/<type>/`) are written by the Manus page's Aktfordeling tab — `duration` is entered by hand by Boss during selection (not derived), `sourcePdf`/`sourceTex` carry over the originating upload-pool submission's files for a future `.tex`→PDF compile phase. `dansPriority` (optional int 0-3) is written only for a dance-split-candidate scene by the Stjerneark tab, holding the "(Dans)" half's priority independently from the main `priority`. `repeat`/`dansRepeat` (optional booleans, same main/dance-half split as `priority`/`dansPriority`) mark a scene that wants a second rehearsal the next day, set via Stjerneark's clickable priority/repeat circles. All six are safe to omit on hand-edited/legacy scenes.
 
 2. **`cast.json`** — Replace the `cast` array with the new cast list.
    - Keep the `index` values sequential starting from 0 (they match the column order in the LaTeX Rolleoversigt table).
@@ -46,6 +47,9 @@ These files can be edited by hand (see below) or via the site's in-page admin to
           "types": ["sketch"],
           "schedulable": true,
           "priority": 0,
+          "dansPriority": null,
+          "repeat": false,
+          "dansRepeat": null,
           "duration": 3,
           "sourcePdf": "manus/sketch/Scene_name.pdf",
           "sourceTex": "manus/sketch/Scene_name.tex",
@@ -221,6 +225,17 @@ comments.
 - `pdfPath`/`texPath` — repo-relative paths, `manus/<type>/<slug>.pdf`/`.tex`. `slug` is the title with spaces replaced by `_` (server-side, in `manuscripts_create`'s `manus_slugify()`), deduplicated with a `_2`/`_3`/… suffix on a same-type title collision so two submissions never overwrite each other's files. Uploaded inline as part of `manuscripts_create` (revyst-level, like `posts_create`'s image) — both files are required, capped at ~5 MB each.
 - `createdAt` — server-assigned floating local timestamp, same convention as `posts.json`'s `date`.
 - Boss/admin remove a submission via the full-array-replace `manuscripts` resource (`save_manuscripts`) — the client filters the array and re-saves; the underlying pdf/tex files are **not** deleted from the repo (left as harmless orphans, same accepted trade-off as a deleted post's leftover `image` file).
+- Deselecting a submission on the Manus page's "Vælg scener" tab and confirming "Bekræft fravalg" instead calls the boss-level `manuscripts_discard` action: the submission is **removed** from this file (not just filtered client-side) and its `pdfPath`/`texPath` files are **moved** (not left as orphans) to `archive/<currentProductionFolder>/not_selected/` — see `config.json` below for where the target folder comes from.
+
+## Schema: config.json
+
+```json
+{
+  "currentProductionFolder": "MatRevy_2026"
+}
+```
+
+- `currentProductionFolder` — the active `archive/<folder>` this production's discarded manus submissions get moved into (see `manuscripts.json`'s `manuscripts_discard` note above), or `""` if not yet set. Server-trusted target only — **not read or shown anywhere client-side**; an admin-editable dropdown on the Manus page was tried and removed (twice — first as an edit control, then even the read-only display), so for now this is simply hand-edited in this file (then `node scripts/embed-scenes.js`, though nothing currently loads the regenerated `config-data.js`) each production cycle. Not a real "current season" concept — there's no such thing site-wide yet (season-switching is a documented, unbuilt future phase) — just a small, manually-maintained stand-in scoped to this one need.
 
 ## Adding a year to the archive
 

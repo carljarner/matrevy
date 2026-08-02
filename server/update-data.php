@@ -113,6 +113,11 @@ const POST_IMAGE_PATH_RE = '#^posts/[0-9a-f]+/image\.jpg$#';
 // server-slugified title, but is still checked unconditionally.
 const MANUS_PDF_PATH_RE = '#^manus/(sketch|sang)/[^/]+\.pdf$#';
 const MANUS_TEX_PATH_RE = '#^manus/(sketch|sang)/[^/]+\.tex$#';
+// Manuscripts discarded via the Manus page's "Vælg scener" tab are moved
+// here from manus/<type>/ — same posture as the two regexes above, the
+// destination is server-built from data/config.json's currentProductionFolder
+// (never a client-supplied path) but still checked unconditionally.
+const ARCHIVE_NOT_SELECTED_RE = '#^archive/[A-Za-z0-9_-]+/not_selected/[^/]+\.(pdf|tex)$#';
 
 $action = $body['action'] ?? '';
 
@@ -174,6 +179,16 @@ if (isset($POST_ACTIONS[$action])) {
   if ($action === 'posts_create') posts_create($body);
   else if ($action === 'comments_create') comments_create($body);
   else manuscripts_create($body);
+}
+
+// manuscripts_discard is boss-level (not revyst, unlike the actions above) —
+// it moves/deletes files, so it isn't safely append-only-trustable at revyst.
+// Not in $RESOURCES either, since it never accepts a full-array replace.
+if ($action === 'manuscripts_discard') {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  manuscripts_discard($body);
 }
 
 if ($action !== 'save') {
@@ -1073,6 +1088,84 @@ function manuscripts_create($body) {
   respond(200, ['ok' => true, 'id' => $submission['id'], 'pdfPath' => $pdfPath, 'texPath' => $texPath]);
 }
 
+// Boss-level (matches the `manuscripts` resource's own level — unlike
+// manuscripts_create this can't be revyst-append-only-safe, since it moves
+// and deletes files). Moves each discarded submission's pdf/tex from
+// manus/<type>/ to archive/<currentProductionFolder>/not_selected/, then
+// removes those submissions from data/manuscripts.json. The target folder
+// always comes from data/config.json server-side — the client sends ids
+// only, never a path or folder (same "server is the source of truth for the
+// destination" posture as posts_create's image path).
+//
+// Multi-request, non-atomic: files are moved (GET+PUT+DELETE per file) BEFORE
+// data/manuscripts.json is rewritten, so a mid-loop failure leaves at worst an
+// orphaned copy under archive/, never a submission whose files are gone but
+// whose record still claims it's live. Re-running with the same ids is safe
+// either way — put_file() overwrites, delete_file() treats a missing source
+// as already-done.
+function manuscripts_discard($body) {
+  $ids = $body['ids'] ?? null;
+  if (!is_array($ids) || !$ids) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($ids as $id) {
+    if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
+  }
+
+  [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
+  $folder = ($cfgStatus === 200)
+    ? (json_decode(base64_decode($cfg['content']), true)['currentProductionFolder'] ?? '')
+    : '';
+  if (!is_string($folder) || $folder === '' || !preg_match('#^[A-Za-z0-9_-]+$#', $folder)) {
+    respond(400, ['error' => 'no_production_folder']);
+  }
+
+  [$getStatus, $current] = github_api('GET', 'contents/data/manuscripts.json');
+  if ($getStatus !== 200) {
+    respond(502, ['error' => 'github_read_failed', 'file' => 'data/manuscripts.json']);
+  }
+  $decoded = json_decode(base64_decode($current['content']), true);
+  $submissions = (is_array($decoded) && isset($decoded['submissions']) && is_array($decoded['submissions']))
+    ? $decoded['submissions'] : [];
+
+  $idSet = array_flip($ids);
+  $toDiscard = array_values(array_filter($submissions, function ($s) use ($idSet) {
+    return isset($idSet[$s['id'] ?? '']);
+  }));
+  $kept = array_values(array_filter($submissions, function ($s) use ($idSet) {
+    return !isset($idSet[$s['id'] ?? '']);
+  }));
+
+  $moved = [];
+  foreach ($toDiscard as $s) {
+    $fields = ['pdfPath' => MANUS_PDF_PATH_RE, 'texPath' => MANUS_TEX_PATH_RE];
+    foreach ($fields as $field => $srcRe) {
+      $src = $s[$field] ?? '';
+      if (!is_string($src) || $src === '' || !preg_match($srcRe, $src)) continue; // texPath optional/legacy-missing
+      $dest = 'archive/' . $folder . '/not_selected/' . basename($src);
+      if (!preg_match(ARCHIVE_NOT_SELECTED_RE, $dest)) {
+        respond(400, ['error' => 'bad_path']);
+      }
+      [$srcStatus, $srcFile] = github_api('GET', 'contents/' . $src);
+      if ($srcStatus !== 200) continue; // already moved/gone — treat as done
+      // Re-encode rather than forwarding GitHub's own content field verbatim
+      // (it comes chunked with embedded newlines) — put_file()'s other
+      // callers always pass clean, freshly-encoded base64.
+      $cleanBase64 = base64_encode(base64_decode($srcFile['content']));
+      put_file($dest, $cleanBase64, 'Arkiver fravalgt manus: ' . $s['title']);
+      delete_file($src, 'Fjern fravalgt manus: ' . $s['title']);
+    }
+    $moved[] = $s['id'];
+  }
+
+  update_file('data/manuscripts.json', function ($json) use ($kept) {
+    $json['submissions'] = $kept;
+    return $json;
+  }, 'Fjern fravalgte manus-uploads');
+
+  respond(200, ['ok' => true, 'discarded' => $moved, 'targetFolder' => $folder]);
+}
+
 // Boss/admin: full-array replace, used only for removing a submission (the
 // client filters it out and re-saves the reduced list) — the pdf/tex blobs
 // themselves are left in the repo, not deleted (see file header comment).
@@ -1243,6 +1336,22 @@ function save_wiki($payload) {
   }, 'Opdater wiki.json via wikien');
 }
 
+// Admin-only site-wide setting: which archive/MatRevy_<year> folder is the
+// active production, used server-side (never a client-supplied value) as the
+// move target for manuscripts_discard. There's no real "current season"
+// concept yet (see matrevy-plan.md's Phase 13) — this is a small, deliberately
+// minimal stand-in, set by hand once per production cycle via the Manus page.
+function save_config($payload) {
+  $folder = $payload['currentProductionFolder'] ?? '';
+  if (!is_string($folder) || ($folder !== '' && !preg_match('#^[A-Za-z0-9_-]+$#', $folder))) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  update_file('data/config.json', function ($json) use ($folder) {
+    $json['currentProductionFolder'] = $folder;
+    return $json;
+  }, 'Opdater config.json');
+}
+
 $RESOURCES = [
   'manus'         => ['level' => 'boss',  'save' => 'save_manus'],
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
@@ -1251,6 +1360,7 @@ $RESOURCES = [
   'bosses'        => ['level' => 'admin', 'save' => 'save_bosses'],
   'wiki'          => ['level' => 'boss',  'save' => 'save_wiki'],
   'manuscripts'   => ['level' => 'boss',  'save' => 'save_manuscripts'],
+  'config'        => ['level' => 'admin', 'save' => 'save_config'],
 ];
 
 $resource = $body['resource'] ?? '';
