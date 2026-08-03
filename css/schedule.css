@@ -156,6 +156,12 @@
 
 .chip-name { flex: 1; }
 
+.chip-repeat-tag {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  color: #57606a;
+}
+
 /* ── Absentee list & form ───────────────────────────────── */
 .absent-list {
   display: flex;
@@ -514,6 +520,11 @@
   margin-left: 5px;
   vertical-align: middle;
   white-space: nowrap;
+}
+.picker-repeat-tag {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  color: #57606a;
 }
 .picker-absent-names {
   font-size: 0.78rem;

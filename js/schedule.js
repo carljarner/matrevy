@@ -99,7 +99,11 @@ function isDanceSplitCandidate(scene) {
   return !scene.custom && (scene.cast || []).some(isDanceCastRole);
 }
 
-// Returns [mainPart, dancePart], or null if the scene doesn't qualify.
+// Returns [mainPart, dancePart], or null if the scene doesn't qualify. The
+// dance half's own priority/repeat come from the scene's dansPriority/
+// dansRepeat fields (set independently by Manus's Stjerneark tab), never
+// copied from the main half's priority/repeat — a plain `{...scene}` spread
+// would otherwise leave both halves showing the same value.
 function splitDanceScene(scene) {
   if (!isDanceSplitCandidate(scene)) return null;
   const mainCast = [];
@@ -115,6 +119,8 @@ function splitDanceScene(scene) {
   const dancePart = {
     ...scene, id: danceId, name: scene.name + ' (Dans)',
     cast: danceCast, mainCounterpartId: scene.id,
+    priority: scene.dansPriority != null ? scene.dansPriority : 0,
+    repeat: !!scene.dansRepeat,
   };
   return [mainPart, dancePart];
 }
@@ -444,30 +450,16 @@ function renderCell(td, si, ri) {
 }
 
 // ── Conflict detection ────────────────────────────────────
-// Rekvisitten's cast is picked per-placement (cell.customCast), not fixed on
-// the scene definition, so conflict checks resolve cast names per-cell.
-function getCellCastNames(cell) {
-  if (!cell) return [];
-  if (cell.customCast) return cell.customCast;
-  const scene = getSceneById(cell.sceneId);
-  return scene ? scene.cast.map(c => c.name) : [];
-}
-
-// Cast names actually shown/pre-selected by default for a placement — never
-// Statist, and for an unmerged song/dance-half, narrowed further to the
-// roles relevant to that half. Purely a display default: once cell.customCast
-// exists (a merged placement, or anything the coordinator has explicitly
-// edited via the cell editor) it's returned verbatim, never re-filtered, so
-// an explicit choice always sticks.
-// Statists remain in the real scene cast for conflict detection either way —
-// getCellCastNames() (used by getConflicts/getPickerConflictNames) is
-// unaffected by this filter.
-function getDisplayCastNames(cell) {
-  if (!cell) return [];
-  if (cell.customCast) return cell.customCast;
-  const scene = getSceneById(cell.sceneId);
-  if (!scene || scene.custom) return getCellCastNames(cell);
-
+// Cast names actually shown by default for a scene — never Statist/Ninja,
+// and for an unmerged song/dance-half, narrowed further to the roles
+// relevant to that half. This is the set that's genuinely "written down" on
+// the schedule for a placement that hasn't been hand-edited, so it's the
+// basis for both display (getCellCastNames/getDisplayCastNames below) and
+// overlap detection (getConflicts/getPickerConflictNames) alike — a Statist
+// nobody actually cast for a given day shouldn't trigger a false overlap
+// just for existing in the scene's full data/scenes.json cast list.
+function filteredCastNames(scene) {
+  if (!scene || scene.custom) return [];
   const isSong = !!(scene.types && scene.types.includes('sang'));
   const isDans = !!(scene.types && scene.types.includes('dans'));
   const isDansHalf = !!scene.mainCounterpartId;
@@ -481,6 +473,27 @@ function getDisplayCastNames(cell) {
       return true; // sketch (or a sketch+dans combo's sketch half, placed alone)
     })
     .map(c => c.name);
+}
+
+// Rekvisitten's cast is picked per-placement (cell.customCast), not fixed on
+// the scene definition, so conflict checks resolve cast names per-cell.
+// Once cell.customCast exists (a merged placement, or anything the
+// coordinator has explicitly picked via the cell editor — including a
+// Statist/Ninja/etc. added on purpose) it's returned verbatim, never
+// re-filtered, so an explicit choice always sticks and IS then checked for
+// overlap — only the *unfiltered* default falls back to filteredCastNames().
+function getCellCastNames(cell) {
+  if (!cell) return [];
+  if (cell.customCast) return cell.customCast;
+  return filteredCastNames(getSceneById(cell.sceneId));
+}
+
+// Historically a separate function; getCellCastNames() now *is* the display
+// cast (see filteredCastNames() above), so this is a thin alias kept for
+// call sites that are conceptually about "what's shown on the cell" rather
+// than "what to check for conflicts."
+function getDisplayCastNames(cell) {
+  return getCellCastNames(cell);
 }
 
 // Builds cast-list HTML as one <span> per name with the separator embedded
@@ -631,7 +644,7 @@ async function clearSchedule() {
 
 // ── Scene sidebar ─────────────────────────────────────────
 function renderSceneSidebar() {
-  const placed = getPlacedSceneIds();
+  const placedCounts = getPlacedSceneCounts();
 
   const container = document.getElementById('scene-list');
   container.innerHTML = '';
@@ -651,7 +664,7 @@ function renderSceneSidebar() {
     container.appendChild(header);
 
     for (const scene of scenes) {
-      const isPlaced = placed.has(scene.id);
+      const isPlaced = isSceneFullyPlaced(scene, placedCounts);
       const chip = document.createElement('div');
       chip.className = 'scene-chip' + (isPlaced ? ' placed' : '');
       chip.dataset.id = scene.id;
@@ -670,6 +683,13 @@ function renderSceneSidebar() {
 
       chip.appendChild(prioSpan);
       chip.appendChild(nameSpan);
+      if (scene.repeat) {
+        const repeatSpan = document.createElement('span');
+        repeatSpan.className = 'chip-repeat-tag';
+        repeatSpan.textContent = '↻';
+        repeatSpan.title = 'Skal øves igen dagen efter';
+        chip.appendChild(repeatSpan);
+      }
       container.appendChild(chip);
     }
   }
@@ -1198,11 +1218,17 @@ function _updatePickerFooter() {
   confirmBtn.disabled = pickerSelected.size === 0;
 }
 
-// Returns conflicting cast member names for sceneId at slot si,
-// also counting any other scenes already selected in the picker.
+// Returns conflicting cast member names for sceneId at slot si, also
+// counting any other scenes already selected in the picker. Only checks
+// names actually "written down" for each side — filteredCastNames() for the
+// candidate scene and for other not-yet-placed picker selections (neither
+// has a customCast yet), getCellCastNames() (customCast-aware) for cells
+// already on the grid — so an unshown Statist/Ninja never trips a false
+// overlap, but one explicitly added via the cell editor does.
 function getPickerConflictNames(si, sceneId) {
   const scene = getSceneById(sceneId);
-  if (!scene || !scene.cast.length) return [];
+  const candidateNames = filteredCastNames(scene);
+  if (!candidateNames.length) return [];
 
   const occupiedCast = new Set();
   // Cast already in grid cells at this slot
@@ -1214,23 +1240,18 @@ function getPickerConflictNames(si, sceneId) {
   // Cast from other currently-selected scenes in the picker
   for (const selId of pickerSelected) {
     if (selId === sceneId) continue;
-    const sel = getSceneById(selId);
-    if (sel) sel.cast.forEach(c => occupiedCast.add(c.name));
+    filteredCastNames(getSceneById(selId)).forEach(n => occupiedCast.add(n));
   }
 
-  return scene.cast
-    .map(c => c.name)
-    .filter(n => !isPersonAbsentAtSlot(n, si) && occupiedCast.has(n));
+  return candidateNames.filter(n => !isPersonAbsentAtSlot(n, si) && occupiedCast.has(n));
 }
 
-// Cast members of `sceneId` who are absent during slot `si`'s time window.
-// Purely advisory — never affects selectability, unlike getPickerConflictNames.
+// Cast members of `sceneId` who are absent during slot `si`'s time window —
+// same filteredCastNames() basis as getPickerConflictNames above, so a
+// Statist/Ninja not actually on the schedule doesn't show a false absence
+// tag either. Purely advisory — never affects selectability.
 function getPickerAbsentNames(si, sceneId) {
-  const scene = getSceneById(sceneId);
-  if (!scene || !scene.cast.length) return [];
-  return scene.cast
-    .map(c => c.name)
-    .filter(n => isPersonAbsentAtSlot(n, si));
+  return filteredCastNames(getSceneById(sceneId)).filter(n => isPersonAbsentAtSlot(n, si));
 }
 
 // A fully-selected dance-split pair collapses into one room at confirm time
@@ -1249,9 +1270,12 @@ function _pickerSelectedRoomCount() {
   return count;
 }
 
-function buildPickerSceneItem(scene, placed, half) {
-  // Custom scenes (Scenemøde, Rekvisitten) can be used in multiple slots per day
-  const isPlaced = !scene.custom && placed.has(scene.id);
+function buildPickerSceneItem(scene, placedCounts, half) {
+  // Custom scenes (Scenemøde, Rekvisitten) can be used in multiple slots per
+  // day. A repeat-flagged scene (Manus's Stjerneark ↻ toggle) similarly
+  // wants a second placement that day — see sceneMaxPlacements() — so it
+  // only dims once it's actually been placed twice, not after the first.
+  const isPlaced = !scene.custom && isSceneFullyPlaced(scene, placedCounts);
   const isSelected = pickerSelected.has(scene.id);
   const conflictNames = pickerSlot !== null
     ? getPickerConflictNames(pickerSlot, scene.id)
@@ -1318,6 +1342,17 @@ function buildPickerSceneItem(scene, placed, half) {
 
   item.appendChild(nameSpan);
 
+  // Repeat tag (Manus's Stjerneark ↻ toggle) — sits at the far right of the
+  // row itself, not glued onto the name like the O/F tags above, since it's
+  // a property of the scene rather than of this particular slot/visit.
+  if (scene.repeat) {
+    const repeatTag = document.createElement('span');
+    repeatTag.className = 'picker-repeat-tag';
+    repeatTag.textContent = '↻';
+    repeatTag.title = 'Skal øves igen dagen efter';
+    item.appendChild(repeatTag);
+  }
+
   if (scene.id === REKVISITTEN_ID) {
     item.onclick = () => openRekvisittenCastPicker();
   } else if (!atCap) {
@@ -1347,7 +1382,7 @@ function buildLegendItem(tagClass, tagText, label) {
 }
 
 function renderPickerList() {
-  const placed = getPlacedSceneIds();
+  const placedCounts = getPlacedSceneCounts();
   const container = document.getElementById('picker-list');
   container.innerHTML = '';
 
@@ -1378,13 +1413,13 @@ function renderPickerList() {
       if (scene.danceCounterpartId && next && next.id === scene.danceCounterpartId) {
         const row = document.createElement('div');
         row.className = 'picker-pair-row';
-        row.appendChild(buildPickerSceneItem(scene, placed, true));
-        row.appendChild(buildPickerSceneItem(next, placed, true));
+        row.appendChild(buildPickerSceneItem(scene, placedCounts, true));
+        row.appendChild(buildPickerSceneItem(next, placedCounts, true));
         container.appendChild(row);
         i++; // consumed the dance-part entry too
         continue;
       }
-      container.appendChild(buildPickerSceneItem(scene, placed, false));
+      container.appendChild(buildPickerSceneItem(scene, placedCounts, false));
     }
   }
 }
@@ -1394,16 +1429,32 @@ function getSceneById(id) {
   return state.allScenes.find(s => s.id === id) || null;
 }
 
-function getPlacedSceneIds() {
-  const ids = new Set();
+// How many times each scene id currently sits on the grid — a plain
+// presence Set isn't enough once a repeat-flagged scene is allowed to be
+// placed twice (see sceneMaxPlacements()/isSceneFullyPlaced() below), since
+// "placed once" and "placed twice" need to read as different states.
+function getPlacedSceneCounts() {
+  const counts = new Map();
+  const bump = id => counts.set(id, (counts.get(id) || 0) + 1);
   for (const row of state.grid) {
     for (const cell of row) {
       if (!cell) continue;
-      ids.add(cell.sceneId);
-      if (cell.pairedSceneId) ids.add(cell.pairedSceneId);
+      bump(cell.sceneId);
+      if (cell.pairedSceneId) bump(cell.pairedSceneId);
     }
   }
-  return ids;
+  return counts;
+}
+
+// A repeat-flagged scene (Manus's Stjerneark ↻ toggle) genuinely wants a
+// second placement that day, so it takes two placements — not one — before
+// it dims as "already placed" in the sidebar/picker.
+function sceneMaxPlacements(scene) {
+  return scene.repeat ? 2 : 1;
+}
+
+function isSceneFullyPlaced(scene, placedCounts) {
+  return (placedCounts.get(scene.id) || 0) >= sceneMaxPlacements(scene);
 }
 
 function escHtml(str) {
