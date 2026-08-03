@@ -13,6 +13,7 @@ let state = {
   grid: [],
   scenes: [],       // schedulable scenes
   allScenes: [],    // all scenes from JSON
+  allCast: [],      // full cast roster (CAST_DATA, or a fresher manus override — see loadScenes())
   title: 'MatRevy - Øveplan', // editable heading shown above the grid
 };
 
@@ -71,27 +72,31 @@ function classifyOrKeep(code, isSong, isDans) {
 // and cast.json are untouched.
 const DANCE_SPLIT_SUFFIX = '::dans'; // scene ids are "act-number" (e.g. "1-3"); ':' never appears, collision-safe.
 
-// A cast entry counts as the dance half if its role is already a classified
-// category (Dans/Koreograf, as the manus tool's Apply flow writes) or, for
-// raw script codes (as committed data/scenes.json actually stores), contains
-// a Y (koreograf) or D (danser) — same signal import.js's classifyRoleCode
-// uses per-cast-member, applied here directly to the whole scene's split.
-function isDanceCastRole(role) {
-  const r = (role || '').trim();
+// A cast entry counts as the dance half if it carries a Dans or Koreograf
+// tag — checked against the full `tags` array, not just `role`, since `role`
+// only ever stores tags[0] (manus.js's manusRowScene()): a cast member
+// tagged both Instruktør and Koreograf would be missed here whenever
+// Instruktør happened to be tags[0]. Falls back to classifying `role` itself
+// for raw script codes with no tags yet (legacy/un-Rollefordeling-touched
+// data) — contains a Y (koreograf) or D (danser).
+function isDanceCastRole(c) {
+  if (Array.isArray(c.tags) && c.tags.length) {
+    return c.tags.includes('Dans') || c.tags.includes('Koreograf');
+  }
+  const r = (c.role || '').trim();
   if (r === 'Dans' || r === 'Koreograf') return true;
-  const c = r.toUpperCase();
-  return c.includes('Y') || c.includes('D');
+  const code = r.toUpperCase();
+  return code.includes('Y') || code.includes('D');
 }
 
-// A scene is a dance-split candidate if any cast member classifies as
-// Koreograf — simpler and more reliable than checking scene.types for 'dans',
-// since nothing in the Manus page's own save path ever adds 'dans' to a
-// scene's types. classifyOrKeep's Koreograf rule (a literal 'Y' in the code)
-// runs unconditionally, before any isSong/isDans branching, so the dummy
-// false/false args below don't affect this particular check.
+// A scene is a dance-split candidate if any cast member is dance-classified
+// (Dans or Koreograf, per isDanceCastRole above — so a scene with only
+// credited dancers and no separate choreographer still qualifies, not just
+// one with an explicit Koreograf) rather than checking scene.types for
+// 'dans', since nothing in the Manus page's own save path ever adds 'dans'
+// to a scene's types.
 function isDanceSplitCandidate(scene) {
-  return !scene.custom
-    && (scene.cast || []).some(c => classifyOrKeep(c.role, false, false) === 'Koreograf');
+  return !scene.custom && (scene.cast || []).some(isDanceCastRole);
 }
 
 // Returns [mainPart, dancePart], or null if the scene doesn't qualify.
@@ -103,7 +108,7 @@ function splitDanceScene(scene) {
     // A cast entry with no recognized role (e.g. legacy un-normalized data)
     // defaults to the main/acting half — the same place it'd be if the
     // scene had never been split, so nobody silently vanishes.
-    (isDanceCastRole(c.role) ? danceCast : mainCast).push(c);
+    (isDanceCastRole(c) ? danceCast : mainCast).push(c);
   }
   const danceId = scene.id + DANCE_SPLIT_SUFFIX;
   const mainPart = { ...scene, cast: mainCast, danceCounterpartId: danceId };
@@ -131,7 +136,15 @@ function getDanceCounterpartId(scene) {
 }
 
 // ── Boot ──────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load scenes/cast up front — a plain page reload is NOT on its own a safe
+  // moment to prefer a fresh manus override: state.allScenes always starts
+  // empty here regardless of whether restoreState() (below) is about to
+  // restore a grid full of placements from localStorage. hasSavedPlacements()
+  // peeks that same localStorage snapshot first so the override is only
+  // used when this really is a from-scratch session (see loadScenes() below).
+  await loadScenes(!hasSavedPlacements());
+
   document.getElementById('btn-build').addEventListener('click', buildGrid);
   document.getElementById('btn-export').addEventListener('click', () => window.print());
   document.getElementById('btn-clear-schedule').addEventListener('click', clearSchedule);
@@ -179,15 +192,68 @@ function buildSlots(startTime, endTime, segmentMinutes) {
   return slots;
 }
 
+// ── Manus-save freshness ────────────────────────────────────
+// schedule.html doesn't load site-utils.js (it must keep working over
+// file://, per the top-of-file note above), so this is a small, read-only
+// copy of just the override-reading half of site-utils.js's
+// siteSaveOverride/siteLoadOverride: manus.js's Gem (manusSaveMain, via
+// manus-data.js's setManusSavedOverride) persists its saved scenes/cast to
+// this same localStorage key so a freshly-loaded Øveplan session — nothing
+// built on the grid yet — can start from it instead of waiting ~1-2 min for
+// the GitHub Action to regenerate scenes-data.js. Never consulted once a
+// grid already exists (see loadScenes()/clearSchedule() below) — swapping
+// scene/cast data out from under an in-progress schedule could silently
+// invalidate placements (e.g. a dance-split boundary shifting a cast member
+// into/out of the "(Dans)" half, orphaning a placed cell's sceneId).
+const MANUS_OVERRIDE_TTL_MS = 5 * 60 * 1000; // matches site-utils.js's SITE_OVERRIDE_TTL_MS
+function loadManusOverride() {
+  try {
+    const raw = localStorage.getItem('matrevy-override-manus');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.savedAt !== 'number' || Date.now() - parsed.savedAt > MANUS_OVERRIDE_TTL_MS) {
+      return null;
+    }
+    return parsed.data;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Peeks the persisted schedule snapshot (the same localStorage key
+// saveState()/restoreState() use) purely to check whether it holds any
+// actual placements — without fully restoring it. Used only to gate the
+// boot-time loadScenes() call below: a page reload always starts with an
+// empty in-memory state.grid, so state.grid.length alone can't tell "fresh
+// session" apart from "about to restore a grid full of placements."
+function hasSavedPlacements() {
+  try {
+    const raw = localStorage.getItem('matrevy-schedule');
+    if (!raw) return false;
+    const snap = JSON.parse(raw);
+    return Array.isArray(snap.grid) && snap.grid.some(row => Array.isArray(row) && row.some(cell => cell != null));
+  } catch (e) {
+    return false;
+  }
+}
+
 // ── Load scenes ───────────────────────────────────────────
 // Data is embedded via scenes-data.js (SCENES_DATA constant) to avoid
 // fetch() failing on file:// protocol when opened locally.
-async function loadScenes() {
+// allowOverride defaults to false (never touch the manus override) so any
+// future bare call fails safe; each call site below opts in explicitly only
+// when it can actually guarantee nothing is placed yet.
+async function loadScenes(allowOverride = false) {
   if (state.allScenes.length) return;
   // CUSTOM_SCENES first so they sort above "Akt 1" in the act-grouped lists.
-  // Read straight from the embedded SCENES_DATA (scenes-data.js) — Øveplan is
-  // a read-only consumer of data/scenes.json now, with no local override.
-  state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...SCENES_DATA]);
+  // Prefer a still-fresh manus.js save over the embedded SCENES_DATA/CAST_DATA
+  // — see loadManusOverride() above for why this is only safe to do here
+  // (nothing on the grid yet) and not once a session is already in progress.
+  const override = allowOverride ? loadManusOverride() : null;
+  const scenesData = override ? override.scenes : SCENES_DATA;
+  const castData   = override ? override.cast   : CAST_DATA;
+  state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...scenesData]);
+  state.allCast = castData;
 }
 
 // ── Build grid ────────────────────────────────────────────
@@ -540,10 +606,24 @@ function removeFromCell(si, ri) {
   saveState();
 }
 
-function clearSchedule() {
+async function clearSchedule() {
   if (!state.grid.length) return;
   if (!confirm('Ryd alle placerede scener fra skemaet? Dette kan ikke fortrydes.')) return;
   state.grid = state.slots.map(() => state.rooms.map(() => null));
+
+  // Nothing is placed anymore, so this is as safe a moment as a fresh page
+  // load to re-resolve scenes/cast — picking up a newer manus.js save (or
+  // falling back to the real embedded data, if that override has since
+  // expired) instead of staying pinned to whatever was loaded at the start
+  // of this session. See loadManusOverride()/loadScenes() above for why this
+  // can't happen while a grid is still in use.
+  state.allScenes = [];
+  state.allCast = [];
+  await loadScenes(true); // safe: state.grid was just fully nulled above
+  state.scenes = state.allScenes
+    .filter(s => s.schedulable)
+    .map(s => ({ ...s }));
+
   renderGrid();
   renderSceneSidebar();
   saveState();
@@ -654,7 +734,7 @@ function openAbsentForm() {
   placeholder.disabled = true;
   placeholder.selected = true;
   nameSel.appendChild(placeholder);
-  CAST_DATA.map(c => c.name).forEach(name => {
+  state.allCast.map(c => c.name).forEach(name => {
     const opt = document.createElement('option');
     opt.value = name;
     opt.textContent = name;
@@ -836,7 +916,7 @@ function renderRekvisittenCastList() {
     if (sel) sel.cast.forEach(c => occupied.add(c.name));
   }
 
-  const names = CAST_DATA.map(c => c.name);
+  const names = state.allCast.map(c => c.name);
 
   for (const name of names) {
     const isOccupied = occupied.has(name);
@@ -984,7 +1064,7 @@ function renderCellEditorList() {
 
   const sceneCast = scene ? getSceneCastWithRoles(scene) : [];
   const sceneNames = new Set(sceneCast.map(c => c.name));
-  const otherNames = CAST_DATA.map(c => c.name).filter(n => !sceneNames.has(n));
+  const otherNames = state.allCast.map(c => c.name).filter(n => !sceneNames.has(n));
 
   const renderSection = (title, open, setOpen, count, renderBody) => {
     const section = document.createElement('div');

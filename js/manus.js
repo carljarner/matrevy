@@ -125,21 +125,27 @@ function classifyOrKeep(code, isSong, isDans) {
 // from the split form (see manusRowScene()/renderStjerneArkTab() below).
 const DANCE_SPLIT_SUFFIX = '::dans';
 
-function isDanceCastRole(role) {
-  const r = (role || '').trim();
+// Checked against the full `tags` array, not just `role` (which only ever
+// stores tags[0] — see manusRowScene() below), so a cast member tagged both
+// Instruktør and Koreograf is still detected regardless of tag order. Falls
+// back to classifying `role` itself for raw script codes with no tags yet.
+function isDanceCastRole(c) {
+  if (Array.isArray(c.tags) && c.tags.length) {
+    return c.tags.includes('Dans') || c.tags.includes('Koreograf');
+  }
+  const r = (c.role || '').trim();
   if (r === 'Dans' || r === 'Koreograf') return true;
-  const c = r.toUpperCase();
-  return c.includes('Y') || c.includes('D');
+  const code = r.toUpperCase();
+  return code.includes('Y') || code.includes('D');
 }
 
-// A scene is a dance-split candidate if any cast member classifies as
-// Koreograf — simpler and more reliable than checking scene.types for 'dans',
-// since nothing in this file's own save path (manusRowScene()) ever adds
-// 'dans' to a scene's types. classifyOrKeep's Koreograf rule (a literal 'Y'
-// in the code) runs unconditionally, before any isSong/isDans branching, so
-// the dummy false/false args below don't affect this particular check.
+// A scene is a dance-split candidate if any cast member is dance-classified
+// (Dans or Koreograf, per isDanceCastRole above — so a scene with only
+// credited dancers and no separate choreographer still qualifies) rather
+// than checking scene.types for 'dans', since nothing in this file's own
+// save path (manusRowScene()) ever adds 'dans' to a scene's types.
 function isDanceSplitCandidate(scene) {
-  return (scene.cast || []).some(c => classifyOrKeep(c.role, false, false) === 'Koreograf');
+  return (scene.cast || []).some(isDanceCastRole);
 }
 
 // Returns [mainPart, dancePart], or null if the scene doesn't qualify. Unlike
@@ -152,7 +158,7 @@ function splitDanceScene(scene) {
   const mainCast = [];
   const danceCast = [];
   for (const c of scene.cast) {
-    (isDanceCastRole(c.role) ? danceCast : mainCast).push(c);
+    (isDanceCastRole(c) ? danceCast : mainCast).push(c);
   }
   const danceId = scene.id + DANCE_SPLIT_SUFFIX;
   const mainPart = { ...scene, cast: mainCast };
