@@ -175,7 +175,9 @@ const SCENES_DATA = [
         "roleCode": "YDI",
         "description": "Koreograf, danser og instruktør",
         "tags": [
-          "Instruktør"
+          "Instruktør",
+          "Koreograf",
+          "Dans"
         ]
       },
       {
