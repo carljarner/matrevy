@@ -384,10 +384,12 @@ a.manus-pdf-title:focus-visible {
    inline per render — see renderActColumnsGrid() — so it always matches
    however many acts there are, 4 for the fixed skeleton); Rollefordeling
    and Manus reuse the exact same grid for their own act columns. Stjerneark
-   also reuses it but passes an explicit 2-column override, so its wider
-   per-scene rows (priority circles + repeat toggle) wrap Akt1/Akt2 onto a
-   first row and Akt3/Ekstranumre onto a second instead of squeezing four
-   across.
+   also reuses it but passes an explicit 3-column override, so its wider
+   per-scene rows (priority circles + repeat toggle) don't squeeze four
+   across — Akt1 and Akt2 each get their own column, and Akt3/Ekstranumre
+   stack into the third (an explicit inline grid-column per column in
+   renderActColumnsGrid(), not grid's default row-major wrap, keeps
+   Ekstranumre under Akt3 specifically rather than back under column 1).
    .manus-kanban-pool-section is Aktfordeling-only: "Ikke placeret" as a
    full-width row below the acts, its own grid using the same column
    template so widths line up, filled row-wise (CSS grid's default
@@ -410,6 +412,36 @@ a.manus-pdf-title:focus-visible {
   flex-direction: column;
   min-width: 0;
   padding: 0.4rem 0.4rem 1.65rem;
+}
+
+/* Wraps multiple acts sharing one grid column (Stjerneark's 3-column
+   override — see renderActColumnsGrid() in manus.js) so they stack flush
+   against each other, sized to their own content rather than matching a
+   CSS grid row's height (which would track the tallest sibling column).
+   The padding that normally surrounds a .manus-kanban-col (top, and its
+   tall drop-zone-height bottom — see above) and its list's own bottom
+   breathing room are stripped from whichever side faces another act in the
+   same stack; the stack's own `gap` (matching .manus-kanban-col-list's
+   own inter-card gap) then supplies the *only* spacing at that seam, so the
+   next act's header reads as just the next entry in one continuous list —
+   same rhythm as any other pair of adjacent scenes, not a bigger break.
+   Only the stack's outer edges (the first column's top, the last column's
+   bottom) keep the normal padding, so the stack's overall top/bottom still
+   match its non-stacked sibling columns. */
+.manus-kanban-col-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.manus-kanban-col-stack .manus-kanban-col:not(:last-child) {
+  padding-bottom: 0;
+}
+.manus-kanban-col-stack .manus-kanban-col:not(:last-child) .manus-kanban-col-list {
+  padding-bottom: 0;
+}
+.manus-kanban-col-stack .manus-kanban-col:not(:first-child) {
+  padding-top: 0;
 }
 
 .manus-kanban-col-header {

@@ -1346,15 +1346,48 @@ function renderSelectTab() {
   mount.appendChild(columns);
 }
 
+// Builds one act's header+body block (unstyled position — the caller places
+// it into the grid or a stack wrapper, see renderActColumnsGrid below).
+function buildActColumn(act, buildColumnBody) {
+  const col = document.createElement('div');
+  col.className = 'manus-kanban-col';
+
+  const header = document.createElement('div');
+  header.className = 'manus-kanban-col-header';
+  const label = document.createElement('span');
+  label.className = 'manus-akt-label';
+  label.textContent = act.label;
+  header.appendChild(label);
+  const rowsInAct = manusDraftRowsForLane(act.code);
+  const count = document.createElement('span');
+  count.className = 'manus-akt-count';
+  count.textContent = `${rowsInAct.length} scener`;
+  header.appendChild(count);
+  col.appendChild(header);
+
+  const body = document.createElement('div');
+  body.className = 'manus-kanban-col-list';
+  buildColumnBody(body, act, rowsInAct, col);
+  col.appendChild(body);
+
+  return col;
+}
+
 // ── Shared: one column per act, laid out in a row of N equal columns ──
 // (N = manusDraft.acts.length, 4 for the fixed Akt1/2/3/Ekstranumre
 // skeleton) — used by Aktfordeling's act row and, unchanged otherwise, by
 // Rollefordeling/Manus below so those three tabs read as the same grid.
-// Stjerneark alone passes an explicit `columns` override (2) so it wraps
-// Akt1/Akt2 onto a first row and Akt3/Ekstranumre onto a second — that tab's
-// rows are wide (priority circles + repeat toggle alongside the title), so
-// four side-by-side columns read as cramped there in a way the other tabs'
-// plainer rows don't.
+// Stjerneark alone passes an explicit `columns` override (3) so it wraps —
+// that tab's rows are wide (priority circles + repeat toggle alongside the
+// title), so four side-by-side columns read as cramped there in a way the
+// other tabs' plainer rows don't. Any act beyond the first `columns - 1`
+// stacks into that *last* column — for the fixed 4-act skeleton at 3
+// columns that means Akt3 and Ekstranumre both land in column 3. That stack
+// is its own flex column (`.manus-kanban-col-stack`), not a second CSS grid
+// row: a real second grid row would size to the *tallest* column in that
+// row (i.e. however long Akt1/Akt2 happen to be), leaving a large gap
+// between Akt3's last card and Ekstranumre's header — a flex wrapper sizes
+// Ekstranumre flush against Akt3 regardless of its siblings' height.
 // buildColumnBody(bodyEl, act, rowsInAct, colEl) fills each column's body;
 // whatever it doesn't wire up (drag-and-drop, in Aktfordeling's case) simply
 // isn't there for the other tabs. colEl (header+body together) is handed
@@ -1365,30 +1398,25 @@ function renderActColumnsGrid(buildColumnBody, columns = manusDraft.acts.length)
   grid.className = 'manus-kanban';
   grid.style.gridTemplateColumns = `repeat(${columns}, minmax(220px, 1fr))`;
 
-  for (const act of manusDraft.acts) {
-    const col = document.createElement('div');
-    col.className = 'manus-kanban-col';
+  const groups = Array.from({ length: columns }, () => []);
+  manusDraft.acts.forEach((act, idx) => {
+    groups[Math.min(idx, columns - 1)].push(act);
+  });
 
-    const header = document.createElement('div');
-    header.className = 'manus-kanban-col-header';
-    const label = document.createElement('span');
-    label.className = 'manus-akt-label';
-    label.textContent = act.label;
-    header.appendChild(label);
-    const rowsInAct = manusDraftRowsForLane(act.code);
-    const count = document.createElement('span');
-    count.className = 'manus-akt-count';
-    count.textContent = `${rowsInAct.length} scener`;
-    header.appendChild(count);
-    col.appendChild(header);
-
-    const body = document.createElement('div');
-    body.className = 'manus-kanban-col-list';
-    buildColumnBody(body, act, rowsInAct, col);
-    col.appendChild(body);
-
-    grid.appendChild(col);
-  }
+  groups.forEach((group, colIdx) => {
+    if (group.length < 2) {
+      if (!group.length) return;
+      const col = buildActColumn(group[0], buildColumnBody);
+      col.style.gridColumn = String(colIdx + 1);
+      grid.appendChild(col);
+      return;
+    }
+    const stack = document.createElement('div');
+    stack.className = 'manus-kanban-col-stack';
+    stack.style.gridColumn = String(colIdx + 1);
+    for (const act of group) stack.appendChild(buildActColumn(act, buildColumnBody));
+    grid.appendChild(stack);
+  });
 
   return grid;
 }
@@ -1819,7 +1847,7 @@ function renderStjerneArkTab() {
       const entries = split || [scene];
       for (const entry of entries) body.appendChild(renderStarRow(row, entry));
     });
-  }, 2));
+  }, 3));
 }
 
 // ── Tab bar + section chrome ───────────────────────────────────
