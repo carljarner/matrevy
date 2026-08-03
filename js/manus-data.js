@@ -8,16 +8,20 @@
    two, so a successful save also sets an in-memory shadow here for
    instant same-tab feedback, mirrored into localStorage (via
    site-utils.js's siteSaveOverride, resource 'manus', same TTL/shape
-   as the calendar/posts/archive overrides) purely so a *freshly
-   loaded* Øveplan session — nothing built on the grid yet, see
-   schedule.js's loadManusOverride()/loadScenes() — can start from it
-   too, without waiting on the GitHub Action. This file's own reads
-   (getEffectiveScenesData/getEffectiveCastData) deliberately stay
-   in-memory-only, unaffected by that persistence.
-   Loaded only by manus.html now — Øveplan (schedule.js) reads the
-   same localStorage key directly (it doesn't load this file or
-   site-utils.js, to keep working over file://) but is otherwise a
-   read-only consumer of the plain embedded globals.
+   as the calendar/posts/archive overrides). getEffectiveScenesData/
+   getEffectiveCastData check the in-memory shadow first (this tab's
+   own most recent save, if any) and fall back to the persisted one
+   (siteLoadOverride) so navigating back to manus.html — a fresh page
+   load, in-memory shadow gone — still reflects a still-fresh save
+   instead of the stale embedded data, exactly like reopening any
+   other data-driven page. Øveplan (schedule.js) reads the same
+   localStorage key directly (it doesn't load this file or
+   site-utils.js, to keep working over file://) — see its
+   loadManusOverride()/loadScenes() for why it additionally never
+   consults it once a grid has real placements, a constraint that
+   doesn't apply here since manus.js has no equivalent "already placed
+   and referenced by id" state that a fresher override could orphan.
+   Loaded only by manus.html.
    ========================================================= */
 
 'use strict';
@@ -29,10 +33,16 @@ function setManusSavedOverride(data) {
   siteSaveOverride('manus', data);
 }
 
+function getManusOverride() {
+  return manusSavedOverride || siteLoadOverride('manus');
+}
+
 function getEffectiveScenesData() {
-  return manusSavedOverride ? manusSavedOverride.scenes : SCENES_DATA;
+  const override = getManusOverride();
+  return override ? override.scenes : SCENES_DATA;
 }
 
 function getEffectiveCastData() {
-  return manusSavedOverride ? manusSavedOverride.cast : CAST_DATA;
+  const override = getManusOverride();
+  return override ? override.cast : CAST_DATA;
 }
