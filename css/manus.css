@@ -383,7 +383,11 @@ a.manus-pdf-title:focus-visible {
    .manus-kanban is a CSS grid with one column per act (column count set
    inline per render — see renderActColumnsGrid() — so it always matches
    however many acts there are, 4 for the fixed skeleton); Rollefordeling
-   and Stjerneark reuse the exact same grid for their own act columns.
+   and Manus reuse the exact same grid for their own act columns. Stjerneark
+   also reuses it but passes an explicit 2-column override, so its wider
+   per-scene rows (priority circles + repeat toggle) wrap Akt1/Akt2 onto a
+   first row and Akt3/Ekstranumre onto a second instead of squeezing four
+   across.
    .manus-kanban-pool-section is Aktfordeling-only: "Ikke placeret" as a
    full-width row below the acts, its own grid using the same column
    template so widths line up, filled row-wise (CSS grid's default
@@ -396,14 +400,16 @@ a.manus-pdf-title:focus-visible {
    builder. */
 .manus-kanban {
   display: grid;
-  align-items: start;
   gap: 1rem;
   overflow-x: auto;
   padding-bottom: 0.5rem;
 }
 
 .manus-kanban-col {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  padding: 0.4rem 0.4rem 1.65rem;
 }
 
 .manus-kanban-col-header {
@@ -427,6 +433,7 @@ a.manus-pdf-title:focus-visible {
 
 .manus-kanban-col-list {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.5rem 0 0.25rem;
@@ -434,7 +441,7 @@ a.manus-pdf-title:focus-visible {
 }
 
 .manus-kanban-pool-section {
-  margin-top: 1.25rem;
+  margin-top: 0;
 }
 
 .manus-kanban-pool-section .manus-kanban-col-header {
@@ -695,6 +702,20 @@ a.manus-pdf-title:focus-visible {
   align-items: center;
   gap: 0.3rem;
   margin-left: auto;
+}
+
+/* The dance half's row title is replaced entirely by this short badge (see
+   renderStarRow() in manus.js) rather than repeating the scene name a
+   second time right under its main half. */
+.manus-star-dans-label {
+  padding-left: 1rem;
+  flex: none;
+}
+
+.manus-star-dans-arrow {
+  display: inline-block;
+  position: relative;
+  top: calc(-0.45em + 3px);
 }
 
 /* Priority (0-3): four always-visible circles, grey until the active one

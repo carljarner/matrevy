@@ -29,8 +29,11 @@
       in (manusSubmissionIsSelected()) — there's no separate persisted
       selected flag, the folder itself is the record. A selected count
       replaces the old "(total)" in each column's header. Aktfordeling/Rollefordeling/
-      Stjerneark all share one act-columns grid (renderActColumnsGrid(),
-      N columns = manusDraft.acts.length, 4 for the fixed skeleton) —
+      Manus/Stjerneark all share one act-columns grid (renderActColumnsGrid(),
+      N columns = manusDraft.acts.length, 4 for the fixed skeleton, one row —
+      Stjerneark alone passes an explicit 2-column override so its wider
+      rows wrap Akt1/Akt2 onto a first row and Akt3/Ekstranumre onto a
+      second) —
       Aktfordeling additionally renders "Ikke placeret" as its own
       full-width row below the acts (same column grid, filled row-wise,
       selected-but-unplaced pool rows only), and its drag-and-drop makes
@@ -1346,16 +1349,21 @@ function renderSelectTab() {
 // ── Shared: one column per act, laid out in a row of N equal columns ──
 // (N = manusDraft.acts.length, 4 for the fixed Akt1/2/3/Ekstranumre
 // skeleton) — used by Aktfordeling's act row and, unchanged otherwise, by
-// Rollefordeling/Stjerneark below so all three tabs read as the same grid.
+// Rollefordeling/Manus below so those three tabs read as the same grid.
+// Stjerneark alone passes an explicit `columns` override (2) so it wraps
+// Akt1/Akt2 onto a first row and Akt3/Ekstranumre onto a second — that tab's
+// rows are wide (priority circles + repeat toggle alongside the title), so
+// four side-by-side columns read as cramped there in a way the other tabs'
+// plainer rows don't.
 // buildColumnBody(bodyEl, act, rowsInAct, colEl) fills each column's body;
 // whatever it doesn't wire up (drag-and-drop, in Aktfordeling's case) simply
-// isn't there for the other two tabs. colEl (header+body together) is handed
+// isn't there for the other tabs. colEl (header+body together) is handed
 // through so Aktfordeling can make the *whole* column a drop target, not
 // just the body's own strip — see wireLaneDropZone().
-function renderActColumnsGrid(buildColumnBody) {
+function renderActColumnsGrid(buildColumnBody, columns = manusDraft.acts.length) {
   const grid = document.createElement('div');
   grid.className = 'manus-kanban';
-  grid.style.gridTemplateColumns = `repeat(${manusDraft.acts.length}, minmax(220px, 1fr))`;
+  grid.style.gridTemplateColumns = `repeat(${columns}, minmax(220px, 1fr))`;
 
   for (const act of manusDraft.acts) {
     const col = document.createElement('div');
@@ -1717,6 +1725,12 @@ function renderManusTextTab() {
 // row.priority/row.dansPriority exactly).
 const MANUS_PRIO_VALUES = [0, 1, 2, 3];
 
+// The dance half's own row sits directly under its main half (same `row`,
+// same forEach iteration in renderStjerneArkTab below) so repeating the full
+// scene name there is redundant — and with a long title, the " (Dans)" suffix
+// that used to carry entry.name was the first thing ellipsis truncation ate,
+// making the row look identical to its main half. A short, always-visible
+// "↳ Dans" badge up front replaces the name entirely for that row instead.
 function renderStarRow(row, entry) {
   const isDanceHalf = entry.id.endsWith(DANCE_SPLIT_SUFFIX);
   const el = document.createElement('div');
@@ -1724,7 +1738,16 @@ function renderStarRow(row, entry) {
 
   const name = document.createElement('span');
   name.className = 'manus-akt-row-title';
-  name.textContent = entry.name;
+  if (isDanceHalf) {
+    name.classList.add('manus-star-dans-label');
+    const arrow = document.createElement('span');
+    arrow.className = 'manus-star-dans-arrow';
+    arrow.textContent = '↳';
+    name.appendChild(arrow);
+    name.appendChild(document.createTextNode(' Dans'));
+  } else {
+    name.textContent = entry.name;
+  }
   el.appendChild(name);
 
   const controls = document.createElement('div');
@@ -1796,7 +1819,7 @@ function renderStjerneArkTab() {
       const entries = split || [scene];
       for (const entry of entries) body.appendChild(renderStarRow(row, entry));
     });
-  }));
+  }, 2));
 }
 
 // ── Tab bar + section chrome ───────────────────────────────────
@@ -1807,7 +1830,9 @@ const MANUS_MAIN_TABS = [
   { key: 'manus', label: 'Manus', render: renderManusTextTab },
   { key: 'stjerneark', label: 'Stjerneark', render: renderStjerneArkTab },
 ];
-let manusActiveTab = 'select';
+const MANUS_ACTIVE_TAB_KEY = 'matrevy-manus-tab';
+const manusStoredTab = localStorage.getItem(MANUS_ACTIVE_TAB_KEY);
+let manusActiveTab = MANUS_MAIN_TABS.some(t => t.key === manusStoredTab) ? manusStoredTab : 'select';
 
 function renderTabBar() {
   const mount = document.getElementById('manus-tab-bar');
@@ -1819,6 +1844,7 @@ function renderTabBar() {
     btn.textContent = tab.label;
     btn.addEventListener('click', () => {
       manusActiveTab = tab.key;
+      localStorage.setItem(MANUS_ACTIVE_TAB_KEY, manusActiveTab);
       renderTabBar();
       renderActiveTabPanel();
     });
