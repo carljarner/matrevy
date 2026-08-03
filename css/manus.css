@@ -529,36 +529,159 @@ a.manus-pdf-title:focus-visible {
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
-.manus-role-cast-list {
+/* Rollefordeling's overlay edits the scene's \begin{roles} block as raw
+   LaTeX (a .manus-role-tags-summary + a .manus-script-textarea, the latter
+   shared with the Manus tab below — see openRoleSceneModal() in manus.js)
+   rather than a per-field form, so it only needs a touch more width than
+   the shared .edit-modal chrome (480px) for the textarea to breathe. */
+.manus-role-modal {
+  width: min(560px, 94vw);
+}
+
+/* --- Rollefordeling's editable roles+tags summary (renderRoleTagLine() in
+   manus.js) — one role per line: "<code> : <name>" on the left, its type
+   tags flowing on the right (space-between), each tag a small pill with its
+   own ✕, plus a "+" that opens the shared siteOpenDropdownPicker() popup
+   (site-utils.js/style.css's .site-dd-pop/.site-list-row — already warm-
+   accent on hover) listing the remaining ROLE_CATEGORIES. No description
+   here — that's only ever edited via the LaTeX textarea below. */
+.manus-role-tags-summary {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  margin: 0.5rem 0 0.4rem;
+  gap: 0.05rem;
+  margin-bottom: 0.85rem;
 }
 
-.manus-role-cast-row {
+.manus-role-tag-row {
   display: flex;
-  gap: 0.4rem;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.1rem 0;
+  font-size: 0.85rem;
+  line-height: 1.3;
 }
 
-.manus-role-cast-code { width: 120px; flex-shrink: 0; }
-.manus-role-cast-name { flex: 1; }
+.manus-role-tag-codename {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-.manus-role-cast-row input,
-.manus-role-cast-row select {
-  font-family: inherit;
-  font-size: 0.85rem;
-  padding: 0.3rem 0.45rem;
-  border: 1px solid var(--border);
+/* Fixed width (regardless of how many characters the code itself is, e.g.
+   "I" vs "D1" vs "YD") so the " : name" that follows always starts at the
+   same x position across every line — the aligned-colon look. */
+.manus-role-tag-codename code {
+  display: inline-block;
+  min-width: 2.3rem;
+  text-align: center;
+  background: var(--surface-2);
   border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.82rem;
+}
+
+.manus-role-tags {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.manus-role-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  border-radius: 999px;
+  padding: 0.1rem 0.35rem 0.1rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.manus-role-tag-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+@media (hover: hover) {
+  .manus-role-tag-remove:hover { opacity: 1; }
+}
+
+.manus-role-tag-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  border: 1px dashed var(--border);
+  background: none;
+  color: #57606a;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .manus-role-tag-add:hover { border-color: var(--accent-warm); color: var(--accent-warm-text); }
+}
+
+/* --- Tab: Manus (script text) --------------------------------
+   .manus-script-modal widens the shared .edit-modal chrome (480px) 50%
+   (720px) — this overlay's real content (a roles reference list + a
+   multi-line LaTeX textarea) needs more room than a typical short edit
+   form. The roles reference above the textarea (renderRoleSummaryList() in
+   manus.js) reuses Rollefordeling's .manus-role-tags-summary/-tag-row/
+   -tag-codename row styling for the same tight one-line-per-role rhythm,
+   swapping in .manus-role-tag-description (below) where Rollefordeling
+   shows editable tag chips — description is the useful context here for
+   actually writing the scene, tags aren't; this list stays plain read-only
+   text either way. The textarea itself is plain monospace, since the
+   content is genuinely LaTeX source, not prose. */
+.manus-script-modal {
+  width: min(720px, 94vw);
+}
+
+.manus-script-roles-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #57606a;
+  margin-bottom: 0.35rem;
+}
+
+.manus-role-tag-description {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #57606a;
+  font-size: 0.82rem;
+}
+
+.manus-script-textarea {
+  width: 100%;
+  min-height: 16rem;
+  padding: 0.6rem 0.7rem;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: var(--input-bg);
   color: var(--text);
-}
-
-.manus-role-add-cast-btn {
-  font-size: 0.8rem;
-  padding: 0.3rem 0.65rem;
+  resize: vertical;
 }
 
 /* --- Tab: Stjerneark -----------------------------------------

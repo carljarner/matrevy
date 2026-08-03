@@ -147,7 +147,9 @@ upload `.tex`/`.pdf` into a standing pool → boss votes/selects from that pool 
 this year's act structure → boss assigns cast/roles (reusing Øveplan's existing "Rediger
 Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
 
-**Sub-phases** (session order 4.1 → 4.2 → 4.3 → 4.4 → 4.5, each its own session):
+**Sub-phases** (session order 4.1 → 4.2 → 4.3 → 4.4, each its own session; a planned separate
+4.5 "full manuscript assembly" ended up folded into 4.4 once it was actually scoped — see
+4.4's own note):
 - **4.1 — Upload** — [x] done 2026-08-01. `data/manuscripts.json` (new resource, embedded
   as `MANUSCRIPTS_DATA`): any revyst+ submits a sketch/song (Titel/Afsender/`.pdf`/`.tex`)
   via a new revyst-level append-only `manuscripts_create` server action (mirrors
@@ -173,8 +175,8 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   PDFs the user shared show it and it's no longer auto-derivable). Saving reuses the
   *existing* boss-level `manus` resource (`{scenes, cast}`) — no new server-side
   scenes.json validator was needed, since `save_manus()` never validated per-scene shape.
-  A `sourcePdf`/`sourceTex` pointer is carried onto each pool-originated scene so a future
-  4.5 compile phase can find its `.tex`. Once `scenes.json` has any content, the pool
+  A `sourcePdf`/`sourceTex` pointer is carried onto each pool-originated scene so the later
+  4.4 compile phase can find its `.tex`. Once `scenes.json` has any content, the pool
   columns become closed-by-default toggle sections and a read-only "Dette års manus" act
   list renders below. **"Intast point"** (voting results entry) was a stub button here —
   removed 2026-08-02, since voting/point entry will be handled outside the website
@@ -239,20 +241,68 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   `schedule.js`'s own sidebar into Manus's boss view — Stjerneark's priority is a
   different, persisted concept (see above), not a replacement for Øveplan's own
   per-rehearsal-day selector.
-- **4.4 — `.tex` → PDF compilation & printing**: Aktoversigt/Rolleoversigt/per-person
-  manuscript PDFs (the user shared 2025's real `Aktoversigt.pdf`/`Rolleoversigt.pdf` as
-  reference — an act-numbered scene list with duration, and a scene-by-cast role matrix,
-  respectively). **Blocked on the user sharing the LaTeX/PDF-generation repo** they
-  previously used — need real package/class dependencies before picking an engine
-  (tectonic vs. a full texlive image) and deciding whether this reuses a GitHub Action
-  (like `embed-scenes.yml`) or renders client-side.
-- **4.5 — Full manuscript assembly**: combine the season's selected/laid-out scenes into
-  one `manus.tex` → `manus.pdf`, feeding Arkiv's existing `manusPdf` slot once the season
-  is archived.
+- **4.4 — `.tex` → PDF compilation & printing**: Aktoversigt/Rolleoversigt/Manuskript PDFs
+  (the user shared 2025's real `Aktoversigt.pdf`/`Rolleoversigt.pdf`/`Manuskript.pdf` as
+  reference, plus the original toolchain's lineage — `matrevy/matrevy.dk` → the actual
+  generator, `matrevy/RevyTeX` — which unblocked this). Landed as `scripts/generate-pdfs.js`,
+  a manually-run Node script (see CLAUDE.md's Manus section for the full breakdown) reusing
+  the repo's already-vendored `manus/revy.sty` for typesetting, plain JS reimplementations of
+  RevyTeX's `acts.pl`/`roles.pl` for the two data reports, and `pdf-lib` (the repo's first npm
+  dependency, scoped to this one dev-only script) to merge per-scene PDFs into Manuskript —
+  which folds in what would have been a separate 4.5 ("full manuscript assembly"), so that
+  phase is retired as covered rather than tracked separately. A new Main Manus View tab,
+  **Manus** (5th tab, between Rollefordeling and Stjerneark), added the actual per-scene
+  script-text editing (`scriptBody`) — `data/scenes.json` stays the sole source of truth
+  throughout; the generator only ever reads it and writes disposable `.tex`/build output, never
+  back into `archive/<folder>/`'s stored `.tex` sources (a deliberate choice over
+  round-tripping into GitHub `.tex` files, discussed and rejected earlier in the same session
+  for its corruption risk on hand-authored LaTeX). A first version of the Manus tab's overlay
+  also had a small per-scene metadata form (`status`/`melody`/`writtenBy`/`sourceProduction`/
+  `sourceYear`); cut same-session as too much clutter — those `scenes.json` fields and
+  `generate-pdfs.js`'s support for them are untouched, just nothing in the UI sets them anymore.
+  Several same-session follow-ups closed real gaps rather than adding scope for its own sake:
+  (1) auto-import (`manusImportFromTex()`) was broadened from "only a freshly-dragged pool row"
+  to *every* row shown in the Manus **or** Rollefordeling tab, backfilling `scriptBody` and/or
+  `row.cast` from whatever `.tex` is already uploaded; (2) each cast entry grew a
+  `roleCode`/`description` pair (imported straight from the `.tex`'s own `\role{<code>}[<name>]
+  <description>` line) — this was the exact "free-text per-cast-row role description" gap this
+  phase originally deferred, and it mattered more than expected: without a real `roleCode`, the
+  compiled `.tex`'s `\role{}` codes couldn't have matched an auto-imported `scriptBody`'s own
+  pre-existing `\says{}`/`\sings{}` calls, which reference the *real* per-scene codes (`S1`,
+  `D2`, ...), not an invented category+ordinal label; (3) Rollefordeling's cast editor itself
+  was then reworked a second time, from a Kode/Navn/Beskrivelse/Type per-row form to editing the
+  `\begin{roles}` block directly as LaTeX text in a textarea, updated only on an explicit
+  "Opdater roller" click — mirroring the Manus tab's own "it's genuinely LaTeX, edit it as
+  LaTeX" philosophy; (4) that summary was reworked a third time — one role per line
+  (`<code> : <name>`, description dropped from the summary entirely, still only ever edited via
+  the textarea) with the classification redone as **addable/removable tag chips**
+  (`row.cast[i].tags: string[]`, replacing the earlier single `code` field) rather than a
+  dropdown, since a role can genuinely be more than one thing at once (e.g. both "Dans" and
+  "Koreograf"). Tags are edited directly and immediately in the summary (unlike code/name/
+  description, which only change on "Opdater roller"), so that handler has to carry a
+  `roleCode`'s existing tags forward by matching against the previous `row.cast` — otherwise
+  every re-parse would silently wipe any tag added since the last click. `role` (what
+  `schedule.js` classifies against everywhere else) is derived as `tags[0] || ''` at save time,
+  never omitted as a key (an absent `role` would throw inside `schedule.js`'s own
+  `classifyRoleCode()`, which calls `.trim()` on it unconditionally). Once every `row.cast` entry
+  started always carrying a real `roleCode` by construction (the only way to create one is by
+  parsing a `\role{<code>}[...]` line), the earlier fallback-label scheme
+  (`castRoleLabels()`/`sceneCastLabels()`) became dead code in `manus.js` specifically and was
+  removed there — it stays in `scripts/generate-pdfs.js` as a defensive net against legacy/
+  hand-edited `scenes.json` cast entries with no `roleCode`.
+  **Still deliberately deferred**: CI/GitHub Action compilation (would need a LaTeX
+  distribution installed in Actions — the script is manual-only for now); an in-browser
+  "Generér PDF'er" button (Simply.com's PHP host has no LaTeX/Perl, so this would need a
+  separate compile service); pixel-exact fidelity to the original's tab-sidebar/bookmark
+  styling in Manuskript.
 
 **Status**: 4.1 + 4.2 + 4.3 done 2026-08-01 (needs the usual manual `update-data.php`
-re-upload to Simply.com before live on `matematikrevy.dk`). 4.4/4.5 need the user's LaTeX
-repo before they can be scoped.
+re-upload to Simply.com before live on `matematikrevy.dk`). 4.4 done 2026-08-03 — **not yet
+verified end-to-end**: this dev environment has no local `pdflatex`, so only the pure
+`.tex`-generation logic and the `pdf-lib` merge step were smoke-tested (dummy PDFs, no real
+LaTeX compile). Next step on a machine with a TeX Live/MacTeX install: run
+`node scripts/generate-pdfs.js` against real production data and check the output against the
+reference PDFs.
 
 ---
 

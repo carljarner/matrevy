@@ -18,8 +18,8 @@
       the whole Main Manus View below is boss/admin only.
 
    2. Main Manus View (boss/admin only): a tabbed section below the pool
-      — Vælg scener / Aktfordeling / Rollefordeling / Stjerneark, styled
-      as folder tabs filling the section's top row evenly — all four
+      — Vælg scener / Aktfordeling / Rollefordeling / Manus / Stjerneark,
+      styled as folder tabs filling the section's top row evenly — all five
       sharing one flat draft-state row list (manusDraft, built by
       manusInitDraft() from the CURRENT data/scenes.json + not-yet-used
       pool submissions). Vælg scener is a click-to-select row (no
@@ -41,11 +41,25 @@
       visible highlight box on the column itself while dragging over it
       (only a placed card still gets one, for precise "insert before this
       card" feedback), just the underlying drop-target class toggling with
-      no CSS attached; Rollefordeling assigns
-      cast per already-placed scene via a scene *button* that opens an
-      overlay (Øveplan-style — openRoleSceneModal(), ROLE_CATEGORIES/
+      no CSS attached; Rollefordeling and Manus both assign a scene's cast/
+      script by opening an overlay from a scene *button* (Øveplan-style —
+      openRoleSceneModal()/openScriptSceneModal(), ROLE_CATEGORIES/
       classifyRoleCode/classifyOrKeep duplicated from import.js — manus.html
-      doesn't load it); Stjerneark sets a 0-3 priority per scene, splitting a
+      doesn't load it), and both edit their content as raw LaTeX text rather
+      than a structured form: Rollefordeling's overlay is a read-only roles
+      summary (renderRoleSummaryList(), shared by both tabs) over a textarea
+      seeded from formatRolesText(row.cast) — editing is entirely textual
+      (the scene's \role{<code>}[<name>] <description> lines) until
+      "Opdater roller" is clicked, which re-parses the textarea
+      (parseRolesText()) back into row.cast, classifying each roleCode via
+      classifyOrKeep() for the (no-longer-manually-editable) category; Manus
+      reuses the same pattern for the scene's actual script body
+      (row.scriptBody) — live-bound there, no separate save step, since it's
+      the only field in that overlay. Both row.scriptBody and row.cast
+      auto-import once from an already-uploaded .tex, fetched straight from
+      the public repo (manusImportFromTex(), triggered from either tab's
+      render loop, for every row shown — not just freshly-placed ones);
+      Stjerneark sets a 0-3 priority per scene, splitting a
       dance-combined scene into two independent rows exactly like
       Øveplan does (splitDanceScene()/applyDanceSplits-style helpers
       duplicated from schedule.js). One shared "Gem" (manusSaveMain())
@@ -70,6 +84,11 @@
 const MANUS_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MANUS_TYPES = ['sang', 'sketch'];
 const MANUS_TYPE_COLUMN_LABEL = { sketch: 'Sketches', sang: 'Sange' };
+
+// Public-repo raw base for the .tex auto-import below (see
+// manusImportFromTex()) — the repo has no auth needs for a read of its own
+// public content, so a plain fetch() needs no server round-trip.
+const MANUS_TEX_RAW_BASE = 'https://raw.githubusercontent.com/carljarner/matrevy/main/';
 
 // ── Duplicated from import.js/schedule.js ───────────────────────
 // manus.html doesn't load either script, and this file already reimplements
@@ -665,11 +684,22 @@ function manusInitDraft() {
       scene: s,
       selected: true,
       duration: s.duration != null ? s.duration : null,
-      cast: (s.cast || []).map(c => ({ code: classifyOrKeep(c.role, isSong, isDans), name: c.name })),
+      cast: (s.cast || []).map(c => ({
+        name: c.name,
+        roleCode: c.roleCode || '',
+        description: c.description || '',
+        tags: Array.isArray(c.tags) && c.tags.length ? c.tags.slice() : (c.role ? [classifyOrKeep(c.role, isSong, isDans)] : []),
+      })),
       priority: s.priority || 0,
       dansPriority: isDanceSplitCandidate(s) ? (s.dansPriority != null ? s.dansPriority : 0) : null,
       repeat: !!s.repeat,
       dansRepeat: isDanceSplitCandidate(s) ? !!s.dansRepeat : null,
+      scriptBody: s.scriptBody || '',
+      status: s.status || '',
+      melody: s.melody || '',
+      writtenBy: s.writtenBy || '',
+      sourceProduction: s.sourceProduction || '',
+      sourceYear: s.sourceYear || '',
     });
   }
   const pool = getEffectiveManuscripts()
@@ -689,6 +719,12 @@ function manusInitDraft() {
       dansPriority: null,
       repeat: false,
       dansRepeat: null,
+      scriptBody: '',
+      status: '',
+      melody: '',
+      writtenBy: '',
+      sourceProduction: '',
+      sourceYear: '',
     });
   }
   return { acts, rows };
@@ -715,6 +751,280 @@ function manusSetRowSelected(key, selected) {
   if (!row) return;
   row.selected = selected;
   if (!selected && row.lane !== 'pool') row.lane = 'pool';
+}
+
+function manusRowIsDans(row) {
+  return row.origin === 'existing' && Array.isArray(row.scene.types) && row.scene.types.includes('dans');
+}
+
+// A row's .tex source, regardless of origin — the one thing manusMoveRow's
+// old, narrower "pool row just got placed" hook and the current tab-wide
+// auto-import (see renderManusTextTab()) both need to resolve.
+function manusRowTexPath(row) {
+  return row.origin === 'existing' ? (row.scene && row.scene.sourceTex) : (row.submission && row.submission.texPath);
+}
+
+// Extracts the raw body text between \begin{sketch}/\begin{song} and its
+// matching \end{...} — the same environment-scoping idea import.js already
+// uses for \begin{roles}, just targeting the actual dialogue/lyrics content
+// instead. Used only by the auto-import below.
+function extractTexScriptBody(texText) {
+  const m = texText.match(/\\begin\{(sketch|song)\}([\s\S]*?)\\end\{\1\}/);
+  return m ? m[2].trim() : '';
+}
+
+// Extracts the raw inner text of the file's \begin{roles}...\end{roles}
+// block (the \role{}[] lines themselves, no wrapper) — this is what
+// Rollefordeling's LaTeX textarea shows/edits (see openRoleSceneModal()
+// below), the same "store the body, not the wrapper" convention
+// extractTexScriptBody() uses for \begin{sketch}/\begin{song}.
+function extractTexRolesBlockText(texText) {
+  const m = texText.match(/\\begin\{roles\}([\s\S]*?)\\end\{roles\}/);
+  return m ? m[1].trim() : '';
+}
+
+// Parses every \role{<code>}[<name>] <description> line out of a roles-block
+// text (the same text extractTexRolesBlockText() returns, or whatever's
+// currently typed into Rollefordeling's textarea) — <name> and the trailing
+// description are both optional in real .tex source (an uncast role has no
+// bracket). The description capture deliberately allows backslashes
+// (`[^\n]*`, not `[^\n\\]*`) since real descriptions often contain inline
+// LaTeX like `$\chi$` — every \role{} line in this dialect starts on its own
+// line, so stopping only at the newline is enough to not run into the next
+// \role{}.
+function parseRolesText(rolesText) {
+  const results = [];
+  const re = /\\role\{([^}]*)\}(?:\[([^\]]*)\])?([^\n]*)/g;
+  let m;
+  while ((m = re.exec(rolesText))) {
+    const roleCode = m[1].trim();
+    if (!roleCode) continue;
+    results.push({ roleCode, name: (m[2] || '').trim(), description: (m[3] || '').trim() });
+  }
+  return results;
+}
+
+function extractTexRoles(texText) {
+  return parseRolesText(extractTexRolesBlockText(texText));
+}
+
+// The inverse of parseRolesText() — reconstructs \role{}[] lines from
+// row.cast, used to seed Rollefordeling's textarea with whatever's currently
+// stored (from a prior "Opdater roller" click, or an auto-import) each time
+// the modal opens.
+function formatRolesText(cast) {
+  return cast
+    .filter(c => c.name && c.name.trim())
+    .map(c => {
+      const code = (c.roleCode || '').trim();
+      const desc = (c.description || '').trim();
+      return `\\role{${code}}[${c.name.trim()}]${desc ? ' ' + desc : ''}`;
+    })
+    .join('\n');
+}
+
+// Manus tab's read-only "which codes exist" reference (see
+// openScriptSceneModal()) — every entry always has a real roleCode by this
+// point (parseRolesText()/extractTexRoles() never produce a codeless entry),
+// so this is a plain listing, no fallback-label scheme needed.
+function renderRoleSummaryList(row, headingText) {
+  const wrap = document.createElement('div');
+  wrap.className = 'manus-role-tags-summary';
+  wrap.setAttribute('data-manus-role-summary', row.key);
+
+  const entries = row.cast.filter(c => c.name.trim());
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'manus-col-empty';
+    empty.textContent = 'Ingen roller endnu.';
+    wrap.appendChild(empty);
+    return wrap;
+  }
+
+  const heading = document.createElement('div');
+  heading.className = 'manus-script-roles-heading';
+  heading.textContent = headingText;
+  wrap.appendChild(heading);
+
+  // Same one-line-per-role rhythm as Rollefordeling's renderRoleTagLine()
+  // (reusing its row/codename styling), but showing description instead of
+  // (editable) tags — description is the useful context here for actually
+  // writing the scene, tags aren't.
+  for (const c of entries) {
+    const line = document.createElement('div');
+    line.className = 'manus-role-tag-row';
+
+    const codeName = document.createElement('span');
+    codeName.className = 'manus-role-tag-codename';
+    const code = document.createElement('code');
+    code.textContent = c.roleCode || '?';
+    codeName.appendChild(code);
+    codeName.appendChild(document.createTextNode(` : ${c.name}`));
+    line.appendChild(codeName);
+
+    if (c.description) {
+      const desc = document.createElement('span');
+      desc.className = 'manus-role-tag-description';
+      desc.textContent = c.description;
+      line.appendChild(desc);
+    }
+
+    wrap.appendChild(line);
+  }
+  return wrap;
+}
+
+// ── Rollefordeling's editable roles+tags summary ────────────────
+// One role per line: "<code> : <name>" on the left, its type tags (chips,
+// ROLE_CATEGORIES values) flowing on the right with a "+" to add another —
+// deliberately no description here (that stays in the LaTeX textarea below,
+// where it's actually edited). Unlike code/name (only ever changed by
+// re-parsing the textarea via "Opdater roller"), tags are edited directly,
+// live, right here — mutating the same row.cast[i] object in place, so nothing
+// else needs to be told about the change.
+function renderRoleTagLine(entry) {
+  const line = document.createElement('div');
+  line.className = 'manus-role-tag-row';
+
+  const codeName = document.createElement('span');
+  codeName.className = 'manus-role-tag-codename';
+  const code = document.createElement('code');
+  code.textContent = entry.roleCode || '?';
+  codeName.appendChild(code);
+  codeName.appendChild(document.createTextNode(` : ${entry.name}`));
+  line.appendChild(codeName);
+
+  const tagsWrap = document.createElement('span');
+  tagsWrap.className = 'manus-role-tags';
+  line.appendChild(tagsWrap);
+
+  function renderTags() {
+    tagsWrap.textContent = '';
+    entry.tags = entry.tags || [];
+    for (const tag of entry.tags) {
+      const chip = document.createElement('span');
+      chip.className = 'manus-role-tag-chip';
+      chip.textContent = tag;
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.className = 'manus-role-tag-remove';
+      rm.textContent = '×';
+      rm.setAttribute('aria-label', `Fjern ${tag}`);
+      rm.addEventListener('click', () => {
+        entry.tags = entry.tags.filter(t => t !== tag);
+        renderTags();
+      });
+      chip.appendChild(rm);
+      tagsWrap.appendChild(chip);
+    }
+    const remaining = ROLE_CATEGORIES.filter(cat => !entry.tags.includes(cat));
+    if (remaining.length) {
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'manus-role-tag-add';
+      addBtn.textContent = '+';
+      addBtn.title = 'Tilføj type';
+      // Same themed popup site-utils.js's other <select>-replacement fields
+      // use (siteOpenDropdownPicker — see "Site-wide field pickers" in
+      // CLAUDE.md): a plain option list whose rows already hover in the warm
+      // accent (.site-list-row, style.css), opens straight from the click,
+      // no intermediate native <select> to click into.
+      addBtn.addEventListener('click', () => {
+        siteOpenDropdownPicker(addBtn, remaining.map(cat => ({ value: cat, label: cat })), null, (value) => {
+          entry.tags.push(value);
+          renderTags();
+        });
+      });
+      tagsWrap.appendChild(addBtn);
+    }
+  }
+  renderTags();
+
+  return line;
+}
+
+function renderRoleTagsList(row) {
+  const wrap = document.createElement('div');
+  wrap.className = 'manus-role-tags-summary';
+  wrap.setAttribute('data-manus-role-tags', row.key);
+
+  const entries = row.cast.filter(c => c.name.trim());
+  if (!entries.length) {
+    const empty = document.createElement('p');
+    empty.className = 'manus-col-empty';
+    empty.textContent = 'Ingen roller endnu.';
+    wrap.appendChild(empty);
+    return wrap;
+  }
+
+  const heading = document.createElement('div');
+  heading.className = 'manus-script-roles-heading';
+  heading.textContent = 'Roller:';
+  wrap.appendChild(heading);
+
+  for (const c of entries) wrap.appendChild(renderRoleTagLine(c));
+  return wrap;
+}
+
+// Auto-import: any row (existing or pool-origin) with an already-uploaded
+// .tex fetches that file's raw content once, straight from the public repo
+// (no auth/server round-trip needed), and backfills whichever of
+// row.scriptBody (empty text) / row.cast (empty array) is still unset —
+// so neither the Manus tab nor Rollefordeling starts blank for material that
+// already has a script and/or a roles list. Triggered for every row once,
+// from both renderManusTextTab() and renderRollefordelingTab() below (the
+// `_scriptImportTried` flag, set unconditionally on the first attempt,
+// means only whichever tab is opened first actually fetches — the other
+// benefits from the same already-populated row). Fire-and-forget; re-queries
+// live DOM by row key rather than closing over it, since neither tab (nor a
+// scene's modal) may still be mounted by the time this resolves — see
+// openScriptSceneModal()'s data-manus-script-textarea and
+// renderRoleSceneButton()'s data-manus-role-badge attributes.
+async function manusImportFromTex(row) {
+  if (row._scriptImportTried) return;
+  row._scriptImportTried = true;
+  const texPath = manusRowTexPath(row);
+  if (!texPath) return;
+  try {
+    const res = await fetch(MANUS_TEX_RAW_BASE + texPath);
+    if (!res.ok) return;
+    const text = await res.text();
+
+    if (!row.scriptBody) {
+      const body = extractTexScriptBody(text);
+      if (body && !row.scriptBody) {
+        row.scriptBody = body;
+        const textarea = document.querySelector(`[data-manus-script-textarea="${row.key}"]`);
+        if (textarea && !textarea.value) textarea.value = body;
+      }
+    }
+
+    if (!row.cast.length) {
+      const imported = extractTexRoles(text);
+      if (imported.length && !row.cast.length) {
+        const isSong = manusRowIsSong(row);
+        const isDans = manusRowIsDans(row);
+        row.cast = imported.map(r => ({
+          name: r.name,
+          roleCode: r.roleCode,
+          description: r.description,
+          tags: [classifyOrKeep(r.roleCode, isSong, isDans)],
+        }));
+        const roleBadge = document.querySelector(`[data-manus-role-badge="${row.key}"]`);
+        if (roleBadge) roleBadge.textContent = manusRoleBadgeText(row);
+        // Refresh whichever overlay happens to already be open for this row
+        // — Manus tab's read-only reference and/or Rollefordeling's
+        // editable tags list (only one is normally open at a time, but
+        // checking both is cheap and safe).
+        const summaryEl = document.querySelector(`[data-manus-role-summary="${row.key}"]`);
+        if (summaryEl) summaryEl.replaceWith(renderRoleSummaryList(row, 'Roller:'));
+        const tagsEl = document.querySelector(`[data-manus-role-tags="${row.key}"]`);
+        if (tagsEl) tagsEl.replaceWith(renderRoleTagsList(row));
+        const rolesTextarea = document.querySelector(`[data-manus-role-textarea="${row.key}"]`);
+        if (rolesTextarea && !rolesTextarea.value) rolesTextarea.value = formatRolesText(row.cast);
+      }
+    }
+  } catch (e) { /* offline, or not reachable yet — leave scriptBody/cast empty */ }
 }
 
 function manusMoveRow(key, targetLane, beforeKey) {
@@ -784,8 +1094,18 @@ function manusRowScene(row, act, idx) {
   const number = idx + 1;
   const id = `${act.code}-${number}`;
   const cast = row.cast
-    .filter(c => c.name.trim() && c.code.trim())
-    .map(c => ({ name: c.name.trim(), role: c.code.trim() }));
+    .filter(c => c.name.trim())
+    .map(c => {
+      const tags = (c.tags || []).filter(t => t);
+      // `role` must always be a string, never omitted — schedule.js's own
+      // classifyRoleCode() calls .trim() on it unconditionally, so an
+      // undefined role (a role key entirely missing) would throw there.
+      const entry = { name: c.name.trim(), role: tags[0] || '' };
+      if (c.roleCode && c.roleCode.trim()) entry.roleCode = c.roleCode.trim();
+      if (c.description && c.description.trim()) entry.description = c.description.trim();
+      if (tags.length) entry.tags = tags;
+      return entry;
+    });
 
   let scene;
   if (row.origin === 'existing') {
@@ -815,6 +1135,12 @@ function manusRowScene(row, act, idx) {
   else delete scene.dansRepeat;
   if (row.duration != null && row.duration !== '') scene.duration = row.duration;
   else delete scene.duration;
+  if (row.scriptBody) scene.scriptBody = row.scriptBody; else delete scene.scriptBody;
+  if (row.status) scene.status = row.status; else delete scene.status;
+  if (row.melody) scene.melody = row.melody; else delete scene.melody;
+  if (row.writtenBy) scene.writtenBy = row.writtenBy; else delete scene.writtenBy;
+  if (row.sourceProduction) scene.sourceProduction = row.sourceProduction; else delete scene.sourceProduction;
+  if (row.sourceYear) scene.sourceYear = row.sourceYear; else delete scene.sourceYear;
   return scene;
 }
 
@@ -1086,7 +1412,8 @@ function renderAktfordelingTab() {
 // ── Tab 3: Rollefordeling ───────────────────────────────────────
 // Each scene is a button (Øveplan-style: click a scene, an overlay opens to
 // edit it) rather than an always-expanded inline card — openRoleSceneModal()
-// holds the same select+name+✕ cast-row editor the inline card used to.
+// below edits the scene's \begin{roles} block as raw LaTeX text (a summary
+// list + a textarea + an "Opdater roller" button), not a per-field form.
 function manusCastCount(row) {
   return row.cast.filter(c => c.name.trim()).length;
 }
@@ -1096,84 +1423,64 @@ function manusRoleBadgeText(row) {
   return n === 1 ? '1 rolle' : `${n} roller`;
 }
 
-function renderRoleCastRow(row, ci, castList, badge) {
-  const c = row.cast[ci];
-  const cRow = document.createElement('div');
-  cRow.className = 'manus-role-cast-row';
-
-  const codeSelect = document.createElement('select');
-  codeSelect.className = 'manus-role-cast-code';
-  const placeholderOpt = document.createElement('option');
-  placeholderOpt.value = '';
-  placeholderOpt.textContent = 'Vælg rolle…';
-  placeholderOpt.disabled = true;
-  if (!c.code) placeholderOpt.selected = true;
-  codeSelect.appendChild(placeholderOpt);
-  ROLE_CATEGORIES.forEach(cat => {
-    const opt = document.createElement('option');
-    opt.value = cat;
-    opt.textContent = cat;
-    if (c.code === cat) opt.selected = true;
-    codeSelect.appendChild(opt);
-  });
-  codeSelect.addEventListener('change', () => { c.code = codeSelect.value; });
-
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.value = c.name;
-  nameInput.placeholder = 'Navn';
-  nameInput.className = 'manus-role-cast-name';
-  nameInput.addEventListener('input', () => {
-    c.name = nameInput.value;
-    badge.textContent = manusRoleBadgeText(row);
-  });
-
-  const rmBtn = document.createElement('button');
-  rmBtn.type = 'button';
-  rmBtn.className = 'manus-akt-row-remove';
-  rmBtn.textContent = '✕';
-  rmBtn.addEventListener('click', () => {
-    row.cast.splice(ci, 1);
-    renderRoleCastList(row, castList, badge);
-    badge.textContent = manusRoleBadgeText(row);
-  });
-
-  cRow.appendChild(codeSelect);
-  cRow.appendChild(nameInput);
-  cRow.appendChild(rmBtn);
-  return cRow;
-}
-
-// Rebuilds just the modal's own cast list (not the whole tab underneath —
-// see openRoleSceneModal() for why that matters).
-function renderRoleCastList(row, castList, badge) {
-  castList.textContent = '';
-  row.cast.forEach((c, ci) => castList.appendChild(renderRoleCastRow(row, ci, castList, badge)));
-}
-
 // `badge` is the count span on the scene button behind this modal — mutating
 // it directly (rather than re-rendering the whole Rollefordeling tab from in
 // here) keeps it in sync live without touching a modal that lives in its own
 // part of the DOM (document.body, not #manus-tab-rollefordeling), so nothing
 // about the modal itself is ever at risk of being torn down mid-edit.
+//
+// Editing model: a read-only roles summary (renderRoleSummaryList(), shared
+// with the Manus tab's own reference list) sits above a plain monospace
+// textarea seeded from formatRolesText(row.cast) — the boss edits the
+// \role{}[] lines directly as LaTeX, exactly like the Manus tab's scriptBody
+// box, rather than through per-field inputs. Nothing is parsed back into
+// row.cast until "Opdater roller" is clicked: parseRolesText() re-derives
+// row.cast from the textarea's current content (classifying each roleCode
+// via classifyOrKeep(), same as auto-import does), then the summary above
+// is rebuilt from that fresh row.cast so it always reflects exactly what
+// was last saved, not live keystrokes. There's deliberately no per-field
+// category override anymore — classification is always auto-derived from
+// the roleCode typed in the textarea.
 function openRoleSceneModal(row, badge) {
-  const { form } = siteOpenModalWithClose(manusRowTitle(row));
+  const { modal, form, actions } = siteOpenModalWithClose(manusRowTitle(row));
+  modal.classList.add('manus-role-modal');
 
-  const castList = document.createElement('div');
-  castList.className = 'manus-role-cast-list';
-  renderRoleCastList(row, castList, badge);
-  form.appendChild(castList);
+  let summaryEl = renderRoleTagsList(row);
+  form.appendChild(summaryEl);
 
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'btn-small manus-role-add-cast-btn';
-  addBtn.textContent = '+ Tilføj rolle';
-  addBtn.addEventListener('click', () => {
-    row.cast.push({ code: '', name: '' });
-    renderRoleCastList(row, castList, badge);
+  const textarea = document.createElement('textarea');
+  textarea.className = 'manus-script-textarea';
+  textarea.rows = 12;
+  textarea.spellcheck = false;
+  textarea.setAttribute('data-manus-role-textarea', row.key);
+  textarea.value = formatRolesText(row.cast);
+  form.appendChild(siteEditField('Roller (LaTeX)', textarea));
+
+  const updateBtn = document.createElement('button');
+  updateBtn.type = 'button';
+  updateBtn.className = 'site-pill-btn site-pill-primary';
+  updateBtn.textContent = 'Opdater roller';
+  updateBtn.addEventListener('click', () => {
+    const isSong = manusRowIsSong(row);
+    const isDans = manusRowIsDans(row);
+    // Tags are edited independently of the LaTeX text (see
+    // renderRoleTagLine()), so re-parsing the textarea must carry a
+    // roleCode's existing tags forward by matching on that code — otherwise
+    // every "Opdater roller" click would silently wipe any tags added since
+    // the last parse. A genuinely new roleCode (not seen before) still gets
+    // a sensible one-tag default via classifyOrKeep(), same as auto-import.
+    const previousTagsByCode = new Map(row.cast.map(c => [c.roleCode, c.tags || []]));
+    row.cast = parseRolesText(textarea.value).map(r => {
+      const existing = previousTagsByCode.get(r.roleCode);
+      const tags = existing && existing.length ? existing.slice() : [classifyOrKeep(r.roleCode, isSong, isDans)];
+      return { name: r.name, roleCode: r.roleCode, description: r.description, tags };
+    });
+    const nextSummary = renderRoleTagsList(row);
+    summaryEl.replaceWith(nextSummary);
+    summaryEl = nextSummary;
     badge.textContent = manusRoleBadgeText(row);
   });
-  form.appendChild(addBtn);
+  actions.appendChild(updateBtn);
 }
 
 function renderRoleSceneButton(row) {
@@ -1188,6 +1495,7 @@ function renderRoleSceneButton(row) {
 
   const badge = document.createElement('span');
   badge.className = 'manus-akt-count';
+  badge.setAttribute('data-manus-role-badge', row.key);
   badge.textContent = manusRoleBadgeText(row);
   btn.appendChild(badge);
 
@@ -1209,7 +1517,87 @@ function renderRollefordelingTab() {
   }
 
   mount.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
-    for (const row of rowsInAct) body.appendChild(renderRoleSceneButton(row));
+    for (const row of rowsInAct) {
+      body.appendChild(renderRoleSceneButton(row));
+      // Fire-and-forget: backfills row.cast from an already-uploaded .tex's
+      // \begin{roles} block for every scene shown here — see
+      // manusImportFromTex()'s own doc comment (also triggered from
+      // renderManusTextTab(), for scriptBody).
+      manusImportFromTex(row);
+    }
+  }));
+}
+
+// ── Tab: Manus (script text) ─────────────────────────────────────
+// Reuses the same per-act kanban (renderActColumnsGrid) and button-opens-
+// overlay pattern as Rollefordeling (openRoleSceneModal/renderRoleSceneButton
+// above) — a scene is a button; clicking it opens an overlay with a
+// read-only "Roller" reference list (renderRoleSummaryList(), which
+// \says{}/\sings{} labels exist) followed by a plain monospace textarea for
+// the scene's actual LaTeX body (row.scriptBody — everything that goes
+// between \begin{sketch}/\begin{song} and \end{...} in the .tex
+// scripts/generate-pdfs.js builds). That's the only editable field here —
+// status/melody/writtenBy/sourceProduction/sourceYear were tried and cut for
+// being too much to fill in per scene; scenes.json/generate-pdfs.js still
+// support them (safe to omit), just nothing in this UI sets them anymore.
+// The textarea mutates the row directly, no draft rebuild — same as the
+// cast editor above.
+function manusRowIsSong(row) {
+  return manusRowType(row) === 'sang';
+}
+
+function openScriptSceneModal(row) {
+  const { modal, form } = siteOpenModalWithClose(manusRowTitle(row));
+  modal.classList.add('manus-script-modal');
+
+  form.appendChild(renderRoleSummaryList(row, 'Roller:'));
+
+  const textarea = document.createElement('textarea');
+  textarea.className = 'manus-script-textarea';
+  textarea.rows = 20;
+  textarea.spellcheck = false;
+  textarea.setAttribute('data-manus-script-textarea', row.key);
+  textarea.value = row.scriptBody || '';
+  textarea.addEventListener('input', () => { row.scriptBody = textarea.value; });
+  form.appendChild(siteEditField('Manus (LaTeX)', textarea));
+}
+
+function renderScriptSceneButton(row) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'manus-role-scene-btn';
+
+  const title = document.createElement('span');
+  title.className = 'manus-akt-row-title';
+  title.textContent = manusRowTitle(row);
+  btn.appendChild(title);
+
+  btn.addEventListener('click', () => openScriptSceneModal(row));
+  return btn;
+}
+
+function renderManusTextTab() {
+  const mount = document.getElementById('manus-tab-manus');
+  mount.textContent = '';
+
+  const anyPlaced = manusDraft.acts.some(act => manusDraftRowsForLane(act.code).length);
+  if (!anyPlaced) {
+    const empty = document.createElement('p');
+    empty.className = 'manus-col-empty';
+    empty.textContent = 'Placér scener i Aktfordeling, før du skriver manus.';
+    mount.appendChild(empty);
+    return;
+  }
+
+  mount.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
+    for (const row of rowsInAct) {
+      body.appendChild(renderScriptSceneButton(row));
+      // Fire-and-forget: backfills row.scriptBody/row.cast from any
+      // already-uploaded .tex for every scene shown here, not just
+      // freshly-placed ones — see manusImportFromTex()'s own doc comment
+      // above (also triggered from renderRollefordelingTab(), for cast).
+      manusImportFromTex(row);
+    }
   }));
 }
 
@@ -1310,6 +1698,7 @@ const MANUS_MAIN_TABS = [
   { key: 'select', label: 'Vælg scener', render: renderSelectTab },
   { key: 'aktfordeling', label: 'Aktfordeling', render: renderAktfordelingTab },
   { key: 'rollefordeling', label: 'Rollefordeling', render: renderRollefordelingTab },
+  { key: 'manus', label: 'Manus', render: renderManusTextTab },
   { key: 'stjerneark', label: 'Stjerneark', render: renderStjerneArkTab },
 ];
 let manusActiveTab = 'select';

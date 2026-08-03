@@ -1,3 +1,7 @@
 server/config.php
 
 .DS_Store
+
+# scripts/generate-pdfs.js dev tooling (see package.json)
+node_modules/
+.pdf-build/

@@ -54,14 +54,44 @@ These files can be edited by hand (see below) or via the site's in-page admin to
           "sourcePdf": "manus/sketch/Scene_name.pdf",
           "sourceTex": "manus/sketch/Scene_name.tex",
           "cast": [
-            { "name": "Cast member name", "role": "S1" }
-          ]
+            {
+              "name": "Cast member name",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": ["Sang/Rap"]
+            }
+          ],
+          "scriptBody": "\\says{S1} A line of dialogue",
+          "status": "Færdig",
+          "melody": "Thor Farlov: \"Hej\"",
+          "writtenBy": "Christian '24, Louie '24",
+          "sourceProduction": "Matematikrevyen",
+          "sourceYear": "2013"
         }
       ]
     }
   ]
 }
 ```
+
+`scriptBody`/`status`/`melody`/`writtenBy`/`sourceProduction`/`sourceYear` (all optional
+strings, added Phase 4.4) and each cast entry's `roleCode`/`description`/`tags` (also optional,
+same phase) are written by the Manus page's Main Manus View, and consumed only by
+`scripts/generate-pdfs.js` (see CLAUDE.md's Manus section) — nothing else reads them.
+`roleCode`/`description` hold the real per-person code (e.g. `"S1"`) and free-text explanation
+from a `.tex` file's own `\role{<code>}[<name>] <description>` line — `roleCode` is what the
+scene's `scriptBody` actually references in `\says{}`/`\sings{}`, and `scripts/generate-pdfs.js`
+prefers it over auto-generating one whenever it's present. `tags` (an array of zero or more
+`ROLE_CATEGORIES` values, e.g. `["Dans", "Koreograf"]` for someone who's both) is edited
+directly in Rollefordeling's roles summary — see CLAUDE.md — as small add/removable tag chips,
+not a single-choice dropdown; `role` stays a **single** string (`tags[0]` if any tag is set,
+else `""`) since that's still what `schedule.js`'s own classification helpers everywhere else on
+the site expect. `scriptBody` is the scene's actual LaTeX body (dialogue/lyrics/stage
+directions — everything between `\begin{sketch}`/`\begin{song}` and its `\end{...}`); `melody`
+is only meaningful for a `sang`-type scene (maps to `\melody{}`); `sourceProduction`/
+`sourceYear` default to the current production when empty (a reused classic sketch is the one
+case where they'd differ, e.g. `"MatematikRevyen 2013"` on a scene reused years later).
 
 ## Schema: cast.json
 

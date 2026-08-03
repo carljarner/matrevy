@@ -1,0 +1,11 @@
+{
+  "name": "matrevy-tools",
+  "private": true,
+  "description": "Dev-only tooling for the MatRevy static site. The deployed site itself has no build step and no dependencies — this file exists solely for scripts/generate-pdfs.js (Aktoversigt/Rolleoversigt/Manuskript PDF generation), which needs a PDF-merge library that a plain Node script can't provide on its own.",
+  "scripts": {
+    "generate-pdfs": "node scripts/generate-pdfs.js"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  }
+}
