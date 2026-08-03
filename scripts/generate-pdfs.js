@@ -120,10 +120,12 @@ function slugify(name) {
     .replace(/[^A-Za-z0-9_]/g, '');
 }
 
-function isSongScene(scene) { return (scene.types || []).includes('sang'); }
+// Bandsang is treated as song-like: it has lyrics (scriptBody), typeset the
+// same way a 'sang' scene is (melody, etc.), just with no cast/roles.
+function isSongScene(scene) { return (scene.types || []).some((t) => t === 'sang' || t === 'bandsang'); }
 function isDansScene(scene) { return (scene.types || []).includes('dans'); }
 function hasScript(scene) {
-  return !!scene.scriptBody && (scene.types || []).some((t) => t === 'sketch' || t === 'sang');
+  return !!scene.scriptBody && (scene.types || []).some((t) => t === 'sketch' || t === 'sang' || t === 'bandsang');
 }
 
 function deriveSourcePdfPath(scene, currentFolder) {

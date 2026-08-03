@@ -26,13 +26,49 @@ const CUSTOM_SCENES = [
   { id: REKVISITTEN_ID, name: 'Rekvisitten', actLabel: 'Diverse', schedulable: true, priority: 0, cast: [], custom: true },
 ];
 
+// ── Cast role classification (moved from the now-removed import.js — the
+// "Rediger Manus" tool this used to serve exclusively) ─────
+// Cast role codes get normalized into one of these categories.
+const ROLE_CATEGORIES = ['Instruktør', 'Koreograf', 'Skuespil', 'Sang/Rap', 'Dans', 'Kor', 'Statist', 'Ninja'];
+
+// Simple rules that work ~99% of the time, given by the coordinator. Only ever run on a
+// raw script code (not an already-classified category — see classifyOrKeep()), and only
+// once, at parse time; scenes don't get retroactively reclassified if their type changes later.
+// The pattern codes (I/Y/D/K/St/N) are code-shape-only and apply regardless of scene type;
+// only the final ambiguous fallback needs to know sketch vs. song (isSong).
+function classifyRoleCode(code, isSong, isDans) {
+  const raw = code.trim();
+  const c = raw.toUpperCase();
+  // Case-sensitive: only a literal uppercase "I" counts, so codes like "Ni"
+  // (Ninja) aren't caught here just because they contain a lowercase "i".
+  if (raw.includes('I')) return 'Instruktør';
+  if (c.includes('Y')) return 'Koreograf';
+  if (c.startsWith('ST')) return 'Statist';
+  if (isSong) {
+    if (c.includes('D')) return 'Dans';
+    if (c.startsWith('K')) return 'Kor';
+    if (c.includes('N')) return 'Ninja';
+    return 'Sang/Rap';
+  }
+  // A sketch combined with a dance number (types includes both 'sketch' and
+  // 'dans', e.g. "Første Arbejdsdag") still uses D-coded cast for dancers.
+  if (isDans && c.includes('D')) return 'Dans';
+  if (c.includes('N')) return 'Ninja';
+  return 'Skuespil';
+}
+
+function classifyOrKeep(code, isSong, isDans) {
+  return ROLE_CATEGORIES.includes(code) ? code : classifyRoleCode(code, isSong, isDans);
+}
+
 // ── Dance/actor split scenes ───────────────────────────────
-// A scene whose manus-tool `types` combine 'dans' with 'sketch' or 'sang' is
-// split at load time into two independently-schedulable/placeable entries:
-// the main (acting/singing) part keeps the original id/name; a derived
-// "(Dans)" part carries the dancers. Selecting both in the same picker visit
-// re-merges them into one placement (see collapseDanceSplitPairs). Purely a
-// runtime derivation — data/scenes.json, cast.json, import.js are untouched.
+// A scene with a Koreograf-classified cast member (see isDanceSplitCandidate
+// below) is split at load time into two independently-schedulable/placeable
+// entries: the main (acting/singing) part keeps the original id/name; a
+// derived "(Dans)" part carries the dancers/choreographer. Selecting both in
+// the same picker visit re-merges them into one placement (see
+// collapseDanceSplitPairs). Purely a runtime derivation — data/scenes.json
+// and cast.json are untouched.
 const DANCE_SPLIT_SUFFIX = '::dans'; // scene ids are "act-number" (e.g. "1-3"); ':' never appears, collision-safe.
 
 // A cast entry counts as the dance half if its role is already a classified
@@ -47,11 +83,15 @@ function isDanceCastRole(role) {
   return c.includes('Y') || c.includes('D');
 }
 
+// A scene is a dance-split candidate if any cast member classifies as
+// Koreograf — simpler and more reliable than checking scene.types for 'dans',
+// since nothing in the Manus page's own save path ever adds 'dans' to a
+// scene's types. classifyOrKeep's Koreograf rule (a literal 'Y' in the code)
+// runs unconditionally, before any isSong/isDans branching, so the dummy
+// false/false args below don't affect this particular check.
 function isDanceSplitCandidate(scene) {
   return !scene.custom
-    && Array.isArray(scene.types)
-    && scene.types.includes('dans')
-    && (scene.types.includes('sketch') || scene.types.includes('sang'));
+    && (scene.cast || []).some(c => classifyOrKeep(c.role, false, false) === 'Koreograf');
 }
 
 // Returns [mainPart, dancePart], or null if the scene doesn't qualify.
@@ -145,29 +185,9 @@ function buildSlots(startTime, endTime, segmentMinutes) {
 async function loadScenes() {
   if (state.allScenes.length) return;
   // CUSTOM_SCENES first so they sort above "Akt 1" in the act-grouped lists.
-  // getEffectiveScenesData() (manus-data.js) returns the manus-import override
-  // from localStorage if present, else falls back to SCENES_DATA (scenes-data.js).
-  state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...getEffectiveScenesData()]);
-}
-
-// Re-derives state.allScenes/state.scenes from getEffectiveScenesData() right
-// now, bypassing loadScenes()'s "already loaded" guard — used after a manus
-// tool save (import.js's applyImport()) so the sidebar/grid reflect the new
-// data immediately, without a page reload (which would drop the in-memory
-// manusSavedOverride set by that same save — see manus-data.js). Only
-// reachable once a grid already exists (the manus button lives inside the
-// sidebar, which stays hidden until buildGrid()/restoreState() has run), so
-// state.scenes is always safe to recompute here the same way those two do.
-function refreshScenesFromSource() {
-  state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...getEffectiveScenesData()]);
-  const prevPriorities = {};
-  for (const sc of state.scenes) prevPriorities[sc.id] = sc.priority;
-  state.scenes = state.allScenes
-    .filter(s => s.schedulable)
-    .map(s => ({ ...s, priority: prevPriorities[s.id] ?? s.priority ?? 0 }));
-  renderGrid();
-  renderSceneSidebar();
-  saveState();
+  // Read straight from the embedded SCENES_DATA (scenes-data.js) — Øveplan is
+  // a read-only consumer of data/scenes.json now, with no local override.
+  state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...SCENES_DATA]);
 }
 
 // ── Build grid ────────────────────────────────────────────
@@ -197,13 +217,13 @@ async function buildGrid() {
   state.rooms    = roomLines;
   state.slots    = newSlots;
 
-  // Build scenes list, keep priorities if we have them
-  const prevPriorities = {};
-  for (const sc of state.scenes) prevPriorities[sc.id] = sc.priority;
-
+  // Build scenes list — priority always comes fresh from data/scenes.json
+  // (via state.allScenes), never carried over locally: Øveplan is a
+  // read-only consumer of Manus's Stjerneark priority, not a second place to
+  // edit it.
   state.scenes = state.allScenes
     .filter(s => s.schedulable)
-    .map(s => ({ ...s, priority: prevPriorities[s.id] ?? s.priority ?? 0 }));
+    .map(s => ({ ...s }));
 
   // Reset grid only if the time configuration changed — slot indices no
   // longer correspond to the same time windows, so nothing can be carried
@@ -558,28 +578,11 @@ function renderSceneSidebar() {
       chip.draggable = true;
       chip.ondragstart = () => startDrag(scene.id, null, null);
 
-      // Priority badge + selector
+      // Priority badge — read-only, sourced from data/scenes.json (set via
+      // Manus's Stjerneark tab, not editable here).
       const prioSpan = document.createElement('span');
       prioSpan.className = `chip-priority prio-${scene.priority}`;
       prioSpan.textContent = scene.priority;
-
-      const prioSel = document.createElement('select');
-      prioSel.className = 'chip-prio-select';
-      prioSel.title = 'Prioritet';
-      [0,1,2,3].forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v; opt.textContent = v;
-        if (v === scene.priority) opt.selected = true;
-        prioSel.appendChild(opt);
-      });
-      prioSel.onchange = e => {
-        e.stopPropagation();
-        scene.priority = parseInt(e.target.value);
-        prioSpan.textContent = scene.priority;
-        prioSpan.className = `chip-priority prio-${scene.priority}`;
-        saveState();
-      };
-      prioSel.ondragstart = e => e.stopPropagation();
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'chip-name';
@@ -587,7 +590,6 @@ function renderSceneSidebar() {
 
       chip.appendChild(prioSpan);
       chip.appendChild(nameSpan);
-      chip.appendChild(prioSel);
       container.appendChild(chip);
     }
   }
@@ -652,7 +654,7 @@ function openAbsentForm() {
   placeholder.disabled = true;
   placeholder.selected = true;
   nameSel.appendChild(placeholder);
-  getEffectiveCastData().map(c => c.name).forEach(name => {
+  CAST_DATA.map(c => c.name).forEach(name => {
     const opt = document.createElement('option');
     opt.value = name;
     opt.textContent = name;
@@ -834,7 +836,7 @@ function renderRekvisittenCastList() {
     if (sel) sel.cast.forEach(c => occupied.add(c.name));
   }
 
-  const names = getEffectiveCastData().map(c => c.name);
+  const names = CAST_DATA.map(c => c.name);
 
   for (const name of names) {
     const isOccupied = occupied.has(name);
@@ -982,7 +984,7 @@ function renderCellEditorList() {
 
   const sceneCast = scene ? getSceneCastWithRoles(scene) : [];
   const sceneNames = new Set(sceneCast.map(c => c.name));
-  const otherNames = getEffectiveCastData().map(c => c.name).filter(n => !sceneNames.has(n));
+  const otherNames = CAST_DATA.map(c => c.name).filter(n => !sceneNames.has(n));
 
   const renderSection = (title, open, setOpen, count, renderBody) => {
     const section = document.createElement('div');
@@ -1336,7 +1338,6 @@ function saveState() {
       slots: state.slots,
       absentees: state.absentees,
       grid: state.grid,
-      priorities: Object.fromEntries(state.scenes.map(s => [s.id, s.priority])),
       startTime: document.getElementById('input-start').value,
       endTime: document.getElementById('input-end').value,
       segmentMinutes: document.getElementById('input-segment').value,
@@ -1372,7 +1373,7 @@ async function restoreState() {
       state.grid     = snap.grid;
       state.scenes   = state.allScenes
         .filter(s => s.schedulable)
-        .map(s => ({ ...s, priority: snap.priorities?.[s.id] ?? 0 }));
+        .map(s => ({ ...s }));
 
       document.getElementById('sched-grid-title').textContent = state.title;
       document.getElementById('sched-empty-state').style.display = 'none';

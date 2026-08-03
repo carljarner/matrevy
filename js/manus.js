@@ -132,10 +132,14 @@ function isDanceCastRole(role) {
   return c.includes('Y') || c.includes('D');
 }
 
+// A scene is a dance-split candidate if any cast member classifies as
+// Koreograf — simpler and more reliable than checking scene.types for 'dans',
+// since nothing in this file's own save path (manusRowScene()) ever adds
+// 'dans' to a scene's types. classifyOrKeep's Koreograf rule (a literal 'Y'
+// in the code) runs unconditionally, before any isSong/isDans branching, so
+// the dummy false/false args below don't affect this particular check.
 function isDanceSplitCandidate(scene) {
-  return Array.isArray(scene.types)
-    && scene.types.includes('dans')
-    && (scene.types.includes('sketch') || scene.types.includes('sang'));
+  return (scene.cast || []).some(c => classifyOrKeep(c.role, false, false) === 'Koreograf');
 }
 
 // Returns [mainPart, dancePart], or null if the scene doesn't qualify. Unlike
@@ -408,12 +412,12 @@ function renderBottomActions() {
 // Two mutually-exclusive clickable boxes (Sketch/Sang) replacing a plain
 // dropdown, since there are only two options and neither is a sensible
 // default — the uploader must actively choose one.
-function createManusTypeToggle() {
+function createManusTypeToggle(options = [{ value: 'sketch', label: 'Sketch' }, { value: 'sang', label: 'Sang' }]) {
   const wrap = document.createElement('div');
   wrap.className = 'manus-type-toggle';
   let selected = null;
   const boxes = {};
-  for (const opt of [{ value: 'sketch', label: 'Sketch' }, { value: 'sang', label: 'Sang' }]) {
+  for (const opt of options) {
     const box = document.createElement('button');
     box.type = 'button';
     box.className = 'btn-small manus-type-box';
@@ -683,6 +687,7 @@ function manusInitDraft() {
       lane: String(s.id).split('-')[0],
       scene: s,
       selected: true,
+      appliedSelected: true,
       duration: s.duration != null ? s.duration : null,
       cast: (s.cast || []).map(c => ({
         name: c.name,
@@ -713,6 +718,7 @@ function manusInitDraft() {
       lane: 'pool',
       submission: sub,
       selected: manusSubmissionIsSelected(sub),
+      appliedSelected: manusSubmissionIsSelected(sub),
       duration: null,
       cast: [],
       priority: 0,
@@ -735,22 +741,27 @@ function manusDraftRowsForLane(lane, draft = manusDraft) {
 }
 
 function manusRowTitle(row) {
+  if (row.origin === 'manual') return row.manualName;
   return row.origin === 'existing' ? row.scene.name : row.submission.title;
 }
 
 function manusRowType(row) {
+  if (row.origin === 'manual') return row.manualType;
   if (row.origin !== 'existing') return row.submission.type;
   const types = row.scene.types || [];
   return types.find(t => t === 'sketch' || t === 'sang') || types[0] || '';
 }
 
-// Unselecting a row that's currently placed in an act also forces it back to
-// the pool lane — a row marked for discard can't remain placed.
+// Only updates the live checkbox state (Vælg scener's own display + counts).
+// Deliberately does NOT touch `lane` here — unchecking a row that's already
+// placed in an act must not rip it out of that act immediately: a misclick
+// would otherwise silently destroy a placement with no way back before Save.
+// The actual lane reconciliation (pool <-> act, in either direction) only
+// happens once, in manusSaveMain(), against `appliedSelected` — see there.
 function manusSetRowSelected(key, selected) {
   const row = manusDraft.rows.find(r => r.key === key);
   if (!row) return;
   row.selected = selected;
-  if (!selected && row.lane !== 'pool') row.lane = 'pool';
 }
 
 function manusRowIsDans(row) {
@@ -1114,6 +1125,19 @@ function manusRowScene(row, act, idx) {
     scene.id = id;
     scene.number = number;
     scene.cast = cast;
+  } else if (row.origin === 'manual') {
+    // A Bandsang/Video scene added directly here (see the Aktfordeling "+
+    // Tilføj scene" button) — never came from an upload, so no cast/roles
+    // and not schedulable in Øveplan; it only exists to be part of the
+    // generated Aktoversigt/Manuskript output.
+    scene = {
+      id,
+      number,
+      name: row.manualName,
+      types: [row.manualType],
+      schedulable: false,
+      cast,
+    };
   } else {
     const sub = row.submission;
     scene = {
@@ -1356,6 +1380,69 @@ function renderActColumnsGrid(buildColumnBody) {
 }
 
 // ── Tab 2: Aktfordeling — act columns in a row, "Ikke placeret" below ──
+// Bandsang/Video never come from an uploaded submission (data/manuscripts.json
+// is sketch/sang only) — this is the only way to get one into the pipeline at
+// all, so it can end up in the generated Aktoversigt/Manuskript output. Lands
+// straight in "Ikke placeret" (appliedSelected: true — there's no prior
+// placement to protect, unlike a Vælg-scener submission, so no staging delay
+// is needed) ready to be dragged into an act like any other row.
+function openAddManualSceneModal() {
+  const { form, error, actions, close } = siteOpenModalWithClose('Tilføj scene');
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  form.appendChild(siteEditField('Titel', nameInput));
+
+  const typeToggle = createManusTypeToggle([
+    { value: 'bandsang', label: 'Bandsang' },
+    { value: 'video', label: 'Video' },
+  ]);
+  form.appendChild(siteEditField('Type', typeToggle.element));
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'site-pill-btn site-pill-primary';
+  addBtn.textContent = 'Tilføj';
+  actions.appendChild(addBtn);
+
+  addBtn.addEventListener('click', () => {
+    const manualName = nameInput.value.trim();
+    const manualType = typeToggle.value;
+    if (!manualType) {
+      error.textContent = 'Vælg om det er en bandsang eller en video.';
+      return;
+    }
+    if (!manualName) {
+      error.textContent = 'Udfyld en titel.';
+      return;
+    }
+    manusDraft.rows.push({
+      key: manusNextKey(),
+      origin: 'manual',
+      lane: 'pool',
+      manualName,
+      manualType,
+      selected: true,
+      appliedSelected: true,
+      duration: null,
+      cast: [],
+      priority: 0,
+      dansPriority: null,
+      repeat: false,
+      dansRepeat: null,
+      scriptBody: '',
+      status: '',
+      melody: '',
+      writtenBy: '',
+      sourceProduction: '',
+      sourceYear: '',
+    });
+    close();
+    renderAktfordelingTab();
+  });
+
+  nameInput.focus();
+}
+
 function renderAktfordelingTab() {
   const mount = document.getElementById('manus-tab-aktfordeling');
   mount.textContent = '';
@@ -1375,10 +1462,15 @@ function renderAktfordelingTab() {
   // own full-width row below the acts, but internally still split into the
   // same N columns (same widths as the act row above), filled row-wise —
   // that's CSS grid's default auto-placement, no extra JS needed.
+  //
+  // Deliberately filters on `appliedSelected`, not the live `selected` —
+  // toggling a checkbox in Vælg scener must not move anything in/out of
+  // Aktfordeling until Gem is actually clicked (see manusSetRowSelected() and
+  // manusSaveMain()'s reconciliation step).
   const poolSection = document.createElement('div');
   poolSection.className = 'manus-kanban-pool-section';
 
-  const poolRows = manusDraftRowsForLane('pool').filter(r => r.selected !== false);
+  const poolRows = manusDraftRowsForLane('pool').filter(r => r.appliedSelected !== false);
   const poolHeader = document.createElement('div');
   poolHeader.className = 'manus-kanban-col-header';
   const poolLabel = document.createElement('span');
@@ -1389,6 +1481,14 @@ function renderAktfordelingTab() {
   poolCount.className = 'manus-akt-count';
   poolCount.textContent = `${poolRows.length} scener`;
   poolHeader.appendChild(poolCount);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn-small';
+  addBtn.textContent = '+ Tilføj scene';
+  addBtn.addEventListener('click', () => openAddManualSceneModal());
+  poolHeader.appendChild(addBtn);
+
   poolSection.appendChild(poolHeader);
 
   const poolGrid = document.createElement('div');
@@ -1800,6 +1900,19 @@ async function manusSaveMain() {
   if (startError) startError.textContent = '';
 
   const draftSnapshot = manusDraft;
+
+  // Commit any pending Vælg-scener selection changes now, at Save time —
+  // this is the one point a deselected row actually gets pulled back to the
+  // pool lane (see manusSetRowSelected()'s comment for why that's deferred
+  // this far). Runs in both directions so a newly-selected row also becomes
+  // visible in "Ikke placeret" from this point on.
+  for (const row of draftSnapshot.rows) {
+    if (row.selected !== row.appliedSelected) {
+      if (!row.selected && row.lane !== 'pool') row.lane = 'pool';
+      row.appliedSelected = row.selected;
+    }
+  }
+
   const scenesActs = manusBuildActsPayload(draftSnapshot);
   const castRoster = manusBuildCastRoster(scenesActs);
   const previousManusOverride = manusSavedOverride;
