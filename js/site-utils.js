@@ -150,6 +150,16 @@ async function siteSaveResource(resource, payload) {
     return { ok: false, message: 'Kunne ikke gemme ændringer (serverfejl). Prøv igen senere.' };
   }
 
+  // Require a real {ok:true} JSON body — a PHP fatal error (or a WAF
+  // challenge page) can come back as HTTP 200 with an HTML body, and must
+  // NOT be mistaken for success (see budgetApi/manusApi, which already
+  // guard against this).
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!data || data.ok !== true) {
+    return { ok: false, message: 'Uventet svar fra serveren. Prøv igen senere.' };
+  }
+
   if (!fromLogin) siteUtilsSetCachedPin(password);
   return { ok: true };
 }
@@ -184,6 +194,13 @@ async function siteFileAction(action, extraBody) {
   }
   if (!res.ok) {
     return { ok: false, message: 'Kunne ikke gemme filen (serverfejl). Prøv igen senere.' };
+  }
+
+  // Same WAF/HTML-200 guard as siteSaveResource — never trust a bare 2xx.
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!data || data.ok !== true) {
+    return { ok: false, message: 'Uventet svar fra serveren. Prøv igen senere.' };
   }
 
   if (!fromLogin) siteUtilsSetCachedPin(password);
