@@ -244,11 +244,11 @@ const SCENES_DATA = [
     "cast": [
       {
         "name": "Snow",
-        "role": "Instruktør",
+        "role": "Koreograf",
         "roleCode": "YDI",
         "description": "Koreograf, danser og nstruktør",
         "tags": [
-          "Instruktør"
+          "Koreograf"
         ]
       },
       {
