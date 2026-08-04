@@ -4,9 +4,7 @@
 
 /* --- Palette ---------------------------------------------
    Warm honey/walnut wood theme. Defined here (loaded on every
-   page) so all content stylesheets can reference these tokens.
-   Øveplan (schedule.css) deliberately references none of them —
-   see the body:has(.sched-layout) reset below. */
+   page) so all content stylesheets can reference these tokens. */
 :root {
   --bg: #e4d3b3;         /* page background (honey oak) */
   --surface: #f1e6cf;    /* cards / cells / panels (warm cream) */
@@ -16,13 +14,13 @@
   --header: #1f2328;     /* header — unchanged near-black */
   --accent: #3b82d4;     /* blue — solid primary buttons only */
   /* Warm accent: the site-wide standard for secondary-button hover and
-     text-field focus (Arkiv + Øveplan opt out). Sourced from the Budget
+     text-field focus (Arkiv opts out). Sourced from the Budget
      "Rediger" hover the design settled on. */
   --accent-warm:      #d8b878;                /* hover/focus border */
   --accent-warm-fill: #f6ecd8;                /* hover background   */
   --accent-warm-text: #9a6700;                /* hover text         */
   --accent-warm-ring: rgba(216, 184, 120, 0.35); /* focus glow      */
-  --input-bg: #fdf8ec; /* warm cream — form-control background site-wide (Øveplan excluded) */
+  --input-bg: #fdf8ec; /* warm cream — form-control background site-wide */
 }
 
 /* --- Reset & base ---------------------------------------- */
@@ -47,24 +45,6 @@ body {
   display: flex;
   flex-direction: column;
 }
-
-/* ── Øveplan opt-out of the warm theme ──────────────────────
-   Øveplan (schedule.html) deliberately keeps the original flat
-   pre-theme look. schedule.html loads this shared stylesheet and
-   its transparent .sched-main shows the body through, so we undo
-   the warm colours here rather than touching schedule.css.
-   All Øveplan overrides live in THIS one block — to let Øveplan
-   adopt the warm theme too, just delete the whole block. The
-   values below are the site's original pre-theme colours. */
-body:has(.sched-layout) {
-  background: #ffffff;
-  color: #1f2328;
-}
-
-body:has(.sched-layout) .site-footer {
-  border-top-color: #e5e7eb;
-}
-/* ───────────────────────────────────────────────────────────── */
 
 /* --- Site header / navigation ---------------------------- */
 .site-header {
