@@ -134,6 +134,27 @@ function deriveSourcePdfPath(scene, currentFolder) {
   return `archive/${currentFolder}/${folder}/${slugify(scene.name)}.pdf`;
 }
 
+// data/scenes.json has no `melody` field (Main Manus View dropped its melody
+// UI — see js/manus.js's own note) even though every submitted song .tex
+// still carries a real `\melody{Kunstner: "Originaltitel"}` line (from
+// manus/skabelon-sang.tex's own template). Rather than round-tripping that
+// through the Manus tool, Aktoversigt just reads it straight off the song's
+// already-on-disk sourceTex at generation time — cheap, and always in sync
+// with whatever the actual submitted script says.
+function extractTexMelody(texSource) {
+  const m = texSource.match(/\\melody\{([^}]*)\}/);
+  return m ? m[1].trim() : '';
+}
+
+// Same situation as melody, one macro over: data/scenes.json has no
+// `writtenBy` field, but every real submitted .tex (sketch or song alike)
+// has its own `\author{...}` line naming who wrote it (from either
+// skabelon's own template), never round-tripped anywhere either.
+function extractTexAuthor(texSource) {
+  const m = texSource.match(/\\author\{([^}]*)\}/);
+  return m ? m[1].trim() : '';
+}
+
 // ── Per-scene .tex (mirrors manus/skabelon-sketch.tex/skabelon-sang.tex) ──
 // One place computing a scene's cast labels — reused by both the roles
 // block below and Rolleoversigt's per-actor columns, so a scene's \role{}
@@ -182,8 +203,14 @@ function buildSceneTex(scene, prodMeta) {
   if (scene.duration != null && scene.duration !== '') preamble += `\\eta{${texEscape(scene.duration)} minutter}\n`;
   if (scene.status) preamble += `\\status{${texEscape(scene.status)}}\n`;
   preamble += `\n\\title{${texEscape(scene.name)}}\n`;
-  if (scene.writtenBy) preamble += `\\author{${texEscape(scene.writtenBy)}}\n`;
-  if (isSongScene(scene) && scene.melody) preamble += `\\melody{${texEscape(scene.melody)}}\n`;
+  // writtenBy/melody are raw LaTeX straight out of the scene's own real
+  // \author{}/\melody{} lines (see extractTexAuthor/extractTexMelody) —
+  // already properly escaped by whoever originally wrote the .tex, so
+  // texEscape-ing them here would double-escape (e.g. turn a real "\&"
+  // into a literal backslash-ampersand on the page). Insert verbatim, same
+  // as scriptBody.
+  if (scene.writtenBy) preamble += `\\author{${scene.writtenBy}}\n`;
+  if (isSongScene(scene) && scene.melody) preamble += `\\melody{${scene.melody}}\n`;
 
   return `\\documentclass[a4paper,11pt]{article}
 
@@ -216,10 +243,14 @@ function buildAktoversigtTex(actsData, prodMeta) {
     body += `\\section*{${texEscape(act.label)} \\small{\\textbf{\\emph{(Tidsestimat: ${formatMinutes(total)} minutter)}}}}\n`;
     body += '\\begin{enumerate}\n';
     for (const s of act.scenes) {
-      body += `  \\item \\textbf{${texEscape(s.name)}} `;
-      if (s.melody) body += `(${texEscape(s.melody)}) `;
-      body += `\\emph{${texEscape(s.sourceProduction || prodMeta.name)} ${texEscape(s.sourceYear || prodMeta.year)}} \\\\\n`;
-      body += `      \\small{Status: ${texEscape(s.status || 'Ikke færdig')}, \\emph{Tidsestimat: ${formatMinutes(s.duration)} minutter}}\n`;
+      body += `  \\item \\textbf{${texEscape(s.name)}}`;
+      // s.melody is raw LaTeX straight out of a real \melody{} line (see
+      // extractTexMelody) — already properly escaped by whoever wrote the
+      // scene's .tex (e.g. "S\&M"), so texEscape-ing it here would
+      // double-escape it into a literal backslash. Insert verbatim, same
+      // as scriptBody above.
+      if (s.melody) body += ` (${s.melody})`;
+      body += ` \\\\\n      \\small{\\emph{Tidsestimat: ${formatMinutes(s.duration)} minutter}}\n`;
     }
     body += '\\end{enumerate}\n\n';
   }
@@ -229,6 +260,21 @@ function buildAktoversigtTex(actsData, prodMeta) {
 \\usepackage{babel}
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
+% The reference Aktoversigt.pdf (old Perl toolchain output) is US Letter
+% with ~30mm/26mm side margins from plain \\documentclass{article} defaults
+% — but pdfTeX's own default output paper size is driver/install-dependent
+% (this machine's TeX Live defaults to A4 when nothing else says otherwise),
+% which silently produced a much wider, mismatched page here. Pinning both
+% paper size and margin explicitly makes the output reproducible across
+% machines instead of inheriting whatever the local install happens to
+% default to (same reasoning as Rolleoversigt's explicit geometry call).
+% margin bumped up slightly from a plain 1in per feedback ("a bit more, a
+% tab's worth"); headsep pulled way in from geometry's ~25pt default so the
+% title block (start of the text body) sits right under the date instead of
+% a big blank gap below it. top/bottom are set separately from left/right,
+% both at half of 1.3in, to match the tightened whitespace top and bottom.
+\\usepackage[letterpaper,margin=1.3in,top=0.65in,bottom=0.65in,headheight=14pt,headsep=6pt]{geometry}
+\\usepackage{fancyhdr}
 
 \\title{Aktoversigt}
 \\version{${texEscape(prodMeta.version)}}
@@ -236,6 +282,15 @@ function buildAktoversigtTex(actsData, prodMeta) {
 \\revyyear{${texEscape(prodMeta.year)}}
 
 \\begin{document}
+% revy.sty's own \\ps@revyheadings (its default \\pagestyle, set at the end
+% of the .sty) draws a Version/date/title/Side-X-of-Y running header with a
+% rule under it on every page — replaced here with a single, undecorated
+% "generated on" date in the top-right corner instead, via fancyhdr rather
+% than fighting revy.sty's own header macros.
+\\pagestyle{fancy}
+\\fancyhf{}
+\\fancyhead[R]{\\today}
+\\renewcommand{\\headrulewidth}{0pt}
 \\maketitle
 
 ${body}\\end{document}
@@ -338,7 +393,15 @@ ${header}
 ${body}\\end{tabular}%
 }}%
 \\fi
-\\box0
+% \\box0 alone here relies on \\centering's \\leftskip/\\rightskip glue to
+% split the leftover \\textwidth - \\wd0 evenly — confirmed by measuring a
+% real compiled page that this does NOT happen reliably for a single boxed
+% object mid-paragraph inside this nested \\vbox (it rendered flush against
+% the left margin instead, with all the slack pushed to the right). Wrapping
+% in \\makebox[\\textwidth]{...} sidesteps that: \\makebox centers its
+% content by default via its own self-contained glue, independent of the
+% surrounding paragraph's leftskip/rightskip.
+\\makebox[\\textwidth]{\\box0}
 \\end{center}
 \\vfil
 }
@@ -394,10 +457,13 @@ function copyToRepo(builtPdfPath, repoRelativeOut) {
 // ── Manuskript: merge every per-scene PDF behind a title page ───
 // Mirrors RevyTeX's manus.pl (which used Perl's PDF::API2) — approximate,
 // not pixel-exact tab/bookmark fidelity for v1 (see the plan's noted
-// deferred scope). Shared by both the full Manuskript.pdf (no filter, blank
-// "Skuespiller:" line, like the reference PDF's own generic title page) and
-// each per-actor manuscript (buildActorManuskripts, below) — a scene filter
-// and a personalized name are the only things that differ between the two.
+// deferred scope). Shared by both the full Manuskript.pdf (no filter, no
+// name) and each per-actor manuscript (buildActorManuskripts, below) — a
+// scene filter and a personalized name are the only things that differ
+// between the two. The old "Skuespiller: ____" blank-line/label was dropped
+// per feedback: the master copy doesn't need a name line at all, and an
+// individual copy just gets the actor's own name centered under the title
+// instead of a labeled fill-in line.
 async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, opts = {}) {
   const { skuespillerName = '', sceneFilter = () => true } = opts;
   const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
@@ -409,28 +475,32 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
   const { width, height } = titlePage.getSize();
   const title = 'Manuskript';
   const subtitle = `${prodMeta.name} ${prodMeta.year}`;
-  const skuespillerLine = `Skuespiller: ${skuespillerName || '_'.repeat(28)}`;
+  const titleSize = 36;
+  const subtitleSize = 18;
+  const nameSize = 18;
   titlePage.drawText(title, {
-    x: width / 2 - boldFont.widthOfTextAtSize(title, 28) / 2,
-    y: height / 2 + 40,
-    size: 28,
+    x: width / 2 - boldFont.widthOfTextAtSize(title, titleSize) / 2,
+    y: height / 2 + 60,
+    size: titleSize,
     font: boldFont,
     color: rgb(0, 0, 0),
   });
   titlePage.drawText(subtitle, {
-    x: width / 2 - font.widthOfTextAtSize(subtitle, 14) / 2,
-    y: height / 2 + 10,
-    size: 14,
+    x: width / 2 - font.widthOfTextAtSize(subtitle, subtitleSize) / 2,
+    y: height / 2 + 20,
+    size: subtitleSize,
     font,
     color: rgb(0.2, 0.2, 0.2),
   });
-  titlePage.drawText(skuespillerLine, {
-    x: 72,
-    y: height / 2 - 30,
-    size: 12,
-    font,
-    color: rgb(0, 0, 0),
-  });
+  if (skuespillerName) {
+    titlePage.drawText(skuespillerName, {
+      x: width / 2 - boldFont.widthOfTextAtSize(skuespillerName, nameSize) / 2,
+      y: height / 2 - 20,
+      size: nameSize,
+      font: boldFont,
+      color: rgb(0, 0, 0),
+    });
+  }
 
   for (const act of actsData) {
     for (const scene of act.scenes) {
@@ -451,8 +521,8 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
 
 // ── Individual manuscripts: one per cast.json roster entry ──────
 // Same merge helper as the master Manuskript.pdf, filtered to only the
-// scenes that actor is cast in (in act order) and with their name filled
-// into the title page's "Skuespiller:" line. Generated unconditionally for
+// scenes that actor is cast in (in act order) and with their name centered
+// on the title page. Generated unconditionally for
 // every roster entry, even one cast in nothing this cycle (an empty
 // manuscript is still a valid, if uneventful, result).
 async function buildActorManuskripts(actsData, prodMeta, scenePdfPaths, castRoster, currentFolder) {
@@ -490,6 +560,26 @@ async function main() {
   fs.rmSync(BUILD_DIR, { recursive: true, force: true });
 
   console.log(`Building for ${prodMeta.name} ${prodMeta.year} (production folder: ${currentFolder})`);
+
+  // Backfill each scene's writtenBy/melody from its own sourceTex (see
+  // extractTexAuthor/extractTexMelody's comments) before Aktoversigt and the
+  // per-scene .tex rebuild (step 1 below) read scene.writtenBy/melody.
+  for (const act of scenesJson.acts) {
+    for (const scene of act.scenes) {
+      if (!scene.sourceTex) continue;
+      const texPath = root(scene.sourceTex);
+      if (!fs.existsSync(texPath)) continue;
+      const texSource = fs.readFileSync(texPath, 'utf8');
+      if (!scene.writtenBy) {
+        const author = extractTexAuthor(texSource);
+        if (author) scene.writtenBy = author;
+      }
+      if (!scene.melody) {
+        const melody = extractTexMelody(texSource);
+        if (melody) scene.melody = melody;
+      }
+    }
+  }
 
   // 1) One PDF per sketch/song scene with actual script text.
   const scenePdfPaths = new Map();
@@ -541,5 +631,6 @@ if (require.main === module) {
 
 module.exports = {
   texEscape, slugify, classifyOrKeep, castRoleLabels, sceneCastLabels, hasScript, deriveSourcePdfPath,
+  extractTexMelody, extractTexAuthor,
   buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
 };
