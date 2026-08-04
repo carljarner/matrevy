@@ -42,7 +42,7 @@
 
 .wiki-empty {
   text-align: center;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 /* --- Left column: chapter list + add-chapter action --------- */
@@ -78,6 +78,11 @@
   }
 }
 
+.wiki-chapter-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
+}
+
 .wiki-chapter-btn.wiki-chapter-active {
   background: var(--accent-warm-fill);
   color: var(--accent-warm-text);
@@ -102,7 +107,7 @@
   padding: 0.3rem 0.7rem 0.3rem 1.25rem;
   font-family: inherit;
   font-size: 0.82rem;
-  color: #57606a;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
@@ -116,6 +121,11 @@
     background: var(--surface-2);
     color: var(--text);
   }
+}
+
+.wiki-outline-item:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
 }
 
 /* Scroll-spy highlight (wiki.js's setupWikiScrollSpy) — the outline item

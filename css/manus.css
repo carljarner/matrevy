@@ -106,7 +106,7 @@ button.manus-col-header {
 
 .manus-col-count {
   font-size: 0.8rem;
-  color: #57606a;
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -118,7 +118,7 @@ button.manus-col-header {
 }
 
 .manus-col-empty {
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
@@ -153,7 +153,7 @@ a.manus-pdf-title:focus-visible {
 }
 
 .manus-pdf-pending {
-  color: #57606a;
+  color: var(--text-muted);
   cursor: default;
 }
 
@@ -161,7 +161,7 @@ a.manus-pdf-title:focus-visible {
   flex: none;
   font-size: 0.78rem;
   font-style: italic;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -176,7 +176,7 @@ a.manus-pdf-title:focus-visible {
 .manus-pdf-sender {
   flex: none;
   font-size: 0.78rem;
-  color: #57606a;
+  color: var(--text-muted);
   max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -192,7 +192,7 @@ a.manus-pdf-title:focus-visible {
   border: none;
   padding: 0.2rem;
   border-radius: 6px;
-  color: #57606a;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.9rem;
   line-height: 1;
@@ -200,12 +200,12 @@ a.manus-pdf-title:focus-visible {
 }
 
 @media (hover: hover) {
-  .manus-pdf-remove:hover { color: #c0392b; }
+  .manus-pdf-remove:hover { color: var(--danger); }
 }
 
 .manus-pdf-remove:focus-visible {
   outline: none;
-  color: #c0392b;
+  color: var(--danger);
   box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
 }
 
@@ -273,7 +273,7 @@ a.manus-pdf-title:focus-visible {
 }
 
 .manus-main-view-error {
-  color: #c0392b;
+  color: var(--danger);
   font-size: 0.85rem;
 }
 
@@ -291,7 +291,7 @@ a.manus-pdf-title:focus-visible {
 .manus-save-status {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 .manus-save-status.dirty {
@@ -383,7 +383,7 @@ a.manus-pdf-title:focus-visible {
 /* --- Tab: Vælg scener ------------------------------------------ */
 .manus-select-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   align-items: start;
   gap: 1.25rem;
 }
@@ -395,18 +395,24 @@ a.manus-pdf-title:focus-visible {
   padding: 0.4rem 0.5rem;
   border-radius: 6px;
   background: var(--surface-2);
-  cursor: pointer;
   transition: background 0.15s, color 0.15s;
+}
+
+/* Only the "Vælg scener" overlay's rows are click-to-select — the plain
+   Sange/Sketches columns are display-only (title + duration), so the
+   pointer cursor/hover/focus states only apply here. */
+.manus-select-row[role="button"] {
+  cursor: pointer;
 }
 
 @media (hover: hover) {
   /* A shade between the unselected (--surface-2) and selected
      (--accent-warm-fill) backgrounds, so hover reads as its own state
      rather than looking identical to "selected." */
-  .manus-select-row:not(.manus-select-row-selected):hover { background: #f2e7d2; }
+  .manus-select-row[role="button"]:not(.manus-select-row-selected):hover { background: #f2e7d2; }
 }
 
-.manus-select-row:focus-visible {
+.manus-select-row[role="button"]:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
@@ -426,6 +432,14 @@ a.manus-pdf-title:focus-visible {
   color: var(--accent-warm-text);
 }
 
+/* Unselected rows read as "not in the revy yet" via a muted title, rather
+   than a separate "valgt" label on selected ones (tried and dropped as
+   clunky) — the amber fill + bold text already carry the selected state on
+   their own. */
+.manus-select-row[role="button"]:not(.manus-select-row-selected) .manus-pdf-title {
+  color: var(--text-muted);
+}
+
 .manus-select-duration {
   flex: none;
   width: 3.6rem;
@@ -441,6 +455,61 @@ a.manus-pdf-title:focus-visible {
   outline: none;
   border-color: var(--accent-warm);
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* "Udvælgelse" control column — stacked heading+button groups rather than
+   a scrolling list, since it holds discrete actions, not data rows. */
+.manus-select-panel-group {
+  margin-bottom: 1.25rem;
+}
+
+.manus-select-panel-group:last-child {
+  margin-bottom: 0;
+}
+
+.manus-select-panel-group h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.manus-select-panel-group .site-pill-btn {
+  width: 100%;
+  justify-content: center;
+}
+
+.manus-select-panel-btn-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.manus-select-panel-btn-row .site-pill-btn {
+  flex: 1;
+}
+
+/* "Vælg scener" overlay: same type-grouped lists as the main columns, just
+   without the duration field (selection only) — Sketches/Sange side by
+   side (MANUS_TYPES order), stacking to one column on mobile like every
+   other two-up layout on this page. */
+.manus-select-overlay-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* Wider than the shared .edit-modal's 480px default (like Rollefordeling's
+   .manus-role-modal/Manus's .manus-script-modal) so two side-by-side columns
+   of scene rows have room to breathe. */
+.manus-select-overlay-modal {
+  width: min(640px, 92vw);
+}
+
+.manus-select-overlay-group h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
 /* --- Tab: Aktfordeling — act columns in a row, "Ikke placeret" below --
@@ -524,7 +593,7 @@ a.manus-pdf-title:focus-visible {
 
 .manus-akt-count {
   font-size: 0.8rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 .manus-kanban-col-list {
@@ -567,7 +636,7 @@ a.manus-pdf-title:focus-visible {
 
 .manus-akt-drag-handle {
   cursor: grab;
-  color: #9ca3af;
+  color: var(--neutral-border);
   flex: none;
 }
 
@@ -584,21 +653,21 @@ a.manus-pdf-title:focus-visible {
 .manus-akt-duration-suffix {
   flex: none;
   font-size: 0.78rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 .manus-akt-row-remove {
   flex: none;
   background: none;
   border: none;
-  color: #57606a;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0.2rem;
   border-radius: 6px;
 }
 
 @media (hover: hover) {
-  .manus-akt-row-remove:hover { color: #c0392b; }
+  .manus-akt-row-remove:hover { color: var(--danger); }
 }
 
 /* --- Tab: Rollefordeling -----------------------------------
@@ -730,7 +799,7 @@ a.manus-pdf-title:focus-visible {
   border-radius: 50%;
   border: 1px dashed var(--border);
   background: none;
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.85rem;
   line-height: 1;
   cursor: pointer;
@@ -759,7 +828,7 @@ a.manus-pdf-title:focus-visible {
 .manus-script-roles-heading {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #57606a;
+  color: var(--text-muted);
   margin-bottom: 0.35rem;
 }
 
@@ -769,7 +838,7 @@ a.manus-pdf-title:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.82rem;
 }
 
@@ -833,7 +902,7 @@ a.manus-pdf-title:focus-visible {
   font-family: inherit;
   line-height: 1;
   background: #f0f1f2;
-  color: #9ca3af;
+  color: var(--neutral-border);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -882,6 +951,7 @@ a.manus-pdf-title:focus-visible {
   .manus-layout { grid-template-columns: 1fr; }
   .manus-columns { grid-template-columns: 1fr; }
   .manus-select-columns { grid-template-columns: 1fr; }
+  .manus-select-overlay-lists { grid-template-columns: 1fr; }
   /* .manus-kanban keeps horizontal scroll rather than stacking, consistent
      with Kalender's own month-grid overflow-x:auto mobile pattern. */
   .manus-tab-btn { padding: 0.55rem 0.3rem; font-size: 0.78rem; }
@@ -898,7 +968,7 @@ a.manus-pdf-title:focus-visible {
   @page { size: A4 portrait; margin: 15mm; }
 
   .site-header, .site-footer, .manus-layout, .manus-main-view,
-  .page-content > h1 {
+  .manus-pdf-links, .page-content > h1 {
     display: none !important;
   }
 

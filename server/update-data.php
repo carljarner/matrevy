@@ -583,7 +583,7 @@ function budget_approve($body) {
   $receiptsDir = budget_receipts_dir();
   $oldPath = $receiptsDir . '/' . ($found['receiptFile'] ?? '');
   $newRel = '';
-  if (is_file($oldPath) && preg_match(budget_receipt_re(), $found['receiptFile'] ?? '')) {
+  if (preg_match(budget_receipt_re(), $found['receiptFile'] ?? '') && is_file($oldPath)) {
     if (@rename($oldPath, $receiptsDir . '/' . $receiptFile)) $newRel = $receiptFile;
   }
 

@@ -24,14 +24,14 @@
 .arkiv-empty {
   grid-column: 1 / -1;
   text-align: center;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 .arkiv-repo-note {
   margin-top: 1.5rem;
   text-align: center;
   font-size: 0.85rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 .arkiv-card {
@@ -49,7 +49,7 @@
    gated to hover-capable devices so taps don't leave sticky hover. */
 .arkiv-card:focus-visible {
   transform: translateY(-4px);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 0 0 3px var(--accent-warm), 0 14px 28px rgba(0, 0, 0, 0.18);
   outline: none;
 }
 
@@ -110,7 +110,7 @@
   align-items: center;
   justify-content: center;
   background: var(--surface-2);
-  color: #57606a;
+  color: var(--text-muted);
   font-weight: 600;
   font-size: 1.6rem;
 }
@@ -124,7 +124,7 @@
   align-items: center;
   justify-content: center;
   flex: 1;
-  background: #1f2328;
+  background: var(--header);
   position: relative;
   z-index: 1;
 }
@@ -149,20 +149,21 @@
   border: 2px dashed var(--border);
   border-radius: 8px;
   font-size: 2.5rem;
-  color: #9ca3af;
+  color: var(--neutral-border);
   cursor: pointer;
 }
 
 .arkiv-add-tile:focus-visible {
   background: var(--surface-2);
-  border-color: #9ca3af;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
   outline: none;
 }
 
 @media (hover: hover) {
   .arkiv-add-tile:hover {
     background: var(--surface-2);
-    border-color: #9ca3af;
+    border-color: var(--neutral-border);
     outline: none;
   }
 }
@@ -184,7 +185,7 @@
 
 .arkiv-edit-progress {
   font-size: 0.9rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 @media (max-width: 420px) {
@@ -265,39 +266,15 @@
   gap: 0.6rem;
 }
 
+/* Shape/idle/hover/focus chrome is the shared .site-pill-btn (style.css)
+   — applied alongside this class in archive.js. Only the link-specific
+   and brand-color deltas live here. */
 .arkiv-action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  padding: 0.5rem 0.9rem;
-  border-radius: 999px;
-  background: #fdf8ec;
-  border: 1px solid var(--border);
-  color: #1f2328;
-  font-size: 0.9rem;
-  font-weight: 600;
   text-decoration: none;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
 
 .arkiv-action-btn svg {
   flex-shrink: 0;
-}
-
-.arkiv-action-btn:focus-visible {
-  background: var(--surface-2);
-  border-color: #9ca3af;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  outline: none;
-}
-
-@media (hover: hover) {
-  .arkiv-action-btn:hover {
-    background: var(--surface-2);
-    border-color: #9ca3af;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-    outline: none;
-  }
 }
 
 .arkiv-action-youtube { color: #c4302b; }
@@ -317,7 +294,7 @@
 
 /* Missing-link pill: shown for context but muted and inert. */
 .arkiv-action-disabled {
-  color: #9ca3af;
+  color: var(--neutral-border);
   border-color: var(--border);
   opacity: 0.6;
   cursor: default;
@@ -329,7 +306,7 @@
    Scoped to the drive icon so the outline-only Manus/YouTube/Spotify icons
    (fill:none) aren't filled solid. */
 .arkiv-action-disabled .arkiv-drive-icon path {
-  fill: #9ca3af;
+  fill: var(--neutral-border);
 }
 
 /* --- Modern edit form (archive-scoped; other pages' edit modals

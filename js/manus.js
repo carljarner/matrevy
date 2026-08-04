@@ -5,30 +5,43 @@
 
    1. Upload pool (data/manuscripts.json, embedded as MANUSCRIPTS_DATA):
       any revyst+ can submit a sketch/song (title/sender/.pdf/.tex),
-      shown as two alphabetical columns, each a toggle section — open by
-      default for revyst, closed by default for boss/admin (who have the
-      much longer Main Manus View below to get to; same split applies to
-      the Manus Guide box). Boss/admin can remove a submission via a small ✕.
-      Modeled directly on posts.js's create-post flow —
-      manusApi()/manusResolvePassword() mirror
+      shown as two alphabetical columns, each a toggle section, open by
+      default (nothing else on the page for a plain revyst visitor to look
+      at); same split applies to the Manus Guide box. Revyst-level visitors
+      can remove nothing; boss/admin can, via a small ✕ — except boss/admin
+      never actually see this block at all: renderPoolLayoutVisibility()
+      hides `.manus-layout` (pool columns + guide box) outright at that
+      level, since Main Manus View's own Vælg scener tab already lists every
+      pool submission with a working PDF link (see part 2 below) and the
+      raw pool/guide add nothing on top of that. Modeled directly on
+      posts.js's create-post flow — manusApi()/manusResolvePassword() mirror
       postsApi()/postsResolvePassword() since posts_create-style
       append-only actions need an ANY-level authenticated call, not
       just boss/admin (siteSaveResource only trusts boss/admin logins).
-      Revyst-level visitors see only the pool columns + the guide box —
-      the whole Main Manus View below is boss/admin only.
 
    2. Main Manus View (boss/admin only): a tabbed section below the pool
       — Vælg scener / Aktfordeling / Rollefordeling / Manus / Stjerneark,
       styled as folder tabs filling the section's top row evenly — all five
       sharing one flat draft-state row list (manusDraft, built by
       manusInitDraft() from the CURRENT data/scenes.json + not-yet-used
-      pool submissions). Vælg scener is a click-to-select row (no
-      checkbox — amber highlight, not a blue checked box) per pool
-      submission; a row's initial selection is derived from which of
-      archive/<folder>/{submitted,sketches,songs}/ its file currently sits
-      in (manusSubmissionIsSelected()) — there's no separate persisted
-      selected flag, the folder itself is the record. A selected count
-      replaces the old "(total)" in each column's header. Aktfordeling/Rollefordeling/
+      pool submissions). Vælg scener shows two read-only columns
+      (Sketches/Sange, every pool submission plus every already-placed
+      scene of that type) — each row's title opens that scene's PDF in a
+      new tab (manusRowPdfPath(), same link the upload pool's own rows use;
+      a manual bandsang/video row has no PDF behind it and stays plain
+      text) — with a "Vælg scener" button opening openSelectScenesOverlay()
+      — the actual click-to-select rows (no
+      checkbox — amber highlight, not a blue checked box) live only inside
+      that overlay, toggling a local `pending` map rather than the row
+      itself, so nothing behind the overlay (the tab's own highlighting,
+      Aktfordeling's "Ikke placeret" pool) changes until the overlay's own
+      "Gem" commits the whole batch at once and closes it — closing without
+      Gem (X/Escape) discards every change. A pool row's initial selection
+      is derived from which of archive/<folder>/{submitted,sketches,songs}/
+      its file currently sits in (manusSubmissionIsSelected()) — there's no
+      separate persisted selected flag, the folder itself is the record. A
+      selected count replaces the old "(total)" in each column's header.
+      Aktfordeling/Rollefordeling/
       Manus/Stjerneark all share one act-columns grid (renderActColumnsGrid(),
       N columns = manusDraft.acts.length, 4 for the fixed skeleton, one row —
       Stjerneark alone passes an explicit 2-column override so its wider
@@ -73,11 +86,13 @@
       hardcoded server-side in data/config.json's currentProductionFolder
       for now, not read or shown client-side), then the existing
       boss-level `manus` resource save (siteSaveResource('manus',
-      {scenes, cast})) runs as before. No separate confirm step — toggling
-      a row in Vælg scener only changes local draft state until Gem is
-      clicked, and the reconciliation re-runs on every Gem, in both
+      {scenes, cast})) runs as before. This is a second, separate commit
+      point from the Vælg scener overlay's own local "Gem" above — that one
+      only ever updates manusDraft in memory; this one is what actually
+      moves files on the server and persists everything to git, and the
+      folder reconciliation re-runs on every click of it, in both
       directions, so a later deselect moves a submission's files straight
-      back to submitted/.
+      back to submitted/ even if it was already committed locally once.
 
    DOM is built via createElement/textContent only — never innerHTML.
    ========================================================= */
@@ -783,12 +798,20 @@ function manusRowType(row) {
   return types.find(t => t === 'sketch' || t === 'sang') || types[0] || '';
 }
 
-// Only updates the live checkbox state (Vælg scener's own display + counts).
-// Deliberately does NOT touch `lane` here — unchecking a row that's already
-// placed in an act must not rip it out of that act immediately: a misclick
-// would otherwise silently destroy a placement with no way back before Save.
-// The actual lane reconciliation (pool <-> act, in either direction) only
-// happens once, in manusSaveMain(), against `appliedSelected` — see there.
+// A manual row (bandsang/video added by hand, no upload behind it) has no
+// PDF. Otherwise mirrors renderPdfRow's link source in the upload pool.
+function manusRowPdfPath(row) {
+  if (row.origin === 'existing') return row.scene.sourcePdf || null;
+  if (row.origin === 'pool') return row.submission.pdfPath || null;
+  return null;
+}
+
+// Only updates `selected` itself, never `lane` — called only from the Vælg
+// scener overlay's own Gem handler (openSelectScenesOverlay), once per row in
+// its staged batch. The lane/appliedSelected reconciliation (pool <-> act, in
+// either direction) is a separate step right after, in that same handler —
+// kept split from this function so a bare toggle mid-overlay never risks
+// ripping a row out of its act before the batch is actually committed.
 function manusSetRowSelected(key, selected) {
   const row = manusDraft.rows.find(r => r.key === key);
   if (!row) return;
@@ -1321,33 +1344,51 @@ function renderSelectColumn(type) {
   }
   section.appendChild(list);
 
-  const actions = document.createElement('div');
-  actions.className = 'manus-col-actions';
-  const voteBtn = document.createElement('button');
-  voteBtn.type = 'button';
-  voteBtn.className = 'site-pill-btn site-pill-warm';
-  voteBtn.textContent = 'Stemmeark';
-  voteBtn.addEventListener('click', () => manusOpenVotingSheet(type));
-  actions.appendChild(voteBtn);
-  section.appendChild(actions);
-
   return section;
 }
 
-// The whole row is the toggle (no checkbox) — click or Enter/Space flips
-// selection; the duration input stops propagation so typing in it doesn't
-// also toggle the row.
-function renderSelectRow(row) {
+// Title + duration only. Selection itself is no longer toggled by clicking
+// a row here — that moved into the "Vælg scener" overlay (openSelectScenesOverlay)
+// so a stray click on this list can't silently flip whether a scene is in the
+// revy. Pass { interactive: true } to get the overlay's click/Enter/Space
+// toggle behaviour back (used only inside that overlay) — the overlay drives
+// `selected`/`onToggle` itself off its own local staging map rather than
+// `row.selected` directly, so a toggle in there never touches the real row
+// (and therefore never affects the tab/Aktfordeling behind it) until its own
+// Gem commits the whole batch at once. The non-interactive (background tab)
+// call site below omits both and falls back to the row's real committed state.
+function renderSelectRow(row, { interactive = false, selected = row.selected === true, onToggle = null } = {}) {
   const el = document.createElement('div');
-  el.className = 'manus-select-row' + (row.selected === true ? ' manus-select-row-selected' : '');
-  el.setAttribute('role', 'button');
-  el.tabIndex = 0;
-  el.setAttribute('aria-pressed', String(row.selected === true));
+  el.className = 'manus-select-row' + (selected ? ' manus-select-row-selected' : '');
 
-  const title = document.createElement('span');
+  // Outside the selection overlay this row is just a read-only listing (like
+  // the upload pool's own columns — see renderPdfRow), so the title opens
+  // the scene's PDF exactly the same way. Inside the overlay the whole row
+  // is itself a select/deselect toggle, so it stays plain text there — a
+  // nested link would fight the row's own click handler.
+  const pdfPath = !interactive ? manusRowPdfPath(row) : null;
+  const title = document.createElement(pdfPath ? 'a' : 'span');
   title.className = 'manus-pdf-title';
   title.textContent = manusRowTitle(row);
+  if (pdfPath) {
+    title.href = pdfPath;
+    title.target = '_blank';
+    title.rel = 'noopener noreferrer';
+  }
   el.appendChild(title);
+
+  if (interactive) {
+    el.setAttribute('role', 'button');
+    el.tabIndex = 0;
+    el.setAttribute('aria-pressed', String(selected));
+
+    const toggle = () => onToggle(row.key);
+    el.addEventListener('click', toggle);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+    return el;
+  }
 
   const durationInput = document.createElement('input');
   durationInput.type = 'number';
@@ -1366,16 +1407,149 @@ function renderSelectRow(row) {
   suffix.textContent = 'min';
   el.appendChild(suffix);
 
-  const toggle = () => {
-    manusSetRowSelected(row.key, row.selected !== true);
-    renderSelectTab();
-  };
-  el.addEventListener('click', toggle);
-  el.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-  });
-
   return el;
+}
+
+// ── "Udvælgelse" control column ─────────────────────────────────
+function renderSelectPanelGroup(heading) {
+  const group = document.createElement('div');
+  group.className = 'manus-select-panel-group';
+  const h3 = document.createElement('h3');
+  h3.textContent = heading;
+  group.appendChild(h3);
+  return group;
+}
+
+function renderSelectionColumn() {
+  const section = document.createElement('section');
+  section.className = 'card manus-column';
+
+  const header = document.createElement('div');
+  header.className = 'manus-col-header';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Udvælgelse';
+  header.appendChild(h2);
+  section.appendChild(header);
+
+  const voteGroup = renderSelectPanelGroup('Stemmeark');
+  const voteBtnRow = document.createElement('div');
+  voteBtnRow.className = 'manus-select-panel-btn-row';
+  for (const type of MANUS_TYPES) {
+    const voteBtn = document.createElement('button');
+    voteBtn.type = 'button';
+    voteBtn.className = 'site-pill-btn site-pill-warm';
+    voteBtn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
+    voteBtn.addEventListener('click', () => manusOpenVotingSheet(type));
+    voteBtnRow.appendChild(voteBtn);
+  }
+  voteGroup.appendChild(voteBtnRow);
+  section.appendChild(voteGroup);
+
+  const pointGroup = renderSelectPanelGroup('Indtast point');
+  const pointBtn = document.createElement('button');
+  pointBtn.type = 'button';
+  pointBtn.className = 'site-pill-btn site-pill-warm';
+  pointBtn.textContent = 'Point';
+  pointBtn.disabled = true;
+  pointGroup.appendChild(pointBtn);
+  section.appendChild(pointGroup);
+
+  const selectGroup = renderSelectPanelGroup('Vælg Scener');
+  const selectBtn = document.createElement('button');
+  selectBtn.type = 'button';
+  selectBtn.className = 'site-pill-btn site-pill-primary';
+  selectBtn.textContent = 'Vælg scener';
+  selectBtn.addEventListener('click', () => openSelectScenesOverlay());
+  selectGroup.appendChild(selectBtn);
+  section.appendChild(selectGroup);
+
+  return section;
+}
+
+// Selection is staged entirely locally here (`pending`, keyed by row.key —
+// seeded from every sang/sketch row's current `selected` when the overlay
+// opens) and never written back to the real `manusDraft` rows until "Gem"
+// below is clicked: toggling a row only flips its entry in `pending` and
+// re-renders the overlay's own lists, so closing via the X/Escape without
+// saving silently discards every change with no trace on the row objects —
+// the Vælg-scener tab behind the overlay and Aktfordeling's "Ikke placeret"
+// pool (which reads `appliedSelected`, not `selected`) are both completely
+// unaffected until Gem commits the whole batch at once.
+function openSelectScenesOverlay() {
+  const { modal, form, actions, close } = siteOpenModalWithClose('Vælg scener');
+  modal.classList.add('manus-select-overlay-modal');
+
+  const pending = new Map();
+  for (const row of manusDraft.rows) {
+    if (MANUS_TYPES.includes(manusRowType(row))) pending.set(row.key, row.selected === true);
+  }
+
+  const listsMount = document.createElement('div');
+  listsMount.className = 'manus-select-overlay-lists';
+  form.appendChild(listsMount);
+
+  function togglePending(key) {
+    pending.set(key, !pending.get(key));
+    renderOverlayLists();
+  }
+
+  // Re-renders just this overlay's own lists off `pending`, not `row.selected`
+  // — the underlying manus-tab-select list is untouched until Gem.
+  function renderOverlayLists() {
+    listsMount.textContent = '';
+    for (const type of MANUS_TYPES) {
+      const rows = manusDraft.rows
+        .filter(r => manusRowType(r) === type)
+        .slice()
+        .sort((a, b) => manusRowTitle(a).localeCompare(manusRowTitle(b), 'da'));
+
+      const group = document.createElement('div');
+      group.className = 'manus-select-overlay-group';
+      const h3 = document.createElement('h3');
+      h3.textContent = MANUS_TYPE_COLUMN_LABEL[type];
+      group.appendChild(h3);
+
+      const list = document.createElement('div');
+      list.className = 'manus-col-list';
+      if (!rows.length) {
+        const empty = document.createElement('p');
+        empty.className = 'manus-col-empty';
+        empty.textContent = 'Ingen upload endnu.';
+        list.appendChild(empty);
+      } else {
+        for (const row of rows) {
+          list.appendChild(renderSelectRow(row, { interactive: true, selected: pending.get(row.key), onToggle: togglePending }));
+        }
+      }
+      group.appendChild(list);
+      listsMount.appendChild(group);
+    }
+  }
+  renderOverlayLists();
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'site-pill-btn site-pill-primary';
+  saveBtn.textContent = 'Gem';
+  saveBtn.addEventListener('click', () => {
+    // Commit the whole staged batch at once: flip `selected`, then the same
+    // selected → appliedSelected/lane reconciliation manusSaveMain() performs
+    // at final-Save time (a deselected row snaps back to the pool lane; see
+    // its own comment for why that's deferred rather than immediate on a
+    // bare checkbox click) — done here too so Aktfordeling's "Ikke placeret"
+    // and the tab's own highlighting both reflect the change right away,
+    // without waiting for the page's separate, server-writing Gem.
+    for (const [key, sel] of pending) manusSetRowSelected(key, sel);
+    for (const row of manusDraft.rows) {
+      if (row.selected !== row.appliedSelected) {
+        if (!row.selected && row.lane !== 'pool') row.lane = 'pool';
+        row.appliedSelected = row.selected;
+      }
+    }
+    close();
+    renderSelectTab();
+  });
+  actions.appendChild(saveBtn);
 }
 
 function renderSelectTab() {
@@ -1385,6 +1559,7 @@ function renderSelectTab() {
   const columns = document.createElement('div');
   columns.className = 'manus-select-columns';
   for (const type of MANUS_TYPES) columns.appendChild(renderSelectColumn(type));
+  columns.appendChild(renderSelectionColumn());
   mount.appendChild(columns);
 }
 
@@ -1548,9 +1723,9 @@ function renderAktfordelingTab() {
   // that's CSS grid's default auto-placement, no extra JS needed.
   //
   // Deliberately filters on `appliedSelected`, not the live `selected` —
-  // toggling a checkbox in Vælg scener must not move anything in/out of
-  // Aktfordeling until Gem is actually clicked (see manusSetRowSelected() and
-  // manusSaveMain()'s reconciliation step).
+  // toggling a row inside the Vælg scener overlay must not move anything
+  // in/out of Aktfordeling until that overlay's own Gem is clicked (see
+  // openSelectScenesOverlay()'s save handler, which reconciles both at once).
   const poolSection = document.createElement('div');
   poolSection.className = 'manus-kanban-pool-section';
 
@@ -2003,11 +2178,11 @@ async function manusSaveMain() {
 
   const draftSnapshot = manusDraft;
 
-  // Commit any pending Vælg-scener selection changes now, at Save time —
-  // this is the one point a deselected row actually gets pulled back to the
-  // pool lane (see manusSetRowSelected()'s comment for why that's deferred
-  // this far). Runs in both directions so a newly-selected row also becomes
-  // visible in "Ikke placeret" from this point on.
+  // Defensive no-op in practice: the Vælg scener overlay's own Gem already
+  // reconciles selected -> appliedSelected/lane immediately on commit (see
+  // openSelectScenesOverlay()), so every row normally arrives here already in
+  // sync. Kept as a safety net rather than removed, in case a row's selected/
+  // appliedSelected ever drift apart by the time the page's own Gem runs.
   for (const row of draftSnapshot.rows) {
     if (row.selected !== row.appliedSelected) {
       if (!row.selected && row.lane !== 'pool') row.lane = 'pool';
@@ -2266,7 +2441,17 @@ function wireManusGuideToggle() {
   });
 }
 
+// Boss/admin get PDF links straight on each scene row in the Vælg scener
+// tab (see renderSelectRow) — the raw upload-pool columns + Manus Guide box
+// (`.manus-layout`) serve no purpose at that level, unlike a plain revyst
+// visitor who has nothing else on the page, so the whole block is hidden
+// outright rather than just left collapsed.
+function renderPoolLayoutVisibility() {
+  document.querySelector('.manus-layout').style.display = siteHasLevel('boss') ? 'none' : '';
+}
+
 function renderAll() {
+  renderPoolLayoutVisibility();
   renderColumns();
   renderBottomActions();
   renderManusPdfLinksSection();

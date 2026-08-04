@@ -18,7 +18,7 @@
 }
 
 .cal-view-toggle button {
-  background: #fdf8ec;
+  background: var(--input-bg);
   color: var(--text);
   border: 1px solid var(--border);
   padding: 0.3rem 0.9rem;
@@ -38,8 +38,8 @@
 }
 
 .cal-view-toggle button.active {
-  background: #3b82d4;
-  border-color: #3b82d4;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #ffffff;
 }
 
@@ -51,6 +51,11 @@
   }
 }
 
+.cal-view-toggle button:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
+}
+
 .cal-month-nav {
   display: flex;
   align-items: center;
@@ -58,7 +63,7 @@
 }
 
 .cal-month-nav button {
-  background: #fdf8ec;
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   width: 1.8rem;
@@ -77,6 +82,11 @@
     border-color: var(--accent-warm);
     color: var(--accent-warm-text);
   }
+}
+
+.cal-month-nav button:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
 }
 
 #cal-month-label {
@@ -107,7 +117,7 @@
   padding: 0.3rem 0.4rem;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #57606a;
+  color: var(--text-muted);
   text-align: center;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
@@ -135,13 +145,13 @@
 
 .cal-day-num {
   font-size: 0.75rem;
-  color: #57606a;
+  color: var(--text-muted);
   margin-bottom: 0.15rem;
 }
 
 .cal-today .cal-day-num {
   display: inline-block;
-  background: #3b82d4;
+  background: var(--accent);
   color: #ffffff;
   border-radius: 999px;
   min-width: 1.4em;
@@ -155,13 +165,13 @@
   text-align: left;
   background: var(--surface-2);
   border: none;
-  border-left: 3px solid #57606a;
+  border-left: 3px solid var(--text-muted);
   border-radius: 3px;
   padding: 0.1rem 0.3rem;
   margin-bottom: 0.15rem;
   font-size: 0.74rem;
   font-family: inherit;
-  color: #1f2328;
+  color: var(--header);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -173,10 +183,15 @@
   .cal-chip:hover { filter: brightness(0.93); }
 }
 
+.cal-chip:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 1px;
+}
+
 /* --- Category colors (chip border + list dot + pastel chip bg) */
-.cal-cat-manus          { border-left-color: #1a7f37; } /* Manus — green */
+.cal-cat-manus          { border-left-color: var(--success); } /* Manus — green */
 .cal-cat-ove            { border-left-color: #d4a017; } /* Øvning — yellow */
-.cal-cat-forestilling   { border-left-color: #c0392b; } /* Forestilling — red */
+.cal-cat-forestilling   { border-left-color: var(--danger); } /* Forestilling — red */
 .cal-cat-deadline       { border-left-color: #3b82d4; } /* Deadline — blue */
 .cal-cat-andet          { border-left-color: #8e44ad; } /* Andet — purple */
 
@@ -192,12 +207,12 @@
   height: 0.6rem;
   border-radius: 50%;
   flex-shrink: 0;
-  background: #57606a;
+  background: var(--text-muted);
 }
 
-.cal-dot.cal-cat-manus         { background: #1a7f37; }
+.cal-dot.cal-cat-manus         { background: var(--success); }
 .cal-dot.cal-cat-ove           { background: #d4a017; }
-.cal-dot.cal-cat-forestilling  { background: #c0392b; }
+.cal-dot.cal-cat-forestilling  { background: var(--danger); }
 .cal-dot.cal-cat-deadline      { background: #3b82d4; }
 .cal-dot.cal-cat-andet         { background: #8e44ad; }
 
@@ -233,12 +248,12 @@
 }
 
 .cal-list-date {
-  color: #57606a;
+  color: var(--text-muted);
   min-width: 8.5rem;
 }
 
 .cal-list-time {
-  color: #57606a;
+  color: var(--text-muted);
   min-width: 6.5rem;
 }
 
@@ -261,7 +276,7 @@
 
 .cal-list-note {
   display: block;
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.8rem;
   margin-top: 0.15rem;
 }
@@ -283,7 +298,7 @@
   margin-top: 0.9rem;
   padding-top: 0.75rem;
   font-size: 0.78rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 .cal-legend-item {
@@ -323,7 +338,7 @@
 }
 
 .cal-detail-label {
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.8rem;
   margin-right: 0.4rem;
 }

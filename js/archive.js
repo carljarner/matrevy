@@ -171,7 +171,7 @@ function buildDriveIcon() {
 // year missing e.g. a Spotify URL still shows a greyed-out Spotify pill.
 function buildActionButton(href, label, iconEl, extraClass) {
   const el = href ? document.createElement('a') : document.createElement('span');
-  el.className = 'arkiv-action-btn' + (href && extraClass ? ' ' + extraClass : '') + (href ? '' : ' arkiv-action-disabled');
+  el.className = 'arkiv-action-btn site-pill-btn' + (href && extraClass ? ' ' + extraClass : '') + (href ? '' : ' arkiv-action-disabled');
   if (href) {
     el.href = href;
     el.target = '_blank';

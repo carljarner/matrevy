@@ -45,7 +45,7 @@
 
 /* --- Shared bits ------------------------------------------ */
 .budget-intro {
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.9rem;
   margin-bottom: 1rem;
 }
@@ -61,12 +61,12 @@
 .budget-form .budget-msg { margin: 0; min-height: 0; }
 .budget-form .budget-msg:empty { display: none; }
 
-.budget-msg.error { color: #c0392b; }
-.budget-msg.ok { color: #1a7f37; }
+.budget-msg.error { color: var(--danger); }
+.budget-msg.ok { color: var(--success); }
 
 .budget-count {
   background: var(--surface-2);
-  color: #57606a;
+  color: var(--text-muted);
   border-radius: 999px;
   padding: 0.05rem 0.55rem;
   font-size: 0.8rem;
@@ -85,7 +85,7 @@
 
 .budget-amount {
   font-weight: 600;
-  color: #1f2328;
+  color: var(--header);
   white-space: nowrap;
 }
 
@@ -109,7 +109,7 @@
 .budget-sheet-table .budget-plan-input,
 .budget-income-amount {
   border-color: var(--border);
-  background: #fdf8ec;
+  background: var(--input-bg);
   color: var(--text);
 }
 
@@ -175,12 +175,12 @@
 
 .budget-item-line {
   font-size: 0.9rem;
-  color: #1f2328;
+  color: var(--header);
 }
 
 .budget-item-note {
   font-size: 0.85rem;
-  color: #57606a;
+  color: var(--text-muted);
   margin-top: 0.2rem;
   white-space: pre-wrap;
 }
@@ -198,7 +198,7 @@
   flex: 1 1 0;
   min-width: 0;
   padding: 0.3rem 0.4rem;
-  background: #fdf8ec;
+  background: var(--input-bg);
   border-color: var(--border);
   color: var(--text);
 }
@@ -207,17 +207,17 @@
   #budget-root .budget-act-approve:hover {
     background: #e5f2e8;
     border-color: #9ecaa8;
-    color: #1a7f37;
+    color: var(--success);
   }
   #budget-root .budget-act-edit:hover {
-    background: #f6ecd8;
-    border-color: #d8b878;
-    color: #9a6700;
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
   }
   #budget-root .budget-act-reject:hover {
     background: #f6e3df;
     border-color: #d8a59c;
-    color: #c0392b;
+    color: var(--danger);
   }
 }
 
@@ -260,7 +260,7 @@
 
 .budget-filter label {
   font-size: 0.85rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 .budget-filter .site-field-btn {
@@ -290,7 +290,7 @@
 
 .budget-table th {
   font-weight: 600;
-  color: #57606a;
+  color: var(--text-muted);
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
@@ -305,11 +305,11 @@
 /* --- Budget sheet ----------------------------------------- */
 .budget-save-status {
   font-size: 0.8rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
-.budget-save-status.dirty { color: #9a6700; }
-.budget-save-status.error { color: #c0392b; }
+.budget-save-status.dirty { color: var(--accent-warm-text); }
+.budget-save-status.error { color: var(--danger); }
 
 .budget-sheet-table { min-width: 460px; }
 
@@ -330,11 +330,11 @@
 
 .budget-sheet-table tfoot .budget-sheet-total td {
   font-weight: 600;
-  color: #1f2328;
+  color: var(--header);
   border-top: 2px solid var(--border);
 }
 
-.budget-negative { color: #c0392b; }
+.budget-negative { color: var(--danger); }
 
 /* Income lines */
 .budget-subhead {
@@ -386,7 +386,7 @@
   border-radius: 6px;
   font-size: 0.85rem;
   font-family: inherit;
-  background: #fdf8ec;
+  background: var(--input-bg);
   color: var(--text);
 }
 
@@ -480,7 +480,7 @@
   }
 
   .budget-table td:not(:first-child)::before {
-    color: #57606a;
+    color: var(--text-muted);
     font-size: 0.82rem;
     font-weight: normal;
     text-align: left;
