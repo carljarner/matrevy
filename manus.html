@@ -47,9 +47,16 @@
       </div>
     </div>
 
+    <!-- Quick links to the last-generated PDFs (revyst+ — visible below boss
+         level, unlike Main Manus View) — rendered by manus.js's
+         renderManusPdfLinksSection(). -->
+    <div class="card manus-pdf-links" id="manus-pdf-links" style="display:none"></div>
+
     <!-- Main Manus View (boss/admin only) — tabbed selection / act-building /
          cast / priority workspace, rendered by manus.js. Hidden entirely
-         (display:none, mount left empty) below boss level. -->
+         (display:none, mount left empty) below boss level. Its own action
+         row (bottom of the section) holds "Generér PDF'er" bottom-left and
+         the Gemt/Ikke gemt + Gem cluster bottom-right. -->
     <section class="card manus-main-view" id="manus-main-view" style="display:none">
       <nav class="manus-tab-bar" id="manus-tab-bar"></nav>
       <div class="manus-tab-panel" id="manus-tab-select"></div>
@@ -74,6 +81,7 @@
   <script src="js/scenes-data.js"></script>
   <script src="js/manus-data.js"></script>
   <script src="js/manuscripts-data.js"></script>
+  <script src="js/config-data.js"></script>
   <script src="js/manus.js"></script>
 </body>
 </html>

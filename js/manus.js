@@ -634,6 +634,20 @@ let manusDraft = null;
 let manusDragKey = null;
 let manusKeyCounter = 0;
 
+// "Gemt"/"Ikke gemt" tracking (mirrors Budget's markSheetDirty/beforeunload
+// pattern) — deliberately no autosave, just a passive comparison against a
+// snapshot taken whenever manusDraft last had nothing unsaved (see
+// manusInitDraft). A polling comparison, not a dirty flag set at every
+// mutation site, since several edit paths (the Manus tab's scriptBody
+// textarea, Stjerneark's priority circles) deliberately mutate manusDraft
+// without re-rendering, to avoid disrupting typing/UI state — a flag set
+// only from render-triggered call sites would miss those.
+let manusLastSavedSnapshot = null;
+
+function manusIsDirty() {
+  return !!manusDraft && JSON.stringify(manusDraft) !== manusLastSavedSnapshot;
+}
+
 function manusNextKey() {
   manusKeyCounter += 1;
   return `k${manusKeyCounter}`;
@@ -742,7 +756,15 @@ function manusInitDraft() {
       sourceYear: '',
     });
   }
-  return { acts, rows };
+  const draft = { acts, rows };
+  // Baseline for the "Gemt"/"Ikke gemt" indicator (see manusIsDirty below):
+  // this function only ever runs at page load or right after a successful
+  // Gem resets manusDraft to null (forcing a fresh one built from the
+  // just-saved data) — both moments genuinely have nothing unsaved yet, so
+  // snapshotting here, in one place, correctly re-baselines after either
+  // without needing to touch manusSaveMain's own success/failure branches.
+  manusLastSavedSnapshot = JSON.stringify(draft);
+  return draft;
 }
 
 function manusDraftRowsForLane(lane, draft = manusDraft) {
@@ -1200,6 +1222,26 @@ function manusFlattenActs(scenesActs) {
     for (const scene of act.scenes) flat.push({ ...scene, actLabel: act.label });
   }
   return flat;
+}
+
+// The inverse of manusFlattenActs, for regenerating the nested acts payload
+// straight from the currently-saved (not draft) data — used by
+// manusRegeneratePdfs(), which has no draft to build from since it isn't
+// editing anything, just re-triggering the PDF pipeline against whatever is
+// already saved. A scene's act code is recovered from its own id (format
+// "<act>-<number>", e.g. "1-3"/"E-2" — the same convention manusInitDraft's
+// row.lane already relies on), and manusBuildActSkeleton keeps the fixed
+// Akt 1/2/3/Ekstranumre ordering consistent with every other act listing.
+function manusCurrentActsPayload() {
+  const flatScenes = getEffectiveScenesData();
+  const skeleton = manusBuildActSkeleton(flatScenes);
+  return skeleton.map(({ code, label }) => {
+    const scenes = flatScenes
+      .filter((s) => String(s.id).split('-')[0] === code)
+      .map(({ actLabel, ...scene }) => scene)
+      .sort((a, b) => (a.number || 0) - (b.number || 0));
+    return { act: code, label, scenes };
+  });
 }
 
 // ── Kanban card (shared by the "Ikke placeret" column and every act
@@ -2026,20 +2068,167 @@ async function manusSaveMain() {
   }
 }
 
+// Re-triggers the PDF pipeline (scripts/generate-pdfs.js, run by the
+// generate-pdfs.yml GitHub Action) without touching any in-progress edit:
+// unlike manusSaveMain, this never reads or clears manusDraft, so it's safe
+// to click mid-edit on any tab. It just re-saves the already-saved data
+// as-is through the same boss-level `manus` resource path Gem uses — the
+// server always re-stamps scenes.json's version on every save
+// (save_manus() in update-data.php), so this reliably produces a fresh
+// commit and re-triggers the Action every time, even with zero real
+// content change. The three buttons below all call this same function:
+// "full rebuild every time" was a deliberate choice over a --only flag,
+// since Manuskript is a merge of every other scene PDF and a partial
+// rebuild risks the three documents drifting out of sync with each other.
+async function manusRegeneratePdfs() {
+  const errEl = manusMainViewErrorEl();
+  if (errEl) errEl.textContent = '';
+
+  const scenesActs = manusCurrentActsPayload();
+  const castRoster = manusBuildCastRoster(scenesActs);
+  const result = await siteSaveResource('manus', { scenes: scenesActs, cast: castRoster });
+  if (!result.ok) {
+    const el = manusMainViewErrorEl();
+    if (el) el.textContent = result.message;
+    return;
+  }
+  siteShowToast('PDF-generering startet (Aktoversigt, Rolleoversigt, Manuskript) – tager et par minutter');
+}
+
+// Bottom action bar of Main Manus View: "Generér PDF'er" pinned to the
+// bottom-left corner (a write action, distinct from the read-only file
+// links above the whole section), and a right-side cluster (error text
+// above, then the "Gemt"/"Ikke gemt" status next to Gem) mirroring where
+// Budget's own save-status sits relative to its save button.
 function renderMainViewActions() {
   const mount = document.getElementById('manus-main-view-actions');
   mount.textContent = '';
 
+  const generateBtn = document.createElement('button');
+  generateBtn.type = 'button';
+  generateBtn.className = 'site-pill-btn site-pill-warm';
+  generateBtn.textContent = "Generér PDF'er";
+  generateBtn.addEventListener('click', () => manusRegeneratePdfs());
+  mount.appendChild(generateBtn);
+
+  const right = document.createElement('div');
+  right.className = 'manus-main-view-save-cluster';
+
   const error = document.createElement('div');
   error.className = 'manus-main-view-error';
-  mount.appendChild(error);
+  right.appendChild(error);
+
+  const buttons = document.createElement('div');
+  buttons.className = 'manus-main-view-buttons';
+
+  const status = document.createElement('span');
+  status.className = 'manus-save-status';
+  buttons.appendChild(status);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
   saveBtn.className = 'site-pill-btn site-pill-primary';
   saveBtn.textContent = 'Gem';
   saveBtn.addEventListener('click', () => manusSaveMain());
-  mount.appendChild(saveBtn);
+  buttons.appendChild(saveBtn);
+
+  right.appendChild(buttons);
+  mount.appendChild(right);
+
+  manusUpdateSaveStatus();
+}
+
+// Re-queried fresh on every call (like manusMainViewErrorEl) rather than
+// cached, since renderMainViewActions rebuilds #manus-main-view-actions'
+// children wholesale on every render — a cached reference would go stale
+// the moment any tab re-renders the action row.
+function manusSaveStatusEl() {
+  return document.querySelector('#manus-main-view-actions .manus-save-status');
+}
+
+function manusUpdateSaveStatus() {
+  const el = manusSaveStatusEl();
+  if (!el) return;
+  const dirty = manusIsDirty();
+  el.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+  el.classList.toggle('dirty', dirty);
+}
+
+// Mirrors scripts/generate-pdfs.js's own slugify() (æøå transliteration,
+// spaces→_, everything else stripped) — needed client-side purely to build
+// an individual manuscript's filename (archive/<folder>/manuskripter/
+// <slug>.pdf) from a cast member's plain name. Duplicated rather than
+// shared, same as the role-classification tables already duplicated across
+// import.js/manus.js/generate-pdfs.js in this zero-build-step codebase.
+const MANUS_NAME_TRANSLIT = { æ: 'ae', ø: 'oe', å: 'aa', Æ: 'Ae', Ø: 'Oe', Å: 'Aa' };
+function manusSlugifyName(name) {
+  return String(name)
+    .split('').map((ch) => MANUS_NAME_TRANSLIT[ch] || ch).join('')
+    .trim().replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_]/g, '');
+}
+
+// Quick-open buttons for the last-generated PDFs, sitting between the pool/
+// guide row and Main Manus View — visible to any revyst+ (everyone benefits
+// from reading these, not just boss), unlike Main Manus View below which
+// stays boss-only. A shortcut to the files scripts/generate-pdfs.js (run via
+// generate-pdfs.yml) already produced, not a trigger to (re)build them
+// ("Generér PDF'er" moved to Main Manus View's own action row, since that's
+// the one boss-only write action here — see renderMainViewActions).
+function renderManusPdfLinksSection() {
+  const section = document.getElementById('manus-pdf-links');
+  if (!siteHasLevel('revyst')) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  section.textContent = '';
+
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  if (!folder) return;
+
+  const openFile = (filename) => window.open(`archive/${folder}/${filename}`, '_blank');
+
+  const linkRow = document.createElement('div');
+  linkRow.className = 'manus-pdf-links-row';
+
+  const files = [
+    ['Aktfordeling', 'Aktoversigt.pdf'],
+    ['Rollefordeling', 'Rolleoversigt.pdf'],
+    ['Manus', 'Manuskript.pdf'],
+  ];
+  for (const [label, filename] of files) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'site-pill-btn site-pill-warm';
+    btn.textContent = label;
+    btn.addEventListener('click', () => openFile(filename));
+    linkRow.appendChild(btn);
+  }
+
+  const individualBtn = document.createElement('button');
+  individualBtn.type = 'button';
+  individualBtn.className = 'site-pill-btn site-pill-warm';
+  individualBtn.textContent = 'Individuelt Manus';
+  individualBtn.addEventListener('click', () => {
+    const names = getEffectiveCastData()
+      .map((c) => c.name)
+      .slice()
+      .sort((a, b) => a.localeCompare(b, 'da'));
+    siteOpenDropdownPicker(individualBtn, names.map((name) => ({ value: name, label: name })), null, (name) => {
+      openFile(`manuskripter/${manusSlugifyName(name)}.pdf`);
+    });
+  });
+  linkRow.appendChild(individualBtn);
+  section.appendChild(linkRow);
+
+  // No pure-CSS way to make flex items match the widest sibling's own
+  // content width (flex:1 stretches all to fill the row instead, which read
+  // as "quite ugly" per user feedback) — measured here, once all four
+  // buttons are actually in the live DOM, and applied uniformly.
+  const rowButtons = Array.from(linkRow.children);
+  const maxWidth = Math.max(...rowButtons.map((b) => b.getBoundingClientRect().width));
+  rowButtons.forEach((b) => { b.style.minWidth = `${maxWidth}px`; });
 }
 
 function renderMainManusView() {
@@ -2080,6 +2269,7 @@ function wireManusGuideToggle() {
 function renderAll() {
   renderColumns();
   renderBottomActions();
+  renderManusPdfLinksSection();
   renderMainManusView();
   manusStartPendingPoll();
 }
@@ -2087,4 +2277,14 @@ function renderAll() {
 document.addEventListener('DOMContentLoaded', () => {
   wireManusGuideToggle();
   renderAll();
+
+  // Passive polling, not a push from every mutation site (see manusIsDirty's
+  // own comment for why) — cheap enough at this page's scale to just re-diff
+  // on an interval. No autosave: the interval only ever updates the status
+  // text, matching the user's explicit "shouldn't save in the background."
+  setInterval(manusUpdateSaveStatus, 500);
+
+  window.addEventListener('beforeunload', (e) => {
+    if (manusIsDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
 });

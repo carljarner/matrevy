@@ -290,18 +290,137 @@ Manus" tool) → the site compiles `.tex` sources into manuscript PDFs.
   (`castRoleLabels()`/`sceneCastLabels()`) became dead code in `manus.js` specifically and was
   removed there — it stays in `scripts/generate-pdfs.js` as a defensive net against legacy/
   hand-edited `scenes.json` cast entries with no `roleCode`.
-  **Still deliberately deferred**: CI/GitHub Action compilation (would need a LaTeX
-  distribution installed in Actions — the script is manual-only for now); an in-browser
-  "Generér PDF'er" button (Simply.com's PHP host has no LaTeX/Perl, so this would need a
-  separate compile service); pixel-exact fidelity to the original's tab-sidebar/bookmark
+  **Still deliberately deferred**: an in-browser "Generér PDF'er" button that compiles
+  on demand, synchronously (Simply.com's PHP host has no LaTeX/Perl, so this would need a
+  separate always-on compile service — see the CI automation below for the alternative that
+  was actually built instead); pixel-exact fidelity to the original's tab-sidebar/bookmark
   styling in Manuskript.
+  **Follow-up session (2026-08-03), verified end-to-end + individual manuscripts added**:
+  installed BasicTeX locally and ran `node scripts/generate-pdfs.js` against real production
+  data for the first time — the pure-logic/dummy-PDF smoke test above had never caught two
+  real bugs, both fixed in this session: `scenes.json`'s `production` field bakes the year
+  into the name string, which was silently duplicating the year on every title page once
+  combined with the separately-parsed `\revyyear{}` (`prodMeta.name` now has the trailing
+  year stripped back out); and `buildAktoversigtTex()`'s preamble was missing
+  `\usepackage[T1]{fontenc}`, breaking Danish `å`/`æ`/`ø` rendering on that one document only.
+  Per-scene `.tex` also gained `\usepackage{amsmath,amssymb}` unconditionally, since a math
+  revue's `scriptBody` routinely contains real math notation. Also added the "individual
+  manuscripts for each revyst" deliverable originally scoped alongside this phase: the old
+  single-purpose `buildManuskript()` became a shared `buildManuskriptPdf(..., {skuespillerName,
+  sceneFilter})`, reused unchanged for the master `Manuskript.pdf` (blank "Skuespiller:" line,
+  no filter) and for one new personalized PDF per `data/cast.json` roster entry
+  (`buildActorManuskripts()`, output to `archive/<folder>/manuskripter/<Name>.pdf`, filtered to
+  just that person's own scenes, generated unconditionally even for someone cast in nothing).
+  `data/scenes.json`'s stale `production`/`_schema` ("...2024") was also corrected to 2026 to
+  match `config.json`'s `currentProductionFolder`, since every generated title page reads it.
+  **Follow-up session (2026-08-04), Rolleoversigt format pass + CI automation**: iterated
+  `buildRolleoversigtTex()` against user feedback into its current shape — the page's running
+  header (revyname/version/date/Side-X-of-Y + a horizontal rule) is gone entirely
+  (`\pagestyle{empty}`, replacing revy.sty's default `revyheadings`), leaving just a centered
+  "`<revyname> <year>`"/"Rolleoversigt" title above the table. Both are vertically centered as
+  one unit on the page via `\vbox to \textheight{\vfil ... \vfil}` — a bare page-level
+  `\vfill`/`\vfil` (even `\null`-anchored) turned out to be genuinely unsafe here, since TeX's
+  page-breaker can treat it as a near-zero-badness break point and split the title from the
+  table onto separate pages entirely (reproduced firsthand); wrapping both in one explicit,
+  atomic `\vbox to <height>` sidesteps that. Physical margins are symmetric on all four sides
+  via a single clean `geometry` call (`margin=15mm`, `headheight=0pt`/`headsep=0pt`/
+  `footskip=0pt` since there's no header/footer to reserve space for) — the previous approach
+  of overriding raw `\textwidth`/`\textheight`/`\headsep` registers *after* loading `geometry`
+  left top and bottom asymmetric, since geometry has no way to know about dimensions changed
+  post-load. The table itself first tries to fill `\textwidth` (as before); only if that would
+  overflow the height budget left after the title block does it get measured and rescaled to
+  fit the height instead — verified against synthetic fewer-scenes (11) and many-more-scenes
+  (96, 3×) variants, confirming this generalizes correctly to any future season's scene/actor
+  count without a hardcoded size to re-tune by hand. This measure-then-rescale step must use
+  the *starred* `\resizebox*`, not the plain form — plain `\resizebox{!}{<height>}` only pins
+  `\ht` (above baseline), silently leaving `\dp` (a tabular's last-row depth) to scale along
+  uncontrolled, which undershot the intended total height by nearly 2× before this was caught
+  via an isolated minimal reproduction. Also added: a new `generate-pdfs.yml` GitHub Actions
+  workflow, firing on the exact same `data/scenes.json`/`cast.json` push trigger as
+  `embed-scenes.yml` (installs LaTeX via `apt-get`, runs `generate-pdfs.js`, commits the
+  resulting PDFs back — rebasing onto `origin/main` before its own push, since this job runs
+  far longer than `embed-scenes.yml`'s and the faster workflow may already have pushed from the
+  same trigger by the time this one is ready) — **not yet verified against a real Actions run**,
+  since that can't be exercised from this environment; the `apt` package list is a best-effort
+  mirror of BasicTeX's default scheme (which needed zero `tlmgr` extras locally) and may need a
+  package added on the first real trigger. One new button in Main Manus View ("Generér PDF'er",
+  `.site-pill-warm`, next to Gem) calls `manusRegeneratePdfs()` — initially built as three
+  separate, identically-labeled-per-document buttons (a deliberate simplification agreed with
+  the user over a true per-document `--only` rebuild, since Manuskript is a merge of every
+  other scene PDF and a partial rebuild risks the three drifting out of sync), then collapsed
+  into the one button once the user pointed out three buttons that always did the exact same
+  thing was pure redundancy. That function needs no new server endpoint: it re-saves the currently-effective (not draft) scenes/cast
+  through the existing boss-level `manus` resource path, and `save_manus()` already re-stamps
+  `scenes.json`'s `version` to today's date on every save regardless of payload content — so
+  even an otherwise-unchanged resave reliably produces a fresh commit, and GitHub's
+  push-path trigger fires on any commit touching the path, not on an actual content diff. This
+  needed a new `manusCurrentActsPayload()` (the inverse of the existing `manusFlattenActs`) to
+  turn `getEffectiveScenesData()`'s flat, already-saved shape back into the nested acts payload
+  the save endpoint expects, without needing a live edit draft to build from. `manus.html` also
+  gained a `config-data.js` load (dropped earlier in Phase 4.4 as then-unused) purely so this
+  feature can read `CONFIG_DATA.currentProductionFolder` rather than hardcoding it.
+  **Same-day follow-up**: the file-open links were relocated per user feedback, from inline text
+  links below the "Generér ..." buttons to their own dedicated card (`#manus-pdf-links`,
+  `renderManusPdfLinksSection()`) between the pool/guide row and Main Manus View — four real
+  `.btn-small` buttons ("Aktfordeling"/"Rollefordeling"/"Manus"/"Individuel Manus", named after
+  the tab a boss would associate each document with rather than the PDF's own filename) instead
+  of a plain link list. The first three open Aktoversigt/Rolleoversigt/Manuskript directly;
+  "Individuel Manus" opens `siteOpenDropdownPicker()` (the same anchored popup Rollefordeling's
+  own tag-adder already uses) listing every cast member, opening whichever one's
+  `manuskripter/<slug>.pdf` was picked — needing a small client-side `manusSlugifyName()`
+  duplicate of the script's own transliteration table, since none of today's roster names
+  happen to contain æøå but a future one might. Verified in a real headless-browser pass
+  (Playwright, per the `verify` skill) rather than just reading the code: confirmed zero console
+  errors, the section's boss-only gate, and — after an initial false alarm where
+  `page.url()` reported a bare `":"` for the newly-opened PDF tab, a known Chromium/Playwright
+  quirk around its built-in PDF viewer rather than a real bug — the actual underlying network
+  request via a context-level listener, which showed the correct
+  `archive/<folder>/{file}.pdf` URL being requested every time.
+  Two more refinements same day, both from further user feedback: (1) the three "Generér ..."
+  buttons (one per document) were noticed to all call the exact same code with no actual
+  per-document behavior — collapsed into one "Generér PDF'er" button, since three identically-
+  behaving buttons were pure redundancy, not a real per-document capability; (2) the whole
+  `#manus-pdf-links` card's gate was lowered from boss to **revyst** — any cast member benefits
+  from reading Aktoversigt/Rolleoversigt/Manuskript/their own manuscript, not just bosses —
+  *except* "Generér PDF'er" itself, moved into this same card as a second, left-aligned row
+  (`align-self: flex-start`, opting out of the column's default stretch) but re-gated to
+  `siteHasLevel('boss')` specifically for that one button, since unlike the four read-only
+  open-file buttons above it, this one actually triggers a rebuild. The four file buttons
+  initially gained `flex: 1` each (`.manus-pdf-links-row`) so they were equal width and evenly
+  filled the row, matching `.manus-tab-bar`'s own folder-tab sizing — then reverted the same day
+  on further feedback ("quite ugly"): switched from `.btn-small`/`flex:1` to the oval
+  `.site-pill-btn` style (normally reserved for modal contexts, used here anyway on explicit
+  request) sized to each label's own content width instead, with "Generér PDF'er" itself getting
+  `.site-pill-warm`'s amber tint to stand out from the four neutral open-file buttons above it.
+  Re-verified with the same Playwright approach across all three levels (revyst/boss/admin) to
+  confirm the split gate renders correctly at each.
+  **Third same-day round**: (1) the four PDF-links buttons got their own explicit orange tint
+  (`.site-pill-warm` added), centered as a group (`justify-content: center`) with equal
+  width forced to the widest label (`Individuel Manus`) via a one-time `getBoundingClientRect()`
+  measurement once they're all in the live DOM — there's no clean pure-CSS way to size flex
+  siblings off the widest sibling's own content; (2) "Generér PDF'er" moved back *out* of the
+  PDF-links card and into Main Manus View's own action row, bottom-left corner, opposite Gem —
+  once the PDF-links card itself became revyst-readable, this one write-triggering button needed
+  to stay under Main Manus View's existing boss gate instead of a second per-button check; (3) a
+  new "Gemt"/"Ikke gemt" save-status indicator next to Gem, modeled on Budget's own
+  `.budget-save-status`/`markSheetDirty()`/`beforeunload` trio but explicitly **not** an autosave
+  (the user was specific: track only, never save in the background). Rather than a dirty flag set
+  at every mutation call site (Budget's approach), a plain `JSON.stringify(manusDraft)` snapshot
+  is captured once inside `manusInitDraft()` (the one function that only ever runs when nothing
+  is genuinely unsaved — page load, or right after a successful Gem resets the draft to force a
+  fresh one), then re-diffed on a 500 ms `setInterval` — chosen over instrumenting call sites
+  because several edit paths (the Manus tab's `scriptBody` textarea, Stjerneark's priority
+  circles) deliberately mutate the draft *without* re-rendering, to avoid disrupting typing/UI
+  state, so a flag set only from render-triggered sites would silently miss them. Verified live:
+  clicking a real draft mutation (a Vælg-scener row) flips "Gemt" → "Ikke gemt" within one poll
+  tick, and a real `beforeunload` dialog (confirmed via Playwright's `dialog` event, not just
+  reading the handler code) fires and blocks navigation while dirty.
 
 **Status**: 4.1 + 4.2 + 4.3 done 2026-08-01 (needs the usual manual `update-data.php`
-re-upload to Simply.com before live on `matematikrevy.dk`). 4.4 done 2026-08-03 — **not yet
-verified end-to-end**: this dev environment has no local `pdflatex`, so only the pure
-`.tex`-generation logic and the `pdf-lib` merge step were smoke-tested (dummy PDFs, no real
-LaTeX compile). Next step on a machine with a TeX Live/MacTeX install: run
-`node scripts/generate-pdfs.js` against real production data and check the output against the
+re-upload to Simply.com before live on `matematikrevy.dk`). 4.4 done 2026-08-03, **verified
+end-to-end the same day** against a real local BasicTeX install (see the follow-up note
+above) — `node scripts/generate-pdfs.js` now compiles all 32 scenes plus Aktoversigt/
+Rolleoversigt/Manuskript and 35 individual manuscripts cleanly, checked directly against the
 reference PDFs.
 
 ---

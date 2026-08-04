@@ -252,23 +252,81 @@ a.manus-pdf-title:focus-visible {
 }
 
 /* --- Main Manus View (boss/admin only) -----------------------
-   Row, not stacked: error text (if any) sits left of the button, both
-   pushed to the right edge — so the only vertical space above the button is
-   the last tab column's own .card margin-bottom, matching the
-   .manus-main-view card's own bottom padding below it exactly (both
-   1.25rem, the site-wide stacked-card gap), rather than an extra
-   margin-top plus a reserved empty error row doubling the gap above
-   versus below. */
+   "Generér PDF'er" pinned bottom-left (a write action) against a right-side
+   cluster (error text, if any, above the Gemt/Ikke gemt + Gem row) — the
+   outer row's own bottom edge is the last tab column's own .card
+   margin-bottom, matching the .manus-main-view card's own bottom padding
+   below it exactly (both 1.25rem, the site-wide stacked-card gap). */
 .manus-main-view-actions {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 1rem;
+}
+
+.manus-main-view-save-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
 }
 
 .manus-main-view-error {
   color: #c0392b;
   font-size: 0.85rem;
+}
+
+.manus-main-view-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* Mirrors .budget-save-status exactly: neutral grey idle, warm-amber while
+   dirty (not red — that's reserved for a genuine save error, see
+   .manus-main-view-error above). */
+.manus-save-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #57606a;
+}
+
+.manus-save-status.dirty {
+  color: var(--accent-warm-text);
+}
+
+/* Quick-open buttons for the last-generated PDFs, sitting between the
+   pool/guide row and Main Manus View. Deliberately the oval .site-pill-btn
+   style (normally reserved for modal contexts per the site-wide convention)
+   rather than .btn-small — asked for explicitly here, sized to each
+   button's own content instead of stretched full-width. */
+.manus-pdf-links {
+  display: flex;
+  margin-bottom: 1.25rem;
+}
+
+/* Truly evenly distributed — space-evenly, not space-between: the latter
+   leaves zero space at the row's own edges (only *between* items), which
+   read as uneven against the card's padding. space-evenly gives the same
+   gap from the card edge to the first/last button as between buttons.
+   Width is normally content-driven per .site-pill-btn, except all four are
+   additionally forced to match the widest one's own natural width (set
+   inline by renderManusPdfLinksSection, since there's no clean pure-CSS way
+   to size flex siblings off the widest sibling's content). gap is a floor
+   for when the row wraps on narrow viewports. */
+.manus-pdf-links-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-evenly;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.manus-pdf-links-row .site-pill-btn {
+  justify-content: center;
 }
 
 /* --- Tab bar — browser-style folder tabs, filling the row evenly --- */
@@ -377,6 +435,12 @@ a.manus-pdf-title:focus-visible {
   border-radius: 4px;
   background: var(--input-bg);
   color: var(--text);
+}
+
+.manus-select-duration:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 /* --- Tab: Aktfordeling — act columns in a row, "Ikke placeret" below --
@@ -787,16 +851,16 @@ a.manus-pdf-title:focus-visible {
    circle carries its own manus-prio-N class permanently (see
    renderStarRow() in manus.js), not just while active, so :hover can
    target it without any JS involvement. */
-.manus-prio-0.manus-prio-active { background: #86efac; color: #14532d; }
-.manus-prio-1.manus-prio-active { background: #93c5fd; color: #1e3a8a; }
-.manus-prio-2.manus-prio-active { background: #fcd34d; color: #78350f; }
-.manus-prio-3.manus-prio-active { background: #fca5a5; color: #7f1d1d; }
+.manus-prio-0.manus-prio-active { background: rgb(var(--prio-0-rgb)); color: var(--prio-0-text); }
+.manus-prio-1.manus-prio-active { background: rgb(var(--prio-1-rgb)); color: var(--prio-1-text); }
+.manus-prio-2.manus-prio-active { background: rgb(var(--prio-2-rgb)); color: var(--prio-2-text); }
+.manus-prio-3.manus-prio-active { background: rgb(var(--prio-3-rgb)); color: var(--prio-3-text); }
 
 @media (hover: hover) {
-  .manus-prio-0:hover { background: #86efac; color: #14532d; }
-  .manus-prio-1:hover { background: #93c5fd; color: #1e3a8a; }
-  .manus-prio-2:hover { background: #fcd34d; color: #78350f; }
-  .manus-prio-3:hover { background: #fca5a5; color: #7f1d1d; }
+  .manus-prio-0:hover { background: rgb(var(--prio-0-rgb)); color: var(--prio-0-text); }
+  .manus-prio-1:hover { background: rgb(var(--prio-1-rgb)); color: var(--prio-1-text); }
+  .manus-prio-2:hover { background: rgb(var(--prio-2-rgb)); color: var(--prio-2-text); }
+  .manus-prio-3:hover { background: rgb(var(--prio-3-rgb)); color: var(--prio-3-text); }
   .manus-repeat-circle:hover { background: var(--accent-warm-fill); color: var(--accent-warm-text); }
 }
 

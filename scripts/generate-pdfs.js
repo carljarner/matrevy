@@ -169,6 +169,9 @@ function buildRolesBlock(scene) {
   return `\\begin{roles}\n${lines.join('\n')}\n\\end{roles}\n\n`;
 }
 
+// amsmath/amssymb are loaded unconditionally: this is a math student revue,
+// so scriptBody routinely contains real math notation (e.g. \mathbb{R}) that
+// plain LaTeX has no macro for.
 function buildSceneTex(scene, prodMeta) {
   const envName = isSongScene(scene) ? 'song' : 'sketch';
 
@@ -188,6 +191,7 @@ function buildSceneTex(scene, prodMeta) {
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
 \\usepackage[danish]{babel}
+\\usepackage{amsmath,amssymb}
 
 ${preamble}
 \\begin{document}
@@ -224,6 +228,7 @@ function buildAktoversigtTex(actsData, prodMeta) {
 \\usepackage{revy}
 \\usepackage{babel}
 \\usepackage[utf8]{inputenc}
+\\usepackage[T1]{fontenc}
 
 \\title{Aktoversigt}
 \\version{${texEscape(prodMeta.version)}}
@@ -277,33 +282,66 @@ function buildRolleoversigtTex(actsData, prodMeta) {
 \\usepackage[T1]{fontenc}
 \\usepackage[utf8]{inputenc}
 \\usepackage{graphicx}
-\\usepackage[a3paper]{geometry}
+% Symmetric margins on all four sides, with header/footer space zeroed out
+% (pagestyle is empty below, so nothing is ever drawn in headsep/footskip) —
+% mixing raw \\textwidth/\\textheight/\\headsep overrides with the geometry
+% package (the previous approach) left top/bottom asymmetric, since geometry
+% doesn't know to rebalance around dimensions set after it loads.
+\\usepackage[a3paper,landscape,margin=15mm,headheight=0pt,headsep=0pt,footskip=0pt]{geometry}
 
 \\frenchspacing
+\\pagestyle{empty}
+
+% \\enddocument (redefined by revy.sty) unconditionally writes \\@version to
+% the .aux file regardless of whether \\maketitle is ever called; \\@version
+% has no safe default (unlike \\@revyname/\\@revyyear) and falls back to an
+% interactive \\typein prompt, fatal under -interaction=nonstopmode. Setting
+% \\version{} here avoids that even though this document never displays it.
+\\version{${texEscape(prodMeta.version)}}
 
 \\newcommand{\\q}{\\rule{5.5mm}{0mm}}
 \\newcommand{\\actor}[1]{\\rotatebox{90}{#1\\ }}
 
-\\title{\\large{Rolleoversigt}}
-\\revyname{${texEscape(prodMeta.name)}}
-\\revyyear{${texEscape(prodMeta.year)}}
-\\version{${texEscape(prodMeta.version)}}
-
-\\textwidth 360mm
-\\textheight 260mm
-\\evensidemargin 0pt
-\\oddsidemargin 0pt
-\\headsep 1cm
-
 \\begin{document}
+% A page-level \\vfill (even anchored with \\null) is still subject to TeX's
+% page-breaker treating it as a near-zero-badness break point, which can
+% split the title from the table onto separate pages instead of centering
+% them. Wrapping everything in one explicit \\vbox to \\textheight resolves
+% the fill glue deterministically inside a single atomic, unbreakable box.
+\\vbox to \\textheight{
+\\vfil
 \\begin{center}
-\\maketitle
+{\\Large ${texEscape(prodMeta.name)} ${texEscape(prodMeta.year)}}\\\\[2mm]
+{\\LARGE\\bf Rolleoversigt}\\\\[6mm]
 
+% Scale to fill \\textwidth first (today's behavior); if that would make the
+% table taller than the height budget left after the title block (~35mm),
+% measure it and rescale by height instead. This keeps a small table (fewer
+% scenes) filling the full width like today, while a much larger table (many
+% more rows than the current production's 32 scenes) shrinks to fit instead
+% of overflowing past the page — correct for any future season's data, with
+% no hardcoded size that needs re-tuning by hand. Both calls use the
+% *starred* \\resizebox*, which targets total height (\\ht+\\dp) — the
+% unstarred form only pins \\ht, silently leaving \\dp (a tabular's last-row
+% depth) to scale along uncontrolled, which undershoots our \\ifdim budget.
+\\setbox0=\\hbox{\\resizebox*{\\textwidth}{!}{%
 \\begin{tabular}{|rl|*{${n}}{@{}c@{}|}}
 \\hline
 ${header}
-${body}\\end{tabular}
+${body}\\end{tabular}%
+}}%
+\\ifdim\\dimexpr\\ht0+\\dp0\\relax>\\dimexpr\\textheight-35mm\\relax
+\\setbox0=\\hbox{\\resizebox*{!}{\\dimexpr\\textheight-35mm\\relax}{%
+\\begin{tabular}{|rl|*{${n}}{@{}c@{}|}}
+\\hline
+${header}
+${body}\\end{tabular}%
+}}%
+\\fi
+\\box0
 \\end{center}
+\\vfil
+}
 \\end{document}
 `;
 }
@@ -356,33 +394,47 @@ function copyToRepo(builtPdfPath, repoRelativeOut) {
 // ── Manuskript: merge every per-scene PDF behind a title page ───
 // Mirrors RevyTeX's manus.pl (which used Perl's PDF::API2) — approximate,
 // not pixel-exact tab/bookmark fidelity for v1 (see the plan's noted
-// deferred scope).
-async function buildManuskript(actsData, prodMeta, scenePdfPaths, outPath) {
+// deferred scope). Shared by both the full Manuskript.pdf (no filter, blank
+// "Skuespiller:" line, like the reference PDF's own generic title page) and
+// each per-actor manuscript (buildActorManuskripts, below) — a scene filter
+// and a personalized name are the only things that differ between the two.
+async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, opts = {}) {
+  const { skuespillerName = '', sceneFilter = () => true } = opts;
   const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
   const out = await PDFDocument.create();
 
-  const font = await out.embedFont(StandardFonts.HelveticaBold);
+  const boldFont = await out.embedFont(StandardFonts.HelveticaBold);
+  const font = await out.embedFont(StandardFonts.Helvetica);
   const titlePage = out.addPage([595.28, 841.89]); // A4
   const { width, height } = titlePage.getSize();
   const title = 'Manuskript';
   const subtitle = `${prodMeta.name} ${prodMeta.year}`;
+  const skuespillerLine = `Skuespiller: ${skuespillerName || '_'.repeat(28)}`;
   titlePage.drawText(title, {
-    x: width / 2 - font.widthOfTextAtSize(title, 28) / 2,
-    y: height / 2 + 20,
+    x: width / 2 - boldFont.widthOfTextAtSize(title, 28) / 2,
+    y: height / 2 + 40,
     size: 28,
-    font,
+    font: boldFont,
     color: rgb(0, 0, 0),
   });
   titlePage.drawText(subtitle, {
     x: width / 2 - font.widthOfTextAtSize(subtitle, 14) / 2,
-    y: height / 2 - 10,
+    y: height / 2 + 10,
     size: 14,
     font,
     color: rgb(0.2, 0.2, 0.2),
   });
+  titlePage.drawText(skuespillerLine, {
+    x: 72,
+    y: height / 2 - 30,
+    size: 12,
+    font,
+    color: rgb(0, 0, 0),
+  });
 
   for (const act of actsData) {
     for (const scene of act.scenes) {
+      if (!sceneFilter(scene)) continue;
       const pdfPath = scenePdfPaths.get(scene.id);
       if (!pdfPath) continue;
       const bytes = fs.readFileSync(pdfPath);
@@ -392,9 +444,26 @@ async function buildManuskript(actsData, prodMeta, scenePdfPaths, outPath) {
     }
   }
 
-  const bytes = await out.save();
+  const outBytes = await out.save();
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
-  fs.writeFileSync(outPath, bytes);
+  fs.writeFileSync(outPath, outBytes);
+}
+
+// ── Individual manuscripts: one per cast.json roster entry ──────
+// Same merge helper as the master Manuskript.pdf, filtered to only the
+// scenes that actor is cast in (in act order) and with their name filled
+// into the title page's "Skuespiller:" line. Generated unconditionally for
+// every roster entry, even one cast in nothing this cycle (an empty
+// manuscript is still a valid, if uneventful, result).
+async function buildActorManuskripts(actsData, prodMeta, scenePdfPaths, castRoster, currentFolder) {
+  for (const person of castRoster) {
+    const name = person.name;
+    const outPath = root(`archive/${currentFolder}/manuskripter/${slugify(name)}.pdf`);
+    await buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, {
+      skuespillerName: name,
+      sceneFilter: (scene) => (scene.cast || []).some((c) => c.name === name),
+    });
+  }
 }
 
 // ── Main ─────────────────────────────────────────────────────
@@ -402,12 +471,18 @@ async function main() {
   checkPdflatexAvailable();
 
   const scenesJson = readJson('data/scenes.json');
+  const castJson = readJson('data/cast.json');
   const configJson = readJson('data/config.json');
   const currentFolder = configJson.currentProductionFolder;
 
-  const yearMatch = String(scenesJson.production || '').match(/\d{4}/);
+  // scenes.json's "production" bakes the year into the same string (e.g.
+  // "Matematikrevyen 2026") — revy.sty's \maketitle prints \revyname{} and
+  // \revyyear{} side by side, so the year must be split back out here or
+  // every title page prints it twice ("Matematikrevyen 2026 2026").
+  const productionStr = String(scenesJson.production || '');
+  const yearMatch = productionStr.match(/\d{4}/);
   const prodMeta = {
-    name: scenesJson.production || 'Matematikrevyen',
+    name: productionStr.replace(/\s*\d{4}\s*/, ' ').trim() || 'Matematikrevyen',
     year: yearMatch ? yearMatch[0] : String(new Date().getFullYear()),
     version: scenesJson.version || new Date().toISOString().slice(0, 10),
   };
@@ -445,9 +520,16 @@ async function main() {
 
   // 4) Manuskript — merge every compiled scene PDF, in act order.
   console.log('  Merging Manuskript...');
-  await buildManuskript(scenesJson.acts, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`));
+  await buildManuskriptPdf(scenesJson.acts, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`));
 
-  console.log(`Done. Wrote Aktoversigt.pdf / Rolleoversigt.pdf / Manuskript.pdf to archive/${currentFolder}/`);
+  // 5) One personalized manuscript per cast.json roster entry.
+  console.log('  Building individual manuscripts...');
+  await buildActorManuskripts(scenesJson.acts, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
+
+  console.log(
+    `Done. Wrote Aktoversigt.pdf / Rolleoversigt.pdf / Manuskript.pdf plus ${castJson.cast.length} ` +
+    `individual manuscripts to archive/${currentFolder}/`
+  );
 }
 
 if (require.main === module) {
@@ -459,5 +541,5 @@ if (require.main === module) {
 
 module.exports = {
   texEscape, slugify, classifyOrKeep, castRoleLabels, sceneCastLabels, hasScript, deriveSourcePdfPath,
-  buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex,
+  buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
 };

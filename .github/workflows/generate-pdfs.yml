@@ -1,0 +1,69 @@
+name: Generate manuscript PDFs
+
+# Fires on the exact same trigger as embed-scenes.yml (any push touching
+# data/scenes.json or data/cast.json) — a manus.html save already produces
+# this push (see save_manus() in server/update-data.php, which always
+# re-stamps scenes.json's version, guaranteeing a fresh commit even when a
+# Main Manus View "Generér <X>" button re-saves otherwise-unchanged data
+# purely to re-trigger this workflow). No workflow_dispatch/API trigger is
+# used, deliberately — that would need the site's GitHub token to gain an
+# "Actions: read & write" permission it doesn't have today.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/scenes.json'
+      - 'data/cast.json'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-pdfs-main
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install
+
+      # scripts/generate-pdfs.js needs nothing beyond a standard TeX Live
+      # install locally (BasicTeX's default scheme already had babel-danish,
+      # geometry, amsmath/amssymb, graphicx — no tlmgr extras were ever
+      # needed there). This apt set is the closest equivalent; if a real run
+      # here reports a missing .sty, add the matching texlive-* package.
+      - name: Install LaTeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive texlive-lang-european texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+
+      - run: node scripts/generate-pdfs.js
+
+      - name: Commit generated PDFs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add archive/
+          if git diff --staged --quiet; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          git commit -m "Regenerate manuscript PDFs via generate-pdfs.js"
+          # This job runs much longer than embed-scenes.yml's (LaTeX install +
+          # compile), so by the time it's ready to push, that faster workflow
+          # may have already pushed its own commit from the same trigger —
+          # rebase onto whatever is current on main before pushing to avoid a
+          # rejected non-fast-forward push.
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
