@@ -141,8 +141,203 @@ function getDanceCounterpartId(scene) {
   return (scene && (scene.danceCounterpartId || scene.mainCounterpartId)) || null;
 }
 
+// ── Custom time field ────────────────────────────────────
+// Native <input type="time">'s hour/minute segments share one highlight
+// color with no way to tell, via CSS, which one is currently being typed
+// into — a real, empirically-confirmed WebKit limit (see the removed CSS
+// comment this replaces) — and its clock-icon dropdown is unstylable
+// OS/browser chrome. This mirrors site-utils.js's siteCreateTimeField/
+// siteOpenTimePicker (duplicated rather than loaded — schedule.html
+// deliberately doesn't load site-utils.js, see CLAUDE.md) but reuses that
+// file's .site-field-combo/.site-field-pop/.site-tp-*/.site-list-* classes,
+// already shared in style.css (loaded on every page), so it comes out
+// themed identically with no new CSS needed. Free-typing the whole value
+// (like "1437" or "14:37") sidesteps the segment-ambiguity problem
+// entirely instead of trying to fix it.
+let schedTimePopupClose = null;
+let schedTimePopupAnchor = null;
+
+function schedCloseTimePopup() {
+  if (schedTimePopupClose) { schedTimePopupClose(); schedTimePopupClose = null; }
+  schedTimePopupAnchor = null;
+}
+
+function schedPositionTimePopup(pop, anchor) {
+  const rect = anchor.getBoundingClientRect();
+  const popRect = pop.getBoundingClientRect();
+  let left = Math.min(rect.left, window.innerWidth - popRect.width - 8);
+  left = Math.max(left, 8);
+  let top = rect.bottom + 4;
+  if (top + popRect.height > window.innerHeight - 8) top = rect.top - popRect.height - 4;
+  pop.style.left = `${left}px`;
+  pop.style.top = `${Math.max(top, 8)}px`;
+}
+
+function schedClockIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const circle = document.createElementNS(svgNS, 'circle');
+  circle.setAttribute('cx', '8');
+  circle.setAttribute('cy', '8');
+  circle.setAttribute('r', '6.5');
+  svg.appendChild(circle);
+  const hands = document.createElementNS(svgNS, 'path');
+  hands.setAttribute('d', 'M8 4.5V8l2.8 1.6');
+  svg.appendChild(hands);
+  return svg;
+}
+
+function schedTimeOptions() {
+  const opts = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 15) opts.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+  }
+  return opts;
+}
+
+// Accepts what a user is likely to type — "14:30", "14.30", "930", "0930" —
+// and normalizes to strict "HH:MM", or null if unparseable.
+function schedParseTimeInput(raw) {
+  const s = raw.trim();
+  if (!s) return '';
+  let m = s.match(/^([0-2]?\d)[:.]([0-5]\d)$/);
+  if (!m) m = s.match(/^(\d{1,2})(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (h > 23 || min > 59) return null;
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+function schedOpenTimePicker(anchor, currentValue, onSelect) {
+  schedCloseTimePopup();
+  const pop = document.createElement('div');
+  pop.className = 'site-field-pop site-tp-pop';
+
+  const clearRow = document.createElement('button');
+  clearRow.type = 'button';
+  clearRow.className = 'site-list-row site-tp-clear';
+  clearRow.textContent = 'Ingen tid';
+  clearRow.addEventListener('click', () => { close(); onSelect(''); });
+  pop.appendChild(clearRow);
+
+  const list = document.createElement('div');
+  list.className = 'site-tp-list';
+  pop.appendChild(list);
+
+  let selectedRow = null;
+  for (const t of schedTimeOptions()) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'site-list-row';
+    row.textContent = t;
+    if (t === currentValue) { row.classList.add('site-list-selected'); selectedRow = row; }
+    row.addEventListener('click', () => { close(); onSelect(t); });
+    list.appendChild(row);
+  }
+
+  pop.style.position = 'fixed';
+  document.body.appendChild(pop);
+  schedPositionTimePopup(pop, anchor);
+
+  function onDocMousedown(e) {
+    if (!pop.contains(e.target) && e.target !== anchor) close();
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); close(); anchor.focus(); }
+  }
+  function onReposition() { schedPositionTimePopup(pop, anchor); }
+  document.addEventListener('mousedown', onDocMousedown, true);
+  document.addEventListener('keydown', onKeydown, true);
+  window.addEventListener('resize', onReposition);
+  document.addEventListener('scroll', onReposition, true);
+
+  function close() {
+    document.removeEventListener('mousedown', onDocMousedown, true);
+    document.removeEventListener('keydown', onKeydown, true);
+    window.removeEventListener('resize', onReposition);
+    document.removeEventListener('scroll', onReposition, true);
+    pop.remove();
+    if (schedTimePopupClose === close) { schedTimePopupClose = null; schedTimePopupAnchor = null; }
+  }
+  schedTimePopupClose = close;
+  schedTimePopupAnchor = anchor;
+  if (selectedRow) selectedRow.scrollIntoView({ block: 'center' });
+}
+
+function schedCreateTimeField(initialValue) {
+  const wrap = document.createElement('div');
+  wrap.className = 'site-field-combo';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'site-field-input';
+  input.placeholder = 'tt:mm';
+  input.autocomplete = 'off';
+  input.inputMode = 'numeric';
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'site-field-toggle';
+  toggle.appendChild(schedClockIcon());
+  toggle.setAttribute('aria-label', 'Vælg tidspunkt');
+
+  wrap.appendChild(input);
+  wrap.appendChild(toggle);
+
+  let _value = initialValue || '';
+  input.value = _value;
+
+  Object.defineProperty(wrap, 'value', {
+    get() { return _value; },
+    set(v) { _value = v || ''; input.value = _value; },
+  });
+
+  function commit(newValue) {
+    _value = newValue;
+    input.value = _value;
+  }
+
+  input.addEventListener('blur', () => {
+    const parsed = schedParseTimeInput(input.value);
+    if (parsed === null) { input.value = _value; return; } // revert, keep last valid value
+    commit(parsed);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+  });
+
+  toggle.addEventListener('click', () => {
+    if (schedTimePopupAnchor === toggle) { schedCloseTimePopup(); return; }
+    schedOpenTimePicker(toggle, _value, (t) => commit(t));
+  });
+
+  return wrap;
+}
+
+function mountTimeField(mountId, fieldId, initialValue) {
+  const mount = document.getElementById(mountId);
+  const field = schedCreateTimeField(initialValue);
+  field.id = fieldId;
+  mount.replaceWith(field);
+  return field;
+}
+
 // ── Boot ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  mountTimeField('input-start-mount', 'input-start', '10:00');
+  mountTimeField('input-end-mount', 'input-end', '17:00');
+  mountTimeField('absent-form-start-mount', 'absent-form-start', '');
+  mountTimeField('absent-form-end-mount', 'absent-form-end', '');
+
   // Load scenes/cast up front — a plain page reload is NOT on its own a safe
   // moment to prefer a fresh manus override: state.allScenes always starts
   // empty here regardless of whether restoreState() (below) is about to

@@ -42,7 +42,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #57606a;
+  color: var(--text-muted);
   margin-bottom: 0.9rem;
 }
 
@@ -80,7 +80,7 @@
 
 .hint {
   font-weight: 400;
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.78rem;
 }
 
@@ -111,8 +111,8 @@
 }
 .btn-primary:focus-visible {
   outline: none;
-  border-color: #9ca3af;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .btn-secondary {
@@ -136,8 +136,8 @@
 }
 .btn-secondary:focus-visible {
   outline: none;
-  border-color: #9ca3af;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 /* ── Scene sidebar list ─────────────────────────────────── */
@@ -147,6 +147,15 @@
   gap: 3px;
   height: 500px;
   overflow-y: auto;
+}
+
+/* Chromium makes any scrollable region with overflowing content an
+   implicit keyboard-focusable tab stop (for arrow-key scrolling) even
+   with no tabindex attribute in the markup — so it draws its own
+   default blue ring here that no selector-based rule can reach. */
+#scene-list:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
 }
 
 .scene-chip {
@@ -181,19 +190,20 @@
   flex-shrink: 0;
 }
 /* Same four hues as Stjerneark's priority circles (manus.css's
-   .manus-prio-0..3), at reduced opacity — a small sidebar badge with
-   text inside reads better softer than Stjerneark's solid 20px dots. */
-.prio-0 { background: rgba(134, 239, 172, 0.5); color: #14532d; }
-.prio-1 { background: rgba(147, 197, 253, 0.5); color: #1e3a8a; }
-.prio-2 { background: rgba(252, 211, 77, 0.5); color: #78350f; }
-.prio-3 { background: rgba(252, 165, 165, 0.5); color: #7f1d1d; }
+   .manus-prio-0..3, sharing the --prio-N-rgb/--prio-N-text tokens from
+   style.css), at reduced opacity — a small sidebar badge with text
+   inside reads better softer than Stjerneark's solid 20px dots. */
+.prio-0 { background: rgb(var(--prio-0-rgb) / 0.5); color: var(--prio-0-text); }
+.prio-1 { background: rgb(var(--prio-1-rgb) / 0.5); color: var(--prio-1-text); }
+.prio-2 { background: rgb(var(--prio-2-rgb) / 0.5); color: var(--prio-2-text); }
+.prio-3 { background: rgb(var(--prio-3-rgb) / 0.5); color: var(--prio-3-text); }
 
 .chip-name { flex: 1; }
 
 .chip-repeat-tag {
   flex-shrink: 0;
   font-size: 0.85rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 
 /* ── Absentee list & form ───────────────────────────────── */
@@ -215,7 +225,7 @@
   color: var(--text);
 }
 .absent-row-name { font-weight: 500; flex-shrink: 0; }
-.absent-row-time { color: #57606a; flex: 1; }
+.absent-row-time { color: var(--text-muted); flex: 1; }
 .absent-remove-btn {
   background: none;
   border: none;
@@ -227,7 +237,7 @@
   flex-shrink: 0;
 }
 @media (hover: hover) {
-  .absent-remove-btn:hover { color: #c0392b; }
+  .absent-remove-btn:hover { color: var(--danger); }
 }
 
 #btn-add-absent { width: 100%; margin-bottom: 0.75rem; }
@@ -241,7 +251,7 @@
 }
 .absent-form .field-label { margin-bottom: 0.5rem; }
 .absent-form-times { display: flex; gap: 0.5rem; }
-.absent-form-times .field-label { flex: 1; }
+.absent-form-times .field-label { flex: 1; min-width: 0; }
 .absent-form-actions { display: flex; gap: 0.5rem; margin-top: 0.3rem; }
 .absent-form-actions .btn-primary,
 .absent-form-actions .btn-secondary { width: auto; flex: 1; margin-top: 0; }
@@ -259,10 +269,11 @@
   font-weight: 600;
   color: var(--text);
   outline: none;
+  border-radius: 4px;
 }
 .sched-grid-title:focus {
   outline: none;
-  box-shadow: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 .sched-grid-actions {
   display: flex;
@@ -275,7 +286,7 @@
   align-items: center;
   justify-content: center;
   min-height: 300px;
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.95rem;
   text-align: center;
 }
@@ -326,7 +337,7 @@
 }
 .sched-table td.col-time {
   background: var(--surface);
-  color: #57606a;
+  color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 600;
   text-align: center;
@@ -394,7 +405,7 @@
    (also .cell-drop-blocked's light-red fill) instead of amber/orange. */
 .cell-filled.has-conflict {
   background: #fee2e2;
-  border-left-color: #c0392b;
+  border-left-color: var(--danger);
 }
 
 .cell-scene-name {
@@ -407,7 +418,7 @@
 
 .cell-cast-list {
   font-size: 0.72rem;
-  color: #57606a;
+  color: var(--text-muted);
   line-height: 1.4;
 }
 
@@ -431,7 +442,7 @@
 }
 @media (hover: hover) {
   .cell-filled:hover .cell-remove { display: block; }
-  .cell-remove:hover { color: #c0392b; }
+  .cell-remove:hover { color: var(--danger); }
 }
 
 /* Touch devices can't hover: keep the remove control always
@@ -453,7 +464,7 @@
   display: inline-block;
   font-size: 0.68rem;
   background: #fee2e2;
-  color: #c0392b;
+  color: var(--danger);
   border-radius: 3px;
   padding: 0 3px;
   margin-top: 2px;
@@ -477,7 +488,7 @@
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  box-shadow: var(--modal-shadow);
   overflow: hidden;
 }
 /* Fixed height for the scene picker / cell editor / Rekvisitten cast list,
@@ -499,7 +510,7 @@
   border: none;
   font-size: 1rem;
   cursor: pointer;
-  color: #57606a;
+  color: var(--text-muted);
   padding: 0;
 }
 @media (hover: hover) {
@@ -538,7 +549,7 @@
 .picker-conflict-tag {
   display: inline-block;
   font-size: 0.72rem;
-  background: #57606a;
+  background: var(--text-muted);
   color: #fff;
   border-radius: 3px;
   padding: 0 4px;
@@ -548,14 +559,14 @@
 }
 .picker-conflict-names {
   font-size: 0.78rem;
-  color: #c0392b;
+  color: var(--danger);
   margin-top: 2px;
 }
 .picker-absent-tag {
   display: inline-block;
   font-size: 0.72rem;
   background: var(--surface-2);
-  color: #57606a;
+  color: var(--text-muted);
   border-radius: 3px;
   padding: 0 4px;
   margin-left: 5px;
@@ -565,11 +576,11 @@
 .picker-repeat-tag {
   flex-shrink: 0;
   font-size: 0.9rem;
-  color: #57606a;
+  color: var(--text-muted);
 }
 .picker-absent-names {
   font-size: 0.78rem;
-  color: #57606a;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 .picker-footer {
@@ -583,7 +594,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #57606a;
+  color: var(--text-muted);
   padding: 0.5rem 0.6rem 0.2rem;
 }
 .picker-legend {
@@ -592,7 +603,7 @@
   align-items: center;
   gap: calc(1.25rem + 50px);
   font-size: 0.78rem;
-  color: #57606a;
+  color: var(--text-muted);
   padding: 0.2rem 0.6rem 0.5rem;
 }
 .picker-legend-item {
@@ -603,7 +614,7 @@
 .picker-back {
   font-size: 0.8rem;
   font-weight: 500;
-  color: #57606a;
+  color: var(--text-muted);
   cursor: pointer;
   padding: 0.5rem 0.6rem;
   opacity: 0.7;
