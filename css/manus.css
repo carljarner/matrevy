@@ -272,6 +272,26 @@ a.manus-pdf-title:focus-visible {
   gap: 0.6rem;
 }
 
+/* Mirrors .manus-main-view-buttons' own status+button pairing, on the
+   opposite side of the row: "Sidst genereret" status text immediately to
+   the right of "Generér PDF'er". */
+.manus-main-view-generate-cluster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* Same idle grey as .manus-save-status; no "dirty" variant since this is
+   purely informational, not a clean/unsaved toggle. Empty (no text) rather
+   than a placeholder while the Last-Modified check is still in flight or
+   couldn't be determined at all — see manusFetchPdfStatus. */
+.manus-pdf-status {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .manus-main-view-error {
   color: var(--danger);
   font-size: 0.85rem;
@@ -306,6 +326,16 @@ a.manus-pdf-title:focus-visible {
 .manus-pdf-links {
   display: flex;
   margin-bottom: 1.25rem;
+}
+
+/* Reuses the manus-pending-pulse keyframes above (already used by the
+   upload-pending-deploy indicator) so both the quick-link buttons and the
+   main "Generér PDF'er" trigger button pulse identically while a rebuild is
+   in flight. */
+@media (prefers-reduced-motion: no-preference) {
+  .site-pill-btn.manus-pdf-generating {
+    animation: manus-pending-pulse 1.4s ease-in-out infinite;
+  }
 }
 
 /* Truly evenly distributed — space-evenly, not space-between: the latter

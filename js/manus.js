@@ -2359,6 +2359,119 @@ async function manusSaveMain() {
   }
 }
 
+// ── PDF regeneration status (pulse + last-generated badge) ────
+// There is no server-side "build finished" signal available to the client —
+// the site's GitHub token has no Actions permission to poll workflow status,
+// so save_manus() returning ok just means the scenes.json/cast.json commit
+// landed, not that generate-pdfs.yml has actually run pdflatex yet. The only
+// way to detect real completion is to watch one of the generated files' own
+// Last-Modified header (same-origin HEAD request, no CORS issue) for a
+// change versus a snapshot taken right before triggering. Manuskript.pdf is
+// used as that reference file since it's the last file the build produces
+// before the workflow's single end-of-job commit, and every file in that
+// commit goes live together. This is plain in-memory state, not synced
+// through the server — a page reload mid-poll silently drops back to idle
+// (same accepted limitation as manusDraft's own dirty tracking elsewhere in
+// this file), and another visitor's tab never sees this tab's pulse.
+let manusPdfGenerating = false;
+let manusPdfTimestampLoaded = false;
+let manusPdfLastGeneratedAt = null; // Date | null
+let manusPdfConfirmedAbsent = false; // true only on a genuine 404 — distinct from "couldn't check"
+let manusPdfCheckFailed = false; // true when the check itself couldn't run/complete at all
+
+// A genuine 404 (never generated) is reported distinctly from "couldn't
+// check" (thrown fetch — e.g. fetch() flatly refuses file:// URLs with "URL
+// scheme file is not supported", the same file:// limitation documented at
+// the top of this file for the login endpoint, or a transient network
+// error): only the 404 case is safe to ever surface as "Endnu ikke
+// genereret" — silently mapping a failed check to that same message would
+// misreport a file that actually exists. checkFailed gets its own visible
+// fallback text below rather than staying blank, so a file:// visitor sees
+// an honest "Ukendt" instead of what looks like a missing feature.
+async function manusFetchPdfStatus(url) {
+  if (!url) return { date: null, confirmedAbsent: false, checkFailed: true };
+  try {
+    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    if (res.status === 404) return { date: null, confirmedAbsent: true, checkFailed: false };
+    if (!res.ok) return { date: null, confirmedAbsent: false, checkFailed: true };
+    const header = res.headers.get('last-modified');
+    return { date: header ? new Date(header) : null, confirmedAbsent: false, checkFailed: !header };
+  } catch (e) {
+    return { date: null, confirmedAbsent: false, checkFailed: true };
+  }
+}
+
+function manusPdfReferenceUrl() {
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  return folder ? `archive/${folder}/Manuskript.pdf` : null;
+}
+
+function manusFormatGeneratedAt(date) {
+  const datePart = date.toLocaleDateString('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Copenhagen' });
+  const timePart = date.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' });
+  return `Sidst genereret: ${datePart} kl. ${timePart}`;
+}
+
+function manusPdfStatusText() {
+  if (manusPdfLastGeneratedAt) return manusFormatGeneratedAt(manusPdfLastGeneratedAt);
+  if (manusPdfConfirmedAbsent) return 'Endnu ikke genereret';
+  if (manusPdfCheckFailed) return 'Sidst genereret: ukendt';
+  return ''; // still checking — momentary, resolves within one tick
+}
+
+function manusPdfTimestampEl() {
+  return document.querySelector('#manus-main-view-actions [data-manus-pdf-timestamp]');
+}
+
+// Fetched once per page load (guarded by manusPdfTimestampLoaded), not on
+// every re-render — a completed poll updates the cache directly instead of
+// triggering another fetch. Fire-and-forget; requeries the badge element by
+// its data-attribute marker when it resolves, since a re-render may have
+// replaced the node by then (same pattern as manusMainViewErrorEl/
+// manusImportFromTex elsewhere in this file).
+function manusLoadPdfTimestampIfNeeded() {
+  if (manusPdfTimestampLoaded || manusPdfGenerating) return;
+  manusPdfTimestampLoaded = true;
+  manusFetchPdfStatus(manusPdfReferenceUrl()).then(({ date, confirmedAbsent, checkFailed }) => {
+    manusPdfLastGeneratedAt = date;
+    manusPdfConfirmedAbsent = confirmedAbsent;
+    manusPdfCheckFailed = checkFailed;
+    const el = manusPdfTimestampEl();
+    if (el) el.textContent = manusPdfStatusText();
+  });
+}
+
+const MANUS_PDF_POLL_INTERVAL_MS = 10000;
+const MANUS_PDF_POLL_TIMEOUT_MS = 10 * 60 * 1000;
+
+function manusPollPdfCompletion(beforeDate, url) {
+  const startedAt = Date.now();
+  const beforeTime = beforeDate ? beforeDate.getTime() : null;
+
+  const tick = async () => {
+    if (Date.now() - startedAt > MANUS_PDF_POLL_TIMEOUT_MS) {
+      manusPdfGenerating = false;
+      renderManusPdfLinksSection();
+      renderMainViewActions();
+      return;
+    }
+    const current = await manusFetchPdfStatus(url);
+    const currentTime = current.date ? current.date.getTime() : null;
+    if (currentTime !== null && currentTime !== beforeTime) {
+      manusPdfGenerating = false;
+      manusPdfLastGeneratedAt = current.date;
+      manusPdfConfirmedAbsent = false;
+      manusPdfCheckFailed = false;
+      renderManusPdfLinksSection();
+      renderMainViewActions();
+      siteShowToast("PDF'erne er opdateret");
+      return;
+    }
+    setTimeout(tick, MANUS_PDF_POLL_INTERVAL_MS);
+  };
+  setTimeout(tick, MANUS_PDF_POLL_INTERVAL_MS);
+}
+
 // Re-triggers the PDF pipeline (scripts/generate-pdfs.js, run by the
 // generate-pdfs.yml GitHub Action) without touching any in-progress edit:
 // unlike manusSaveMain, this never reads or clears manusDraft, so it's safe
@@ -2372,35 +2485,63 @@ async function manusSaveMain() {
 // since Manuskript is a merge of every other scene PDF and a partial
 // rebuild risks the three documents drifting out of sync with each other.
 async function manusRegeneratePdfs() {
+  if (manusPdfGenerating) return;
+
   const errEl = manusMainViewErrorEl();
   if (errEl) errEl.textContent = '';
+
+  const referenceUrl = manusPdfReferenceUrl();
+  const before = (await manusFetchPdfStatus(referenceUrl)).date;
+
+  manusPdfGenerating = true;
+  renderManusPdfLinksSection();
+  renderMainViewActions();
 
   const scenesActs = manusCurrentActsPayload();
   const castRoster = manusBuildCastRoster(scenesActs);
   const result = await siteSaveResource('manus', { scenes: scenesActs, cast: castRoster });
   if (!result.ok) {
+    manusPdfGenerating = false;
+    renderManusPdfLinksSection();
+    renderMainViewActions();
     const el = manusMainViewErrorEl();
     if (el) el.textContent = result.message;
     return;
   }
   siteShowToast('PDF-generering startet (Aktoversigt, Rolleoversigt, Manuskript) – tager et par minutter');
+  manusPollPdfCompletion(before, referenceUrl);
 }
 
-// Bottom action bar of Main Manus View: "Generér PDF'er" pinned to the
-// bottom-left corner (a write action, distinct from the read-only file
-// links above the whole section), and a right-side cluster (error text
-// above, then the "Gemt"/"Ikke gemt" status next to Gem) mirroring where
-// Budget's own save-status sits relative to its save button.
+// Bottom action bar of Main Manus View: a left-side cluster ("Generér
+// PDF'er" followed by its own "Sidst genereret" status, mirroring how the
+// "Gemt"/"Ikke gemt" status sits next to Gem on the right) and a right-side
+// cluster (error text above, then the Gemt/Ikke gemt status next to Gem)
+// mirroring where Budget's own save-status sits relative to its save
+// button.
 function renderMainViewActions() {
   const mount = document.getElementById('manus-main-view-actions');
   mount.textContent = '';
 
+  const left = document.createElement('div');
+  left.className = 'manus-main-view-generate-cluster';
+
   const generateBtn = document.createElement('button');
   generateBtn.type = 'button';
   generateBtn.className = 'site-pill-btn site-pill-warm';
-  generateBtn.textContent = "Generér PDF'er";
+  generateBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
+  generateBtn.textContent = manusPdfGenerating ? 'Genererer...' : "Generér PDF'er";
+  generateBtn.disabled = manusPdfGenerating;
   generateBtn.addEventListener('click', () => manusRegeneratePdfs());
-  mount.appendChild(generateBtn);
+  left.appendChild(generateBtn);
+
+  const pdfStatus = document.createElement('span');
+  pdfStatus.className = 'manus-pdf-status';
+  pdfStatus.setAttribute('data-manus-pdf-timestamp', '');
+  pdfStatus.textContent = manusPdfStatusText();
+  left.appendChild(pdfStatus);
+
+  mount.appendChild(left);
+  manusLoadPdfTimestampIfNeeded();
 
   const right = document.createElement('div');
   right.className = 'manus-main-view-save-cluster';
@@ -2492,6 +2633,11 @@ function renderManusPdfLinksSection() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'site-pill-btn site-pill-warm';
+    // Stays fully clickable during generation, label unchanged — opens
+    // whichever version is currently live, the pulse alone flags that a
+    // fresher one is on its way (see manusRegeneratePdfs/
+    // manusPollPdfCompletion above).
+    btn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
     btn.textContent = label;
     btn.addEventListener('click', () => openFile(filename));
     linkRow.appendChild(btn);
@@ -2500,6 +2646,7 @@ function renderManusPdfLinksSection() {
   const individualBtn = document.createElement('button');
   individualBtn.type = 'button';
   individualBtn.className = 'site-pill-btn site-pill-warm';
+  individualBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   individualBtn.textContent = 'Individuelt Manus';
   individualBtn.addEventListener('click', () => {
     const names = getEffectiveCastData()
