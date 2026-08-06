@@ -856,6 +856,17 @@ a.manus-pdf-title:focus-visible {
   resize: vertical;
 }
 
+/* Title/author/melody header field above "Roller" (openScriptSceneModal) —
+   the same LaTeX-line textarea, just short (2-3 rows) since it only ever
+   holds a couple of \command{} lines. Needs the .edit-field prefix to
+   out-specificity style.css's own ".edit-field textarea { min-height: 90px }"
+   (an element+class selector beats our plain class one on specificity alone,
+   regardless of source order) — without it the field renders taller than its
+   `rows` attribute actually calls for. */
+.edit-field .manus-script-header-textarea {
+  min-height: 0;
+}
+
 /* --- Tab: Stjerneark -----------------------------------------
    Rows are styled identically to Rollefordeling/Aktfordeling's boxes — the
    .manus-akt-row class supplies background/border/padding/radius, applied

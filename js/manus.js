@@ -786,7 +786,12 @@ function manusDraftRowsForLane(lane, draft = manusDraft) {
   return draft.rows.filter(r => r.lane === lane);
 }
 
+// row.titleOverride (set by the Manus tab's title/author/melody header field
+// — see openScriptSceneModal below) always wins once present, regardless of
+// origin: it's how that field's \title{} line actually renames a scene, a
+// pool submission, or a manual row alike.
 function manusRowTitle(row) {
+  if (row.titleOverride) return row.titleOverride;
   if (row.origin === 'manual') return row.manualName;
   return row.origin === 'existing' ? row.scene.name : row.submission.title;
 }
@@ -871,6 +876,24 @@ function parseRolesText(rolesText) {
 
 function extractTexRoles(texText) {
   return parseRolesText(extractTexRolesBlockText(texText));
+}
+
+// Mirror scripts/generate-pdfs.js's own extractTexAuthor/extractTexMelody
+// (same duplicated-table convention as ROLE_CATEGORIES/classifyRoleCode
+// above), plus a \title{} counterpart for the Manus tab's header field below.
+function extractTexTitle(texText) {
+  const m = texText.match(/\\title\{([^}]*)\}/);
+  return m ? m[1].trim() : '';
+}
+
+function extractTexAuthor(texText) {
+  const m = texText.match(/\\author\{([^}]*)\}/);
+  return m ? m[1].trim() : '';
+}
+
+function extractTexMelody(texText) {
+  const m = texText.match(/\\melody\{([^}]*)\}/);
+  return m ? m[1].trim() : '';
 }
 
 // The inverse of parseRolesText() — reconstructs \role{}[] lines from
@@ -1064,6 +1087,24 @@ async function manusImportFromTex(row) {
       }
     }
 
+    let headerChanged = false;
+    if (!row.titleOverride) {
+      const title = extractTexTitle(text);
+      if (title) { row.titleOverride = title; headerChanged = true; }
+    }
+    if (!row.writtenBy) {
+      const author = extractTexAuthor(text);
+      if (author) { row.writtenBy = author; headerChanged = true; }
+    }
+    if (manusRowIsSong(row) && !row.melody) {
+      const melody = extractTexMelody(text);
+      if (melody) { row.melody = melody; headerChanged = true; }
+    }
+    if (headerChanged) {
+      const headerEl = document.querySelector(`[data-manus-header-textarea="${row.key}"]`);
+      if (headerEl) headerEl.value = manusBuildHeaderText(row);
+    }
+
     if (!row.cast.length) {
       const imported = extractTexRoles(text);
       if (imported.length && !row.cast.length) {
@@ -1205,6 +1246,10 @@ function manusRowScene(row, act, idx) {
       sourceTex: sub.texPath,
     };
   }
+  // The Manus tab's header field (see manusApplyHeaderText) can rename a
+  // scene/submission/manual row alike via its \title{} line — applied last
+  // so it always wins over whichever origin branch above seeded scene.name.
+  if (row.titleOverride) scene.name = row.titleOverride;
   scene.priority = row.priority || 0;
   if (isDanceSplitCandidate(scene) && row.dansPriority != null) scene.dansPriority = row.dansPriority;
   else delete scene.dansPriority;
@@ -1890,24 +1935,66 @@ function renderRollefordelingTab() {
 // ── Tab: Manus (script text) ─────────────────────────────────────
 // Reuses the same per-act kanban (renderActColumnsGrid) and button-opens-
 // overlay pattern as Rollefordeling (openRoleSceneModal/renderRoleSceneButton
-// above) — a scene is a button; clicking it opens an overlay with a
-// read-only "Roller" reference list (renderRoleSummaryList(), which
-// \says{}/\sings{} labels exist) followed by a plain monospace textarea for
-// the scene's actual LaTeX body (row.scriptBody — everything that goes
-// between \begin{sketch}/\begin{song} and \end{...} in the .tex
-// scripts/generate-pdfs.js builds). That's the only editable field here —
-// status/melody/writtenBy/sourceProduction/sourceYear were tried and cut for
-// being too much to fill in per scene; scenes.json/generate-pdfs.js still
-// support them (safe to omit), just nothing in this UI sets them anymore.
-// The textarea mutates the row directly, no draft rebuild — same as the
-// cast editor above.
+// above) — a scene is a button; clicking it opens an overlay with a small
+// header textarea (title/author/melody, see below), a read-only "Roller"
+// reference list (renderRoleSummaryList(), which \says{}/\sings{} labels
+// exist), and a plain monospace textarea for the scene's actual LaTeX body
+// (row.scriptBody — everything that goes between \begin{sketch}/\begin{song}
+// and \end{...} in the .tex scripts/generate-pdfs.js builds).
+// status/sourceProduction/sourceYear were tried and cut for being too much
+// to fill in per scene; scenes.json/generate-pdfs.js still support them
+// (safe to omit), just nothing in this UI sets them anymore. Both textareas
+// mutate the row directly, no draft rebuild — same as the cast editor above.
 function manusRowIsSong(row) {
   return manusRowType(row) === 'sang';
+}
+
+// The header field's raw LaTeX-line text, built fresh every time the modal
+// opens (or the auto-import backfill lands) from the row's current
+// title/writtenBy/melody — the same "reconstruct from the row, don't persist
+// the textarea's own text" convention Rollefordeling's role textarea uses
+// (formatRolesText). \melody{} only appears for a song-typed row.
+function manusBuildHeaderText(row) {
+  const lines = [
+    `\\title{${manusRowTitle(row)}}`,
+    `\\author{${row.writtenBy || ''}}`,
+  ];
+  if (manusRowIsSong(row)) lines.push(`\\melody{${row.melody || ''}}`);
+  return lines.join('\n');
+}
+
+// Parses the header textarea's current text straight back into the row on
+// every keystroke — live-bound, exactly like the scriptBody textarea below
+// it, not a separate "Opdater" step. An empty/removed \title{} line is
+// ignored (never blanks row.titleOverride, since a scene must keep a name);
+// \author{}/\melody{} clear normally when emptied.
+function manusApplyHeaderText(row, text) {
+  const title = extractTexTitle(text);
+  if (title) row.titleOverride = title;
+  row.writtenBy = extractTexAuthor(text);
+  if (manusRowIsSong(row)) row.melody = extractTexMelody(text);
 }
 
 function openScriptSceneModal(row) {
   const { modal, form } = siteOpenModalWithClose(manusRowTitle(row));
   modal.classList.add('manus-script-modal');
+  const headingEl = modal.querySelector('h2');
+
+  const headerTextarea = document.createElement('textarea');
+  headerTextarea.className = 'manus-script-textarea manus-script-header-textarea';
+  headerTextarea.rows = manusRowIsSong(row) ? 3 : 2;
+  headerTextarea.spellcheck = false;
+  headerTextarea.setAttribute('data-manus-header-textarea', row.key);
+  headerTextarea.value = manusBuildHeaderText(row);
+  headerTextarea.addEventListener('input', () => {
+    manusApplyHeaderText(row, headerTextarea.value);
+    // Live-reflect a \title{} edit in the overlay's own heading — every
+    // other manusRowTitle() call site (chips, other tabs) only picks it up
+    // on the next renderAll(), same as scriptBody edits never live-updating
+    // anything outside this textarea.
+    if (headingEl) headingEl.textContent = manusRowTitle(row);
+  });
+  form.appendChild(siteEditField('Titel / forfatter' + (manusRowIsSong(row) ? ' / melodi' : '') + ' (LaTeX)', headerTextarea));
 
   form.appendChild(renderRoleSummaryList(row, 'Roller:'));
 
