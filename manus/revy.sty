@@ -44,9 +44,8 @@
 %
 % HEADINGS:
 %   The heading of each page indicates the year of the revy, the
-%   title of the sketch, the version number, the LaTeX date, and a
-%   ``page <current> of <number-of-pages>''. Therefore, the text
-%   must be LaTeX'ed twice to get the references right.
+%   title of the sketch, and a ``page <current> of <number-of-pages>''.
+%   Therefore, the text must be LaTeX'ed twice to get the references right.
 %
 % ENVIRONMENTS:
 %   A ``roles'' environment is defined for listing the roles of
@@ -147,17 +146,20 @@
 
 \makeatletter
 
+% Single-line three-column running head: revyname+year flush left, title
+% centered on \textwidth regardless of how wide the left/right text is, and
+% the page count flush right — via the standard \makebox[0pt][l/r]{} trick
+% (a zero-width box whose content still draws flush to that edge), so all
+% three sit on one baseline directly above the rule instead of the header
+% being split across two stacked lines.
 \gdef\ps@revyheadings{
-  \def\@oddhead{\vbox to 0pt{\vss\hbox{\rm\strut\@revyname{} \@revyyear}
-                      \hbox to \textwidth{Version \@version\quad\today
-                            \hfil {\large\sl\@title}\hfil 
-                            Side \rm\thepage/\pageref{lastpage}}
+  \def\@oddhead{\vbox to 0pt{\vss
+                      \hbox to \textwidth{\rm\strut
+                            \makebox[0pt][l]{MatRevy \@revyyear}%
+                            \hfil {\large\sl\@title}\hfil
+                            \makebox[0pt][r]{Side \rm\thepage/\pageref{lastpage}}}
                       \hrule}}
-  \def\@evenhead{\vbox to 0pt{\vss\hbox{\rm\strut\@revyname{} \@revyyear}
-                      \hbox to \textwidth{Side \rm\thepage/\pageref{lastpage}
-                            \hfil {\large\sl\@title}\hfil 
-                            Version \@version\quad\today}
-                      \hrule}}
+  \let\@evenhead\@oddhead
   \def\@oddfoot{}\def\@evenfoot{}}
 
 \newif\if@author\newif\if@melody\newif\if@status\newif\if@eta
