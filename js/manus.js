@@ -659,8 +659,35 @@ let manusKeyCounter = 0;
 // only from render-triggered call sites would miss those.
 let manusLastSavedSnapshot = null;
 
+// Keys prefixed `_` are internal bookkeeping (e.g. row._scriptImportTried,
+// set the moment a row's tab is first opened, regardless of whether the
+// fetch it guards finds anything new) — never part of the save payload, so
+// they must not affect the dirty diff below.
+function manusSerializeDraft(draft) {
+  return JSON.stringify(draft, (key, value) => (key.startsWith('_') ? undefined : value));
+}
+
 function manusIsDirty() {
-  return !!manusDraft && JSON.stringify(manusDraft) !== manusLastSavedSnapshot;
+  return !!manusDraft && manusSerializeDraft(manusDraft) !== manusLastSavedSnapshot;
+}
+
+// manusImportFromTex() below backfills a handful of fields on a row purely
+// by re-deriving them from that row's own already-uploaded .tex — content
+// that, unlike a real edit, is fully reproducible on the next page load, so
+// it shouldn't itself demand a save. Rather than excluding those fields from
+// the diff outright (they're real, savable content once a genuine edit
+// touches them), fold the just-imported values into the baseline for this
+// one row so the passive backfill doesn't look like unsaved work, while any
+// real edit made on top of it still correctly diverges from that baseline.
+function manusAbsorbImportIntoBaseline(row, fields) {
+  if (!manusLastSavedSnapshot) return;
+  try {
+    const baseline = JSON.parse(manusLastSavedSnapshot);
+    const baseRow = (baseline.rows || []).find(r => r.key === row.key);
+    if (!baseRow) return;
+    for (const f of fields) baseRow[f] = row[f];
+    manusLastSavedSnapshot = manusSerializeDraft(baseline);
+  } catch (e) { /* malformed/stale snapshot — leave dirty as the safe fallback */ }
 }
 
 function manusNextKey() {
@@ -778,7 +805,7 @@ function manusInitDraft() {
   // just-saved data) — both moments genuinely have nothing unsaved yet, so
   // snapshotting here, in one place, correctly re-baselines after either
   // without needing to touch manusSaveMain's own success/failure branches.
-  manusLastSavedSnapshot = JSON.stringify(draft);
+  manusLastSavedSnapshot = manusSerializeDraft(draft);
   return draft;
 }
 
@@ -1130,6 +1157,8 @@ async function manusImportFromTex(row) {
         if (rolesTextarea && !rolesTextarea.value) rolesTextarea.value = formatRolesText(row.cast);
       }
     }
+
+    manusAbsorbImportIntoBaseline(row, ['scriptBody', 'titleOverride', 'writtenBy', 'melody', 'cast']);
   } catch (e) { /* offline, or not reachable yet — leave scriptBody/cast empty */ }
 }
 
@@ -2546,6 +2575,33 @@ function renderAll() {
   manusStartPendingPoll();
 }
 
+// Site-styled stand-in for the native beforeunload dialog, for the one case
+// that actually can be intercepted before the page unloads: clicking one of
+// this site's own in-page links (header nav, mobile menu nav, or any other
+// outbound <a> on this page). Mirrors confirmDeleteManuscript()'s shape.
+// The native beforeunload dialog below still covers tab close/refresh/back/
+// typed-URL, which browsers deliberately never let a page restyle.
+function confirmLeaveDirtyPage(href) {
+  const { form, actions, close } = siteOpenEditModal('Forlad siden');
+
+  const info = document.createElement('p');
+  info.textContent = 'Du har ændringer, der ikke er gemt endnu. Vil du forlade siden alligevel?';
+  form.appendChild(info);
+
+  const stayBtn = document.createElement('button');
+  stayBtn.className = 'site-pill-btn';
+  stayBtn.textContent = 'Bliv her';
+  stayBtn.addEventListener('click', close);
+
+  const leaveBtn = document.createElement('button');
+  leaveBtn.className = 'site-pill-btn site-pill-danger';
+  leaveBtn.textContent = 'Forlad uden at gemme';
+  leaveBtn.addEventListener('click', () => { window.location.href = href; });
+
+  actions.appendChild(stayBtn);
+  actions.appendChild(leaveBtn);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   wireManusGuideToggle();
   renderAll();
@@ -2559,4 +2615,21 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('beforeunload', (e) => {
     if (manusIsDirty()) { e.preventDefault(); e.returnValue = ''; }
   });
+
+  // Intercept clicks on this page's own links while dirty, in favor of the
+  // styled confirmLeaveDirtyPage() modal above instead of an abrupt native
+  // beforeunload dialog. Only a plain, unmodified left-click on a same-tab
+  // link while genuinely dirty is intercepted — a new-tab/modified click, a
+  // hash-only link, or a click while nothing is unsaved all pass through
+  // untouched, exactly like beforeunload's own gating.
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const link = e.target.closest('a[href]');
+    if (!link || link.target === '_blank') return;
+    const href = link.getAttribute('href');
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+    if (!manusIsDirty()) return;
+    e.preventDefault();
+    confirmLeaveDirtyPage(link.href);
+  }, true);
 });
