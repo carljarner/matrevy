@@ -923,6 +923,36 @@ function extractTexMelody(texText) {
   return m ? m[1].trim() : '';
 }
 
+// \eta{} holds the scene's running time, but freely as hand-typed prose
+// ("$3$ minutter", "$15$ sekunder", "$1$ minut og $46$ sekunder",
+// "$2:56$ minutter", "$3-4$ minutter", "?", "Ved ikke", ...) rather than a
+// clean number — parseEtaDurationMinutes() covers every distinct form found
+// across the real archive .tex files, rounding to the 0.5-minute step the
+// duration input already uses, and falling back to 0 when nothing parses.
+function extractTexDuration(texText) {
+  const m = texText.match(/\\eta\{([^}]*)\}/);
+  return parseEtaDurationMinutes(m ? m[1] : '');
+}
+
+function parseEtaDurationMinutes(raw) {
+  const s = (raw || '').replace(/\$/g, '').replace(/(\d),(\d)/g, '$1.$2');
+  let minutes = null;
+  let m;
+  if ((m = s.match(/(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)/))) {
+    minutes = Number(m[1]) + Number(m[2]) / 60; // mm:ss, e.g. "2:56 minutter"
+  } else if ((m = s.match(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)/))) {
+    minutes = (Number(m[1]) + Number(m[2])) / 2; // range, e.g. "3-4 minutter" -> average
+  } else if ((m = s.match(/(\d+(?:\.\d+)?)\s*minut(?:ter)?\s*(?:og\s*)?(\d+(?:\.\d+)?)\s*sek/i))) {
+    minutes = Number(m[1]) + Number(m[2]) / 60; // compound, e.g. "1 minut og 46 sekunder"
+  } else if (/sek/i.test(s) && !/minut/i.test(s) && (m = s.match(/(\d+(?:\.\d+)?)\s*sek/i))) {
+    minutes = Number(m[1]) / 60; // seconds-only, e.g. "15 sekunder"
+  } else if ((m = s.match(/(\d+(?:\.\d+)?)/))) {
+    minutes = Number(m[1]); // plain minutes, or best-effort digit
+  }
+  if (minutes == null || Number.isNaN(minutes)) return 0;
+  return Math.round(minutes / 0.5) * 0.5;
+}
+
 // The inverse of parseRolesText() — reconstructs \role{}[] lines from
 // row.cast, used to seed Rollefordeling's textarea with whatever's currently
 // stored (from a prior "Opdater roller" click, or an auto-import) each time
@@ -1158,7 +1188,16 @@ async function manusImportFromTex(row) {
       }
     }
 
-    manusAbsorbImportIntoBaseline(row, ['scriptBody', 'titleOverride', 'writtenBy', 'melody', 'cast']);
+    if (row.duration == null) {
+      const mins = extractTexDuration(text);
+      if (row.duration == null) {
+        row.duration = mins;
+        const durationInput = document.querySelector(`[data-manus-select-duration="${row.key}"]`);
+        if (durationInput && durationInput.value === '') durationInput.value = String(mins);
+      }
+    }
+
+    manusAbsorbImportIntoBaseline(row, ['scriptBody', 'titleOverride', 'writtenBy', 'melody', 'cast', 'duration']);
   } catch (e) { /* offline, or not reachable yet — leave scriptBody/cast empty */ }
 }
 
@@ -1471,6 +1510,7 @@ function renderSelectRow(row, { interactive = false, selected = row.selected ===
   durationInput.className = 'manus-select-duration';
   durationInput.placeholder = '–';
   durationInput.value = row.duration != null ? row.duration : '';
+  durationInput.dataset.manusSelectDuration = row.key;
   durationInput.addEventListener('click', (e) => e.stopPropagation());
   durationInput.addEventListener('input', () => {
     row.duration = durationInput.value === '' ? null : Number(durationInput.value);
@@ -2185,7 +2225,7 @@ function renderStjerneArkTab() {
 
 // ── Tab bar + section chrome ───────────────────────────────────
 const MANUS_MAIN_TABS = [
-  { key: 'select', label: 'Vælg scener', render: renderSelectTab },
+  { key: 'select', label: 'Scener', render: renderSelectTab },
   { key: 'aktfordeling', label: 'Aktfordeling', render: renderAktfordelingTab },
   { key: 'rollefordeling', label: 'Rollefordeling', render: renderRollefordelingTab },
   { key: 'manus', label: 'Manus', render: renderManusTextTab },
