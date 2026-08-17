@@ -1144,11 +1144,14 @@ async function manusImportFromTex(row) {
       }
     }
 
+    // Deliberately does NOT backfill titleOverride from the .tex's own
+    // \title{} line: unlike scriptBody/cast/writtenBy/melody, a title is
+    // never actually missing — manusRowTitle() already falls back to the
+    // real row.scene.name/submission.title — so treating "!titleOverride"
+    // as "no title yet" would silently overwrite an already-current,
+    // possibly deliberately-diverged scenes.json title with whatever the
+    // original uploaded .tex happens to say, the moment its tab is opened.
     let headerChanged = false;
-    if (!row.titleOverride) {
-      const title = extractTexTitle(text);
-      if (title) { row.titleOverride = title; headerChanged = true; }
-    }
     if (!row.writtenBy) {
       const author = extractTexAuthor(text);
       if (author) { row.writtenBy = author; headerChanged = true; }
@@ -1197,7 +1200,7 @@ async function manusImportFromTex(row) {
       }
     }
 
-    manusAbsorbImportIntoBaseline(row, ['scriptBody', 'titleOverride', 'writtenBy', 'melody', 'cast', 'duration']);
+    manusAbsorbImportIntoBaseline(row, ['scriptBody', 'writtenBy', 'melody', 'cast', 'duration']);
   } catch (e) { /* offline, or not reachable yet — leave scriptBody/cast empty */ }
 }
 

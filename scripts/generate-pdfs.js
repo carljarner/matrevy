@@ -94,10 +94,14 @@ function castRoleLabels(entries) {
 }
 
 // ── Small helpers ────────────────────────────────────────────
-// Escapes plain-data strings (titles, names, status text, act labels) before
-// they're interpolated into generated LaTeX source. NEVER applied to
+// Escapes plain-data strings (names, status text, act labels) before they're
+// interpolated into generated LaTeX source. NEVER applied to
 // scene.scriptBody, which is already real LaTeX written by a human in the
-// Manus tab — escaping that would double-escape every macro in it.
+// Manus tab — escaping that would double-escape every macro in it. Also
+// never applied to scene.name/title (see buildSceneTex/buildAktoversigtTex/
+// buildRolleoversigtTex below) — a title may itself be real LaTeX (e.g.
+// "$\chi$-faktor", typed via the Manus tab's title header field), same
+// reasoning as scriptBody/writtenBy/melody.
 function texEscape(value) {
   return String(value == null ? '' : value).replace(/[\\&%$#_{}~^]/g, (c) => {
     switch (c) {
@@ -202,7 +206,11 @@ function buildSceneTex(scene, prodMeta) {
   preamble += `\\version{${texEscape(prodMeta.version)}}\n`;
   if (scene.duration != null && scene.duration !== '') preamble += `\\eta{${texEscape(scene.duration)} minutter}\n`;
   if (scene.status) preamble += `\\status{${texEscape(scene.status)}}\n`;
-  preamble += `\n\\title{${texEscape(scene.name)}}\n`;
+  // scene.name/title is raw LaTeX, same as writtenBy/melody just below (e.g.
+  // "$\chi$-faktor", typed via the Manus tab's title header field) —
+  // texEscape-ing it here would corrupt it into literal escaped text
+  // instead of compiling. Insert verbatim, same as scriptBody.
+  preamble += `\n\\title{${scene.name}}\n`;
   // writtenBy/melody are raw LaTeX straight out of the scene's own real
   // \author{}/\melody{} lines (see extractTexAuthor/extractTexMelody) —
   // already properly escaped by whoever originally wrote the .tex, so
@@ -243,7 +251,9 @@ function buildAktoversigtTex(actsData, prodMeta) {
     body += `\\section*{${texEscape(act.label)} \\small{\\textbf{\\emph{(Tidsestimat: ${formatMinutes(total)} minutter)}}}}\n`;
     body += '\\begin{enumerate}\n';
     for (const s of act.scenes) {
-      body += `  \\item \\textbf{${texEscape(s.name)}}`;
+      // s.name/title is raw LaTeX, not escaped — see texEscape's own doc
+      // comment above.
+      body += `  \\item \\textbf{${s.name}}`;
       // s.melody is raw LaTeX straight out of a real \melody{} line (see
       // extractTexMelody) — already properly escaped by whoever wrote the
       // scene's .tex (e.g. "S\&M"), so texEscape-ing it here would
@@ -322,7 +332,9 @@ function buildRolleoversigtTex(actsData, prodMeta) {
     body += `\\multicolumn{${n + 2}}{|l|}{\\textbf{${texEscape(act.label)}}}\\\\\n\\hline\n`;
     act.scenes.forEach((s, i) => {
       const labelByActor = new Map(sceneCastLabels(s).map((e) => [e.name, e.label]));
-      body += `${i + 1} & ${texEscape(s.name)}`;
+      // s.name/title is raw LaTeX, not escaped — see texEscape's own doc
+      // comment above.
+      body += `${i + 1} & ${s.name}`;
       for (const name of actors) {
         const label = labelByActor.get(name);
         body += ` & ${label ? texEscape(label) : '\\q'}`;

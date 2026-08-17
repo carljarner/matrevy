@@ -91,7 +91,11 @@ the site expect. `scriptBody` is the scene's actual LaTeX body (dialogue/lyrics/
 directions — everything between `\begin{sketch}`/`\begin{song}` and its `\end{...}`); `melody`
 is only meaningful for a `sang`-type scene (maps to `\melody{}`); `sourceProduction`/
 `sourceYear` default to the current production when empty (a reused classic sketch is the one
-case where they'd differ, e.g. `"MatematikRevyen 2013"` on a scene reused years later).
+case where they'd differ, e.g. `"MatematikRevyen 2013"` on a scene reused years later). `name`
+may itself contain raw LaTeX (e.g. `"$\chi$-faktor"`) — it's rendered as-is (plain text) in the
+webview and inserted unescaped, verbatim, into every generated `.tex` file by
+`scripts/generate-pdfs.js`, exactly like `scriptBody`/`writtenBy`/`melody`; it's edited the same
+way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus section).
 
 ## Schema: cast.json
 
