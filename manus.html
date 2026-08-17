@@ -18,6 +18,11 @@
   <main class="page-content">
     <h1>Manus</h1>
 
+    <!-- Quick links to the last-generated PDFs (revyst+ — visible below boss
+         level, unlike Main Manus View) — rendered by manus.js's
+         renderManusPdfLinksSection(). -->
+    <div class="card manus-pdf-links" id="manus-pdf-links" style="display:none"></div>
+
     <div class="manus-layout">
       <!-- Upload pool (Sketches / Songs), rendered by manus.js from
            MANUSCRIPTS_DATA (manuscripts-data.js). Each column becomes a
@@ -46,11 +51,6 @@
         <div class="manus-bottom-actions" id="manus-bottom-actions"></div>
       </div>
     </div>
-
-    <!-- Quick links to the last-generated PDFs (revyst+ — visible below boss
-         level, unlike Main Manus View) — rendered by manus.js's
-         renderManusPdfLinksSection(). -->
-    <div class="card manus-pdf-links" id="manus-pdf-links" style="display:none"></div>
 
     <!-- Main Manus View (boss/admin only) — tabbed selection / act-building /
          cast / priority workspace, rendered by manus.js. Hidden entirely

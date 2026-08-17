@@ -318,8 +318,8 @@ a.manus-pdf-title:focus-visible {
   color: var(--accent-warm-text);
 }
 
-/* Quick-open buttons for the last-generated PDFs, sitting between the
-   pool/guide row and Main Manus View. Deliberately the oval .site-pill-btn
+/* Quick-open buttons for the last-generated PDFs, sitting above the
+   pool/guide row. Deliberately the oval .site-pill-btn
    style (normally reserved for modal contexts per the site-wide convention)
    rather than .btn-small — asked for explicitly here, sized to each
    button's own content instead of stretched full-width. */
