@@ -2,6 +2,11 @@
    Matematikrevyen – Shared Stylesheet
    ========================================================= */
 
+/* Preview: classic LaTeX (Computer Modern) font, site-wide.
+   Loaded here (not per-page) since style.css is already shared
+   on every page. */
+@import url("https://cdn.jsdelivr.net/gh/vsalvino/computer-modern@main/fonts/serif.css");
+
 /* --- Palette ---------------------------------------------
    Warm honey/walnut wood theme. Defined here (loaded on every
    page) so all content stylesheets can reference these tokens. */
@@ -56,7 +61,7 @@ html {
 }
 
 body {
-  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: "Computer Modern Serif", serif;
   line-height: 1.6;
   color: var(--text);
   background: var(--bg);
