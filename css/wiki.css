@@ -25,6 +25,16 @@
   min-width: 0;
 }
 
+/* Revyst-level view (js/wiki.js's renderWikiUnderConstruction): collapse
+   the two-column grid to a single centered gate card, same idea as
+   site.js's own applyPageGate() card. */
+.wiki-columns-construction {
+  grid-template-columns: 1fr;
+  max-width: 480px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* Left column stays pinned 20px below the sticky site header (56px tall)
    once the page scrolls past it, so "Kapitler" (and the active chapter's
    outline) stays reachable while only the right column's content scrolls

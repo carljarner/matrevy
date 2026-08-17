@@ -92,6 +92,27 @@ let wikiSelectedChapterId = null;
 let wikiEditingChapterId = null;
 
 // ── Rendering ────────────────────────────────────────────────
+// The wiki's content isn't finished yet — only boss/admin (who are
+// actively writing it) see the real chapters/editor; a revyst-level
+// visitor gets a static "under construction" card instead, mirroring
+// site.js's own applyPageGate() login-gate card styling.
+function renderWikiUnderConstruction() {
+  const columns = document.querySelector('.wiki-columns');
+  if (!columns) return;
+  columns.textContent = '';
+  columns.classList.add('wiki-columns-construction');
+
+  const card = document.createElement('section');
+  card.className = 'card site-gate-card';
+  const h = document.createElement('h2');
+  h.textContent = 'Siden er under opbygning';
+  const p = document.createElement('p');
+  p.textContent = 'Wikien er ved at blive skrevet og er endnu ikke klar.';
+  card.appendChild(h);
+  card.appendChild(p);
+  columns.appendChild(card);
+}
+
 function renderWiki() {
   const chapterList = document.getElementById('wiki-chapter-list');
   const contentBody = document.getElementById('wiki-content-body');
@@ -99,6 +120,11 @@ function renderWiki() {
   if (!chapterList || !contentBody) return;
 
   const canEdit = siteHasLevel('boss');
+  if (!canEdit) {
+    renderWikiUnderConstruction();
+    return;
+  }
+
   const chapters = getEffectiveChapters();
 
   chapterList.textContent = '';
