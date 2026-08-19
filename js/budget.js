@@ -229,7 +229,7 @@ function renderRevystForm(root) {
 
   const intro = el('p', 'budget-intro',
     'Har du lagt penge ud for revyen? Udfyld formularen, så sender vi pengene retur. '
-    + 'Oplysningerne gemmes privat og kan kun ses af kassereren.');
+    + 'Oplysningerne gemmes privat og kan kun ses af koordinatorerne.');
   card.appendChild(intro);
 
   // Category
@@ -751,7 +751,7 @@ function openApproveModal(root, req) {
 
 // Admin: edit a pending request (category may change; receipt stays put).
 function openRequestEditModal(root, req) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Rediger udlæg');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger udlæg');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
   const categorySelect = siteCreateDropdownField(budgetCategoryOptions(false), req.category);
@@ -777,8 +777,6 @@ function openRequestEditModal(root, req) {
   commentInput.value = req.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
-  const cancelBtn = budgetPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
@@ -804,7 +802,6 @@ function openRequestEditModal(root, req) {
       if (result.message) error.textContent = result.message;
     }
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
@@ -921,7 +918,7 @@ function renderPaidTable(wrap) {
 
 // ── Admin: add a direct expense (no revyst request) ──────────
 function openExpenseAddModal(root) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Tilføj udgift');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Tilføj udgift');
   modal.classList.add('budget-approve-modal');
 
   const categorySelect = siteCreateDropdownField(budgetCategoryOptions(true), '');
@@ -944,14 +941,12 @@ function openExpenseAddModal(root) {
   commentInput.placeholder = 'valgfrit';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
-  const receiptInput = el('input');
+  const receiptInput = el('input', 'site-file-input');
   receiptInput.type = 'file';
   receiptInput.accept = 'image/*';
   form.appendChild(siteEditField('Billede af kvittering (valgfrit)', receiptInput));
 
-  const cancelBtn = budgetPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-  const confirmBtn = el('button', 'site-btn-primary', 'Tilføj');
+  const confirmBtn = budgetPillBtn('Tilføj', 'site-pill-primary');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
@@ -993,13 +988,12 @@ function openExpenseAddModal(root) {
       if (result.message) error.textContent = result.message;
     }
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
 // ── Admin: edit a paid expense (category locked) ─────────────
 function openExpenseEditModal(root, exp) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Rediger udgift');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger udgift');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
@@ -1023,8 +1017,6 @@ function openExpenseEditModal(root, exp) {
   commentInput.value = exp.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
-  const cancelBtn = budgetPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
@@ -1050,7 +1042,6 @@ function openExpenseEditModal(root, exp) {
       if (result.message) error.textContent = result.message;
     }
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
