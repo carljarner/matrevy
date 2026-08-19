@@ -1112,7 +1112,6 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'budget-confirm-text', 'Slet udgiften?'));
-  form.appendChild(el('p', 'budget-intro', `${exp.bilag || '—'} (${formatKr(exp.amount)})`));
   form.appendChild(el('p', 'budget-intro',
     'Kvitteringen bevares, og du kan gendanne den igen fra Rediger.'));
 
@@ -1149,7 +1148,6 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'budget-confirm-text', 'Fjern udgiften permanent?'));
-  form.appendChild(el('p', 'budget-intro', `${exp.bilag || '—'} (${formatKr(exp.amount)})`));
   form.appendChild(el('p', 'budget-intro',
     'Kvitteringen slettes, og dette kan ikke fortrydes.'));
 
