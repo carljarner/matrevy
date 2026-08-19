@@ -793,7 +793,7 @@ const CALENDAR_DATA = [
     "start": "23:59",
     "end": "23:59",
     "title": "Evaluering",
-    "category": "andet",
+    "category": "deadline",
     "location": "",
     "note": "Evalueringen for årets revy sendes ud"
   }
