@@ -264,8 +264,10 @@ body {
 .site-pill-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.45rem;
   padding: 0.5rem 1.1rem;
+  min-width: 5.8rem;
   border-radius: 999px;
   background: var(--input-bg);
   border: 1px solid var(--border);
