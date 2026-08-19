@@ -6,7 +6,7 @@
 
    Two-column layout mirrors Forside's .dashboard-columns grid
    (same 2:1 ratio, mirrored: the smaller column is on the left).
-   Left = chapters, clickable, with a "+ Tilføj kapitel" action
+   Left = chapters, clickable, with a "Rediger kapitler" action
    at the bottom; right = the selected chapter's rendered body,
    swapped in place for a rich-text edit view while editing
    (no modal) — see wiki.js's renderChapterReadView/EditView.
@@ -153,15 +153,11 @@
   margin-top: 0.75rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
 }
 
-.wiki-manage-chapters-btn {
-  display: block;
-  width: 100%;
-  text-align: center;
-}
-
-/* --- Rediger kapitler modal: reorder + add ------------------- */
+/* --- Rediger kapitler modal: reorder (drag-and-drop) + add ---- */
 .wiki-manage-list {
   display: flex;
   flex-direction: column;
@@ -172,11 +168,26 @@
 .wiki-manage-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.6rem;
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
+  cursor: grab;
+}
+
+.wiki-manage-row:active {
+  cursor: grabbing;
+}
+
+.wiki-manage-row.wiki-manage-drop-target {
+  border-color: var(--accent-warm);
+}
+
+.wiki-manage-drag-handle {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
 }
 
 .wiki-manage-row-title {
@@ -185,19 +196,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.wiki-manage-row-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  flex-shrink: 0;
-}
-
-.wiki-manage-move-btn {
-  padding: 0.05rem 0.4rem;
-  font-size: 0.65rem;
-  line-height: 1.3;
 }
 
 .wiki-manage-add-row {
@@ -279,6 +277,25 @@
 .wiki-chapter-body li {
   margin-bottom: 0.25rem;
   line-height: 1.5;
+}
+
+/* --- Attachments (read view: pill links at the end of the chapter) --- */
+.wiki-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+/* .btn-small has no display of its own (fine for a <button>, which is
+   inline-block by default) — set explicitly here since this is an <a>,
+   which defaults to plain inline. */
+.wiki-attachment-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
 }
 
 /* --- In-place edit view --------------------------------------- */
@@ -409,6 +426,79 @@
   gap: 0.6rem;
   margin-top: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* --- Attachments (edit view: list + "+ Vedhæft fil" picker) --- */
+.wiki-edit-attachments {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.wiki-edit-attachments-label {
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+
+.wiki-edit-attachment-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 0.3rem;
+}
+
+.wiki-edit-attachment-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-edit-attachment-remove {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 6px;
+}
+
+@media (hover: hover) {
+  .wiki-edit-attachment-remove:hover { color: var(--danger); }
+}
+
+.wiki-edit-attachment-add {
+  margin-top: 0.3rem;
+}
+
+/* Separates "Vedhæftede filer" from the Slet kapitel/Annuller/Gem action
+   row below it — same idea as Forside's .post-feed-divider (style.css). */
+.wiki-edit-divider {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+}
+
+/* --- Delete-chapter confirm overlay ---------------------------
+   Mirrors Kalender's .cal-confirm-modal/.cal-confirm-text (calendar.css)
+   and Forside's .post-confirm-modal/.post-confirm-text (style.css) — the
+   shared "Er du sikker?" redesign: openDeleteChapterConfirm drops the
+   usual h2 heading in favor of this one bold centered line, in a modal
+   narrower than the edit view it sits on top of. */
+.wiki-confirm-modal {
+  width: min(300px, 85vw);
+}
+
+.login-modal .wiki-confirm-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 0.5rem;
 }
 
 @media (max-width: 719px) {

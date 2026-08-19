@@ -10,7 +10,7 @@
    its own Overskrift 1 (H2) sections beneath its button, click-to-scroll.
    Boss/admin get a "Rediger kapitler" button at the bottom of the left
    column (opens a modal to add new chapters and reorder the whole list
-   via up/down arrows) and, per chapter, a top-right "Rediger" button
+   via drag-and-drop) and, per chapter, a top-right "Rediger" button
    that swaps the read view for an in-place rich-text edit view (title
    input + formatting toolbar + contenteditable body) — no modal, same
    position on the page. Delete lives inside that edit view's action row.
@@ -37,6 +37,8 @@
    ========================================================= */
 
 'use strict';
+
+const WIKI_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 // Outline click-to-scroll and scroll-spy activation share one offset: the
 // sticky site header (56px) plus a landing gap in the middle of the
@@ -245,6 +247,21 @@ function renderChapterReadView(chapter, canEdit) {
   renderSanitizedBody(body, chapter.body, { assignHeadingIds: true, headingIdPrefix: `wiki-h2-${chapter.id}-` });
   wrap.appendChild(body);
 
+  if (chapter.attachments && chapter.attachments.length > 0) {
+    const attachments = document.createElement('div');
+    attachments.className = 'wiki-attachments';
+    for (const a of chapter.attachments) {
+      const link = document.createElement('a');
+      link.className = 'btn-small wiki-attachment-link';
+      link.href = a.path;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.textContent = a.name;
+      attachments.appendChild(link);
+    }
+    wrap.appendChild(attachments);
+  }
+
   return wrap;
 }
 
@@ -279,6 +296,99 @@ function renderChapterEditView(chapter) {
 
   const error = document.createElement('div');
   error.className = 'login-error';
+
+  // ── Attachments ──
+  // Local draft: existing entries carry {id, name, path}; a newly-picked
+  // file carries {id, name, file} (not yet uploaded) instead of `path`.
+  // Uploads only happen at Gem time, mirroring archive.js's openYearEditor
+  // (pick files first, upload as part of save, only then persist the
+  // chapter record referencing the confirmed paths).
+  let attachmentDraft = (chapter.attachments || []).map((a) => ({ ...a }));
+
+  const attachSection = document.createElement('div');
+  attachSection.className = 'wiki-edit-attachments';
+  const attachLabel = document.createElement('div');
+  attachLabel.className = 'wiki-edit-attachments-label';
+  attachLabel.textContent = 'Vedhæftede filer';
+  attachSection.appendChild(attachLabel);
+
+  const attachList = document.createElement('div');
+  attachSection.appendChild(attachList);
+
+  function renderAttachmentList() {
+    attachList.textContent = '';
+    attachmentDraft.forEach((a) => {
+      const row = document.createElement('div');
+      row.className = 'wiki-edit-attachment-row';
+
+      const name = document.createElement('span');
+      name.className = 'wiki-edit-attachment-name';
+      name.textContent = a.name + (a.file ? ' (ikke uploadet endnu)' : '');
+      row.appendChild(name);
+
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'wiki-edit-attachment-remove';
+      remove.textContent = '✕';
+      remove.title = 'Fjern vedhæftning';
+      remove.setAttribute('aria-label', remove.title);
+      remove.addEventListener('click', () => {
+        attachmentDraft = attachmentDraft.filter((x) => x.id !== a.id);
+        renderAttachmentList();
+      });
+      row.appendChild(remove);
+
+      attachList.appendChild(row);
+    });
+  }
+  renderAttachmentList();
+
+  const attachInput = document.createElement('input');
+  attachInput.type = 'file';
+  attachInput.className = 'site-file-input wiki-edit-attachment-add';
+  attachInput.accept = '.pdf,.tex';
+  attachInput.multiple = true;
+  attachInput.addEventListener('change', () => {
+    const files = Array.from(attachInput.files);
+    attachInput.value = '';
+    if (files.length === 0) return;
+
+    // Shared batchId + per-file index keeps ids unique even when several
+    // files are picked in the same change event (Date.now() alone would
+    // collide across a synchronous loop).
+    const batchId = Date.now().toString(36);
+    const invalidExt = [];
+    const oversized = [];
+    let added = false;
+    files.forEach((file, i) => {
+      const ext = (file.name.match(/\.([^.]+)$/) || [])[1]?.toLowerCase();
+      if (ext !== 'pdf' && ext !== 'tex') {
+        invalidExt.push(file.name);
+        return;
+      }
+      if (file.size > WIKI_MAX_UPLOAD_BYTES) {
+        oversized.push(file.name);
+        return;
+      }
+      attachmentDraft.push({ id: `${batchId}-${i}`, name: file.name, file });
+      added = true;
+    });
+
+    const messages = [];
+    if (invalidExt.length > 0) messages.push(`Kun .pdf- og .tex-filer kan vedhæftes: ${invalidExt.join(', ')}`);
+    if (oversized.length > 0) messages.push(`Følgende fil(er) er for store (maks. 5 MB): ${oversized.join(', ')}`);
+    error.textContent = messages.join(' ');
+
+    if (added) renderAttachmentList();
+  });
+  attachSection.appendChild(attachInput);
+
+  wrap.appendChild(attachSection);
+
+  const attachDivider = document.createElement('div');
+  attachDivider.className = 'wiki-edit-divider';
+  wrap.appendChild(attachDivider);
+
   wrap.appendChild(error);
 
   // ── Actions ──
@@ -322,7 +432,29 @@ function renderChapterEditView(chapter) {
     save.textContent = 'Gemmer…';
     error.textContent = '';
 
-    const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML) };
+    // Upload any newly-picked (not-yet-uploaded) attachment files first —
+    // same order as archive.js's openYearEditor: files land in the repo
+    // before the chapter record referencing their paths is saved.
+    const finalAttachments = [];
+    for (const a of attachmentDraft) {
+      if (!a.file) {
+        finalAttachments.push({ id: a.id, name: a.name, path: a.path });
+        continue;
+      }
+      const ext = a.name.match(/\.([^.]+)$/)[1].toLowerCase();
+      const path = buildWikiAttachmentPath(chapter.id, a.id, a.name, ext);
+      const dataUrl = await wikiReadFileAsDataURL(a.file);
+      const uploadResult = await siteUploadFile(path, wikiStripDataUrlPrefix(dataUrl));
+      if (!uploadResult.ok) {
+        save.disabled = false;
+        save.textContent = 'Gem';
+        error.textContent = uploadResult.message;
+        return;
+      }
+      finalAttachments.push({ id: a.id, name: a.name, path });
+    }
+
+    const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML), attachments: finalAttachments };
     const current = getEffectiveChapters();
     const next = current.map((c) => (c.id === chapter.id ? draft : c));
     const result = await saveChapters(next); // clears wikiEditingChapterId + re-renders on success
@@ -734,6 +866,41 @@ function appendTextWithLinks(target, text) {
   if (lastIndex < text.length) target.appendChild(document.createTextNode(text.slice(lastIndex)));
 }
 
+// ── Attachments (PDF/TEX files per chapter) ──────────────────
+// Uploaded via the generic admin/boss 'upload' action (same as Arkiv's
+// cover/manus uploads) to wiki/<chapterId>/<attachmentId>-<slug>.<ext> —
+// the client picks the exact path, the server only checks it against an
+// allow-listed regex (see WIKI_ATTACHMENT_PATH_RE in update-data.php).
+// Uniqueness comes from the generated id prefix, not the slug, so no
+// collision/dedupe handling is needed — same idea as archive.js's
+// slugifyFolderName(), just for a filename instead of a folder name.
+function wikiSlugifyFilename(name) {
+  const map = { æ: 'ae', ø: 'oe', å: 'aa', Æ: 'Ae', Ø: 'Oe', Å: 'Aa' };
+  let s = name.trim().replace(/[æøåÆØÅ]/g, (ch) => map[ch]);
+  s = s.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_-]/g, '');
+  s = s.replace(/^[_-]+|[_-]+$/g, '');
+  return s || 'fil';
+}
+
+function buildWikiAttachmentPath(chapterId, attachmentId, originalName, ext) {
+  const base = originalName.replace(/\.[^.]+$/, '');
+  return `wiki/${chapterId}/${attachmentId}-${wikiSlugifyFilename(base)}.${ext}`;
+}
+
+function wikiReadFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result); // "data:<mime>;base64,<data>"
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function wikiStripDataUrlPrefix(dataUrl) {
+  const i = dataUrl.indexOf(',');
+  return i === -1 ? dataUrl : dataUrl.slice(i + 1);
+}
+
 // ── Saving ───────────────────────────────────────────────────
 async function saveChapters(next) {
   const result = await siteSaveResource('wiki', { chapters: next });
@@ -756,10 +923,17 @@ function wikiPillBtn(label, variant) {
   return btn;
 }
 
+// Styled "Er du sikker?" overlay — mirrors calendar.js's openDeleteConfirm/
+// posts.js's deletePost (dropping the usual h2 heading in favor of one bold
+// centered line, narrower than the edit view it sits on top of).
 function openDeleteChapterConfirm(existing) {
-  const { form, error, actions, close } = siteOpenEditModal('Slet kapitel');
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('wiki-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
 
   const info = document.createElement('p');
+  info.className = 'wiki-confirm-text';
   info.textContent = `Slet kapitlet "${existing.title}"?`;
   form.appendChild(info);
 
@@ -782,7 +956,39 @@ function openDeleteChapterConfirm(existing) {
   actions.appendChild(confirmBtn);
 }
 
-// ── Manage-chapters modal (add + reorder) ───────────────────
+// Robust dragenter/dragleave pairing via a nesting counter — duplicated from
+// manus.js's identically-named helper (Aktfordeling's drag-and-drop), since
+// wiki.js doesn't load manus.js. Plain dragover-driven highlighting re-fires
+// dragleave on every child element the pointer crosses, flickering the
+// highlight on/off; counting enter/leave pairs only clears it once the
+// pointer has actually left the whole element.
+function wikiWireDropHighlight(el, onDrop, { stop = false } = {}) {
+  let depth = 0;
+  el.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    if (stop) e.stopPropagation();
+    depth++;
+    el.classList.add('wiki-manage-drop-target');
+  });
+  el.addEventListener('dragover', (e) => {
+    e.preventDefault(); // required for 'drop' to fire at all
+    if (stop) e.stopPropagation();
+  });
+  el.addEventListener('dragleave', (e) => {
+    if (stop) e.stopPropagation();
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) el.classList.remove('wiki-manage-drop-target');
+  });
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (stop) e.stopPropagation();
+    depth = 0;
+    el.classList.remove('wiki-manage-drop-target');
+    onDrop();
+  });
+}
+
+// ── Manage-chapters modal (add + reorder via drag-and-drop) ──
 function openManageChaptersModal() {
   const { form, error, actions, close } = siteOpenModalWithClose('Rediger kapitler');
 
@@ -795,45 +1001,48 @@ function openManageChaptersModal() {
   listWrap.className = 'wiki-manage-list';
   form.appendChild(listWrap);
 
+  // Dragged chapter's id, set on dragstart and consumed by whichever row's
+  // drop handler fires — mirrors manus.js's Aktfordeling drag-and-drop
+  // (manusDragKey/wireDropHighlight/manusMoveRow), simplified to a single
+  // flat list (no lanes/columns to target).
+  let dragId = null;
+
+  function moveDraftItem(id, beforeId) {
+    const idx = draft.findIndex((d) => d.id === id);
+    if (idx === -1) return;
+    const [item] = draft.splice(idx, 1);
+    const beforeIdx = beforeId ? draft.findIndex((d) => d.id === beforeId) : -1;
+    if (beforeIdx === -1) draft.push(item);
+    else draft.splice(beforeIdx, 0, item);
+    renderList();
+  }
+
   function renderList() {
     listWrap.textContent = '';
-    draft.forEach((item, index) => {
+    draft.forEach((item) => {
       const row = document.createElement('div');
       row.className = 'wiki-manage-row';
+      row.draggable = true;
+
+      row.addEventListener('dragstart', (e) => {
+        dragId = item.id;
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => row.classList.remove('wiki-manage-drop-target'));
+      wikiWireDropHighlight(row, () => {
+        if (dragId && dragId !== item.id) moveDraftItem(dragId, item.id);
+      }, { stop: true });
+
+      const handle = document.createElement('span');
+      handle.className = 'wiki-manage-drag-handle';
+      handle.textContent = '⠿';
+      row.appendChild(handle);
 
       const title = document.createElement('span');
       title.className = 'wiki-manage-row-title';
       title.textContent = item.title;
       row.appendChild(title);
 
-      const btnGroup = document.createElement('div');
-      btnGroup.className = 'wiki-manage-row-btns';
-
-      const up = document.createElement('button');
-      up.type = 'button';
-      up.className = 'btn-small wiki-manage-move-btn';
-      up.textContent = '▲';
-      up.title = 'Flyt op';
-      up.disabled = index === 0;
-      up.addEventListener('click', () => {
-        [draft[index - 1], draft[index]] = [draft[index], draft[index - 1]];
-        renderList();
-      });
-      btnGroup.appendChild(up);
-
-      const down = document.createElement('button');
-      down.type = 'button';
-      down.className = 'btn-small wiki-manage-move-btn';
-      down.textContent = '▼';
-      down.title = 'Flyt ned';
-      down.disabled = index === draft.length - 1;
-      down.addEventListener('click', () => {
-        [draft[index], draft[index + 1]] = [draft[index + 1], draft[index]];
-        renderList();
-      });
-      btnGroup.appendChild(down);
-
-      row.appendChild(btnGroup);
       listWrap.appendChild(row);
     });
   }
@@ -880,7 +1089,7 @@ function openManageChaptersModal() {
     const next = draft.map((d) => {
       const existing = current.find((c) => c.id === d.id);
       return existing
-        ? { id: d.id, title: d.title, body: existing.body }
+        ? { id: d.id, title: d.title, body: existing.body, attachments: existing.attachments || [] }
         : { id: d.id, title: d.title, body: '' };
     });
 

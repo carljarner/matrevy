@@ -126,6 +126,11 @@ const ARCHIVE_MANUS_SONGS_RE     = '#^archive/[A-Za-z0-9_-]+/songs/[^/]+\.(pdf|t
 // regexes above, so a freshly built path is always checked against exactly
 // the folder it's meant to land in.
 const ARCHIVE_MANUS_ANY_RE = '#^archive/[A-Za-z0-9_-]+/(submitted|sketches|songs)/[^/]+\.(pdf|tex)$#';
+// A chapter's attached pdf/tex files — client-picked path (like ARCHIVE_PATH_RE),
+// wired into upload_path_level() below at 'boss' level, matching the wiki
+// resource's own save level. Must live above the dispatch for the same
+// const-ordering reason as every regex above.
+const WIKI_ATTACHMENT_PATH_RE = '#^wiki/[A-Za-z0-9_-]+/[^/]+\.(pdf|tex)$#';
 
 $action = $body['action'] ?? '';
 
@@ -284,6 +289,7 @@ function update_file($filePath, $mutate, $commitMessage) {
 function upload_path_level($path) {
   if (!is_string($path)) return null;
   if (preg_match(ARCHIVE_PATH_RE, $path)) return 'admin';
+  if (preg_match(WIKI_ATTACHMENT_PATH_RE, $path)) return 'boss';
   return null;
 }
 
@@ -1396,6 +1402,11 @@ function save_archive($payload) {
 // is a sanitized HTML string produced client-side (see wiki.js's
 // sanitizeHtmlString), stored as-is; there is no server-side HTML
 // sanitization since this is already a boss-level-only, trusted-caller write.
+// `attachments` (optional, defaults to none) is a list of pdf/tex files
+// uploaded separately via the generic 'upload' action (see
+// WIKI_ATTACHMENT_PATH_RE) before this save — each entry just references
+// an already-uploaded path, re-checked here the same "always check" way
+// every other stored path is (e.g. save_archive's coverImage/manusPdf).
 function save_wiki($payload) {
   $chapters = $payload['chapters'] ?? null;
   if (!is_array($chapters)) {
@@ -1410,6 +1421,23 @@ function save_wiki($payload) {
         || !is_string($c['title']) || trim($c['title']) === ''
         || !is_string($c['body'])) {
       respond(400, ['error' => 'invalid_wiki_shape']);
+    }
+    if (isset($c['attachments'])) {
+      if (!is_array($c['attachments'])) {
+        respond(400, ['error' => 'invalid_wiki_shape']);
+      }
+      $seenAttachmentId = [];
+      foreach ($c['attachments'] as $a) {
+        if (!is_array($a)
+            || !isset($a['id'], $a['name'], $a['path'])
+            || !is_string($a['id']) || $a['id'] === ''
+            || isset($seenAttachmentId[$a['id']])
+            || !is_string($a['name']) || $a['name'] === ''
+            || !is_string($a['path']) || !preg_match(WIKI_ATTACHMENT_PATH_RE, $a['path'])) {
+          respond(400, ['error' => 'invalid_wiki_shape']);
+        }
+        $seenAttachmentId[$a['id']] = true;
+      }
     }
     $seenId[$c['id']] = true;
   }

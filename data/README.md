@@ -226,16 +226,20 @@ comments.
     {
       "id": "m3k2j1ab",
       "title": "Grupper",
-      "body": "<h2>Bandet</h2><p>Fri, sanitized HTML — se WIKI_ALLOWED_TAGS i wiki.js.</p>"
+      "body": "<h2>Bandet</h2><p>Fri, sanitized HTML — se WIKI_ALLOWED_TAGS i wiki.js.</p>",
+      "attachments": [
+        { "id": "m3k2j1cd", "name": "Bandnoder.pdf", "path": "wiki/m3k2j1ab/m3k2j1cd-bandnoder.pdf" }
+      ]
     }
   ]
 }
 ```
 
-- One flat list, one record per chapter — deliberately not a nested chapter/section tree, and not grouped by category; a chapter reads and edits as a single continuous piece of rich text, shown top-to-bottom exactly in the array's stored order (the editor's up/down arrows reorder it).
+- One flat list, one record per chapter — deliberately not a nested chapter/section tree, and not grouped by category; a chapter reads and edits as a single continuous piece of rich text, shown top-to-bottom exactly in the array's stored order (the "Rediger kapitler" modal's drag-and-drop reorders it).
 - `id` — unique string, client-generated (`Date.now().toString(36)`) when the chapter is created — same convention as `calendar.json`'s event `id`. Stable for the chapter's lifetime.
 - `title` — required, non-empty.
 - `body` — a sanitized HTML string restricted to a small allow-list (`b/strong`, `i/em`, `u`, `ul`, `ol`, `li`, `p`, `br`, `h2`, `h3` — see `WIKI_ALLOWED_TAGS` in `wiki.js`), produced by the page's own rich-text toolbar. `<a>` is deliberately not allowed — links are never stored as markup, only auto-detected from plain-text `http(s)://`/`www.` URLs at render time. `h2` sections also drive the page's per-chapter outline (click-to-scroll sidebar list).
+- `attachments` — optional, defaults to none if omitted. A list of `{id, name, path}`: `id` is client-generated the same way as a chapter's own id; `name` is the original filename, shown as the link text; `path` is the repo-relative path the file was uploaded to (`wiki/<chapterId>/<attachmentId>-<slugified-name>.{pdf,tex}`, uploaded via the generic boss-level `upload` action, validated server-side against `WIKI_ATTACHMENT_PATH_RE`). Rendered as link buttons at the end of the chapter. Removing an attachment only drops it from this array — the uploaded file is left orphaned in the repo, same accepted trade-off as a deleted Post's `image` or a deleted Manuscript's pdf/tex.
 
 ## Schema: manuscripts.json
 
