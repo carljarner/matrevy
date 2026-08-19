@@ -499,7 +499,8 @@ const CALENDAR_DATA = [
     "end": "18:00",
     "title": "Infomøde",
     "category": "andet",
-    "note": "Infomøde for nye revyster, kom og høre om hvad revyen er. Lokale : A104"
+    "location": "A104",
+    "note": "Infomøde for nye revyster, kom og høre om hvad revyen er."
   },
   {
     "id": "mrn6wa1y",
@@ -519,7 +520,8 @@ const CALENDAR_DATA = [
     "end": "21:00",
     "title": "Sangudvælgelse",
     "category": "manus",
-    "note": "Vi synger alle de indsendte sange igennem og giver dem point. Lokale : Aud4"
+    "location": "Aud4",
+    "note": "Vi synger alle de indsendte sange igennem og giver dem point."
   },
   {
     "id": "mrn6z0x8",
