@@ -18,10 +18,14 @@
 }
 
 .cal-view-toggle button {
+  display: inline-flex;
+  align-items: center;
+  /* Matches #cal-subscribe/.cal-month-nav button's rendered height. */
+  height: 24px;
   background: var(--input-bg);
   color: var(--text);
   border: 1px solid var(--border);
-  padding: 0.3rem 0.9rem;
+  padding: 0 0.9rem;
   font-size: 0.85rem;
   font-family: inherit;
   cursor: pointer;
@@ -67,7 +71,8 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   width: 1.8rem;
-  height: 1.8rem;
+  /* Matches #cal-subscribe's (.btn-small) rendered height exactly. */
+  height: 24px;
   font-size: 1rem;
   font-family: inherit;
   cursor: pointer;
@@ -263,10 +268,10 @@
   min-width: 0;
 }
 
-/* Reserve a fixed-width gutter for the Rediger button so every line of the
+/* Reserve a fixed-width gutter for the edit icon so every line of the
    title/note wraps at the same right edge, not just the lines beside it. */
 .cal-list-content:has(.cal-list-actions) {
-  padding-right: 4.75rem;
+  padding-right: 2.25rem;
 }
 
 .cal-list-title {
@@ -289,6 +294,35 @@
   gap: 0.35rem;
 }
 
+/* Icon-only "Rediger" button — replaces a text .btn-small in the list view
+   so a long list doesn't read as a wall of repeated buttons. */
+.cal-list-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .cal-list-edit-btn:hover {
+    background: var(--accent-warm-fill);
+    color: var(--accent-warm-text);
+  }
+}
+
+.cal-list-edit-btn:focus-visible {
+  outline: none;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+}
+
 /* --- Colour legend ------------------------------------------ */
 #cal-legend {
   display: flex;
@@ -307,9 +341,23 @@
   gap: 0.35rem;
 }
 
-.cal-confirm-text {
-  font-size: 0.9rem;
+/* Reads as the modal's title, since openDeleteConfirm drops the usual h2
+   heading in favor of this one line (see calendar.js). Scoped under
+   .login-modal (not just .cal-confirm-text) so its specificity beats
+   style.css's ".login-modal p" rule, which would otherwise win the
+   font-size/margin-bottom tie-break. */
+.login-modal .cal-confirm-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
   margin-bottom: 0.5rem;
+}
+
+/* Smaller than the 480px editor it sits on top of (see openDeleteConfirm in
+   calendar.js — it no longer closes the editor first). */
+.cal-confirm-modal {
+  width: min(300px, 85vw);
 }
 
 /* --- Category picker popup --------------------------------------
@@ -347,7 +395,9 @@
 @media (max-width: 719px) {
   .cal-month-nav button {
     width: 2.4rem;
-    height: 2.4rem;
+    /* Height still matches #cal-subscribe (unchanged at this breakpoint);
+       only the width grows here for a larger touch target. */
+    height: 24px;
   }
 
   .cal-weekday-full {

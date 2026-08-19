@@ -261,8 +261,10 @@ function renderListView(container) {
       const actionsWrap = document.createElement('span');
       actionsWrap.className = 'cal-list-actions';
       const editBtn = document.createElement('button');
-      editBtn.className = 'btn-small';
-      editBtn.textContent = 'Rediger';
+      editBtn.type = 'button';
+      editBtn.className = 'cal-list-edit-btn';
+      editBtn.setAttribute('aria-label', 'Rediger begivenhed');
+      editBtn.appendChild(calPencilIcon());
       editBtn.addEventListener('click', () => openEventEditor(ev));
       actionsWrap.appendChild(editBtn);
       content.appendChild(actionsWrap);
@@ -295,6 +297,28 @@ function calPillBtn(label, variant) {
   return btn;
 }
 
+// List-view "Rediger" icon — a plain pencil, built via createElementNS like
+// site-utils.js's clock icon / posts.js's pin icon.
+function calPencilIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const body = document.createElementNS(svgNS, 'path');
+  body.setAttribute('d', 'M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z');
+  svg.appendChild(body);
+  const tip = document.createElementNS(svgNS, 'path');
+  tip.setAttribute('d', 'M9 4l3 3');
+  svg.appendChild(tip);
+  return svg;
+}
+
 function calTimeRange(ev) {
   if (!ev.start) return '';
   return ev.end ? `${ev.start}–${ev.end}` : ev.start;
@@ -312,11 +336,13 @@ function calDateLabelLong(ev) {
 
 // ── Read-only detail modal (non-admin chip click) ────────────
 function openEventDetail(ev) {
-  const { form, actions, close } = siteOpenModalWithClose(ev.title);
+  const { modal, form, actions, close } = siteOpenModalWithClose(ev.title);
+  modal.classList.add('cal-modal-tight');
 
   const rows = [
     ['Dato', calDateLabelLong(ev)],
     ['Tid', calTimeRange(ev) || 'Hele dagen'],
+    ['Lokale', ev.location || ''],
     ['Kategori', calCategoryLabel(ev.category)],
   ];
   if (ev.note) rows.push(['Note', ev.note]);
@@ -420,7 +446,8 @@ function calCreateCategoryField(initialKey) {
 
 // ── Editor modal ─────────────────────────────────────────────
 function openEventEditor(existing) {
-  const { form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
+  modal.classList.add('cal-modal-tight');
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -471,8 +498,17 @@ function openEventEditor(existing) {
   timeRow.appendChild(siteEditField('Slut', endInput));
   form.appendChild(timeRow);
 
+  const locationInput = document.createElement('input');
+  locationInput.type = 'text';
+  locationInput.value = existing ? existing.location || '' : '';
+
   const catField = calCreateCategoryField(existing && CAL_CATEGORIES[existing.category] ? existing.category : 'ove');
-  form.appendChild(siteEditField('Kategori', catField));
+
+  const catRow = document.createElement('div');
+  catRow.className = 'edit-field-row';
+  catRow.appendChild(siteEditField('Lokale', locationInput));
+  catRow.appendChild(siteEditField('Kategori', catField));
+  form.appendChild(catRow);
 
   const noteArea = document.createElement('textarea');
   noteArea.value = existing ? existing.note || '' : '';
@@ -482,7 +518,7 @@ function openEventEditor(existing) {
 
   if (existing) {
     const del = calPillBtn('Slet', 'site-pill-danger');
-    del.addEventListener('click', () => { close(); openDeleteConfirm(existing); });
+    del.addEventListener('click', () => openDeleteConfirm(existing, close));
     actions.appendChild(del);
   }
   actions.appendChild(save);
@@ -503,6 +539,7 @@ function openEventEditor(existing) {
       end: endInput.value || '',
       title,
       category: catField.value,
+      location: locationInput.value.trim(),
       note: noteArea.value.trim(),
     };
     const current = getEffectiveEvents();
@@ -524,10 +561,16 @@ function openEventEditor(existing) {
 }
 
 // Styled "Er du sikker?" overlay, replacing the native confirm() dialog —
-// mirrors budget.js's rejectRequest pattern.
-function openDeleteConfirm(ev) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Slet begivenhed');
-  modal.classList.add('cal-confirm-modal');
+// mirrors budget.js's rejectRequest pattern. Opens on top of the still-open
+// editor overlay (the caller no longer closes it first) rather than
+// replacing it, so `onDeleted` — the editor's own `close` — only runs once
+// the delete actually succeeds, closing both together; Annuller or a failed
+// save leaves just this overlay closed and the editor still open beneath it.
+function openDeleteConfirm(ev, onDeleted) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('cal-confirm-modal', 'cal-modal-tight');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
 
   const info = document.createElement('p');
   info.className = 'cal-confirm-text';
@@ -544,6 +587,7 @@ function openDeleteConfirm(ev) {
     const result = await saveEvents(next);
     if (result.ok) {
       close();
+      if (onDeleted) onDeleted();
     } else {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;

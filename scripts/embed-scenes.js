@@ -162,6 +162,7 @@ function buildIcs(events) {
       lines.push(`DTSTART;VALUE=DATE:${icsDate(ev.date)}`);
       lines.push(`DTEND;VALUE=DATE:${icsDate(icsAddDays(endDate, 1))}`);
     }
+    if (ev.location) lines.push(`LOCATION:${icsEscape(ev.location)}`);
     if (ev.note) lines.push(`DESCRIPTION:${icsEscape(ev.note)}`);
     lines.push(`CATEGORIES:${icsEscape(ICS_CATEGORY_LABELS[ev.category] || 'Andet')}`);
     lines.push('END:VEVENT');

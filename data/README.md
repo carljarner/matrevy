@@ -120,6 +120,7 @@ way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus
       "end": "22:00",
       "title": "Fællesøve",
       "category": "ove",
+      "location": "Lokale 4",
       "note": "Medbring manus"
     }
   ]
@@ -129,6 +130,7 @@ way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus
 - `endDate` — `YYYY-MM-DD`, `>= date`; equal to `date` for a single-day event, later for a multi-day one (e.g. a weekend rehearsal camp).
 - `start`/`end` — `"HH:MM"` or `""` (all-day).
 - `category` — ASCII key from `manus` / `ove` / `forestilling` / `deadline` / `andet`; the Danish labels and colors live in `calendar.js`'s `CAL_CATEGORIES` (and are duplicated in `scripts/embed-scenes.js`'s `.ics` builder for the feed's `CATEGORIES` field).
+- `location` — optional string, shown as "Lokale" in the editor/detail view and as a `LOCATION:` line in the `.ics` feed; not server-validated (like Manus's optional scene fields), safe to omit on legacy events.
 
 ## Schema: archive.json
 
