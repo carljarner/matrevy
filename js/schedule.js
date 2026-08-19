@@ -155,15 +155,23 @@ function getDanceCounterpartId(scene) {
 // themed identically with no new CSS needed. Free-typing the whole value
 // (like "1437" or "14:37") sidesteps the segment-ambiguity problem
 // entirely instead of trying to fix it.
-let schedTimePopupClose = null;
-let schedTimePopupAnchor = null;
+let schedFieldPopupClose = null;
+let schedFieldPopupAnchor = null;
 
-function schedCloseTimePopup() {
-  if (schedTimePopupClose) { schedTimePopupClose(); schedTimePopupClose = null; }
-  schedTimePopupAnchor = null;
+function schedCloseFieldPopup() {
+  if (schedFieldPopupClose) { schedFieldPopupClose(); schedFieldPopupClose = null; }
+  schedFieldPopupAnchor = null;
 }
 
-function schedPositionTimePopup(pop, anchor) {
+// Toggle helper for a field's open button: closes the popup if it's already
+// open for this exact anchor (so a second click closes instead of
+// re-opening an identical popup), otherwise runs `openFn` to open it fresh.
+function schedToggleFieldPopup(anchor, openFn) {
+  if (schedFieldPopupAnchor === anchor) { schedCloseFieldPopup(); return; }
+  openFn();
+}
+
+function schedPositionFieldPopup(pop, anchor) {
   const rect = anchor.getBoundingClientRect();
   const popRect = pop.getBoundingClientRect();
   let left = Math.min(rect.left, window.innerWidth - popRect.width - 8);
@@ -172,6 +180,40 @@ function schedPositionTimePopup(pop, anchor) {
   if (top + popRect.height > window.innerHeight - 8) top = rect.top - popRect.height - 4;
   pop.style.left = `${left}px`;
   pop.style.top = `${Math.max(top, 8)}px`;
+}
+
+// Opens `pop` anchored to `anchor` with the close-on-outside-click/Escape/
+// reposition-on-scroll behaviour every field popup needs. Returns the
+// close function.
+function schedOpenFieldPopup(anchor, pop) {
+  schedCloseFieldPopup();
+  pop.style.position = 'fixed';
+  document.body.appendChild(pop);
+  schedPositionFieldPopup(pop, anchor);
+
+  function onDocMousedown(e) {
+    if (!pop.contains(e.target) && e.target !== anchor) close();
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') { e.stopPropagation(); close(); anchor.focus(); }
+  }
+  function onReposition() { schedPositionFieldPopup(pop, anchor); }
+  document.addEventListener('mousedown', onDocMousedown, true);
+  document.addEventListener('keydown', onKeydown, true);
+  window.addEventListener('resize', onReposition);
+  document.addEventListener('scroll', onReposition, true);
+
+  function close() {
+    document.removeEventListener('mousedown', onDocMousedown, true);
+    document.removeEventListener('keydown', onKeydown, true);
+    window.removeEventListener('resize', onReposition);
+    document.removeEventListener('scroll', onReposition, true);
+    pop.remove();
+    if (schedFieldPopupClose === close) { schedFieldPopupClose = null; schedFieldPopupAnchor = null; }
+  }
+  schedFieldPopupClose = close;
+  schedFieldPopupAnchor = anchor;
+  return close;
 }
 
 function schedClockIcon() {
@@ -219,7 +261,6 @@ function schedParseTimeInput(raw) {
 }
 
 function schedOpenTimePicker(anchor, currentValue, onSelect) {
-  schedCloseTimePopup();
   const pop = document.createElement('div');
   pop.className = 'site-field-pop site-tp-pop';
 
@@ -256,33 +297,66 @@ function schedOpenTimePicker(anchor, currentValue, onSelect) {
     list.appendChild(row);
   }
 
-  pop.style.position = 'fixed';
-  document.body.appendChild(pop);
-  schedPositionTimePopup(pop, anchor);
-
-  function onDocMousedown(e) {
-    if (!pop.contains(e.target) && e.target !== anchor) close();
-  }
-  function onKeydown(e) {
-    if (e.key === 'Escape') { e.stopPropagation(); close(); anchor.focus(); }
-  }
-  function onReposition() { schedPositionTimePopup(pop, anchor); }
-  document.addEventListener('mousedown', onDocMousedown, true);
-  document.addEventListener('keydown', onKeydown, true);
-  window.addEventListener('resize', onReposition);
-  document.addEventListener('scroll', onReposition, true);
-
-  function close() {
-    document.removeEventListener('mousedown', onDocMousedown, true);
-    document.removeEventListener('keydown', onKeydown, true);
-    window.removeEventListener('resize', onReposition);
-    document.removeEventListener('scroll', onReposition, true);
-    pop.remove();
-    if (schedTimePopupClose === close) { schedTimePopupClose = null; schedTimePopupAnchor = null; }
-  }
-  schedTimePopupClose = close;
-  schedTimePopupAnchor = anchor;
+  const close = schedOpenFieldPopup(anchor, pop);
   if (nearestRow) nearestRow.scrollIntoView({ block: 'center' });
+}
+
+// Generic dropdown popup: `options` is [{value, label}]. Mirrors
+// site-utils.js's siteOpenDropdownPicker (duplicated here for the same
+// schedule.html-doesn't-load-site-utils.js reason as schedOpenTimePicker
+// above), reusing the same .site-field-pop/.site-dd-pop/.site-list-row
+// classes so it renders identically.
+function schedOpenDropdownPicker(anchor, options, currentValue, onSelect) {
+  const pop = document.createElement('div');
+  pop.className = 'site-field-pop site-dd-pop';
+
+  for (const opt of options) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'site-list-row';
+    if (opt.value === currentValue) row.classList.add('site-list-selected');
+    row.textContent = opt.label;
+    row.addEventListener('click', () => { close(); onSelect(opt.value); });
+    pop.appendChild(row);
+  }
+
+  const close = schedOpenFieldPopup(anchor, pop);
+}
+
+function schedCreateDropdownField(options, initialValue) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-field-btn';
+  const text = document.createElement('span');
+  text.className = 'site-field-text';
+  const chevron = document.createElement('span');
+  chevron.className = 'site-field-chevron';
+  chevron.textContent = '▾';
+  btn.appendChild(text);
+  btn.appendChild(chevron);
+
+  let _value = initialValue != null ? initialValue : '';
+  function render() {
+    const opt = options.find((o) => o.value === _value);
+    text.textContent = opt ? opt.label : 'Vælg';
+    text.classList.toggle('site-field-placeholder', !opt);
+  }
+  Object.defineProperty(btn, 'value', {
+    get() { return _value; },
+    set(v) { _value = v; render(); },
+  });
+  render();
+
+  btn.addEventListener('click', () => {
+    schedToggleFieldPopup(btn, () => {
+      schedOpenDropdownPicker(btn, options, _value, (v) => {
+        _value = v;
+        render();
+        btn.dispatchEvent(new Event('change'));
+      });
+    });
+  });
+  return btn;
 }
 
 function schedCreateTimeField(initialValue) {
@@ -328,8 +402,9 @@ function schedCreateTimeField(initialValue) {
   });
 
   toggle.addEventListener('click', () => {
-    if (schedTimePopupAnchor === toggle) { schedCloseTimePopup(); return; }
-    schedOpenTimePicker(toggle, _value, (t) => commit(t));
+    schedToggleFieldPopup(toggle, () => {
+      schedOpenTimePicker(toggle, _value, (t) => commit(t));
+    });
   });
 
   return wrap;
@@ -986,20 +1061,13 @@ function renderAbsentList() {
 }
 
 function openAbsentForm() {
-  const nameSel = document.getElementById('absent-form-name');
-  nameSel.innerHTML = '';
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.textContent = 'Vælg revyster…';
-  placeholder.disabled = true;
-  placeholder.selected = true;
-  nameSel.appendChild(placeholder);
-  state.allCast.map(c => c.name).forEach(name => {
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    nameSel.appendChild(opt);
-  });
+  const options = [
+    { value: '', label: 'Vælg revyster…' },
+    ...state.allCast.map(c => ({ value: c.name, label: c.name })),
+  ];
+  const nameField = schedCreateDropdownField(options, '');
+  nameField.id = 'absent-form-name';
+  document.getElementById('absent-form-name').replaceWith(nameField);
   document.getElementById('absent-form-start').value =
     document.getElementById('input-start').value || '10:00';
   document.getElementById('absent-form-end').value =

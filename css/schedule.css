@@ -607,7 +607,10 @@
   display: flex;
   justify-content: center;
 }
-.picker-footer .btn-primary { width: 50%; }
+/* .btn-primary's own margin-top (meant for its stacked sidebar layout)
+   would otherwise add extra space above the button that the footer's
+   equal top/bottom padding doesn't add below it. */
+.picker-footer .btn-primary { width: 50%; margin-top: 0; }
 .picker-act-label {
   font-size: 0.73rem;
   font-weight: 600;
