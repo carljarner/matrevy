@@ -762,6 +762,17 @@
             "title": "Evalueringsmøde",
             "category": "andet",
             "note": "Vi gennemgår årets evalueringer og omskriver det til brugbar feedback til næste års revy"
+        },
+        {
+            "id": "mt04injl",
+            "date": "2026-10-08",
+            "endDate": "2026-10-08",
+            "start": "17:15",
+            "end": "20:00",
+            "title": "Aktfordeling",
+            "category": "deadline",
+            "location": "A-lokale",
+            "note": ""
         }
     ]
 }
