@@ -531,7 +531,8 @@ const CALENDAR_DATA = [
     "end": "21:00",
     "title": "Revyvisning",
     "category": "andet",
-    "note": "Vi ser MatRevy '25 sammen i Lille UP1. Sammenholdet sørger for snacks/drikkevare"
+    "location": "Lille UP1",
+    "note": "Vi ser MatRevy '25 sammen. Sammenholdet sørger for snacks/drikkevare"
   },
   {
     "id": "mrn70ja8",

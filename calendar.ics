@@ -424,7 +424,8 @@ UID:mrn6z0x8@matematikrevy.dk
 SUMMARY:Revyvisning
 DTSTART:20261001T171500
 DTEND:20261001T210000
-DESCRIPTION:Vi ser MatRevy '25 sammen i Lille UP1. Sammenholdet sørger for snacks/drikkevare
+LOCATION:Lille UP1
+DESCRIPTION:Vi ser MatRevy '25 sammen. Sammenholdet sørger for snacks/drikkevare
 CATEGORIES:Andet
 END:VEVENT
 BEGIN:VEVENT
