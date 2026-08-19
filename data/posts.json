@@ -8,7 +8,14 @@
             "title": "Tester",
             "text": "Hvad sker der her?\n\nKan jeg skrive en lang besked med mellemrum og \n\nLinks : https://www.facebook.com/groups/1334272084959429",
             "image": "",
-            "comments": []
+            "comments": [
+                {
+                    "id": "6a8583c4f3f3298f",
+                    "author": "Carl",
+                    "text": "Virkelige nice!",
+                    "date": "2026-08-19T12:21:56"
+                }
+            ]
         },
         {
             "id": "6a58f74c5fddff14",
