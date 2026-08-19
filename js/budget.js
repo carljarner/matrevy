@@ -380,7 +380,12 @@ async function loadAndRenderAdmin(root) {
 // discard the planned/income numbers the admin was in the middle of typing.
 async function reloadAdmin(root) {
   await saveBudgetSheetIfDirty();
-  loadAndRenderAdmin(root);
+  // loadAndRenderAdmin briefly empties #budget-root while it re-fetches, which
+  // otherwise makes the browser scroll the (now much shorter) page back to
+  // the top — restore the admin's scroll position once the re-render lands.
+  const scrollY = window.scrollY;
+  await loadAndRenderAdmin(root);
+  window.scrollTo(0, scrollY);
 }
 
 // ── Budget sheet (planned per category + income; spent/balance derived) ──
@@ -1027,11 +1032,11 @@ function openExpenseEditModal(root, exp) {
       }
     });
 
-    const removeBtn = budgetPillBtn('Fjern permanent', 'site-pill-danger');
+    const removeBtn = budgetPillBtn('Fjern', 'site-pill-danger');
     removeBtn.addEventListener('click', () => openExpenseRemoveConfirm(root, exp, close));
 
-    actions.appendChild(restoreBtn);
     actions.appendChild(removeBtn);
+    actions.appendChild(restoreBtn);
     return;
   }
 
@@ -1093,20 +1098,25 @@ function openExpenseEditModal(root, exp) {
     openExpenseDeleteConfirm(root, exp, buildPayload(true), close);
   });
 
-  actions.appendChild(confirmBtn);
   actions.appendChild(deleteBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // Confirm soft-deleting a paid expense — hides it from the budget totals
 // and crosses it out in the table, but keeps the record and receipt so it
 // can be restored (or permanently removed) later from the same edit modal.
 function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet udgift');
-  modal.classList.add('budget-confirm-modal');
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('budget-confirm-narrow');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-intro',
+  form.appendChild(el('p', 'budget-confirm-text',
     `Skjul udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) fra budgettet? `
     + 'Kvitteringen bevares, og du kan gendanne den igen fra Rediger.'));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
 
   const confirmBtn = budgetPillBtn('Slet', 'site-pill-danger');
   confirmBtn.addEventListener('click', async () => {
@@ -1122,6 +1132,7 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
       if (result.message) error.textContent = result.message;
     }
   });
+  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
@@ -1131,12 +1142,17 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
 // already picks max-existing-n + 1 specifically so deletions never reuse
 // a bilag number, so a gap in the sequence is expected, not a bug.
 function openExpenseRemoveConfirm(root, exp, closeParent) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Fjern udgift permanent');
-  modal.classList.add('budget-confirm-modal');
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('budget-confirm-narrow');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-intro',
+  form.appendChild(el('p', 'budget-confirm-text',
     `Fjern udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) permanent? `
     + 'Kvitteringen slettes, og dette kan ikke fortrydes.'));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
 
   const confirmBtn = budgetPillBtn('Fjern permanent', 'site-pill-danger');
   confirmBtn.addEventListener('click', async () => {
@@ -1152,6 +1168,7 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
       if (result.message) error.textContent = result.message;
     }
   });
+  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
