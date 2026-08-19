@@ -11,10 +11,10 @@ const POSTS_DATA = [
     "image": "",
     "comments": [
       {
-        "id": "6a58f6c8629af9ac",
-        "author": "Carl 2",
-        "text": "Nice, post",
-        "date": "2026-07-16T17:20:40"
+        "id": "6a8583c4f3f3298f",
+        "author": "Carl",
+        "text": "Virkelige nice!",
+        "date": "2026-08-19T12:21:56"
       }
     ]
   },
