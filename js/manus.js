@@ -271,13 +271,21 @@ const MANUS_PENDING_MESSAGES = [
   'Gratis services tager tid...',
   'Et øjeblik mere...',
   'Næsten færdig...',
+  'Ups, forkert vej...',
+  'Vente vente...',
+  'Hvad har du lavet i dag?...',
+  'God sketch!...',
 ];
 const MANUS_PENDING_MESSAGE_INTERVAL_MS = 10000;
 
+// Deterministic per-step pseudo-random pick (classic sine hash) so the
+// message stays stable across re-renders within the same 10s window but
+// still looks random step to step, with no per-row timer needed.
 function manusPendingMessage(item) {
   const startedAt = item.createdAt ? new Date(item.createdAt).getTime() : Date.now();
   const step = Math.floor((Date.now() - startedAt) / MANUS_PENDING_MESSAGE_INTERVAL_MS);
-  const idx = Math.max(0, Math.min(step, MANUS_PENDING_MESSAGES.length - 1));
+  const rand = Math.sin(step * 12.9898) * 43758.5453;
+  const idx = Math.floor((rand - Math.floor(rand)) * MANUS_PENDING_MESSAGES.length);
   return MANUS_PENDING_MESSAGES[idx];
 }
 
