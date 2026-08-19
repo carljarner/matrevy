@@ -254,7 +254,7 @@ function renderRevystForm(root) {
   phoneInput.placeholder = 'til MobilePay';
   card.appendChild(siteEditField('Telefonnummer', phoneInput));
 
-  const receiptInput = el('input');
+  const receiptInput = el('input', 'site-file-input');
   receiptInput.type = 'file';
   receiptInput.accept = 'image/*';
   card.appendChild(siteEditField('Billede af kvittering', receiptInput));
@@ -393,6 +393,7 @@ let budgetSheetTimersReady = false;
 function computeSpentByCategory() {
   const map = {};
   budgetState.expenses.forEach((e) => {
+    if (e.deleted) return;
     const k = e.category;
     map[k] = (map[k] || 0) + (Number(e.amount) || 0);
   });
@@ -715,7 +716,7 @@ function budgetPillBtn(label, variant) {
 // for): just the request's details + Annuller/Betalt. The paid-out person is
 // the submitter, and the expense date is the submission date.
 function openApproveModal(root, req) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Godkend udlæg');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Godkend udlæg');
   modal.classList.add('budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
@@ -725,8 +726,6 @@ function openApproveModal(root, req) {
     form.appendChild(el('p', 'budget-intro', `Kommentar: ${req.comment.trim()}`));
   }
 
-  const cancelBtn = budgetPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const confirmBtn = budgetPillBtn('Betalt', 'site-pill-primary');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
@@ -745,7 +744,6 @@ function openApproveModal(root, req) {
       if (result.message) error.textContent = result.message;
     }
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
@@ -806,14 +804,12 @@ function openRequestEditModal(root, req) {
 }
 
 function rejectRequest(root, req) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Afvis udlæg');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Afvis udlæg');
   modal.classList.add('budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
     `Afvis udlægget fra ${req.name} (${formatKr(req.amount)})? Kvitteringen slettes.`));
 
-  const cancelBtn = budgetPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const confirmBtn = budgetPillBtn('Afvis', 'site-pill-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
@@ -827,7 +823,6 @@ function rejectRequest(root, req) {
       if (result.message) error.textContent = result.message;
     }
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
@@ -882,7 +877,7 @@ function renderPaidTable(wrap) {
 
   const tbody = el('tbody');
   rows.forEach((e) => {
-    const tr = el('tr');
+    const tr = el('tr', e.deleted ? 'budget-row-deleted' : null);
     tr.appendChild(el('td', null, e.bilag || '—'));
     tr.appendChild(el('td', null, formatDaNumeric(String(e.date || '').slice(0, 10))));
     tr.appendChild(el('td', null, formatDaNumeric(String(e.approvedAt || '').slice(0, 10))));
@@ -1002,6 +997,44 @@ function openExpenseEditModal(root, exp) {
     `Indsendt ${formatDaNumeric(String(exp.date || '').slice(0, 10))}`
     + ` · Betalt ${formatDaNumeric(String(exp.approvedAt || '').slice(0, 10))}`));
 
+  // A soft-deleted expense shows no editable fields — just its status and
+  // Gendan/Fjern permanent, so restoring can never accidentally carry a
+  // half-typed edit along with it.
+  if (exp.deleted) {
+    form.appendChild(el('p', 'budget-intro', 'Denne udgift er slettet og tæller ikke med i budgettet.'));
+
+    const restoreBtn = budgetPillBtn('Gendan', 'site-pill-primary');
+    restoreBtn.addEventListener('click', async () => {
+      restoreBtn.disabled = true;
+      error.textContent = '';
+      const result = await budgetApi('budget_expense_update', {
+        id: exp.id,
+        amount: exp.amount,
+        date: String(exp.date || '').slice(0, 10) || todayIso(),
+        paidBy: exp.paidBy || '',
+        settled: true,
+        comment: exp.comment || '',
+        name: exp.name || '',
+        phone: exp.phone || '',
+        deleted: false,
+      });
+      if (result.ok) {
+        close();
+        reloadAdmin(root);
+      } else {
+        restoreBtn.disabled = false;
+        if (result.message) error.textContent = result.message;
+      }
+    });
+
+    const removeBtn = budgetPillBtn('Fjern permanent', 'site-pill-danger');
+    removeBtn.addEventListener('click', () => openExpenseRemoveConfirm(root, exp, close));
+
+    actions.appendChild(restoreBtn);
+    actions.appendChild(removeBtn);
+    return;
+  }
+
   const amountInput = el('input');
   amountInput.type = 'text';
   amountInput.inputMode = 'decimal';
@@ -1017,25 +1050,102 @@ function openExpenseEditModal(root, exp) {
   commentInput.value = exp.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
-  const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
-  confirmBtn.addEventListener('click', async () => {
-    const amount = parseAmount(amountInput.value);
-    if (!(amount > 0)) { error.textContent = 'Angiv et gyldigt beløb.'; return; }
-    if (!paidByInput.value.trim()) { error.textContent = 'Angiv udlægsholder.'; return; }
-    confirmBtn.disabled = true;
-    error.textContent = '';
-    const result = await budgetApi('budget_expense_update', {
+  function validate() {
+    if (!(parseAmount(amountInput.value) > 0)) return 'Angiv et gyldigt beløb.';
+    if (!paidByInput.value.trim()) return 'Angiv udlægsholder.';
+    return '';
+  }
+
+  function buildPayload(deleted) {
+    return {
       id: exp.id,
-      amount,
+      amount: parseAmount(amountInput.value),
       date: String(exp.date || '').slice(0, 10) || todayIso(),
       paidBy: paidByInput.value.trim(),
       settled: true,
       comment: commentInput.value.trim(),
       name: exp.name || '',
       phone: exp.phone || '',
-    });
+      deleted,
+    };
+  }
+
+  const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
+  confirmBtn.addEventListener('click', async () => {
+    const msg = validate();
+    if (msg) { error.textContent = msg; return; }
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_expense_update', buildPayload(false));
     if (result.ok) {
       close();
+      reloadAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+
+  const deleteBtn = budgetPillBtn('Slet', 'site-pill-danger');
+  deleteBtn.addEventListener('click', () => {
+    const msg = validate();
+    if (msg) { error.textContent = msg; return; }
+    openExpenseDeleteConfirm(root, exp, buildPayload(true), close);
+  });
+
+  actions.appendChild(confirmBtn);
+  actions.appendChild(deleteBtn);
+}
+
+// Confirm soft-deleting a paid expense — hides it from the budget totals
+// and crosses it out in the table, but keeps the record and receipt so it
+// can be restored (or permanently removed) later from the same edit modal.
+function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet udgift');
+  modal.classList.add('budget-confirm-modal');
+
+  form.appendChild(el('p', 'budget-intro',
+    `Skjul udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) fra budgettet? `
+    + 'Kvitteringen bevares, og du kan gendanne den igen fra Rediger.'));
+
+  const confirmBtn = budgetPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_expense_update', payload);
+    if (result.ok) {
+      close();
+      closeParent();
+      reloadAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(confirmBtn);
+}
+
+// Confirm permanently removing an already soft-deleted expense — this is
+// the only path that actually deletes the ledger record and its receipt
+// file. No renumbering of other receipts in the category: budget_next_n()
+// already picks max-existing-n + 1 specifically so deletions never reuse
+// a bilag number, so a gap in the sequence is expected, not a bug.
+function openExpenseRemoveConfirm(root, exp, closeParent) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Fjern udgift permanent');
+  modal.classList.add('budget-confirm-modal');
+
+  form.appendChild(el('p', 'budget-intro',
+    `Fjern udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) permanent? `
+    + 'Kvitteringen slettes, og dette kan ikke fortrydes.'));
+
+  const confirmBtn = budgetPillBtn('Fjern permanent', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_expense_remove', { id: exp.id });
+    if (result.ok) {
+      close();
+      closeParent();
       reloadAdmin(root);
     } else {
       confirmBtn.disabled = false;

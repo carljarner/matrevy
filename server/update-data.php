@@ -164,7 +164,8 @@ $BUDGET_ACTIONS = [
   'budget_request_reject' => 'admin',
   'budget_save_sheet'     => 'admin', // editable planned/income budget sheet
   'budget_expense_add'    => 'admin', // admin-entered direct expense
-  'budget_expense_update' => 'admin', // edit a paid expense (category locked)
+  'budget_expense_update' => 'admin', // edit a paid expense (category locked); also toggles `deleted`
+  'budget_expense_remove' => 'admin', // permanently remove an already soft-deleted expense + its receipt
   'budget_request_update' => 'admin', // edit a pending request
 ];
 if (isset($BUDGET_ACTIONS[$action])) {
@@ -467,6 +468,7 @@ function handle_budget($action, $body) {
     case 'budget_save_sheet':     return budget_save_sheet($body);
     case 'budget_expense_add':    return budget_expense_add($body);
     case 'budget_expense_update': return budget_expense_update($body);
+    case 'budget_expense_remove': return budget_expense_remove($body);
     case 'budget_request_update': return budget_request_update($body);
   }
   respond(400, ['error' => 'unknown_action']);
@@ -762,18 +764,23 @@ function budget_expense_update($body) {
   $comment  = $body['comment'] ?? '';
   $name     = $body['name'] ?? '';
   $phone    = $body['phone'] ?? '';
+  // Soft-delete flag: Slet sets it true (crossed out, excluded from Brugt,
+  // receipt kept); Gendan sets it back to false. Defaults false so every
+  // pre-existing caller of this action is unaffected.
+  $deleted  = $body['deleted'] ?? false;
   if (!is_string($id) || $id === ''
       || !is_numeric($amount) || (float) $amount <= 0
       || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
       || !is_string($paidBy) || trim($paidBy) === ''
       || !is_numeric($transfer) || (float) $transfer < 0
       || !is_bool($settled)
-      || !is_string($comment) || !is_string($name) || !is_string($phone)) {
+      || !is_string($comment) || !is_string($name) || !is_string($phone)
+      || !is_bool($deleted)) {
     respond(400, ['error' => 'invalid_shape']);
   }
   $found = false;
   budget_mutate('expenses.json', ['expenses' => []],
-    function ($json) use ($id, $amount, $date, $paidBy, $transfer, $settled, $comment, $name, $phone, &$found) {
+    function ($json) use ($id, $amount, $date, $paidBy, $transfer, $settled, $comment, $name, $phone, $deleted, &$found) {
       // Bind &$e to a real variable, not the ($json['expenses'] ?? []) expression
       // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
       // edit would silently not persist (handler still returns ok:true).
@@ -788,6 +795,12 @@ function budget_expense_update($body) {
           $e['comment']  = trim($comment);
           $e['name']     = trim($name);
           $e['phone']    = trim($phone);
+          $e['deleted']  = $deleted;
+          if ($deleted) {
+            $e['deletedAt'] = date('c');
+          } else {
+            unset($e['deletedAt']);
+          }
           $found = true;
           break;
         }
@@ -797,6 +810,31 @@ function budget_expense_update($body) {
       return $json;
     });
   if (!$found) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true]);
+}
+
+// Admin: permanently remove an already soft-deleted expense — the only
+// path that actually erases the ledger record and its receipt file. Never
+// renumbers other receipts in the category: budget_next_n() already picks
+// max-existing-n + 1 specifically so deletions never reuse a bilag number,
+// so a gap left behind here is expected, not a bug to fix up.
+function budget_expense_remove($body) {
+  $id = $body['id'] ?? '';
+  if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
+  $removed = null;
+  budget_mutate('expenses.json', ['expenses' => []], function ($json) use ($id, &$removed) {
+    $keep = [];
+    foreach (($json['expenses'] ?? []) as $e) {
+      if (($e['id'] ?? null) === $id) { $removed = $e; continue; }
+      $keep[] = $e;
+    }
+    $json['expenses'] = $keep;
+    return $json;
+  });
+  if ($removed === null) respond(404, ['error' => 'not_found']);
+  if (preg_match(budget_receipt_re(), $removed['receiptFile'] ?? '')) {
+    @unlink(budget_dir() . '/receipts/' . $removed['receiptFile']);
+  }
   respond(200, ['ok' => true]);
 }
 
