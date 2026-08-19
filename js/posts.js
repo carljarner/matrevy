@@ -243,6 +243,14 @@ function postAvatarVariant(post) {
   return avatarVariantForKey(String(post.id || post.author || ''));
 }
 
+// "1. august 2026, 13:15" — date + time, distinct from site-utils.js's
+// shared formatDaDateTime ("... kl. HH:MM"), which other pages may already
+// rely on for that exact wording.
+function formatPostDateTime(iso) {
+  const [datePart, timePart] = iso.split('T');
+  return `${formatDaDate(datePart)}, ${(timePart || '00:00:00').slice(0, 5)}`;
+}
+
 // ── Shared header (avatar + name + category/date) ────────────
 // Used by both the feed card and the detail overlay so the two show an
 // identical top section — `showPin` only applies in the card, never the
@@ -272,7 +280,7 @@ function createPostHeaderElement(post, { showPin = false } = {}) {
     category.textContent = post.title;
     meta.appendChild(category);
   }
-  meta.appendChild(document.createTextNode(formatDaDate(post.date.split('T')[0])));
+  meta.appendChild(document.createTextNode(formatPostDateTime(post.date)));
   headtext.appendChild(meta);
 
   header.appendChild(headtext);
@@ -323,9 +331,318 @@ function appendLineWithLinks(p, line) {
   if (lastIndex < line.length) p.appendChild(document.createTextNode(line.slice(lastIndex)));
 }
 
+// ── Rich text (bold/italic/underline/lists/headings) ──────────
+// Duplicated from wiki.js's identical system (buildWikiToolbar/
+// renderSanitizedBody/appendSanitizedChildren/sanitizeHtmlString) rather
+// than shared — wiki.js isn't loaded on this page, and each page keeps its
+// own copy per the site's one-feature-per-file convention. See wiki.js for
+// the full rationale for why storing/rendering HTML here is still safe
+// despite the site-wide "never innerHTML on a live node" rule.
+const POST_ALLOWED_TAGS = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'UL', 'OL', 'LI', 'P', 'BR', 'H2', 'H3']);
+const POST_TAG_MAP = { B: 'strong', STRONG: 'strong', I: 'em', EM: 'em', U: 'u', UL: 'ul', OL: 'ol', LI: 'li', P: 'p', BR: 'br', H2: 'h2', H3: 'h3' };
+
+// A stored/typed post body only "looks like HTML" if it actually contains a
+// tag-like `<letter...>` sequence — legacy posts.json entries are plain
+// strings with literal \n line breaks and never match this, so they keep
+// rendering via the old line-split path below (a stray "<3" in plain text
+// doesn't match either, since `<` isn't followed by a letter). This is what
+// lets old and new posts coexist with no data migration: only a post
+// actually edited/created through the new rich-text editor ever gets HTML.
+function postLooksLikeHtml(text) {
+  return /<[a-z][\s\S]*>/i.test(text);
+}
+
+// Same URL-auto-linking rules as appendLineWithLinks, but appends into an
+// arbitrary `target` rather than always a single <p> — needed once text
+// nodes can live inside <li>/<h2>/etc., not just one paragraph.
+function appendPostRichTextWithLinks(target, text) {
+  POST_URL_RE.lastIndex = 0;
+  let lastIndex = 0;
+  let match;
+  while ((match = POST_URL_RE.exec(text)) !== null) {
+    let url = match[0];
+    const trailing = url.match(/[).,;:!?\]}'"]+$/);
+    const trail = trailing ? trailing[0] : '';
+    if (trail) url = url.slice(0, url.length - trail.length);
+
+    if (match.index > lastIndex) target.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+    const a = document.createElement('a');
+    a.href = url.startsWith('www.') ? `https://${url}` : url;
+    a.textContent = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    target.appendChild(a);
+    if (trail) target.appendChild(document.createTextNode(trail));
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) target.appendChild(document.createTextNode(text.slice(lastIndex)));
+}
+
+// Renders a stored/typed HTML string into `container` by parsing it into a
+// fully detached document (DOMParser never executes scripts, and the result
+// is never attached to the live document) and rebuilding only the
+// allow-listed tags as real DOM nodes — `.innerHTML` is never assigned on a
+// live node.
+function renderSanitizedPostBody(container, html, { linkify = true } = {}) {
+  container.textContent = '';
+  const doc = new DOMParser().parseFromString(html || '', 'text/html');
+  appendSanitizedPostChildren(container, doc.body, linkify);
+}
+
+function appendSanitizedPostChildren(target, sourceNode, linkify) {
+  for (const node of sourceNode.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (linkify) appendPostRichTextWithLinks(target, node.textContent);
+      else target.appendChild(document.createTextNode(node.textContent));
+    } else if (node.nodeType === Node.ELEMENT_NODE && POST_ALLOWED_TAGS.has(node.tagName)) {
+      const el = document.createElement(POST_TAG_MAP[node.tagName]);
+      appendSanitizedPostChildren(el, node, linkify);
+      target.appendChild(el);
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      // Disallowed wrapper (e.g. a stray <div>/<span style=...> from
+      // execCommand or a paste) — drop the wrapper, keep its children.
+      appendSanitizedPostChildren(target, node, linkify);
+    }
+  }
+}
+
+// Canonicalizes whatever execCommand produced in the live contenteditable
+// region down to the allow-listed subset before it's ever sent to the
+// server. `scratch` is a detached <div> built entirely from the allow-list
+// with zero attributes ever copied from the source, so reading `.innerHTML`
+// back off it is safe.
+function sanitizePostHtmlString(rawHtml) {
+  const doc = new DOMParser().parseFromString(rawHtml, 'text/html');
+  const scratch = document.createElement('div');
+  appendSanitizedPostChildren(scratch, doc.body, false); // linkify:false — links are render-time only, never stored
+  return scratch.innerHTML;
+}
+
+// Seeds a contenteditable region for editing: HTML-looking text renders via
+// the sanitized rebuild (linkify:false, so URLs stay plain text and
+// editable rather than becoming inert <a> nodes); legacy plain text is
+// converted to one <p> per non-blank line so its line breaks survive into
+// the editor (and get upgraded to real HTML the next time it's saved).
+function seedPostEditableBody(bodyEl, text) {
+  if (postLooksLikeHtml(text)) {
+    renderSanitizedPostBody(bodyEl, text, { linkify: false });
+    return;
+  }
+  bodyEl.textContent = '';
+  for (const line of String(text).split('\n')) {
+    if (!line.trim()) continue;
+    const p = document.createElement('p');
+    p.textContent = line;
+    bodyEl.appendChild(p);
+  }
+  if (!bodyEl.childNodes.length) bodyEl.appendChild(document.createElement('p'));
+}
+
+// Google-Docs-style layout: block-style dropdown first, then B/I/U toggle
+// buttons (highlighted when the caret/selection has that formatting, also
+// bound to Cmd/Ctrl+B/I/U), then list buttons last. Call toolbar.destroy()
+// when the editor unmounts to remove the document-level selectionchange
+// listener. Duplicated from wiki.js's buildWikiToolbar — see its comments
+// for the execCommand/list-authoring gotchas, unchanged here.
+function buildPostToolbar(bodyEl) {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'post-toolbar';
+
+  let savedRange = null;
+  const styleDropdown = siteCreateDropdownField([
+    { value: 'p', label: 'Normal' },
+    { value: 'h3', label: 'Overskrift 2' },
+    { value: 'h2', label: 'Overskrift 1' },
+  ], 'p');
+  styleDropdown.classList.add('post-toolbar-style');
+  styleDropdown.addEventListener('mousedown', () => {
+    const sel = window.getSelection();
+    if (sel.rangeCount > 0 && bodyEl.contains(sel.anchorNode)) {
+      savedRange = sel.getRangeAt(0).cloneRange();
+    }
+  });
+  styleDropdown.addEventListener('change', () => {
+    bodyEl.focus();
+    if (savedRange) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+    }
+    document.execCommand('formatBlock', false, `<${styleDropdown.value}>`);
+    updateToolbarState();
+  });
+  toolbar.appendChild(styleDropdown);
+
+  function addFormatBtn(label, title, command, extraClass) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn-small post-toolbar-btn${extraClass ? ' ' + extraClass : ''}`;
+    btn.textContent = label;
+    btn.title = title;
+    btn.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      document.execCommand(command);
+      updateToolbarState();
+    });
+    toolbar.appendChild(btn);
+    return btn;
+  }
+
+  const boldBtn = addFormatBtn('B', 'Fed', 'bold', 'post-toolbar-btn-bold');
+  const italicBtn = addFormatBtn('I', 'Kursiv', 'italic', 'post-toolbar-btn-italic');
+  const underlineBtn = addFormatBtn('U', 'Understreget', 'underline', 'post-toolbar-btn-underline');
+  const bulletBtn = addFormatBtn('•', 'Punktopstilling', 'insertUnorderedList');
+  const orderedBtn = addFormatBtn('1.', 'Nummereret liste', 'insertOrderedList');
+
+  function detectBlockTag() {
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !bodyEl.contains(sel.anchorNode)) return null;
+    const node = sel.anchorNode;
+    const startEl = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    const block = startEl && startEl.closest ? startEl.closest('h2, h3, p') : null;
+    return block && bodyEl.contains(block) ? block.tagName.toLowerCase() : 'p';
+  }
+
+  function updateToolbarState() {
+    const sel = window.getSelection();
+    const focused = document.activeElement === bodyEl || (sel.rangeCount > 0 && bodyEl.contains(sel.anchorNode));
+    if (!focused) return;
+    boldBtn.classList.toggle('post-toolbar-btn-active', document.queryCommandState('bold'));
+    italicBtn.classList.toggle('post-toolbar-btn-active', document.queryCommandState('italic'));
+    underlineBtn.classList.toggle('post-toolbar-btn-active', document.queryCommandState('underline'));
+    bulletBtn.classList.toggle('post-toolbar-btn-active', document.queryCommandState('insertUnorderedList'));
+    orderedBtn.classList.toggle('post-toolbar-btn-active', document.queryCommandState('insertOrderedList'));
+    const tag = detectBlockTag();
+    if (tag) styleDropdown.value = tag;
+  }
+
+  function onSelectionChange() { updateToolbarState(); }
+  bodyEl.addEventListener('keyup', updateToolbarState);
+  bodyEl.addEventListener('mouseup', updateToolbarState);
+  document.addEventListener('selectionchange', onSelectionChange);
+
+  bodyEl.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+    const command = { b: 'bold', i: 'italic', u: 'underline' }[e.key.toLowerCase()];
+    if (!command) return;
+    e.preventDefault();
+    document.execCommand(command);
+    updateToolbarState();
+  });
+
+  // Markdown-style list autocorrect: typing "* ", "- ", or "1. " converts
+  // the current, still-empty line into a bullet/numbered list. Only fires
+  // when the marker is the block's entire content so far — never
+  // mid-sentence.
+  const BULLET_MARKERS = new Set(['*', '-']);
+  const ORDERED_MARKER = '1.';
+
+  function getCaretBlock(node) {
+    const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!el || !bodyEl.contains(el)) return null;
+    return el.closest('p, h2, h3, li') || bodyEl;
+  }
+
+  function textBeforeCaret(block, range) {
+    const pre = document.createRange();
+    pre.selectNodeContents(block);
+    pre.setEnd(range.startContainer, range.startOffset);
+    return pre.toString();
+  }
+
+  bodyEl.addEventListener('keydown', (e) => {
+    if (e.key !== ' ') return;
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !sel.isCollapsed || !bodyEl.contains(sel.anchorNode)) return;
+    const range = sel.getRangeAt(0);
+    if (range.startContainer.nodeType !== Node.TEXT_NODE) return;
+    const block = getCaretBlock(range.startContainer);
+    if (!block) return;
+    const before = textBeforeCaret(block, range);
+    const isBullet = BULLET_MARKERS.has(before);
+    const isOrdered = before === ORDERED_MARKER;
+    if ((!isBullet && !isOrdered) || range.startOffset !== before.length) return;
+    e.preventDefault();
+    for (let i = 0; i < before.length; i++) {
+      document.execCommand('delete');
+    }
+    document.execCommand(isBullet ? 'insertUnorderedList' : 'insertOrderedList');
+    updateToolbarState();
+  });
+
+  // Chrome's execCommand('indent') nests a sub-list as a sibling of the
+  // preceding <li> rather than inside it (invalid HTML) — re-parent any
+  // list that ends up as a direct child of another list into the end of
+  // its immediately preceding <li>. The flip side: outdent can leave an
+  // <li> as a direct child of another <li> — hoist it to be a sibling.
+  function normalizeNestedLists() {
+    bodyEl.querySelectorAll('ul, ol').forEach((list) => {
+      const parent = list.parentElement;
+      if (!parent || (parent.tagName !== 'UL' && parent.tagName !== 'OL')) return;
+      const prevLi = list.previousElementSibling;
+      if (prevLi && prevLi.tagName === 'LI') prevLi.appendChild(list);
+    });
+    bodyEl.querySelectorAll('li').forEach((li) => {
+      const parent = li.parentElement;
+      if (parent && parent.tagName === 'LI') parent.after(li);
+    });
+  }
+
+  // Tab/Shift+Tab nests/un-nests the current list item — only intercepted
+  // inside a list item, Tab anywhere else keeps its normal behaviour.
+  bodyEl.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab') return;
+    const sel = window.getSelection();
+    if (!sel.rangeCount || !bodyEl.contains(sel.anchorNode)) return;
+    const el = sel.anchorNode.nodeType === Node.ELEMENT_NODE ? sel.anchorNode : sel.anchorNode.parentElement;
+    const li = el && el.closest ? el.closest('li') : null;
+    if (!li || !bodyEl.contains(li)) return;
+    e.preventDefault();
+    document.execCommand(e.shiftKey ? 'outdent' : 'indent');
+    normalizeNestedLists();
+    updateToolbarState();
+  });
+
+  updateToolbarState();
+  toolbar.destroy = () => document.removeEventListener('selectionchange', onSelectionChange);
+
+  return toolbar;
+}
+
+// Builds the Besked field's label + toolbar + contenteditable body, shared
+// by the create and edit modals.
+function createPostRichEditorField() {
+  const field = document.createElement('div');
+  field.className = 'edit-field';
+  const label = document.createElement('label');
+  label.textContent = 'Besked';
+  field.appendChild(label);
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'post-edit-body';
+  bodyEl.contentEditable = 'true';
+  bodyEl.spellcheck = false;
+  // Chrome's default is to wrap each new line in a <div> on Enter, which
+  // falls outside POST_ALLOWED_TAGS (no DIV) — asking for 'p' keeps typed
+  // paragraphs matching what's actually stored.
+  bodyEl.addEventListener('focus', () => {
+    document.execCommand('defaultParagraphSeparator', false, 'p');
+  });
+
+  const toolbar = buildPostToolbar(bodyEl);
+  field.appendChild(toolbar);
+  field.appendChild(bodyEl);
+
+  return { field, bodyEl, toolbar };
+}
+
 function createPostTextElement(text) {
   const box = document.createElement('div');
   box.className = 'post-detail-text';
+  if (postLooksLikeHtml(text)) {
+    renderSanitizedPostBody(box, text);
+    return box;
+  }
   for (const line of String(text).split('\n')) {
     if (!line.trim()) continue;
     const p = document.createElement('p');
@@ -568,7 +885,7 @@ function openPostDetail(post) {
         delBtn.textContent = '×';
         delBtn.setAttribute('aria-label', 'Slet kommentar');
         delBtn.title = 'Slet kommentar';
-        delBtn.addEventListener('click', () => deleteComment(post, c));
+        delBtn.addEventListener('click', () => deleteComment(post, c, close));
         article.appendChild(delBtn);
       }
 
@@ -609,7 +926,7 @@ function openPostDetail(post) {
     const delBtn = document.createElement('button');
     delBtn.className = 'site-pill-btn site-pill-danger';
     delBtn.textContent = 'Slet';
-    delBtn.addEventListener('click', () => { close(); deletePost(post); });
+    delBtn.addEventListener('click', () => deletePost(post, close));
     actionsRow.appendChild(delBtn);
 
     form.appendChild(actionsRow);
@@ -674,10 +991,20 @@ async function postComment(post, author, text) {
   return result;
 }
 
-function deleteComment(post, comment) {
-  const { form, error, actions, close } = siteOpenEditModal('Slet kommentar');
+// Opens on top of the still-open detail modal without closing it first
+// (matching deletePost/calendar.js's openDeleteConfirm). Since the comment
+// list changed, the detail modal underneath still needs replacing with a
+// fresh one on success — `closeDetailModal` closes that stale copy first,
+// so only the new detail modal ends up on screen (leaving it open would
+// otherwise stack a second, out-of-date detail overlay on top of it).
+function deleteComment(post, comment, closeDetailModal) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('post-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
 
   const info = document.createElement('p');
+  info.className = 'post-confirm-text';
   info.textContent = 'Slet denne kommentar?';
   form.appendChild(info);
 
@@ -698,6 +1025,7 @@ function deleteComment(post, comment) {
     const result = await savePosts(next);
     if (result.ok) {
       close();
+      closeDetailModal();
       const updated = getEffectivePosts().find(p => p.id === post.id);
       if (updated) openPostDetail(updated);
     } else {
@@ -726,7 +1054,7 @@ async function savePosts(next) {
 // — see the file header for why. New posts are always unpinned; boss/admin
 // pin a post afterwards via the edit modal.
 function openPostCreateModal() {
-  const { form, error, actions, close } = siteOpenModalWithClose('Nyt opslag');
+  const { form, error, actions, close: closeModal } = siteOpenModalWithClose('Nyt opslag');
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -736,8 +1064,9 @@ function openPostCreateModal() {
   authorInput.type = 'text';
   form.appendChild(siteEditField('Afsender', authorInput));
 
-  const textArea = document.createElement('textarea');
-  form.appendChild(siteEditField('Besked', textArea));
+  const { field: bodyField, bodyEl, toolbar } = createPostRichEditorField();
+  form.appendChild(bodyField);
+  const close = () => { toolbar.destroy(); closeModal(); };
 
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
@@ -753,11 +1082,12 @@ function openPostCreateModal() {
   save.addEventListener('click', async () => {
     const title = titleInput.value.trim();
     const author = authorInput.value.trim();
-    const text = textArea.value.trim();
-    if (!author || !text) {
+    const textPlain = bodyEl.textContent.trim();
+    if (!author || !textPlain) {
       error.textContent = 'Udfyld afsender og besked.';
       return;
     }
+    const text = sanitizePostHtmlString(bodyEl.innerHTML);
 
     const file = fileInput.files[0] || null;
     save.disabled = true;
@@ -807,14 +1137,16 @@ function openPostCreateModal() {
 
 // ── Edit/Delete (boss/admin only) ─────────────────────────────
 function openPostEditModal(existing) {
-  const { form, error, actions, close } = siteOpenModalWithClose('Rediger opslag');
+  const { form, error, actions, close: closeModal } = siteOpenModalWithClose('Rediger opslag');
 
   const [existingDate, existingTime] = existing.date.split('T');
   const dateInput = siteCreateDateField(existingDate);
-  form.appendChild(siteEditField('Dato', dateInput));
-
   const timeInput = siteCreateTimeField((existingTime || '00:00:00').slice(0, 5));
-  form.appendChild(siteEditField('Tidspunkt', timeInput));
+  const dateTimeRow = document.createElement('div');
+  dateTimeRow.className = 'edit-field-row';
+  dateTimeRow.appendChild(siteEditField('Dato', dateInput));
+  dateTimeRow.appendChild(siteEditField('Tidspunkt', timeInput));
+  form.appendChild(dateTimeRow);
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -826,9 +1158,10 @@ function openPostEditModal(existing) {
   authorInput.value = existing.author;
   form.appendChild(siteEditField('Afsender', authorInput));
 
-  const textArea = document.createElement('textarea');
-  textArea.value = existing.text;
-  form.appendChild(siteEditField('Besked', textArea));
+  const { field: bodyField, bodyEl, toolbar } = createPostRichEditorField();
+  seedPostEditableBody(bodyEl, existing.text);
+  form.appendChild(bodyField);
+  const close = () => { toolbar.destroy(); closeModal(); };
 
   const save = document.createElement('button');
   save.className = 'site-pill-btn site-pill-primary';
@@ -839,11 +1172,12 @@ function openPostEditModal(existing) {
     const date = dateInput.value;
     const time = timeInput.value;
     const title = titleInput.value.trim();
-    const text = textArea.value.trim();
-    if (!date || !time || !text) {
+    const textPlain = bodyEl.textContent.trim();
+    if (!date || !time || !textPlain) {
       error.textContent = 'Udfyld dato, tidspunkt og besked.';
       return;
     }
+    const text = sanitizePostHtmlString(bodyEl.innerHTML);
     const item = {
       id: existing.id,
       // Not exposed by this form — carry over unchanged. Pinning is now a
@@ -870,13 +1204,23 @@ function openPostEditModal(existing) {
     else error.textContent = result.message;
   });
 
-  textArea.focus();
+  bodyEl.focus();
 }
 
-function deletePost(post) {
-  const { form, error, actions, close } = siteOpenEditModal('Slet opslag');
+// Opens on top of the still-open detail modal (the caller no longer closes
+// it first) rather than replacing it, so `onDeleted` — the detail modal's
+// own `close` — only runs once the delete actually succeeds, closing both
+// together; Annuller or a failed save leaves just this overlay closed and
+// the detail modal still open beneath it. Mirrors calendar.js's
+// openDeleteConfirm(ev, onDeleted).
+function deletePost(post, onDeleted) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('post-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
 
   const info = document.createElement('p');
+  info.className = 'post-confirm-text';
   info.textContent = 'Slet dette opslag?';
   form.appendChild(info);
 
@@ -895,6 +1239,7 @@ function deletePost(post) {
     const result = await savePosts(next);
     if (result.ok) {
       close();
+      if (onDeleted) onDeleted();
     } else {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;

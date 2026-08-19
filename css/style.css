@@ -222,6 +222,14 @@ body {
 .login-error {
   color: var(--danger);
   font-size: 0.82rem;
+  min-height: 0;
+  margin-top: 0;
+}
+
+/* Reserve the visible height/gap only once there's actually an error to
+   show — otherwise every modal pays this space above its button row on
+   every open, stacking with .login-actions' own margin-top below. */
+.login-error:not(:empty) {
   min-height: 1.2em;
   margin-top: 0.4rem;
 }
@@ -230,7 +238,7 @@ body {
   display: flex;
   gap: 0.6rem;
   justify-content: center;
-  margin-top: 0.75rem;
+  margin-top: 1.5rem;
 }
 
 .site-btn-primary {
@@ -297,7 +305,7 @@ body {
 @media (hover: hover) {
   .site-pill-btn:hover {
     background: var(--surface-2);
-    border-color: var(--neutral-border);
+    border-color: var(--text);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
   }
   .site-pill-primary:hover { border-color: var(--success); }
@@ -1260,6 +1268,152 @@ body.site-menu-open {
   word-break: break-word;
 }
 
+/* Rich-text elements a post body can now contain (see js/posts.js's
+   POST_ALLOWED_TAGS) — kept on this bubble's dark-on-warm palette rather
+   than a plain background, unlike wiki.css's equivalent .wiki-chapter-body
+   rules this is otherwise mirrored from. */
+.post-detail-text h2,
+.post-detail-text h3 {
+  color: #000;
+  margin: 0.8rem 0 0.4rem;
+}
+
+.post-detail-text h2:first-child,
+.post-detail-text h3:first-child {
+  margin-top: 0;
+}
+
+.post-detail-text h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.post-detail-text h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.post-detail-text ul,
+.post-detail-text ol {
+  margin: 0 0 0.6rem 1.25rem;
+  padding: 0;
+  color: #000;
+}
+
+/* Word/Docs-style nested numbering, matching wiki.css's convention. */
+.post-detail-text ol ol {
+  list-style-type: lower-alpha;
+}
+
+.post-detail-text ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.post-detail-text ol ol ol ol {
+  list-style-type: decimal;
+}
+
+.post-detail-text li {
+  margin-bottom: 0.25rem;
+}
+
+/* --- Rich-text toolbar + editable body (create/edit-post modals) ---
+   Duplicated from wiki.css's .wiki-toolbar-* and .wiki-edit-body rules
+   (js/posts.js's buildPostToolbar), minus the sticky positioning — Wiki's
+   toolbar sticks while scrolling a long page; this one sits inside a
+   modal instead. */
+.post-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.post-toolbar-btn {
+  min-width: 2rem;
+  text-align: center;
+}
+
+.post-toolbar-btn-bold {
+  font-weight: 700;
+}
+
+.post-toolbar-btn-italic {
+  font-style: italic;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.post-toolbar-btn-underline {
+  text-decoration: underline;
+}
+
+.post-toolbar-btn.post-toolbar-btn-active {
+  background: var(--accent-warm-fill);
+  border-color: var(--accent-warm);
+  color: var(--accent-warm-text);
+}
+
+.post-toolbar-style {
+  width: 150px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.post-edit-body {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  min-height: 120px;
+  background: var(--input-bg);
+  line-height: 1.5;
+}
+
+.post-edit-body:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.post-edit-body p {
+  margin: 0 0 0.6rem;
+}
+
+.post-edit-body p:last-child {
+  margin-bottom: 0;
+}
+
+.post-edit-body ul,
+.post-edit-body ol {
+  margin: 0 0 0.6rem 1.25rem;
+  padding: 0;
+}
+
+.post-edit-body ol ol {
+  list-style-type: lower-alpha;
+}
+
+.post-edit-body ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.post-edit-body ol ol ol ol {
+  list-style-type: decimal;
+}
+
+.post-edit-body h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0.8rem 0 0.4rem;
+}
+
+.post-edit-body h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  margin: 0.7rem 0 0.35rem;
+}
+
 .post-detail-actions {
   display: flex;
   justify-content: center;
@@ -1290,20 +1444,30 @@ body.site-menu-open {
 .post-comment-submit {
   display: block;
   margin-left: auto;
-}
-
-/* The shared .login-error reserves a min-height + top margin even when
-   empty (so a validation error doesn't shift layout when it appears) —
-   but that means dead space above the button on every open. Collapse it
-   until there's actually an error to show. */
-.post-comment-form .login-error {
-  min-height: 0;
-  margin-top: 0;
-}
-
-.post-comment-form .login-error:not(:empty) {
+  /* Consistent gap above the button whether or not the preceding
+     .login-error is currently showing a validation message (its own
+     margin-top/min-height only apply :not(:empty) — see the base rule). */
   margin-top: 0.4rem;
-  margin-bottom: 0.4rem;
+}
+
+/* Smaller than the .edit-modal (480px) confirmation dialogs sit on top of —
+   mirrors Kalender's .cal-confirm-modal (calendar.css). */
+.post-confirm-modal {
+  width: min(300px, 85vw);
+}
+
+/* Reads as the modal's title, since deletePost/deleteComment drop the usual
+   h2 heading in favor of this one line — mirrors Kalender's
+   .cal-confirm-text (calendar.css). Scoped under .login-modal (not just
+   .post-confirm-text) so its specificity beats the plain ".login-modal p"
+   rule above, which would otherwise win the font-size/margin-bottom
+   tie-break. */
+.login-modal .post-confirm-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 0.5rem;
 }
 
 /* --- Footer ---------------------------------------------- */

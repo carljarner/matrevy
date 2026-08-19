@@ -336,8 +336,7 @@ function calDateLabelLong(ev) {
 
 // ── Read-only detail modal (non-admin chip click) ────────────
 function openEventDetail(ev) {
-  const { modal, form, actions, close } = siteOpenModalWithClose(ev.title);
-  modal.classList.add('cal-modal-tight');
+  const { form, actions, close } = siteOpenModalWithClose(ev.title);
 
   const rows = [
     ['Dato', calDateLabelLong(ev)],
@@ -446,8 +445,7 @@ function calCreateCategoryField(initialKey) {
 
 // ── Editor modal ─────────────────────────────────────────────
 function openEventEditor(existing) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
-  modal.classList.add('cal-modal-tight');
+  const { form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -568,7 +566,7 @@ function openEventEditor(existing) {
 // save leaves just this overlay closed and the editor still open beneath it.
 function openDeleteConfirm(ev, onDeleted) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('cal-confirm-modal', 'cal-modal-tight');
+  modal.classList.add('cal-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
