@@ -250,6 +250,16 @@ function openYearDetail(entry) {
   modal.appendChild(body);
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
+
+  // No pure-CSS way to make flex items across two separate rows match the
+  // widest sibling's own content width — measured here, once all five
+  // pills are actually in the live DOM, and applied uniformly (same
+  // approach as manus.js's renderManusPdfLinksSection).
+  const pills = Array.from(actionRow.querySelectorAll('.arkiv-action-btn'));
+  if (pills.length > 0) {
+    const maxWidth = Math.max(...pills.map((b) => b.getBoundingClientRect().width));
+    pills.forEach((b) => { b.style.minWidth = `${maxWidth}px`; });
+  }
 }
 
 // ── Name -> folder/year helpers ──────────────────────────────
