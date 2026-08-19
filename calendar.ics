@@ -621,4 +621,12 @@ LOCATION:Store UP1
 DESCRIPTION:Vi hjælper BioRevy med at pakke scenen sammen
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mt04m7qt@matematikrevy.dk
+SUMMARY:Evaluering
+DTSTART:20261123T235900
+DTEND:20261123T235900
+DESCRIPTION:Evalueringen for årets revy sendes ud
+CATEGORIES:Andet
+END:VEVENT
 END:VCALENDAR

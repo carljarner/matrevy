@@ -785,5 +785,16 @@ const CALENDAR_DATA = [
     "category": "andet",
     "location": "Store UP1",
     "note": "Vi hjælper BioRevy med at pakke scenen sammen"
+  },
+  {
+    "id": "mt04m7qt",
+    "date": "2026-11-23",
+    "endDate": "2026-11-23",
+    "start": "23:59",
+    "end": "23:59",
+    "title": "Evaluering",
+    "category": "andet",
+    "location": "",
+    "note": "Evalueringen for årets revy sendes ud"
   }
 ];
