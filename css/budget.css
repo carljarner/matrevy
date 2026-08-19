@@ -334,6 +334,14 @@
   margin-bottom: 0.5rem;
 }
 
+/* The explanatory line below the title, in these same two dialogs only —
+   .budget-intro is reused elsewhere (approve/reject modals) as a normal
+   left-aligned line, so the centering is scoped to .budget-confirm-narrow
+   rather than changing .budget-intro itself. */
+.budget-confirm-narrow .budget-intro {
+  text-align: center;
+}
+
 /* --- Budget sheet ----------------------------------------- */
 .budget-save-status {
   font-size: 0.8rem;

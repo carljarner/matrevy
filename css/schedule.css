@@ -513,6 +513,25 @@
    width (sized for the scene list) reads as far too wide for that. */
 .picker-modal.picker-modal-narrow { width: 320px; }
 .picker-modal.picker-modal-narrow .picker-footer .btn-primary { width: auto; padding-left: 2rem; padding-right: 2rem; }
+
+/* "Ryd skema" confirm — deliberately NOT built on .picker-overlay/.picker-modal
+   above (Øveplan's own pre-theme system): styled to match Budget's own
+   delete-confirm dialogs instead (e.g. openExpenseRemoveConfirm in
+   js/budget.js), reusing the shared site-wide .login-overlay/.login-modal/
+   .site-pill-btn chrome from style.css (loaded on every page, schedule.html
+   included) rather than duplicating it. */
+.sched-confirm-modal { width: min(340px, 90vw); }
+.login-modal .sched-confirm-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+.login-modal .sched-confirm-body {
+  color: var(--text-muted);
+  text-align: center;
+}
 .picker-header {
   display: flex;
   align-items: center;
@@ -655,7 +674,7 @@
   @page { size: A4 landscape; margin: 10mm 20px; }
 
   .site-header, .site-footer, .sched-sidebar, .sched-grid-actions,
-  .cell-remove, .cell-empty .cell-plus, .picker-overlay,
+  .cell-remove, .cell-empty .cell-plus, .picker-overlay, .login-overlay,
   .conflict-badge { display: none !important; }
 
   body { background: #fff; }

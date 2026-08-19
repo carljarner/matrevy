@@ -436,6 +436,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-build').addEventListener('click', buildGrid);
   document.getElementById('btn-export').addEventListener('click', () => window.print());
   document.getElementById('btn-clear-schedule').addEventListener('click', clearSchedule);
+  document.getElementById('clear-confirm-cancel').addEventListener('click', closeClearConfirm);
+  document.getElementById('clear-confirm-ok').addEventListener('click', confirmClearSchedule);
+  document.getElementById('clear-confirm-overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeClearConfirm();
+  });
   document.getElementById('picker-close').addEventListener('click', closePicker);
   document.getElementById('picker-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closePicker();
@@ -928,9 +933,17 @@ function removeFromCell(si, ri) {
   saveState();
 }
 
-async function clearSchedule() {
+function clearSchedule() {
   if (!state.grid.length) return;
-  if (!confirm('Ryd alle placerede scener fra skemaet? Dette kan ikke fortrydes.')) return;
+  document.getElementById('clear-confirm-overlay').style.display = 'flex';
+}
+
+function closeClearConfirm() {
+  document.getElementById('clear-confirm-overlay').style.display = 'none';
+}
+
+async function confirmClearSchedule() {
+  closeClearConfirm();
   state.grid = state.slots.map(() => state.rooms.map(() => null));
 
   // Nothing is placed anymore, so this is as safe a moment as a fresh page
