@@ -773,6 +773,17 @@
             "category": "deadline",
             "location": "A-lokale",
             "note": ""
+        },
+        {
+            "id": "mt04khol",
+            "date": "2026-11-29",
+            "endDate": "2026-11-29",
+            "start": "10:00",
+            "end": "18:00",
+            "title": "Fjern scenen",
+            "category": "andet",
+            "location": "Store UP1",
+            "note": "Vi hjælper BioRevy med at pakke scenen sammen"
         }
     ]
 }
