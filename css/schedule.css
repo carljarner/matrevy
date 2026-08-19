@@ -141,6 +141,18 @@
 }
 
 /* ── Scene sidebar list ─────────────────────────────────── */
+.scene-sidebar-heading {
+  font-size: 0.73rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 0.5rem 0.6rem 0.2rem;
+  position: sticky;
+  top: 76px;
+  background: var(--surface);
+  z-index: 1;
+}
 #scene-list {
   display: flex;
   flex-direction: column;
@@ -201,9 +213,14 @@
 .chip-name { flex: 1; }
 
 .chip-repeat-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-warm);
 }
 
 /* ── Absentee list & form ───────────────────────────────── */
@@ -422,7 +439,8 @@
   line-height: 1.4;
 }
 
-.cell-cast-list .absent {
+.cell-cast-list .absent,
+.cell-cast-list .crossed-out {
   text-decoration: line-through;
   color: #b0b7be;
 }
@@ -496,6 +514,10 @@
    The Scenemøde text editor (just two short inputs) is excluded, keeping
    its original content-hugging height. */
 .picker-modal.picker-modal-fixed-height { height: 80vh; }
+/* The slot time editor only holds two small time fields — the default 560px
+   width (sized for the scene list) reads as far too wide for that. */
+.picker-modal.picker-modal-narrow { width: 320px; }
+.picker-modal.picker-modal-narrow .picker-footer .btn-primary { width: auto; padding-left: 2rem; padding-right: 2rem; }
 .picker-header {
   display: flex;
   align-items: center;
@@ -538,6 +560,7 @@
 .picker-item.picker-placed { color: #b0b7be; }
 .picker-item.picker-selected.picker-placed { color: #166534; }
 .picker-item.picker-at-cap { opacity: 0.4; cursor: default; }
+.picker-item.picker-crossed-out { text-decoration: line-through; color: #b0b7be; }
 .picker-pair-row {
   display: flex;
   gap: 0.4rem;
@@ -574,9 +597,14 @@
   white-space: nowrap;
 }
 .picker-repeat-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: var(--accent-warm);
 }
 .picker-absent-names {
   font-size: 0.78rem;
@@ -587,8 +615,9 @@
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--border);
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
 }
+.picker-footer .btn-primary { width: 50%; }
 .picker-act-label {
   font-size: 0.73rem;
   font-weight: 600;
@@ -604,7 +633,7 @@
   gap: calc(1.25rem + 50px);
   font-size: 0.78rem;
   color: var(--text-muted);
-  padding: 0.2rem 0.6rem 0.5rem;
+  padding: 0.7rem 0.6rem 0.5rem;
 }
 .picker-legend-item {
   display: inline-flex;
@@ -625,6 +654,8 @@
 }
 
 .picker-text-editor { padding: 0.6rem 0.1rem; }
+.picker-text-editor-row { display: flex; gap: 0.5rem; }
+.picker-text-editor-row .picker-text-editor { flex: 1; min-width: 0; }
 
 /* ── Print styles ───────────────────────────────────────── */
 @media print {

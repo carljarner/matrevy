@@ -971,20 +971,23 @@ a.manus-pdf-title:focus-visible {
   .manus-prio-1:hover { background: rgb(var(--prio-1-rgb)); color: var(--prio-1-text); }
   .manus-prio-2:hover { background: rgb(var(--prio-2-rgb)); color: var(--prio-2-text); }
   .manus-prio-3:hover { background: rgb(var(--prio-3-rgb)); color: var(--prio-3-text); }
-  .manus-repeat-circle:hover { background: var(--accent-warm-fill); color: var(--accent-warm-text); }
+  .manus-repeat-circle:hover { background: var(--accent-warm); color: #000; }
 }
 
 /* "Skal øves igen dagen efter" — a separate on/off toggle, so it gets the
    site's warm accent (not a priority color) and a bit of extra gap to read
-   as its own control, not a fifth priority level. */
+   as its own control, not a fifth priority level. Solid fill (the same
+   --accent-warm gold used for a placed scene's left border in schedule.css)
+   with a black glyph (rather than the pale --accent-warm-fill/-text pairing
+   used elsewhere) so the toggle stays clearly visible once active, matching
+   Øveplan's own repeat badges (schedule.css's .chip-repeat-tag/.picker-repeat-tag). */
 .manus-repeat-circle {
-  font-size: 0.85rem;
   margin-left: 0.35rem;
 }
 
 .manus-repeat-circle.manus-repeat-active {
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
+  background: var(--accent-warm);
+  color: #000;
 }
 
 /* --- Mobile (≤719px, site-wide breakpoint) ------------------ */

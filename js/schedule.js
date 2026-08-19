@@ -7,9 +7,10 @@
 // ── State ─────────────────────────────────────────────────
 let state = {
   rooms: [],
-  slots: [],        // [{ label, startMinutes }]
+  slots: [],        // [{ label, startMinutes, endMinutes }]
+  slotsConfig: null, // { startTime, endTime, segmentMinutes, gapMinutes } from the last buildGrid() — lets a rebuild tell "config unchanged" (preserve state.slots as-is, including manual edits) from "config changed" (regenerate)
   absentees: [],    // [{ name, start, end }, ...] — start/end in minutes-since-midnight
-  // grid[slotIdx][roomIdx] = { sceneId, customCast?, customText?, customName?, pairedSceneId? } | null
+  // grid[slotIdx][roomIdx] = { sceneId, customCast?, crossedOutCast?, customText?, customName?, pairedSceneId? } | null
   grid: [],
   scenes: [],       // schedulable scenes
   allScenes: [],    // all scenes from JSON
@@ -195,6 +196,37 @@ function schedClockIcon() {
   return svg;
 }
 
+// A circular-arrow "repeat" icon for the repeat-flagged-scene badge
+// (.chip-repeat-tag/.picker-repeat-tag) — drawn as an SVG rather than relying
+// on the Unicode "↻" character, whose glyph metrics aren't reliably centered
+// within its own em-box across browsers/OSes/font-fallbacks. The arrowhead is
+// a symmetric triangle whose base sits perpendicular to the arc's tangent at
+// its open end (not skewed back along the arc), so it reads as a clean arrow
+// point rather than a blocky flag. The arc/arrow coordinates were derived by
+// rendering candidate icons onto a canvas and iterating the drawing center
+// until the ink's pixel centroid converged on the viewBox's true center
+// (within ~0.02px at real badge size), so this is centered by actual visual
+// mass, not just by eye.
+function schedRepeatIcon(size = 11) {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', String(size));
+  svg.setAttribute('height', String(size));
+  const arc = document.createElementNS(svgNS, 'path');
+  arc.setAttribute('d', 'M 11.389 3.921 A 5 5 0 1 1 5.301 3.921');
+  arc.setAttribute('fill', 'none');
+  arc.setAttribute('stroke', '#000');
+  arc.setAttribute('stroke-width', '1.4');
+  arc.setAttribute('stroke-linecap', 'round');
+  svg.appendChild(arc);
+  const arrow = document.createElementNS(svgNS, 'polygon');
+  arrow.setAttribute('points', '6.579,5.587 4.023,2.255 7.998,1.851');
+  arrow.setAttribute('fill', '#000');
+  svg.appendChild(arrow);
+  return svg;
+}
+
 function schedTimeOptions() {
   const opts = [];
   for (let h = 0; h < 24; h++) {
@@ -233,13 +265,24 @@ function schedOpenTimePicker(anchor, currentValue, onSelect) {
   list.className = 'site-tp-list';
   pop.appendChild(list);
 
-  let selectedRow = null;
+  // Scroll to the option nearest currentValue so the popup opens showing
+  // roughly where you are — the list only offers 15-min-grid options, and
+  // currentValue can easily fall off that grid (e.g. a slot's end time
+  // derived from a non-15-min segment/gap), so this is a nearest match, not
+  // necessarily exact. Nothing is marked "selected": clicking any row closes
+  // the popup immediately, so a persistent highlight serves no purpose.
+  const currentMinutes = currentValue ? timeToMinutes(currentValue) : null;
+  let nearestRow = null;
+  let nearestDiff = Infinity;
   for (const t of schedTimeOptions()) {
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'site-list-row';
     row.textContent = t;
-    if (t === currentValue) { row.classList.add('site-list-selected'); selectedRow = row; }
+    if (currentMinutes !== null) {
+      const diff = Math.abs(timeToMinutes(t) - currentMinutes);
+      if (diff < nearestDiff) { nearestDiff = diff; nearestRow = row; }
+    }
     row.addEventListener('click', () => { close(); onSelect(t); });
     list.appendChild(row);
   }
@@ -270,7 +313,7 @@ function schedOpenTimePicker(anchor, currentValue, onSelect) {
   }
   schedTimePopupClose = close;
   schedTimePopupAnchor = anchor;
-  if (selectedRow) selectedRow.scrollIntoView({ block: 'center' });
+  if (nearestRow) nearestRow.scrollIntoView({ block: 'center' });
 }
 
 function schedCreateTimeField(initialValue) {
@@ -383,12 +426,19 @@ function minutesToTime(m) {
   const min = m % 60;
   return String(h).padStart(2, '0') + ':' + String(min).padStart(2, '0');
 }
-function buildSlots(startTime, endTime, segmentMinutes) {
+function buildSlots(startTime, endTime, segmentMinutes, gapMinutes = 0) {
   const start = timeToMinutes(startTime);
   const end   = timeToMinutes(endTime);
   const slots = [];
-  for (let t = start; t + segmentMinutes - 5 <= end; t += segmentMinutes) {
-    slots.push({ label: minutesToTime(t) + ' – ' + minutesToTime(t + segmentMinutes), startMinutes: t });
+  // The gap is dead space between slots, not part of any slot's own
+  // duration, so a slot's own endMinutes stays start+segmentMinutes
+  // regardless of gap — only the step to the next slot's start grows.
+  for (let t = start; t + segmentMinutes - 5 <= end; t += segmentMinutes + gapMinutes) {
+    slots.push({
+      label: minutesToTime(t) + ' – ' + minutesToTime(t + segmentMinutes),
+      startMinutes: t,
+      endMinutes: t + segmentMinutes,
+    });
   }
   return slots;
 }
@@ -464,6 +514,7 @@ async function buildGrid() {
   const startTime = document.getElementById('input-start').value || '10:00';
   const endTime   = document.getElementById('input-end').value   || '17:00';
   const segmentMinutes = parseInt(document.getElementById('input-segment').value, 10) || 30;
+  const gapMinutes = parseInt(document.getElementById('input-gap').value, 10) || 0;
 
   const roomLines = document.getElementById('input-rooms').value
     .split('\n').map(r => r.trim()).filter(Boolean);
@@ -473,16 +524,25 @@ async function buildGrid() {
     alert('Sluttidspunktet skal være efter starttidspunktet.'); return;
   }
 
-  // Preserve existing grid assignments if the time config matches — rooms
-  // are handled below by NAME, not index, so adding/removing/reordering
-  // rooms doesn't wipe or misattribute existing placements.
-  const newSlots = buildSlots(startTime, endTime, segmentMinutes);
-  const slotsMatch = JSON.stringify(newSlots) === JSON.stringify(state.slots);
+  // Preserve existing grid assignments (and any manually-edited slot times,
+  // see openSlotTimeEditor) if the time CONFIG matches the last build —
+  // rooms are handled below by NAME, not index, so adding/removing/
+  // reordering rooms doesn't wipe or misattribute existing placements.
+  // Comparing config fields (not the freshly-regenerated slots array itself)
+  // means state.slots is left completely untouched when nothing time-related
+  // changed, so a manual per-slot time edit survives a rebuild that only
+  // changes e.g. the room list.
+  const configChanged = !state.slotsConfig ||
+    state.slotsConfig.startTime !== startTime ||
+    state.slotsConfig.endTime !== endTime ||
+    state.slotsConfig.segmentMinutes !== segmentMinutes ||
+    state.slotsConfig.gapMinutes !== gapMinutes;
   const oldRooms = state.rooms;
   const oldGrid  = state.grid;
 
-  state.rooms    = roomLines;
-  state.slots    = newSlots;
+  state.rooms = roomLines;
+  if (configChanged) state.slots = buildSlots(startTime, endTime, segmentMinutes, gapMinutes);
+  state.slotsConfig = { startTime, endTime, segmentMinutes, gapMinutes };
 
   // Build scenes list — priority always comes fresh from data/scenes.json
   // (via state.allScenes), never carried over locally: Øveplan is a
@@ -495,7 +555,7 @@ async function buildGrid() {
   // Reset grid only if the time configuration changed — slot indices no
   // longer correspond to the same time windows, so nothing can be carried
   // over safely in that case.
-  if (!slotsMatch) {
+  if (configChanged) {
     state.grid = state.slots.map(() => state.rooms.map(() => null));
   } else {
     // Preserve each room's placements by matching its NAME against the old
@@ -538,12 +598,14 @@ function renderGrid() {
   tbody.innerHTML = '';
   state.slots.forEach((slot, si) => {
     const tr = document.createElement('tr');
-    // Time cell — clicking it opens the picker for this slot
+    // Time cell — clicking it opens the slot's own time editor. Scenes are
+    // still addable per-room via each empty cell's own "+" (see renderCell),
+    // so this doesn't remove any existing way to place a scene.
     const timeTd = document.createElement('td');
     timeTd.className = 'col-time col-time-clickable';
     timeTd.textContent = slot.label;
-    timeTd.title = 'Klik for at tilføje scener til dette tidspunkt';
-    timeTd.onclick = () => openPicker(si);
+    timeTd.title = 'Klik for at redigere tidspunktet';
+    timeTd.onclick = () => openSlotTimeEditor(si);
     tr.appendChild(timeTd);
 
     // Room cells
@@ -584,6 +646,7 @@ function renderCell(td, si, ri) {
     inner.draggable = true;
     inner.ondragstart = () => startDrag(assignment.sceneId, si, ri, {
       customCast: assignment.customCast || null,
+      crossedOutCast: assignment.crossedOutCast || null,
       pairedSceneId: assignment.pairedSceneId || null,
       customText: assignment.customText || null,
       customName: assignment.customName || null,
@@ -619,7 +682,7 @@ function renderCell(td, si, ri) {
       if (names.length) {
         const castEl = document.createElement('div');
         castEl.className = 'cell-cast-list';
-        castEl.innerHTML = renderCastListHtml(names, si);
+        castEl.innerHTML = renderCastListHtml(names, si, assignment);
         inner.appendChild(castEl);
       }
     }
@@ -695,26 +758,28 @@ function getDisplayCastNames(cell) {
 // inside the span (never a bare text node between spans), so a
 // display:block rule on the span (e.g. in print) can't strand a lone comma
 // on its own line between names.
-function renderCastListHtml(names, si) {
+function renderCastListHtml(names, si, cell) {
   return names.map((n, i) => {
-    const absent = isPersonAbsentAtSlot(n, si);
+    const crossedOut = isPersonCrossedOutAtCell(n, cell);
+    const absent = !crossedOut && isPersonAbsentAtSlot(n, si);
     const sep = i < names.length - 1 ? ', ' : '';
-    // The separator sits outside the "absent" span so the strikethrough
-    // only crosses the name itself, not the trailing comma.
-    const nameHtml = absent ? `<span class="absent">${escHtml(n)}</span>` : escHtml(n);
+    // The separator sits outside the "absent"/"crossed-out" span so the
+    // strikethrough only crosses the name itself, not the trailing comma.
+    const cls = crossedOut ? 'crossed-out' : absent ? 'absent' : null;
+    const nameHtml = cls ? `<span class="${cls}">${escHtml(n)}</span>` : escHtml(n);
     return `<span>${nameHtml}${sep}</span>`;
   }).join('');
 }
 
 function getConflicts(si, ri, cell) {
-  const castNames = getCellCastNames(cell);
+  const castNames = getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell));
   if (!castNames.length) return [];
   const conflicts = [];
   state.rooms.forEach((_, otherRi) => {
     if (otherRi === ri) return;
     const other = state.grid[si][otherRi];
     if (!other) return;
-    const otherCast = getCellCastNames(other);
+    const otherCast = getCellCastNames(other).filter(n => !isPersonCrossedOutAtCell(n, other));
     const clash = castNames.filter(n => otherCast.includes(n) && !isPersonAbsentAtSlot(n, si));
     if (clash.length) conflicts.push(...clash);
   });
@@ -722,7 +787,10 @@ function getConflicts(si, ri, cell) {
 }
 
 function castConflictsAtNames(si, castNames, excludeRi = -1) {
-  // Returns true if placing a scene with these cast names at slot si would create a conflict
+  // Returns true if placing a scene with these cast names at slot si would create a conflict.
+  // The caller is expected to already have excluded any of its own crossed-out
+  // names from castNames (see highlightDrop) — this function only knows the
+  // "other" side's cells, so it exempts crossed-out members there itself.
   if (!castNames.length) return false;
   const names = new Set(castNames.filter(n => !isPersonAbsentAtSlot(n, si)));
   for (let ri = 0; ri < state.rooms.length; ri++) {
@@ -730,6 +798,7 @@ function castConflictsAtNames(si, castNames, excludeRi = -1) {
     const other = state.grid[si][ri];
     if (!other) continue;
     for (const n of getCellCastNames(other)) {
+      if (isPersonCrossedOutAtCell(n, other)) continue;
       if (names.has(n)) return true;
     }
   }
@@ -742,7 +811,7 @@ function castConflictsAt(si, sceneId, excludeRi = -1) {
 }
 
 // ── Drag & drop ───────────────────────────────────────────
-let dragState = null; // { sceneId, fromSlot, fromRoom, customCast, pairedSceneId }
+let dragState = null; // { sceneId, fromSlot, fromRoom, customCast, crossedOutCast, pairedSceneId }
 
 function startDrag(sceneId, fromSlot, fromRoom, extra = {}) {
   dragState = { sceneId, fromSlot: fromSlot ?? null, fromRoom: fromRoom ?? null, ...extra };
@@ -754,7 +823,7 @@ function startDrag(sceneId, fromSlot, fromRoom, extra = {}) {
 function highlightDrop(td, si, ri) {
   clearAllDropHighlights();
   if (!dragState) return;
-  const castNames = getCellCastNames(dragState);
+  const castNames = getCellCastNames(dragState).filter(n => !isPersonCrossedOutAtCell(n, dragState));
   const wouldConflict = castConflictsAtNames(si, castNames,
     dragState.fromSlot === si ? dragState.fromRoom : -1);
   td.querySelector('.cell-inner').classList.add(wouldConflict ? 'cell-drop-blocked' : 'cell-drop-target');
@@ -774,7 +843,7 @@ function clearAllDropHighlights() {
 function handleDrop(toSlot, toRoom) {
   clearAllDropHighlights();
   if (!dragState) return;
-  const { sceneId, fromSlot, fromRoom, customCast, pairedSceneId, customText, customName } = dragState;
+  const { sceneId, fromSlot, fromRoom, customCast, crossedOutCast, pairedSceneId, customText, customName } = dragState;
   dragState = null;
 
   // Remove chip dragging style
@@ -792,6 +861,7 @@ function handleDrop(toSlot, toRoom) {
   const existing = state.grid[toSlot][toRoom];
   const placed = { sceneId };
   if (customCast) placed.customCast = customCast;
+  if (crossedOutCast && crossedOutCast.length) placed.crossedOutCast = crossedOutCast;
   if (pairedSceneId) placed.pairedSceneId = pairedSceneId;
   if (customText) placed.customText = customText;
   if (customName) placed.customName = customName;
@@ -881,7 +951,7 @@ function renderSceneSidebar() {
       if (scene.repeat) {
         const repeatSpan = document.createElement('span');
         repeatSpan.className = 'chip-repeat-tag';
-        repeatSpan.textContent = '↻';
+        repeatSpan.appendChild(schedRepeatIcon(11));
         repeatSpan.title = 'Skal øves igen dagen efter';
         chip.appendChild(repeatSpan);
       }
@@ -894,10 +964,16 @@ function renderSceneSidebar() {
 function getSlotRange(si) {
   const slot = state.slots[si];
   if (!slot) return null;
+  if (slot.endMinutes !== undefined) return { start: slot.startMinutes, end: slot.endMinutes };
+  // Legacy localStorage snapshot from before slots carried their own endMinutes.
   const segmentMinutes = parseInt(document.getElementById('input-segment').value, 10) || 30;
   const nextStart = state.slots[si + 1] ? state.slots[si + 1].startMinutes : undefined;
   const end = nextStart !== undefined ? nextStart : slot.startMinutes + segmentMinutes;
   return { start: slot.startMinutes, end };
+}
+
+function isPersonCrossedOutAtCell(name, cell) {
+  return !!(cell && cell.crossedOutCast && cell.crossedOutCast.includes(name));
 }
 
 function isPersonAbsentAtSlot(name, si) {
@@ -999,6 +1075,7 @@ let pickerSelected = new Set(); // set of sceneIds currently selected
 let pickerMode = 'list';      // 'list' | 'rekvisitten' | 'edit-cell' (cast-selection sub-views)
 let rekvisittenCastSelected = new Set(); // cast names selected in the Rekvisitten sub-view
 let cellEditCastSelected = new Set(); // cast names selected in the per-cell editor sub-view
+let cellEditCrossedOut = new Set(); // subset of cellEditCastSelected that's crossed out (Roller rows only)
 
 function openPicker(si, ri = null) {
   pickerSlot = si;
@@ -1007,6 +1084,7 @@ function openPicker(si, ri = null) {
   pickerSelected = new Set();
   rekvisittenCastSelected = new Set();
   cellEditCastSelected = new Set();
+  cellEditCrossedOut = new Set();
   document.getElementById('picker-title').textContent = 'Vælg scener';
   _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
@@ -1022,6 +1100,9 @@ function closePicker() {
   pickerSelected = new Set();
   rekvisittenCastSelected = new Set();
   cellEditCastSelected = new Set();
+  cellEditCrossedOut = new Set();
+  slotTimeStartField = null;
+  slotTimeEndField = null;
 }
 
 // Collapses any fully-selected dance-split pair into a single merged
@@ -1068,6 +1149,7 @@ function confirmPicker() {
   if (pickerMode === 'rekvisitten') { confirmRekvisitten(); return; }
   if (pickerMode === 'edit-cell')  { confirmCellEditor(); return; }
   if (pickerMode === 'edit-scenemode') { confirmScenemodeTextEditor(); return; }
+  if (pickerMode === 'edit-slot-time') { confirmSlotTimeEditor(); return; }
   if (pickerSlot === null || !pickerSelected.size) return;
   const placements = collapseDanceSplitPairs([...pickerSelected]);
 
@@ -1117,10 +1199,11 @@ function renderRekvisittenCastList() {
   container.appendChild(back);
 
   // Cast already occupied elsewhere in this slot can't also work Rekvisitten
+  // (crossed-out members are exempted — crossing out frees them up).
   const occupied = new Set();
   for (let ri = 0; ri < state.rooms.length; ri++) {
     const cell = state.grid[pickerSlot][ri];
-    if (cell) getCellCastNames(cell).forEach(n => occupied.add(n));
+    if (cell) getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell)).forEach(n => occupied.add(n));
   }
   // Also fold in cast from scenes selected-but-not-yet-confirmed in this same
   // picker visit — mirrors getPickerConflictNames's pattern for the reverse
@@ -1193,6 +1276,7 @@ function openCellEditor(si, ri) {
   pickerMode = 'edit-cell';
   const cell = state.grid[si][ri];
   cellEditCastSelected = new Set(getDisplayCastNames(cell));
+  cellEditCrossedOut = new Set((cell && cell.crossedOutCast) || []);
   const scene = cell ? getSceneById(cell.sceneId) : null;
   cellEditorRolesOpen = true;
   // Rekvisitten has no fixed cast — "Roller" would be empty, so open "Andre
@@ -1237,24 +1321,33 @@ function renderCellEditorList() {
   const scene = cell ? getSceneById(cell.sceneId) : null;
 
   // Cast occupied in OTHER cells of this slot (not the cell being edited).
+  // Crossed-out members of an other cell are exempted — crossing out frees
+  // them up to be picked here instead.
   const occupied = new Set();
   for (let ri2 = 0; ri2 < state.rooms.length; ri2++) {
     if (ri2 === pickerRoom) continue;
     const other = state.grid[pickerSlot][ri2];
-    if (other) getCellCastNames(other).forEach(n => occupied.add(n));
+    if (other) getCellCastNames(other).filter(n => !isPersonCrossedOutAtCell(n, other)).forEach(n => occupied.add(n));
   }
 
-  const makeRow = (name, roleLabel) => {
+  // isRollerRow: default-cast ("Roller") rows cross out instead of being
+  // fully removed once active — mirroring Fravær, a crossed-out person stays
+  // shown (struck through) and is exempted from conflict checks rather than
+  // disappearing. "Andre revyster" rows keep the plain binary add/remove
+  // toggle, since cross-out only applies to people actually in the scene.
+  const makeRow = (name, roleLabel, isRollerRow) => {
     const isOccupied = occupied.has(name);
     const isAbsent = isPersonAbsentAtSlot(name, pickerSlot);
     const isSelected = cellEditCastSelected.has(name);
-    // Someone already in THIS cell must remain removable even if now
-    // flagged occupied/absent elsewhere — otherwise the coordinator could
-    // never uncheck the very person this editor exists to let them cross out.
+    const isCrossedOut = isRollerRow && cellEditCrossedOut.has(name);
+    // Someone already in THIS cell must remain clickable even if now flagged
+    // occupied/absent elsewhere — otherwise the coordinator could never
+    // toggle the very person this editor exists to let them cross out.
     const isUnavailable = (isOccupied || isAbsent) && !isSelected;
 
     let cls = 'picker-item';
-    if (isSelected) cls += ' picker-selected';
+    if (isCrossedOut) cls += ' picker-crossed-out';
+    else if (isSelected) cls += ' picker-selected';
     if (isUnavailable) cls += ' picker-at-cap';
 
     const item = document.createElement('div');
@@ -1262,14 +1355,26 @@ function renderCellEditorList() {
 
     const nameSpan = document.createElement('span');
     nameSpan.style.flex = '1';
-    const suffix = isOccupied ? ' (optaget)' : isAbsent ? ' (fraværende)' : '';
+    const suffix = isCrossedOut ? ' (overstreget)' : isOccupied ? ' (optaget)' : isAbsent ? ' (fraværende)' : '';
     nameSpan.textContent = name + (roleLabel ? ` (${roleLabel})` : '') + suffix;
     item.appendChild(nameSpan);
 
     if (!isUnavailable) {
       item.onclick = () => {
-        if (cellEditCastSelected.has(name)) cellEditCastSelected.delete(name);
-        else cellEditCastSelected.add(name);
+        if (isRollerRow) {
+          if (!isSelected) {
+            // Not yet part of the placement (e.g. a Statist not shown by
+            // default) — first click adds them, active.
+            cellEditCastSelected.add(name);
+          } else if (cellEditCrossedOut.has(name)) {
+            cellEditCrossedOut.delete(name);
+          } else {
+            cellEditCrossedOut.add(name);
+          }
+        } else {
+          if (cellEditCastSelected.has(name)) cellEditCastSelected.delete(name);
+          else cellEditCastSelected.add(name);
+        }
         _updatePickerFooter();
         renderCellEditorList();
       };
@@ -1310,10 +1415,10 @@ function renderCellEditorList() {
   };
 
   renderSection('Roller', cellEditorRolesOpen, v => { cellEditorRolesOpen = v; }, sceneCast.length,
-    section => { for (const c of sceneCast) section.appendChild(makeRow(c.name, c.category)); });
+    section => { for (const c of sceneCast) section.appendChild(makeRow(c.name, c.category, true)); });
 
   renderSection('Andre revyster', cellEditorOthersOpen, v => { cellEditorOthersOpen = v; }, otherNames.length,
-    section => { for (const name of otherNames) section.appendChild(makeRow(name, null)); });
+    section => { for (const name of otherNames) section.appendChild(makeRow(name, null, false)); });
 }
 
 function confirmCellEditor() {
@@ -1321,6 +1426,8 @@ function confirmCellEditor() {
   const cell = state.grid[pickerSlot][pickerRoom];
   if (!cell) { closePicker(); return; }
   cell.customCast = [...cellEditCastSelected];
+  const crossed = [...cellEditCrossedOut].filter(n => cellEditCastSelected.has(n));
+  if (crossed.length) cell.crossedOutCast = crossed; else delete cell.crossedOutCast;
   renderGrid();
   renderSceneSidebar();
   saveState();
@@ -1388,16 +1495,78 @@ function confirmScenemodeTextEditor() {
   closePicker();
 }
 
+// ── Per-slot time editor ──────────────────────────────────
+// A manual override of one row's own start/end — no ripple to neighboring
+// slots (each slot carries its own independent startMinutes/endMinutes).
+let slotTimeStartField = null;
+let slotTimeEndField = null;
+
+function openSlotTimeEditor(si) {
+  pickerSlot = si;
+  pickerRoom = null;
+  pickerMode = 'edit-slot-time';
+  document.getElementById('picker-title').textContent = 'Rediger tidspunkt';
+  _updatePickerFooter();
+  document.getElementById('picker-overlay').style.display = 'flex';
+  renderSlotTimeEditor();
+}
+
+function renderSlotTimeEditor() {
+  const container = document.getElementById('picker-list');
+  container.innerHTML = '';
+  // getSlotRange (not slot.startMinutes/endMinutes directly) so a slot
+  // restored from a pre-endMinutes localStorage snapshot still shows a real
+  // time here instead of NaN:NaN — it falls back to deriving the end from
+  // the next slot's start / the segment length.
+  const range = getSlotRange(pickerSlot);
+
+  const row = document.createElement('div');
+  row.className = 'picker-text-editor-row';
+
+  const startWrap = document.createElement('label');
+  startWrap.className = 'field-label picker-text-editor';
+  startWrap.appendChild(document.createTextNode('Start'));
+  slotTimeStartField = schedCreateTimeField(minutesToTime(range.start));
+  startWrap.appendChild(slotTimeStartField);
+  row.appendChild(startWrap);
+
+  const endWrap = document.createElement('label');
+  endWrap.className = 'field-label picker-text-editor';
+  endWrap.appendChild(document.createTextNode('Slut'));
+  slotTimeEndField = schedCreateTimeField(minutesToTime(range.end));
+  endWrap.appendChild(slotTimeEndField);
+  row.appendChild(endWrap);
+
+  container.appendChild(row);
+}
+
+function confirmSlotTimeEditor() {
+  const slot = state.slots[pickerSlot];
+  if (!slot || !slotTimeStartField || !slotTimeEndField) { closePicker(); return; }
+  const range = getSlotRange(pickerSlot);
+  const newStart = timeToMinutes(slotTimeStartField.value || minutesToTime(range.start));
+  const newEnd   = timeToMinutes(slotTimeEndField.value || minutesToTime(range.end));
+  if (newEnd <= newStart) { alert('Sluttidspunktet skal være efter starttidspunktet.'); return; }
+  slot.startMinutes = newStart;
+  slot.endMinutes = newEnd;
+  slot.label = minutesToTime(newStart) + ' – ' + minutesToTime(newEnd);
+  renderGrid();
+  saveState();
+  closePicker();
+}
+
 function _emptyRoomCount(si) {
   return state.rooms.reduce((n, _, ri) => n + (state.grid[si][ri] ? 0 : 1), 0);
 }
 
 function _updatePickerFooter() {
   const modal = document.querySelector('#picker-overlay .picker-modal');
-  if (modal) modal.classList.toggle('picker-modal-fixed-height', pickerMode !== 'edit-scenemode');
+  if (modal) modal.classList.toggle('picker-modal-fixed-height',
+    pickerMode !== 'edit-scenemode' && pickerMode !== 'edit-slot-time');
+  if (modal) modal.classList.toggle('picker-modal-narrow', pickerMode === 'edit-slot-time');
 
   const confirmBtn = document.getElementById('picker-confirm');
-  confirmBtn.textContent = (pickerMode === 'edit-cell' || pickerMode === 'edit-scenemode') ? 'Opdater' : 'Placer';
+  confirmBtn.textContent = (pickerMode === 'edit-cell' || pickerMode === 'edit-scenemode' || pickerMode === 'edit-slot-time') ? 'Opdater' : 'Placer';
   if (pickerMode === 'rekvisitten') {
     confirmBtn.disabled = rekvisittenCastSelected.size === 0;
     return;
@@ -1408,6 +1577,10 @@ function _updatePickerFooter() {
   }
   if (pickerMode === 'edit-scenemode') {
     confirmBtn.disabled = false; // blank input is valid — falls back to "Alle"
+    return;
+  }
+  if (pickerMode === 'edit-slot-time') {
+    confirmBtn.disabled = false;
     return;
   }
   confirmBtn.disabled = pickerSelected.size === 0;
@@ -1426,11 +1599,13 @@ function getPickerConflictNames(si, sceneId) {
   if (!candidateNames.length) return [];
 
   const occupiedCast = new Set();
-  // Cast already in grid cells at this slot
+  // Cast already in grid cells at this slot — a crossed-out member of a
+  // placed cell is exempted, same as everywhere else: crossing out frees
+  // them up, so a different scene containing them shouldn't be flagged.
   for (let ri = 0; ri < state.rooms.length; ri++) {
     const cell = state.grid[si][ri];
     if (!cell) continue;
-    getCellCastNames(cell).forEach(n => occupiedCast.add(n));
+    getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell)).forEach(n => occupiedCast.add(n));
   }
   // Cast from other currently-selected scenes in the picker
   for (const selId of pickerSelected) {
@@ -1543,7 +1718,7 @@ function buildPickerSceneItem(scene, placedCounts, half) {
   if (scene.repeat) {
     const repeatTag = document.createElement('span');
     repeatTag.className = 'picker-repeat-tag';
-    repeatTag.textContent = '↻';
+    repeatTag.appendChild(schedRepeatIcon(12));
     repeatTag.title = 'Skal øves igen dagen efter';
     item.appendChild(repeatTag);
   }
@@ -1667,6 +1842,7 @@ function saveState() {
       startTime: document.getElementById('input-start').value,
       endTime: document.getElementById('input-end').value,
       segmentMinutes: document.getElementById('input-segment').value,
+      gapMinutes: document.getElementById('input-gap').value,
       roomsRaw: document.getElementById('input-rooms').value,
       title: state.title,
     };
@@ -1683,6 +1859,7 @@ async function restoreState() {
     if (snap.startTime) document.getElementById('input-start').value   = snap.startTime;
     if (snap.endTime)   document.getElementById('input-end').value     = snap.endTime;
     if (snap.segmentMinutes) document.getElementById('input-segment').value = snap.segmentMinutes;
+    if (snap.gapMinutes !== undefined) document.getElementById('input-gap').value = snap.gapMinutes;
     if (snap.roomsRaw)  document.getElementById('input-rooms').value   = snap.roomsRaw;
 
     // Absentees and the title are independent of whether a grid has ever
@@ -1700,6 +1877,15 @@ async function restoreState() {
       state.scenes   = state.allScenes
         .filter(s => s.schedulable)
         .map(s => ({ ...s }));
+      // Re-seed slotsConfig from the just-restored fields so a same-config
+      // "Byg øveplan" click after reload still preserves manual slot edits
+      // (see buildGrid's configChanged check) instead of always regenerating.
+      state.slotsConfig = {
+        startTime: document.getElementById('input-start').value,
+        endTime: document.getElementById('input-end').value,
+        segmentMinutes: parseInt(document.getElementById('input-segment').value, 10) || 30,
+        gapMinutes: parseInt(document.getElementById('input-gap').value, 10) || 0,
+      };
 
       document.getElementById('sched-grid-title').textContent = state.title;
       document.getElementById('sched-empty-state').style.display = 'none';

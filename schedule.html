@@ -42,6 +42,22 @@
           </select>
         </label>
 
+        <label class="field-label">Pause mellem segmenter
+          <select id="input-gap">
+            <option value="0" selected>0 min</option>
+            <option value="1">1 min</option>
+            <option value="2">2 min</option>
+            <option value="3">3 min</option>
+            <option value="4">4 min</option>
+            <option value="5">5 min</option>
+            <option value="6">6 min</option>
+            <option value="7">7 min</option>
+            <option value="8">8 min</option>
+            <option value="9">9 min</option>
+            <option value="10">10 min</option>
+          </select>
+        </label>
+
         <label class="field-label">Lokaler
           <textarea id="input-rooms" rows="5" placeholder="Lille UP1&#10;Store UP1&#10;Lokale&#10;Bandet&#10;Rekvisitten"></textarea>
         </label>
@@ -76,6 +92,7 @@
         </div>
 
         <div id="scene-sidebar" style="display:none">
+          <div class="scene-sidebar-heading">Scener</div>
           <div id="scene-list"></div>
         </div>
       </section>
