@@ -604,4 +604,12 @@ DTEND:20261130T210000
 DESCRIPTION:Vi gennemgår årets evalueringer og omskriver det til brugbar feedback til næste års revy
 CATEGORIES:Andet
 END:VEVENT
+BEGIN:VEVENT
+UID:mt04injl@matematikrevy.dk
+SUMMARY:Aktfordeling
+DTSTART:20261008T171500
+DTEND:20261008T200000
+LOCATION:A-lokale
+CATEGORIES:Deadline
+END:VEVENT
 END:VCALENDAR
