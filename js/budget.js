@@ -1111,8 +1111,8 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-confirm-text',
-    `Slet udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)})?`));
+  form.appendChild(el('p', 'budget-confirm-text', 'Slet udgiften?'));
+  form.appendChild(el('p', 'budget-intro', `${exp.bilag || '—'} (${formatKr(exp.amount)})`));
   form.appendChild(el('p', 'budget-intro',
     'Kvitteringen bevares, og du kan gendanne den igen fra Rediger.'));
 
@@ -1148,15 +1148,15 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-confirm-text',
-    `Fjern udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) permanent?`));
+  form.appendChild(el('p', 'budget-confirm-text', 'Fjern udgiften permanent?'));
+  form.appendChild(el('p', 'budget-intro', `${exp.bilag || '—'} (${formatKr(exp.amount)})`));
   form.appendChild(el('p', 'budget-intro',
     'Kvitteringen slettes, og dette kan ikke fortrydes.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = budgetPillBtn('Fjern permanent', 'site-pill-danger');
+  const confirmBtn = budgetPillBtn('Fjern', 'site-pill-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
