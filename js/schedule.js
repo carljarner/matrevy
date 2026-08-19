@@ -196,37 +196,6 @@ function schedClockIcon() {
   return svg;
 }
 
-// A circular-arrow "repeat" icon for the repeat-flagged-scene badge
-// (.chip-repeat-tag/.picker-repeat-tag) — drawn as an SVG rather than relying
-// on the Unicode "↻" character, whose glyph metrics aren't reliably centered
-// within its own em-box across browsers/OSes/font-fallbacks. The arrowhead is
-// a symmetric triangle whose base sits perpendicular to the arc's tangent at
-// its open end (not skewed back along the arc), so it reads as a clean arrow
-// point rather than a blocky flag. The arc/arrow coordinates were derived by
-// rendering candidate icons onto a canvas and iterating the drawing center
-// until the ink's pixel centroid converged on the viewBox's true center
-// (within ~0.02px at real badge size), so this is centered by actual visual
-// mass, not just by eye.
-function schedRepeatIcon(size = 11) {
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('width', String(size));
-  svg.setAttribute('height', String(size));
-  const arc = document.createElementNS(svgNS, 'path');
-  arc.setAttribute('d', 'M 11.389 3.921 A 5 5 0 1 1 5.301 3.921');
-  arc.setAttribute('fill', 'none');
-  arc.setAttribute('stroke', '#000');
-  arc.setAttribute('stroke-width', '1.4');
-  arc.setAttribute('stroke-linecap', 'round');
-  svg.appendChild(arc);
-  const arrow = document.createElementNS(svgNS, 'polygon');
-  arrow.setAttribute('points', '6.579,5.587 4.023,2.255 7.998,1.851');
-  arrow.setAttribute('fill', '#000');
-  svg.appendChild(arrow);
-  return svg;
-}
-
 function schedTimeOptions() {
   const opts = [];
   for (let h = 0; h < 24; h++) {
@@ -951,7 +920,7 @@ function renderSceneSidebar() {
       if (scene.repeat) {
         const repeatSpan = document.createElement('span');
         repeatSpan.className = 'chip-repeat-tag';
-        repeatSpan.appendChild(schedRepeatIcon(11));
+        repeatSpan.textContent = '↻';
         repeatSpan.title = 'Skal øves igen dagen efter';
         chip.appendChild(repeatSpan);
       }
@@ -1718,7 +1687,7 @@ function buildPickerSceneItem(scene, placedCounts, half) {
   if (scene.repeat) {
     const repeatTag = document.createElement('span');
     repeatTag.className = 'picker-repeat-tag';
-    repeatTag.appendChild(schedRepeatIcon(12));
+    repeatTag.textContent = '↻';
     repeatTag.title = 'Skal øves igen dagen efter';
     item.appendChild(repeatTag);
   }

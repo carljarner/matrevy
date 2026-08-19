@@ -347,10 +347,12 @@ function budgetReceiptThumb(file) {
 let budgetState = { requests: [], expenses: [], budget: { planned: {}, income: [] } };
 let budgetPaidFilter = 'alle';
 
-async function loadAndRenderAdmin(root) {
-  root.replaceChildren();
-  const loading = el('p', 'budget-intro', 'Henter budgetdata …');
-  root.appendChild(loading);
+async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
+  if (showLoading) {
+    root.replaceChildren();
+    const loading = el('p', 'budget-intro', 'Henter budgetdata …');
+    root.appendChild(loading);
+  }
 
   const result = await budgetApi('budget_read', {});
   root.replaceChildren();
@@ -380,11 +382,15 @@ async function loadAndRenderAdmin(root) {
 // discard the planned/income numbers the admin was in the middle of typing.
 async function reloadAdmin(root) {
   await saveBudgetSheetIfDirty();
-  // loadAndRenderAdmin briefly empties #budget-root while it re-fetches, which
-  // otherwise makes the browser scroll the (now much shorter) page back to
-  // the top — restore the admin's scroll position once the re-render lands.
+  // Skip the "Henter budgetdata …" loading placeholder here: showing it would
+  // briefly empty #budget-root while the re-fetch is in flight, shrinking the
+  // page and making the browser scroll back to the top, then jump back down
+  // once the real content lands — a visible flash on every gendan/slet.
+  // Leaving the (still-current) old content in place until the new content
+  // is ready to swap in synchronously avoids that entirely; the scrollTo
+  // below is just a defensive fallback in case the new content is shorter.
   const scrollY = window.scrollY;
-  await loadAndRenderAdmin(root);
+  await loadAndRenderAdmin(root, { showLoading: false });
   window.scrollTo(0, scrollY);
 }
 
@@ -1113,7 +1119,7 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
 
   form.appendChild(el('p', 'budget-confirm-text', 'Slet udgiften?'));
   form.appendChild(el('p', 'budget-intro',
-    'Kvitteringen bevares, og du kan gendanne den igen fra Rediger.'));
+    'Kvitteringen bevares, og udgiften kan gendannes.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);

@@ -546,11 +546,9 @@ function openEventEditor(existing) {
       : current.concat([item]);
 
     save.disabled = true;
-    save.textContent = 'Gemmer…';
     error.textContent = '';
     const result = await saveEvents(next);
     save.disabled = false;
-    save.textContent = 'Gem';
     if (result.ok) close();
     else error.textContent = result.message;
   });

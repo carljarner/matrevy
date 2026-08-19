@@ -213,14 +213,9 @@
 .chip-name { flex: 1; }
 
 .chip-repeat-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--accent-warm);
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 /* ── Absentee list & form ───────────────────────────────── */
@@ -597,14 +592,9 @@
   white-space: nowrap;
 }
 .picker-repeat-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  width: 19px;
-  height: 19px;
-  border-radius: 50%;
-  background: var(--accent-warm);
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }
 .picker-absent-names {
   font-size: 0.78rem;

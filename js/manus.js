@@ -2129,39 +2129,6 @@ function renderManusTextTab() {
 // row.priority/row.dansPriority exactly).
 const MANUS_PRIO_VALUES = [0, 1, 2, 3];
 
-// A circular-arrow "repeat" icon for the .manus-repeat-circle toggle,
-// drawn as an SVG (duplicated from schedule.js's schedRepeatIcon() — neither
-// file loads the other) rather than relying on the Unicode "↻" character,
-// whose glyph metrics aren't reliably centered within its own em-box across
-// browsers/OSes/font-fallbacks. The arrowhead is a symmetric triangle whose
-// base sits perpendicular to the arc's tangent at its open end (not skewed
-// back along the arc), so it reads as a clean arrow point rather than a
-// blocky flag. The arc/arrow coordinates were derived by rendering candidate
-// icons onto a canvas and iterating the drawing center until the ink's pixel
-// centroid converged on the viewBox's true center. Uses currentColor (not a
-// hardcoded black) so it still follows the button's existing
-// grey-when-inactive/black-when-active color, unlike Øveplan's badge use,
-// which has no inactive state to preserve.
-function manusRepeatIcon(size = 13) {
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('width', String(size));
-  svg.setAttribute('height', String(size));
-  const arc = document.createElementNS(svgNS, 'path');
-  arc.setAttribute('d', 'M 11.389 3.921 A 5 5 0 1 1 5.301 3.921');
-  arc.setAttribute('fill', 'none');
-  arc.setAttribute('stroke', 'currentColor');
-  arc.setAttribute('stroke-width', '1.4');
-  arc.setAttribute('stroke-linecap', 'round');
-  svg.appendChild(arc);
-  const arrow = document.createElementNS(svgNS, 'polygon');
-  arrow.setAttribute('points', '6.579,5.587 4.023,2.255 7.998,1.851');
-  arrow.setAttribute('fill', 'currentColor');
-  svg.appendChild(arrow);
-  return svg;
-}
-
 // The dance half's own row sits directly under its main half (same `row`,
 // same forEach iteration in renderStjerneArkTab below) so repeating the full
 // scene name there is redundant — and with a long title, the " (Dans)" suffix
@@ -2218,7 +2185,7 @@ function renderStarRow(row, entry) {
   const repeatBtn = document.createElement('button');
   repeatBtn.type = 'button';
   repeatBtn.className = 'manus-repeat-circle';
-  repeatBtn.appendChild(manusRepeatIcon());
+  repeatBtn.textContent = '↻';
   repeatBtn.title = 'Skal øves igen dagen efter';
   function updateRepeatBtn() {
     const active = isDanceHalf ? !!row.dansRepeat : !!row.repeat;

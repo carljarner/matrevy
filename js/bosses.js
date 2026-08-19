@@ -137,12 +137,10 @@ function openBossesEditModal() {
       .filter(r => r.names || r.role);
 
     save.disabled = true;
-    save.textContent = 'Gemmer…';
     error.textContent = '';
     const payload = { title, roles: roleList };
     const result = await siteSaveResource('bosses', payload);
     save.disabled = false;
-    save.textContent = 'Gem';
     if (result.ok) {
       bossesOverride = payload;
       renderBosses();

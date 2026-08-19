@@ -1106,7 +1106,7 @@ function openPostCreateModal() {
       imageBase64 = base64;
     }
 
-    save.textContent = 'Gemmer…';
+    save.textContent = 'Gem';
     const body = { title, author, text };
     if (imageBase64) body.imageBase64 = imageBase64;
     const result = await postsApi('posts_create', body);
@@ -1195,11 +1195,9 @@ function openPostEditModal(existing) {
     const next = getEffectivePosts().map(p => (p.id === existing.id ? item : p));
 
     save.disabled = true;
-    save.textContent = 'Gemmer…';
     error.textContent = '';
     const result = await savePosts(next);
     save.disabled = false;
-    save.textContent = 'Gem';
     if (result.ok) close();
     else error.textContent = result.message;
   });

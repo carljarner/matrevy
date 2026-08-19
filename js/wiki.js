@@ -429,7 +429,6 @@ function renderChapterEditView(chapter) {
     }
 
     save.disabled = true;
-    save.textContent = 'Gemmer…';
     error.textContent = '';
 
     // Upload any newly-picked (not-yet-uploaded) attachment files first —
@@ -447,7 +446,6 @@ function renderChapterEditView(chapter) {
       const uploadResult = await siteUploadFile(path, wikiStripDataUrlPrefix(dataUrl));
       if (!uploadResult.ok) {
         save.disabled = false;
-        save.textContent = 'Gem';
         error.textContent = uploadResult.message;
         return;
       }
@@ -462,7 +460,6 @@ function renderChapterEditView(chapter) {
       toolbar.destroy();
     } else {
       save.disabled = false;
-      save.textContent = 'Gem';
       error.textContent = result.message;
     }
   });
@@ -1082,7 +1079,6 @@ function openManageChaptersModal() {
       return;
     }
     save.disabled = true;
-    save.textContent = 'Gemmer…';
     error.textContent = '';
 
     const current = getEffectiveChapters();
@@ -1098,7 +1094,6 @@ function openManageChaptersModal() {
       close();
     } else {
       save.disabled = false;
-      save.textContent = 'Gem';
       error.textContent = result.message;
     }
   });

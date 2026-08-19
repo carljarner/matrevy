@@ -505,7 +505,6 @@ function openYearEditor(existing) {
     if (pendingManus) uploadSteps.push({ kind: 'manus', file: pendingManus });
 
     save.disabled = true;
-    save.textContent = 'Gemmer…';
     error.textContent = '';
 
     const uploaded = [];
@@ -518,7 +517,6 @@ function openYearEditor(existing) {
       const result = await siteUploadFile(path, stripDataUrlPrefix(dataUrl));
       if (!result.ok) {
         save.disabled = false;
-        save.textContent = 'Gem';
         progress.textContent = '';
         error.textContent = `${result.message} (${uploaded.length}/${uploadSteps.length} filer blev gemt før fejlen. Prøv igen — allerede uploadede filer bliver ikke uploadet igen.)`;
         return;
@@ -543,7 +541,6 @@ function openYearEditor(existing) {
       setTimeout(close, 1400);
     } else {
       save.disabled = false;
-      save.textContent = 'Gem';
       error.textContent = result.message;
     }
   });

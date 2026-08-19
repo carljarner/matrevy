@@ -902,6 +902,17 @@ body.site-menu-open {
   margin-bottom: 0.75rem;
 }
 
+/* The form wrapper (siteOpenEditModal's unclassed `form` div) has no
+   border/padding, so this trailing margin should collapse straight through
+   it and merge with .login-actions' own margin-top below — confirmed via
+   DevTools that at least one real browser instead traps it inside the form
+   div, adding an extra ~11px above the button row that isn't there below
+   it. Zeroing it here makes the gap depend on exactly one declared value
+   (.login-actions' margin-top) instead of a multi-element collapse chain. */
+.login-modal > div > .edit-field:last-child {
+  margin-bottom: 0;
+}
+
 .edit-field label {
   display: block;
   font-size: 0.8rem;

@@ -314,9 +314,11 @@
    Forside's .post-confirm-modal (style.css). Kept distinct from the
    .budget-confirm-modal marker class, which is also applied to this page's
    wider edit forms and must stay unstyled. Wide enough that the longer of
-   the two explanatory sentences below the heading fits on one line. */
+   the two explanatory sentences below the heading (measured ~291px at this
+   font-size) still fits on one line, with a little headroom for
+   cross-browser font rendering. */
 .budget-confirm-narrow {
-  width: min(440px, 85vw);
+  width: min(350px, 85vw);
 }
 
 /* Reads as the modal's title, since these confirms drop the usual h2
