@@ -921,7 +921,7 @@ a.manus-pdf-title:focus-visible {
 .manus-star-dans-arrow {
   display: inline-block;
   position: relative;
-  top: calc(-0.45em + 3px);
+  top: calc(-0.15em + 3px);
 }
 
 /* Priority (0-3): four always-visible circles, grey until the active one
