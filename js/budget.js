@@ -1112,8 +1112,9 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'budget-confirm-text',
-    `Skjul udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) fra budgettet? `
-    + 'Kvitteringen bevares, og du kan gendanne den igen fra Rediger.'));
+    `Slet udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)})?`));
+  form.appendChild(el('p', 'budget-intro',
+    'Kvitteringen bevares, og du kan gendanne den igen fra Rediger.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -1148,8 +1149,9 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'budget-confirm-text',
-    `Fjern udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) permanent? `
-    + 'Kvitteringen slettes, og dette kan ikke fortrydes.'));
+    `Fjern udgiften ${exp.bilag || '—'} (${formatKr(exp.amount)}) permanent?`));
+  form.appendChild(el('p', 'budget-intro',
+    'Kvitteringen slettes, og dette kan ikke fortrydes.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
