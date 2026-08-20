@@ -653,7 +653,7 @@ function openDeleteYearWarning(root) {
   let text = `Dette sletter budgettet "${budgetYearLabel(year)}" (${year}) permanent: alle planlagte beløb, ` +
     'afventende udlæg, betalte udgifter og kvitteringsbilleder for dette år går tabt og kan ikke gendannes.';
   if (year === budgetActiveYear) {
-    text += ' Dette er det AKTIVE år — slettes det, kan revyster ikke indsende udlæg, før et nyt år oprettes og aktiveres.';
+    text += ' Dette er det AKTIVE år; slettes det, kan revyster ikke indsende udlæg, før et nyt år oprettes og aktiveres.';
   }
   form.appendChild(el('p', 'budget-intro', text));
 
@@ -896,7 +896,7 @@ function buildIncomeRow(def, stored, incomeRows) {
   if (def.id === 'andet') {
     const noteInput = el('input', 'budget-income-note-input');
     noteInput.type = 'text';
-    noteInput.placeholder = 'Beskriv hvad "Andet" dækker …';
+    noteInput.placeholder = 'Beskriv hvad "Andet" dækker over …';
     if (stored.note != null) noteInput.value = String(stored.note);
     noteInput.addEventListener('input', () => { budgetRefreshSheetStatus(); });
     wrap.appendChild(noteInput);
