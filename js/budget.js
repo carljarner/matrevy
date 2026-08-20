@@ -529,7 +529,7 @@ async function reloadAdmin(root) {
 // `budgetSheet` holds live references to the current sheet's DOM so autosave
 // and the totals recompute can read/update it without a full re-render.
 let budgetSheet = null;
-let budgetSheetDirty = false;
+let budgetSheetSnapshot = null;
 let budgetSheetTimersReady = false;
 
 function computeSpentByCategory() {
@@ -542,12 +542,18 @@ function computeSpentByCategory() {
   return map;
 }
 
-function markSheetDirty() {
-  budgetSheetDirty = true;
-  if (budgetSheet) {
-    budgetSheet.status.textContent = 'Ikke gemt';
-    budgetSheet.status.className = 'budget-save-status dirty';
-  }
+// Snapshot-diff dirty check (mirrors manus.js's manusIsDirty/manusLastSavedSnapshot
+// pattern) rather than a one-way flag, so manually reverting a typed value back to
+// its last-saved amount flips the status back to "Gemt" instead of staying dirty.
+function budgetIsSheetDirty() {
+  return !!budgetSheet && JSON.stringify(collectSheetPayload()) !== budgetSheetSnapshot;
+}
+
+function budgetRefreshSheetStatus() {
+  if (!budgetSheet) return;
+  const dirty = budgetIsSheetDirty();
+  budgetSheet.status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+  budgetSheet.status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
 }
 
 function nowHhmm() {
@@ -595,7 +601,7 @@ function renderBudgetSheet(container) {
     inp.placeholder = '0';
     const pv = budgetState.budget.planned[c.key];
     if (pv != null && pv !== '') inp.value = String(pv).replace('.', ',');
-    inp.addEventListener('input', () => { markSheetDirty(); updateSheetTotals(); });
+    inp.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
     plannedInputs[c.key] = inp;
     pTd.appendChild(inp);
     tr.appendChild(pTd);
@@ -663,7 +669,7 @@ function renderBudgetSheet(container) {
     totalPlannedCell, totalBrugtCell, totalRestCell,
     incomeTotalCell, netCell, status,
   };
-  budgetSheetDirty = false;
+  budgetSheetSnapshot = JSON.stringify(collectSheetPayload());
 
   updateSheetTotals();
 
@@ -684,7 +690,7 @@ function buildIncomeRow(def, stored, incomeRows) {
   amountInput.placeholder = '0';
   const amt = stored.amount;
   if (amt != null && amt !== '') amountInput.value = String(amt).replace('.', ',');
-  amountInput.addEventListener('input', () => { markSheetDirty(); updateSheetTotals(); });
+  amountInput.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
   row.appendChild(amountInput);
   wrap.appendChild(row);
 
@@ -696,7 +702,7 @@ function buildIncomeRow(def, stored, incomeRows) {
     noteInput.type = 'text';
     noteInput.placeholder = 'Beskriv hvad "Andet" dækker …';
     if (stored.note != null) noteInput.value = String(stored.note);
-    noteInput.addEventListener('input', () => { markSheetDirty(); });
+    noteInput.addEventListener('input', () => { budgetRefreshSheetStatus(); });
     wrap.appendChild(noteInput);
     entry.noteInput = noteInput;
   }
@@ -762,7 +768,7 @@ async function saveBudgetSheet() {
   budgetSheet.status.className = 'budget-save-status';
   const result = await budgetApi('budget_save_sheet', payload);
   if (result.ok) {
-    budgetSheetDirty = false;
+    budgetSheetSnapshot = JSON.stringify(payload);
     budgetState.budget = { planned: payload.planned, income: payload.income };
     budgetSheet.status.textContent = 'Gemt kl. ' + nowHhmm();
     budgetSheet.status.className = 'budget-save-status';
@@ -778,16 +784,16 @@ async function saveBudgetSheet() {
 }
 
 async function saveBudgetSheetIfDirty() {
-  if (budgetSheet && budgetSheetDirty) await saveBudgetSheet();
+  if (budgetSheet && budgetIsSheetDirty()) await saveBudgetSheet();
 }
 
 // Register the 15-minute autosave interval and the unsaved-changes guard once.
 function ensureBudgetSheetTimers(root) {
   if (budgetSheetTimersReady) return;
   budgetSheetTimersReady = true;
-  setInterval(() => { if (budgetSheetDirty) saveBudgetSheet(); }, 15 * 60 * 1000);
+  setInterval(() => { if (budgetIsSheetDirty()) saveBudgetSheet(); }, 15 * 60 * 1000);
   window.addEventListener('beforeunload', (e) => {
-    if (budgetSheetDirty) { e.preventDefault(); e.returnValue = ''; }
+    if (budgetIsSheetDirty()) { e.preventDefault(); e.returnValue = ''; }
   });
 }
 
