@@ -27,6 +27,13 @@ define('ADMIN_PASSWORD', 'skift-mig-admin');
 // receipt photos. The directory must be writable by PHP, and ideally sit
 // OUTSIDE the public web root; if it must live under the web root, drop an
 // `.htaccess` with `Require all denied` (Apache 2.4) / `Deny from all` in it.
-// The script creates `budget.json`, `requests.json`, `expenses.json` and a
-// `receipts/` subfolder here on first use.
+// Each production year gets its own subdirectory here (`<year>/budget.json`,
+// `requests.json`, `expenses.json`, `receipts/`), created on first use of
+// that year. A `years.json` manifest ({activeYear, years:[...]}) lives at
+// this same root, listing every year and which one is currently active
+// (where new revyst submissions/receipts land). There is no year to start
+// from on a brand-new deploy — bootstrap the first one via the admin
+// actions `budget_create_year` then `budget_set_active_year` (e.g. from
+// Budget's own "Start nyt budgetår" button) before anything else here will
+// work; budget_read/budget_submit both 500 with "no_active_year" until then.
 define('BUDGET_DATA_DIR', '/absolute/path/to/matrevy-budget-data');

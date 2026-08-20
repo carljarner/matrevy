@@ -673,7 +673,47 @@ stop being current. Also where the private-budget-data backup task (previously p
 see Phase 5 note above) finally gets addressed, since both are about the private
 datastore's durability across seasons.
 
-**Status**: [ ] not started
+**What was built** (diverges from the original "namespace `data/<year>/...`" idea above —
+see the user's own explicit steer at build time: old Manus years don't need to stay live
+in-app, only reachable via GitHub, so a reset+archive approach was simpler than a full
+namespace):
+- **Manus/Øveplan** — a new admin-only tool on the previously-stub `koordinator.html`
+  (`js/koordinator.js`). "Afslut produktionsår" is a two-step flow: step 1 just points the
+  admin at Manus's own existing "Generér PDF'er" button (now also — see below — persisting
+  each scene's final composed `.tex`, not just its PDF, into `archive/<folder>/`) with a
+  "Tjek om klar" freshness poll; step 2 opens a form that runs four sequential saves
+  through the *already-existing* boss/admin resource-save endpoints (no bespoke close-year
+  server action was needed): fetch the closing year's raw `scenes.json`/`cast.json` off
+  GitHub, add an `archive` entry for the closing folder if none exists yet, upload that
+  raw JSON as a permanent snapshot to `archive/<folder>/snapshot/{scenes,cast}.json`, reset
+  the `manus` resource (scenes/cast) to an empty 4-act skeleton, reset `manuscripts` to
+  `{submissions:[]}`, then switch `config`'s `currentProductionFolder` to the new folder.
+  `scripts/generate-pdfs.js` was extended (`deriveSourceTexPath`) to write the exact
+  composed `.tex` it already builds for each scene back into
+  `archive/<folder>/{sketches,songs}/<slug>.tex` (previously discarded after compiling) —
+  so both the archived `.tex` and the archived PDF always match the final edited content.
+  `server/update-data.php` gained `ARCHIVE_SNAPSHOT_RE` (an admin-level upload path for the
+  snapshot JSON) and widened `ARCHIVE_PATH_RE` to also accept `Manuskript.pdf`. Øveplan
+  needed no server-side change at all — it's purely `localStorage`-based (see "`schedule.js`
+  architecture" in CLAUDE.md) and just picks up the reset data next time it's opened fresh.
+- **Budget** — the private PHP datastore is now namespaced per year:
+  `BUDGET_DATA_DIR/<year>/{budget,requests,expenses}.json` + `receipts/`, plus a root-level
+  `years.json` manifest (`{activeYear, years:[{year,label,createdAt}]}`). Every admin-level
+  budget action now accepts an optional `{year}` (`budget_resolve_year()`, defaulting to
+  the active year) so the admin can view/correct a past year (e.g. "Tilføj udgift")
+  independent of which year is active; `budget_submit` (revyst) always resolves the active
+  year server-side and never trusts a client-supplied year. Two new single-purpose admin
+  actions, `budget_create_year` (seeds the new year's `planned` from the currently active
+  year, per the user's explicit ask) and `budget_set_active_year` (flips which year new
+  uploads land in) — kept separate so re-activating an already-existing past year needs no
+  recreation. `budget.html`'s admin view gained a year-toolbar ("Ser: <year>" vs. a
+  read-only "Aktivt år" badge, plus "Start nyt budgetår") in `js/budget.js`. No migration
+  of the old flat (pre-this-phase) budget files was built — that data was disposable test
+  data, deleted as part of deploying this. The private-budget-data backup task mentioned
+  above is still unaddressed — this phase only namespaced the data by year, it didn't add
+  git/off-host backup.
+
+**Status**: [x] done (2026-08-20) — the private-budget-data backup task noted above remains open
 
 ---
 

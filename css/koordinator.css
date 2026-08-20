@@ -1,0 +1,29 @@
+/* =========================================================
+   Matematikrevyen – Koordinator (koordinator.html)
+   Page-scoped styling for the admin cross-cutting tools page.
+   ========================================================= */
+
+.koord-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.koord-status-value {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.koord-progress {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  min-height: 1.2em;
+  margin-top: 0.25rem;
+}
+
+.koord-modal-intro {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}

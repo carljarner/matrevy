@@ -9,8 +9,12 @@
 // data/scenes.json stays the sole source of truth (edited via manus.html's
 // Main Manus View, particularly the "Manus" tab's scriptBody/status/melody/
 // writtenBy/sourceProduction/sourceYear fields) — this script only ever
-// *reads* it and writes disposable, regeneratable .tex/.pdf output. It never
-// writes back into archive/<folder>/'s stored .tex sources.
+// *reads* it. It DOES write back into archive/<folder>/'s stored per-scene
+// .tex sources (deriveSourceTexPath, below) — overwriting the original
+// as-submitted script with the final, currently-edited text/roles, so the
+// archived .tex always matches the archived .pdf it was compiled from. Every
+// other output (Aktoversigt/Rolleoversigt/Manuskript/per-scene .pdf) remains
+// disposable/regeneratable.
 //
 // Run manually after editing scenes (like scripts/embed-scenes.js):
 //   node scripts/generate-pdfs.js
@@ -136,6 +140,18 @@ function deriveSourcePdfPath(scene, currentFolder) {
   if (scene.sourcePdf) return scene.sourcePdf;
   const folder = isSongScene(scene) ? 'songs' : 'sketches';
   return `archive/${currentFolder}/${folder}/${slugify(scene.name)}.pdf`;
+}
+
+// Mirrors deriveSourcePdfPath, but for the composed .tex itself (see the
+// per-scene compile loop in main(), step 1) — the final, freshly-recomposed
+// script source (current cast/roles + current scriptBody) is written back to
+// this same path, overwriting whatever was originally submitted there, so
+// archive/<folder>/{sketches,songs}/ always reflects the truly final text
+// rather than the as-submitted draft.
+function deriveSourceTexPath(scene, currentFolder) {
+  if (scene.sourceTex) return scene.sourceTex;
+  const folder = isSongScene(scene) ? 'songs' : 'sketches';
+  return `archive/${currentFolder}/${folder}/${slugify(scene.name)}.tex`;
 }
 
 // data/scenes.json has no `melody` field (Main Manus View dropped its melody
@@ -466,6 +482,13 @@ function copyToRepo(builtPdfPath, repoRelativeOut) {
   return dest;
 }
 
+function writeTextToRepo(text, repoRelativeOut) {
+  const dest = root(repoRelativeOut);
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, text, 'utf8');
+  return dest;
+}
+
 // ── Manuskript: merge every per-scene PDF behind a title page ───
 // Mirrors RevyTeX's manus.pl (which used Perl's PDF::API2) — approximate,
 // not pixel-exact tab/bookmark fidelity for v1 (see the plan's noted
@@ -605,6 +628,10 @@ async function main() {
       const destRel = deriveSourcePdfPath(scene, currentFolder);
       const dest = copyToRepo(builtPdf, destRel);
       scenePdfPaths.set(scene.id, dest);
+      // Persist the exact composed .tex that was just compiled (not a
+      // separate reconstruction) so the archived source is guaranteed to
+      // match the archived PDF byte-for-byte.
+      writeTextToRepo(tex, deriveSourceTexPath(scene, currentFolder));
     }
   }
 
@@ -643,6 +670,7 @@ if (require.main === module) {
 
 module.exports = {
   texEscape, slugify, classifyOrKeep, castRoleLabels, sceneCastLabels, hasScript, deriveSourcePdfPath,
+  deriveSourceTexPath,
   extractTexMelody, extractTexAuthor,
   buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
 };
