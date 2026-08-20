@@ -444,6 +444,11 @@ function renderYearToolbar(root) {
     activeWrap.appendChild(el('span', 'budget-year-active-label', 'Aktivt år:'));
     activeWrap.appendChild(el('span', 'budget-year-active-value', budgetYearLabel(budgetActiveYear)));
     row.appendChild(activeWrap);
+
+    const renameBtn = el('button', 'btn-small', 'Omdøb år');
+    renameBtn.type = 'button';
+    renameBtn.addEventListener('click', () => openRenameYearModal(document.getElementById('budget-root')));
+    row.appendChild(renameBtn);
   }
 
   const newYearBtn = el('button', 'btn-small', 'Start nyt budgetår');
@@ -505,6 +510,113 @@ function openNewBudgetYearModal(root) {
     close();
     loadAndRenderAdmin(root);
   });
+  actions.appendChild(confirmBtn);
+}
+
+// Renames/relabels the currently-*viewed* year (budgetViewYear) — a plain
+// directory rename server-side (budget_rename_year), so every existing
+// request/expense/receipt for that year carries over unchanged. Useful for
+// correcting a mistaken year number/label without losing real data (e.g.
+// test data accidentally created under the wrong year).
+function openRenameYearModal(root) {
+  const oldYear = budgetViewYear;
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Omdøb budgetår');
+  modal.classList.add('budget-approve-modal');
+
+  form.appendChild(el('p', 'budget-intro',
+    `Omdøber det viste budgetår ("${budgetYearLabel(oldYear)}", ${oldYear}). Alle data (planlagte beløb, udlæg, kvitteringer) følger med uændret.`));
+
+  const yearInput = el('input');
+  yearInput.type = 'number';
+  yearInput.min = '2000';
+  yearInput.max = '2100';
+  yearInput.value = String(oldYear);
+  form.appendChild(siteEditField('Nyt årstal', yearInput));
+
+  const labelInput = el('input');
+  labelInput.type = 'text';
+  labelInput.value = budgetYearLabel(oldYear);
+  form.appendChild(siteEditField('Ny label', labelInput));
+
+  const confirmBtn = budgetPillBtn('Omdøb', 'site-pill-warm');
+  confirmBtn.addEventListener('click', async () => {
+    const newYear = Number(yearInput.value);
+    const newLabel = labelInput.value.trim();
+    if (!Number.isInteger(newYear) || newYear < 2000 || newYear > 2100) { error.textContent = 'Angiv et gyldigt årstal.'; return; }
+    if (!newLabel) { error.textContent = 'Angiv en label.'; return; }
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_rename_year', { oldYear, newYear, newLabel });
+    if (result.ok) {
+      budgetViewYear = newYear;
+      close();
+      loadAndRenderAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(confirmBtn);
+}
+
+// ── Admin: delete an entire budget year (irreversible) ────────
+// Two-step confirmation per explicit request: step 1 spells out exactly
+// what's about to be lost (and flags it more strongly if it's the active
+// year), step 2 is a plain final "are you sure?" — mirrors the shared
+// narrow-confirm style already used for openExpenseDeleteConfirm/
+// openExpenseRemoveConfirm, just chained twice.
+function openDeleteYearWarning(root) {
+  const year = budgetViewYear;
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet budgetår');
+  modal.classList.add('budget-confirm-modal');
+
+  let text = `Dette sletter budgetåret "${budgetYearLabel(year)}" (${year}) permanent: alle planlagte beløb, ` +
+    'afventende udlæg, betalte udgifter og kvitteringsbilleder for dette år går tabt og kan ikke gendannes.';
+  if (year === budgetActiveYear) {
+    text += ' Dette er det AKTIVE år — slettes det, kan revyster ikke indsende udlæg, før et nyt år oprettes og aktiveres.';
+  }
+  form.appendChild(el('p', 'budget-intro', text));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const continueBtn = budgetPillBtn('Fortsæt', 'site-pill-danger');
+  continueBtn.addEventListener('click', () => {
+    close();
+    openDeleteYearConfirm(root, year);
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(continueBtn);
+}
+
+function openDeleteYearConfirm(root, year) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('budget-confirm-narrow');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  form.appendChild(el('p', 'budget-confirm-text', 'Er du sikker?'));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = budgetPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_delete_year', { year });
+    if (result.ok) {
+      close();
+      budgetViewYear = null; // let the next load resolve to whatever's active (or the bootstrap state)
+      loadAndRenderAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+
+  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
@@ -661,6 +773,10 @@ function renderBudgetSheet(container) {
   saveBtn.type = 'button';
   saveBtn.addEventListener('click', () => saveBudgetSheet());
   saveBar.appendChild(saveBtn);
+  const deleteYearBtn = el('button', 'btn-small-danger', 'Slet budget');
+  deleteYearBtn.type = 'button';
+  deleteYearBtn.addEventListener('click', () => openDeleteYearWarning(document.getElementById('budget-root')));
+  saveBar.appendChild(deleteYearBtn);
   card.appendChild(saveBar);
 
   budgetSheet = {

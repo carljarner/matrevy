@@ -177,6 +177,8 @@ $BUDGET_ACTIONS = [
   'budget_request_update'  => 'admin', // edit a pending request
   'budget_create_year'     => 'admin', // create a new (inactive) budget year, seeded from the active year's planned amounts
   'budget_set_active_year' => 'admin', // flip which year new revyst submissions/uploads land in
+  'budget_delete_year'     => 'admin', // permanently delete a whole budget year — irreversible
+  'budget_rename_year'     => 'admin', // rename/relabel an existing budget year, data carries over unchanged
 ];
 if (isset($BUDGET_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BUDGET_ACTIONS[$action]]) {
@@ -537,6 +539,8 @@ function handle_budget($action, $body) {
     case 'budget_request_update':  return budget_request_update($body);
     case 'budget_create_year':     return budget_create_year($body);
     case 'budget_set_active_year': return budget_set_active_year($body);
+    case 'budget_delete_year':     return budget_delete_year($body);
+    case 'budget_rename_year':     return budget_rename_year($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
@@ -1046,6 +1050,91 @@ function budget_set_active_year($body) {
     return $json;
   });
   respond(200, ['ok' => true, 'activeYear' => $year]);
+}
+
+// Recursively removes a directory and everything in it. No built-in PHP
+// equivalent of `rm -rf` — used only by budget_delete_year, and only ever on
+// a path built from budget_year_dir($year) with an already-validated int
+// $year (never a client-supplied path), same "server builds the path"
+// posture as the rest of this file's filesystem writes.
+function budget_rrmdir($dir) {
+  if (!is_dir($dir)) return;
+  foreach (scandir($dir) as $item) {
+    if ($item === '.' || $item === '..') continue;
+    $path = $dir . '/' . $item;
+    if (is_dir($path)) budget_rrmdir($path);
+    else @unlink($path);
+  }
+  @rmdir($dir);
+}
+
+// Admin: permanently deletes an entire budget year — its directory
+// (budget.json/requests.json/expenses.json/receipts/, including every
+// receipt photo) and its years.json entry. Cannot be undone; the client is
+// expected to have already confirmed this explicitly (twice, per the UI) —
+// nothing here asks again. If the deleted year was active, activeYear is
+// cleared (never left pointing at a directory that no longer exists) —
+// which puts the page back in its "no active year" bootstrap state until a
+// new or existing year is activated.
+function budget_delete_year($body) {
+  $year = $body['year'] ?? null;
+  if (!is_int($year)) respond(400, ['error' => 'invalid_shape']);
+  $years = budget_load_years();
+  if (!budget_valid_year($year, $years)) respond(404, ['error' => 'not_found']);
+
+  budget_rrmdir(budget_year_dir($year));
+
+  $wasActive = ($years['activeYear'] ?? null) === $year;
+  budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []], function ($json) use ($year, $wasActive) {
+    $json['years'] = array_values(array_filter($json['years'] ?? [], function ($y) use ($year) {
+      return ($y['year'] ?? null) !== $year;
+    }));
+    if ($wasActive) $json['activeYear'] = null;
+    return $json;
+  });
+  respond(200, ['ok' => true]);
+}
+
+// Admin: renames/relabels an existing budget year — a plain directory
+// rename on disk (atomic on the same filesystem) plus updating its
+// years.json entry, so every existing request/expense/receipt carries over
+// unchanged. $newYear may equal $oldYear (a pure label change, no directory
+// rename needed). If the renamed year was active, activeYear follows it to
+// $newYear so revyst uploads keep landing in the right place.
+function budget_rename_year($body) {
+  $oldYear = $body['oldYear'] ?? null;
+  $newYear = $body['newYear'] ?? null;
+  $newLabel = $body['newLabel'] ?? '';
+  if (!is_int($oldYear) || !is_int($newYear) || $newYear < 2000 || $newYear > 2100
+      || !is_string($newLabel) || trim($newLabel) === '') {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $years = budget_load_years();
+  if (!budget_valid_year($oldYear, $years)) respond(404, ['error' => 'not_found']);
+  if ($newYear !== $oldYear && budget_valid_year($newYear, $years)) respond(409, ['error' => 'year_exists']);
+
+  if ($newYear !== $oldYear && is_dir(budget_year_dir($oldYear))) {
+    if (!@rename(budget_year_dir($oldYear), budget_year_dir($newYear))) {
+      respond(500, ['error' => 'budget_storage_unavailable']);
+    }
+  }
+
+  $wasActive = ($years['activeYear'] ?? null) === $oldYear;
+  budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []],
+    function ($json) use ($oldYear, $newYear, $newLabel, $wasActive) {
+      $list = $json['years'] ?? [];
+      foreach ($list as &$y) {
+        if (($y['year'] ?? null) === $oldYear) {
+          $y['year'] = $newYear;
+          $y['label'] = trim($newLabel);
+        }
+      }
+      unset($y);
+      $json['years'] = $list;
+      if ($wasActive) $json['activeYear'] = $newYear;
+      return $json;
+    });
+  respond(200, ['ok' => true, 'year' => $newYear]);
 }
 
 // ── Resource savers ──────────────────────────────────────────
