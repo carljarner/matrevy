@@ -261,6 +261,29 @@ body {
   box-shadow: 0 0 0 2px rgba(59, 130, 212, 0.35);
 }
 
+/* Solid-red sibling of .site-btn-primary — same tier/shape, for a
+   destructive action that should read as visually equal-weight to a
+   primary save button (e.g. Budget's "Slet budget" next to "Gem budget"). */
+.site-btn-danger {
+  border-radius: 6px;
+  padding: 0.45rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--danger);
+  color: #ffffff;
+  border: none;
+}
+
+@media (hover: hover) {
+  .site-btn-danger:hover { background: #a5311f; }
+}
+.site-btn-danger:disabled { opacity: 0.6; cursor: default; }
+.site-btn-danger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.35);
+}
+
 /* --- Overlay pill buttons (site-wide second-level standard) -----
    Every button inside a .login-overlay/.login-modal (login, editor,
    and confirm-dialog forms) except the blue .site-btn-primary. Idle

@@ -25,12 +25,27 @@
    to the track's actual width instead. */
 .budget-columns > .card { margin-bottom: 0; min-width: 0; }
 
-/* --- Year toolbar (viewing vs. active year) ---------------- */
+/* --- Right column wrapper (year-switcher card + Afventende udlæg) ---- */
+/* The actual grid child in .budget-columns' 1fr track, so the grid's
+   align-items:stretch stretches this whole stack to the Budget card's
+   height; the two cards inside it stack vertically with a gap. */
+.budget-col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+/* The two cards stacked inside are no longer direct .budget-columns
+   children, so they need their own margin-bottom/min-width reset (the
+   spacing between them now comes from the wrapper's own gap above). */
+.budget-col-right > .card { margin-bottom: 0; min-width: 0; }
+
+/* --- Year toolbar ("Skift mellem budgetter") ---------------------- */
 .budget-year-row {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 1.25rem;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
 .budget-year-field {
@@ -61,11 +76,26 @@
   color: var(--text);
 }
 
-/* Afventende udlæg fills the same height as the Budget card; its list
-   scrolls internally instead of lengthening the column. */
+/* Third line: Omdøb / Skift, equal width, centered as a pair. */
+.budget-year-btn-row {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.4rem;
+}
+
+.budget-year-btn-row .btn-small {
+  min-width: 7rem;
+  text-align: center;
+}
+
+/* Afventende udlæg fills the remaining height of .budget-col-right; its
+   list scrolls internally instead of lengthening the column. */
 .budget-col-pending {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .budget-col-pending .budget-scroll-wrap {
@@ -490,7 +520,7 @@
 
 .budget-save-bar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 0.75rem;
   margin-top: 0.75rem;
 }

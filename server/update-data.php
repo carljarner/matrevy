@@ -165,20 +165,21 @@ if ($action === 'upload' || $action === 'delete') {
 // These read/write local files under BUDGET_DATA_DIR (never the
 // public repo). Each handler validates + responds/exits.
 $BUDGET_ACTIONS = [
-  'budget_submit'          => 'revyst', // revyster submit reimbursement requests
-  'budget_read'            => 'admin',
-  'budget_receipt'         => 'admin',
-  'budget_approve'         => 'admin',
-  'budget_request_reject'  => 'admin',
-  'budget_save_sheet'      => 'admin', // editable planned/income budget sheet
-  'budget_expense_add'     => 'admin', // admin-entered direct expense
-  'budget_expense_update'  => 'admin', // edit a paid expense (category locked); also toggles `deleted`
-  'budget_expense_remove'  => 'admin', // permanently remove an already soft-deleted expense + its receipt
-  'budget_request_update'  => 'admin', // edit a pending request
-  'budget_create_year'     => 'admin', // create a new (inactive) budget year, seeded from the active year's planned amounts
-  'budget_set_active_year' => 'admin', // flip which year new revyst submissions/uploads land in
-  'budget_delete_year'     => 'admin', // permanently delete a whole budget year — irreversible
-  'budget_rename_year'     => 'admin', // rename/relabel an existing budget year, data carries over unchanged
+  'budget_submit'           => 'revyst', // revyster submit reimbursement requests
+  'budget_active_year_info' => 'revyst', // read-only: just the active year number + label, for the submit form's title
+  'budget_read'             => 'admin',
+  'budget_receipt'          => 'admin',
+  'budget_approve'          => 'admin',
+  'budget_request_reject'   => 'admin',
+  'budget_save_sheet'       => 'admin', // editable planned/income budget sheet
+  'budget_expense_add'      => 'admin', // admin-entered direct expense
+  'budget_expense_update'   => 'admin', // edit a paid expense (category locked); also toggles `deleted`
+  'budget_expense_remove'   => 'admin', // permanently remove an already soft-deleted expense + its receipt
+  'budget_request_update'   => 'admin', // edit a pending request
+  'budget_create_year'      => 'admin', // create a new (inactive) budget year, seeded from the active year's planned amounts
+  'budget_set_active_year'  => 'admin', // flip which year new revyst submissions/uploads land in
+  'budget_delete_year'      => 'admin', // permanently delete a whole budget year — irreversible
+  'budget_rename_year'      => 'admin', // rename/relabel an existing budget year, data carries over unchanged
 ];
 if (isset($BUDGET_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BUDGET_ACTIONS[$action]]) {
@@ -496,6 +497,20 @@ function budget_valid_year($year, $years) {
   return false;
 }
 
+// Revyst: exposes only the active year number + label from years.json — no
+// personal data — so the submit-form page title can read "Budget for
+// MatRevy <year>" without needing admin-level budget_read access.
+function budget_active_year_info($body) {
+  $years = budget_load_years();
+  $year = $years['activeYear'] ?? null;
+  if (!is_int($year)) respond(200, ['ok' => true, 'year' => null, 'label' => null]);
+  $label = null;
+  foreach (($years['years'] ?? []) as $y) {
+    if (($y['year'] ?? null) === $year) { $label = $y['label'] ?? null; break; }
+  }
+  respond(200, ['ok' => true, 'year' => $year, 'label' => $label]);
+}
+
 // Every admin-level budget action accepts an optional {year} to target a
 // year other than the active one (e.g. correcting a past year's ledger via
 // "Tilføj udgift" without touching where new revyst submissions land) —
@@ -527,20 +542,21 @@ function budget_decode_receipt($contentBase64) {
 
 function handle_budget($action, $body) {
   switch ($action) {
-    case 'budget_submit':          return budget_submit($body);
-    case 'budget_read':            return budget_read($body);
-    case 'budget_receipt':         return budget_receipt($body);
-    case 'budget_approve':         return budget_approve($body);
-    case 'budget_request_reject':  return budget_request_reject($body);
-    case 'budget_save_sheet':      return budget_save_sheet($body);
-    case 'budget_expense_add':     return budget_expense_add($body);
-    case 'budget_expense_update':  return budget_expense_update($body);
-    case 'budget_expense_remove':  return budget_expense_remove($body);
-    case 'budget_request_update':  return budget_request_update($body);
-    case 'budget_create_year':     return budget_create_year($body);
-    case 'budget_set_active_year': return budget_set_active_year($body);
-    case 'budget_delete_year':     return budget_delete_year($body);
-    case 'budget_rename_year':     return budget_rename_year($body);
+    case 'budget_submit':           return budget_submit($body);
+    case 'budget_active_year_info': return budget_active_year_info($body);
+    case 'budget_read':             return budget_read($body);
+    case 'budget_receipt':          return budget_receipt($body);
+    case 'budget_approve':          return budget_approve($body);
+    case 'budget_request_reject':   return budget_request_reject($body);
+    case 'budget_save_sheet':       return budget_save_sheet($body);
+    case 'budget_expense_add':      return budget_expense_add($body);
+    case 'budget_expense_update':   return budget_expense_update($body);
+    case 'budget_expense_remove':   return budget_expense_remove($body);
+    case 'budget_request_update':   return budget_request_update($body);
+    case 'budget_create_year':      return budget_create_year($body);
+    case 'budget_set_active_year':  return budget_set_active_year($body);
+    case 'budget_delete_year':      return budget_delete_year($body);
+    case 'budget_rename_year':      return budget_rename_year($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
