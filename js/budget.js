@@ -401,7 +401,7 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   // admin creates + activates the first year via it.
   if (data.activeYear == null) {
     renderYearToolbar(root);
-    root.appendChild(el('p', 'budget-intro', 'Der er endnu ikke oprettet et budgetår. Opret det første ovenfor.'));
+    root.appendChild(el('p', 'budget-intro', 'Der er endnu ikke oprettet et budget. Opret det første ovenfor.'));
     return;
   }
 
@@ -413,7 +413,7 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
     income: Array.isArray(b.income) ? b.income : [],
   };
 
-  // Budget + right column (Skift mellem budgetter above Afventende udlæg)
+  // Budget + right column (the year toolbar above Afventende udlæg)
   // sit side by side (Betalte udgifter is full-width below).
   const cols = el('div', 'budget-columns');
   root.appendChild(cols);
@@ -425,7 +425,7 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   renderPaidSection(root);
 }
 
-// ── Admin: year toolbar ("Skift mellem budgetter") ──
+// ── Admin: year toolbar (switch/rename which budget is shown) ──
 function budgetYearLabel(year) {
   const entry = budgetYearsList.find((y) => y.year === year);
   return entry ? entry.label : String(year);
@@ -433,9 +433,6 @@ function budgetYearLabel(year) {
 
 function renderYearToolbar(container) {
   const card = el('section', 'card budget-year-toolbar');
-  const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, 'Skift mellem budgetter'));
-  card.appendChild(head);
 
   // No year exists yet (brand-new deploy) — nothing to view/switch between;
   // "Skift" below still works, it just opens straight into "create a year"
@@ -454,7 +451,7 @@ function renderYearToolbar(container) {
   const row = el('div', 'budget-year-row');
 
   const viewWrap = el('div', 'budget-year-field');
-  viewWrap.appendChild(el('label', null, 'Ser:'));
+  viewWrap.appendChild(el('label', null, 'Viser budget for:'));
   const yearOptions = budgetYearsList
     .slice()
     .sort((a, b) => b.year - a.year)
@@ -496,14 +493,14 @@ function renderYearToolbar(container) {
 // either by picking an existing year (budget_set_active_year) or by
 // creating and immediately activating a brand new one (budget_create_year
 // then budget_set_active_year, the same two-call sequence the old standalone
-// "Start nyt budgetår" modal used). A single "Vælg" button commits whichever
-// path is currently shown; the dropdown's own "+ Opret nyt budgetår" option
-// switches the modal into the create path, and when no year exists yet at
-// all the create fields are the only thing shown.
+// "Start nyt budgetår" modal used). The confirm button reads "Vælg" or
+// "Opret" depending on which path is currently shown; the dropdown's own
+// "+ Opret nyt budget" option switches the modal into the create path, and
+// when no year exists yet at all the create fields are the only thing shown.
 function openSwitchActiveYearModal(root) {
   const hasYears = budgetYearsList.length > 0;
   const NEW_YEAR_VALUE = '__new__';
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Skift aktivt budgetår');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Skift aktivt budget');
   modal.classList.add('budget-approve-modal');
 
   let yearSelect = null;
@@ -520,34 +517,39 @@ function openSwitchActiveYearModal(root) {
   labelInput.value = `MatRevy ${yearInput.value}`;
   newYearFields.appendChild(siteEditField('Label', labelInput));
 
+  function isCreatingNew() {
+    return !hasYears || yearSelect.value === NEW_YEAR_VALUE;
+  }
+
   function updateNewYearFieldsVisibility() {
-    const showNewFields = !hasYears || yearSelect.value === NEW_YEAR_VALUE;
+    const showNewFields = isCreatingNew();
     newYearFields.style.display = showNewFields ? '' : 'none';
+    confirmBtn.textContent = showNewFields ? 'Opret' : 'Vælg';
   }
 
   if (hasYears) {
     form.appendChild(el('p', 'budget-intro',
-      'Vælg et eksisterende budgetår at aktivere, eller opret et nyt.'));
+      'Vælg et eksisterende budget, eller opret et nyt.'));
     const yearOptions = budgetYearsList
       .slice()
       .sort((a, b) => b.year - a.year)
       .map((y) => ({ value: String(y.year), label: y.label }));
-    yearOptions.push({ value: NEW_YEAR_VALUE, label: '+ Opret nyt budgetår' });
+    yearOptions.push({ value: NEW_YEAR_VALUE, label: '+ Opret nyt budget' });
     const defaultValue = budgetActiveYear != null ? String(budgetActiveYear) : yearOptions[0].value;
     yearSelect = siteCreateDropdownField(yearOptions, defaultValue);
     yearSelect.addEventListener('change', updateNewYearFieldsVisibility);
     form.appendChild(siteEditField('Aktivt budget', yearSelect));
   } else {
     form.appendChild(el('p', 'budget-intro',
-      'Opretter et nyt, tomt budgetår og gør det til det aktive år, som nye udlæg fra revyster sendes ind til.'));
+      'Opretter et nyt, tomt budget og gør det til det aktive år, som nye udlæg fra revyster sendes ind til.'));
   }
 
   form.appendChild(newYearFields);
-  updateNewYearFieldsVisibility();
 
   const confirmBtn = budgetPillBtn('Vælg', 'site-pill-primary');
+  updateNewYearFieldsVisibility();
   confirmBtn.addEventListener('click', async () => {
-    const creatingNew = !hasYears || yearSelect.value === NEW_YEAR_VALUE;
+    const creatingNew = isCreatingNew();
     error.textContent = '';
 
     if (creatingNew) {
@@ -575,7 +577,7 @@ function openSwitchActiveYearModal(root) {
     }
 
     const year = Number(yearSelect.value);
-    if (!Number.isInteger(year)) { error.textContent = 'Vælg et budgetår.'; return; }
+    if (!Number.isInteger(year)) { error.textContent = 'Vælg et budget.'; return; }
     confirmBtn.disabled = true;
     const result = await budgetApi('budget_set_active_year', { year });
     if (result.ok) {
@@ -597,11 +599,12 @@ function openSwitchActiveYearModal(root) {
 // test data accidentally created under the wrong year).
 function openRenameYearModal(root) {
   const oldYear = budgetViewYear;
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Omdøb budgetår');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose(
+    `Omdøb det viste budget ("${budgetYearLabel(oldYear)}", ${oldYear})`);
   modal.classList.add('budget-approve-modal');
 
   form.appendChild(el('p', 'budget-intro',
-    `Omdøber det viste budgetår ("${budgetYearLabel(oldYear)}", ${oldYear}). Alle data (planlagte beløb, udlæg, kvitteringer) følger med uændret.`));
+    'Alle data (planlagte beløb, udlæg, kvitteringer) følger med uændret.'));
 
   const yearInput = el('input');
   yearInput.type = 'number';
@@ -644,10 +647,10 @@ function openRenameYearModal(root) {
 // openExpenseRemoveConfirm, just chained twice.
 function openDeleteYearWarning(root) {
   const year = budgetViewYear;
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet budgetår');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet budget');
   modal.classList.add('budget-confirm-modal');
 
-  let text = `Dette sletter budgetåret "${budgetYearLabel(year)}" (${year}) permanent: alle planlagte beløb, ` +
+  let text = `Dette sletter budgettet "${budgetYearLabel(year)}" (${year}) permanent: alle planlagte beløb, ` +
     'afventende udlæg, betalte udgifter og kvitteringsbilleder for dette år går tabt og kan ikke gendannes.';
   if (year === budgetActiveYear) {
     text += ' Dette er det AKTIVE år — slettes det, kan revyster ikke indsende udlæg, før et nyt år oprettes og aktiveres.';
