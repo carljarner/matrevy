@@ -703,6 +703,15 @@ function manusNextKey() {
   return `k${manusKeyCounter}`;
 }
 
+// Reserved act code used only to round-trip unplaced manual video/bandsang
+// rows through scenes.json (see manusBuildActsPayload below) — deliberately
+// the same string as the `lane: 'pool'` sentinel every other still-unplaced
+// row already uses, so a reloaded row lands back in "Ikke placeret" with no
+// special-casing needed in manusInitDraft's row-building loop. Never a real
+// act: manusBuildActSkeleton excludes it from draft.acts so it can't show up
+// as its own column in Aktfordeling/Rollefordeling/Manus/Stjerneark.
+const MANUS_POOL_ACT_CODE = 'pool';
+
 // Fixed Akt 1/2/3/Ekstranumre skeleton (matches the current production's
 // act codes), plus any other code actually found in the data — so a scene
 // with an unexpected act code is never silently dropped from the view.
@@ -717,6 +726,7 @@ function manusBuildActSkeleton(existingScenes) {
   const extra = [];
   for (const s of existingScenes) {
     const code = String(s.id).split('-')[0];
+    if (code === MANUS_POOL_ACT_CODE) continue;
     if (!codes.has(code) && !extra.some(a => a.code === code)) {
       extra.push({ code, label: s.actLabel || code });
       codes.add(code);
@@ -1379,6 +1389,21 @@ function manusBuildActsPayload(draft = manusDraft) {
     const scenes = rowsInAct.map((row, idx) => manusRowScene(row, act, idx));
     scenesActs.push({ act: act.code, label: act.label, scenes });
   }
+  // A manual video/bandsang row has no backing store of its own — unlike a
+  // pool sketch/sang submission, which survives indefinitely in
+  // data/manuscripts.json even while unplaced, a manual row only exists at
+  // all inside scenes.json. Still-unplaced ones (lane 'pool') would
+  // otherwise be silently dropped by the act loop above, since 'pool' never
+  // matches a real act code — stash them under the reserved
+  // MANUS_POOL_ACT_CODE act instead, so "create, then Gem without dragging
+  // into an act" round-trips correctly. manusBuildActSkeleton keeps this
+  // pseudo-act out of draft.acts, so it never renders as its own column.
+  const unplacedMedia = manusDraftRowsForLane(MANUS_POOL_ACT_CODE, draft).filter(manusRowIsManualMedia);
+  if (unplacedMedia.length) {
+    const poolAct = { code: MANUS_POOL_ACT_CODE, label: 'Ikke placeret' };
+    const scenes = unplacedMedia.map((row, idx) => manusRowScene(row, poolAct, idx));
+    scenesActs.push({ act: poolAct.code, label: poolAct.label, scenes });
+  }
   return scenesActs;
 }
 
@@ -1403,13 +1428,24 @@ function manusFlattenActs(scenesActs) {
 function manusCurrentActsPayload() {
   const flatScenes = getEffectiveScenesData();
   const skeleton = manusBuildActSkeleton(flatScenes);
-  return skeleton.map(({ code, label }) => {
+  const acts = skeleton.map(({ code, label }) => {
     const scenes = flatScenes
       .filter((s) => String(s.id).split('-')[0] === code)
       .map(({ actLabel, ...scene }) => scene)
       .sort((a, b) => (a.number || 0) - (b.number || 0));
     return { act: code, label, scenes };
   });
+  // manusBuildActSkeleton deliberately excludes the reserved pool pseudo-act
+  // (MANUS_POOL_ACT_CODE — still-unplaced video/bandsang rows), since it's
+  // never a real column. Re-attach its scenes here too, or "Generér PDF'er"
+  // (which rebuilds straight from the currently-saved data, not a draft)
+  // would silently drop them on every regeneration.
+  const poolScenes = flatScenes
+    .filter((s) => String(s.id).split('-')[0] === MANUS_POOL_ACT_CODE)
+    .map(({ actLabel, ...scene }) => scene)
+    .sort((a, b) => (a.number || 0) - (b.number || 0));
+  if (poolScenes.length) acts.push({ act: MANUS_POOL_ACT_CODE, label: 'Ikke placeret', scenes: poolScenes });
+  return acts;
 }
 
 // ── Kanban card (shared by the "Ikke placeret" column and every act

@@ -608,10 +608,20 @@ async function main() {
 
   console.log(`Building for ${prodMeta.name} ${prodMeta.year} (production folder: ${currentFolder})`);
 
+  // manus.js stashes still-unplaced video/bandsang rows (created via the
+  // "Videoer & Bandsange" card but not yet dragged into a real act) under a
+  // reserved 'pool' pseudo-act (MANUS_POOL_ACT_CODE there) purely so a Gem
+  // click never silently drops them — see manusBuildActsPayload's own
+  // comment. They aren't actually part of the show yet, so every printed
+  // deliverable below (Aktoversigt/Rolleoversigt/Manuskript/individual
+  // manuscripts/per-scene PDFs) must skip that act entirely, exactly as it
+  // already skips a pool sketch/song submission that hasn't been placed.
+  const realActs = scenesJson.acts.filter((act) => act.act !== 'pool');
+
   // Backfill each scene's writtenBy/melody from its own sourceTex (see
   // extractTexAuthor/extractTexMelody's comments) before Aktoversigt and the
   // per-scene .tex rebuild (step 1 below) read scene.writtenBy/melody.
-  for (const act of scenesJson.acts) {
+  for (const act of realActs) {
     for (const scene of act.scenes) {
       if (!scene.sourceTex) continue;
       const texPath = root(scene.sourceTex);
@@ -630,7 +640,7 @@ async function main() {
 
   // 1) One PDF per sketch/song scene with actual script text.
   const scenePdfPaths = new Map();
-  for (const act of scenesJson.acts) {
+  for (const act of realActs) {
     for (const scene of act.scenes) {
       if (!hasScript(scene)) continue;
       const slug = slugify(scene.name) || scene.id;
@@ -649,25 +659,25 @@ async function main() {
 
   // 2) Aktoversigt.
   console.log('  Compiling Aktoversigt...');
-  const aktTex = buildAktoversigtTex(scenesJson.acts, prodMeta);
+  const aktTex = buildAktoversigtTex(realActs, prodMeta);
   const aktPdf = writeAndCompile('aktoversigt', 'Aktoversigt.tex', aktTex);
   copyToRepo(aktPdf, `archive/${currentFolder}/Aktoversigt.pdf`);
 
   // 3) Rolleoversigt.
   console.log('  Compiling Rolleoversigt...');
-  const roleTex = buildRolleoversigtTex(scenesJson.acts, prodMeta);
+  const roleTex = buildRolleoversigtTex(realActs, prodMeta);
   const rolePdf = writeAndCompile('rolleoversigt', 'Rolleoversigt.tex', roleTex);
   copyToRepo(rolePdf, `archive/${currentFolder}/Rolleoversigt.pdf`);
 
   // 4) Manuskript — merge every compiled scene PDF, in act order.
   console.log('  Merging Manuskript...');
-  await buildManuskriptPdf(scenesJson.acts, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`));
+  await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`));
 
   // 5) One personalized manuscript per cast.json roster entry, plus the
   // fixed Sangboss manuscript (every song, regardless of cast).
   console.log('  Building individual manuscripts...');
-  await buildActorManuskripts(scenesJson.acts, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
-  await buildSangbossManuskript(scenesJson.acts, prodMeta, scenePdfPaths, currentFolder);
+  await buildActorManuskripts(realActs, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
+  await buildSangbossManuskript(realActs, prodMeta, scenePdfPaths, currentFolder);
 
   console.log(
     `Done. Wrote Aktoversigt.pdf / Rolleoversigt.pdf / Manuskript.pdf plus ${castJson.cast.length} ` +
