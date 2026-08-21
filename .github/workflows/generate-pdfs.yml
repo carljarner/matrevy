@@ -36,12 +36,21 @@ jobs:
     # (MANUS_PDF_POLL_TIMEOUT_MS in js/manus.js) could time out before the
     # PDFs were actually done. Running the job inside a container image that
     # already has TeX Live baked in skips that install step entirely.
-    # texlive/texlive:latest ships a full scheme (well beyond BasicTeX's
-    # default), so every package scripts/generate-pdfs.js's .tex output
-    # needs (babel-danish, geometry, amsmath/amssymb, graphicx, fancyhdr) is
-    # already present.
+    # `latest` (the full scheme, ~2.5 GB) worked but made "Initialize
+    # containers" — pulling the image itself, since Actions runners share no
+    # Docker layer cache between runs — the single biggest cost in the job
+    # (~84s of a ~111s job, measured live 2026-08-21). Switched to
+    # `latest-medium` (~898 MB, TeX Live's own docs call it "the sensible
+    # landing spot when space is tight") since every package
+    # scripts/generate-pdfs.js's .tex output needs (babel-danish, geometry,
+    # amsmath/amssymb, graphicx, fancyhdr) is common enough to expect in
+    # medium's "small + more packages and languages" scope — not yet
+    # verified against a real Actions run; a missing package would fail
+    # loudly and specifically at the pdflatex step (step 7) if this scheme
+    # turns out too narrow, in which case fall back to `latest` or try
+    # `latest-small` instead.
     container:
-      image: texlive/texlive:latest
+      image: texlive/texlive:latest-medium
     steps:
       # texlive/texlive doesn't ship git, which both actions/checkout (with
       # fetch-depth: 0, below) and the commit step at the end of this job
