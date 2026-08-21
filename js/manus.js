@@ -2583,6 +2583,7 @@ function manusMainViewErrorEl() {
 }
 
 async function manusSaveMain() {
+  if (manusResourceSaveInFlight) return;
   const startError = manusMainViewErrorEl();
   if (startError) startError.textContent = '';
 
@@ -2606,6 +2607,7 @@ async function manusSaveMain() {
 
   setManusSavedOverride({ scenes: manusFlattenActs(scenesActs), cast: castRoster });
   manusDraft = null; // forces a fresh manusInitDraft() next render
+  manusResourceSaveInFlight = true;
   siteShowToast('Manus gemt');
   renderAll();
 
@@ -2622,6 +2624,7 @@ async function manusSaveMain() {
   if (selections.length) {
     const syncResult = await manusApi('manuscripts_sync_selection', { selections });
     if (!syncResult.ok) {
+      manusResourceSaveInFlight = false;
       setManusSavedOverride(previousManusOverride);
       manusDraft = draftSnapshot;
       renderAll();
@@ -2637,6 +2640,7 @@ async function manusSaveMain() {
   }
 
   const result = await siteSaveResource('manus', { scenes: finalScenesActs, cast: castRoster });
+  manusResourceSaveInFlight = false;
   if (!result.ok) {
     setManusSavedOverride(previousManusOverride);
     manusDraft = draftSnapshot;
@@ -2651,6 +2655,10 @@ async function manusSaveMain() {
   if (finalScenesActs !== scenesActs) {
     setManusSavedOverride({ scenes: manusFlattenActs(finalScenesActs), cast: castRoster });
   }
+  // The optimistic renderAll() above already reflects the saved content;
+  // this second, lighter render exists only to flip Gem/Generér back to
+  // enabled now that the write itself has actually landed.
+  renderMainViewActions();
 }
 
 // ── PDF regeneration status (pulse + last-generated badge) ────
@@ -2667,6 +2675,20 @@ async function manusSaveMain() {
 // through the server — a page reload mid-poll silently drops back to idle
 // (same accepted limitation as manusDraft's own dirty tracking elsewhere in
 // this file), and another visitor's tab never sees this tab's pulse.
+// True only while a manus-resource write (the scenes.json+cast.json PUT
+// itself, via siteSaveResource) is actually in flight — set by both
+// manusSaveMain() and manusRegeneratePdfs(), since they write the exact
+// same two files and nothing else prevented them from racing each other:
+// clicking "Generér PDF'er" right after "Gem" (or vice versa, mid-Gem)
+// used to fire a second, concurrent PUT against the same files, which
+// could read a stale sha and come back as a confusing 409 conflict on
+// whichever one lost the race — even though Gem's own optimistic "Manus
+// gemt" toast had already fired. Deliberately narrower than
+// manusPdfGenerating (which also spans the multi-minute post-write poll,
+// during which no further writes happen and other saves are meant to stay
+// possible — see the PDF quick-link buttons staying clickable during
+// generation, below).
+let manusResourceSaveInFlight = false;
 let manusPdfGenerating = false;
 let manusPdfTimestampLoaded = false;
 let manusPdfLastGeneratedAt = null; // Date | null
@@ -2790,15 +2812,17 @@ function manusPollPdfCompletion(beforeDate, url) {
 // unlike manusSaveMain, this never reads or clears manusDraft, so it's safe
 // to click mid-edit on any tab. It just re-saves the already-saved data
 // as-is through the same boss-level `manus` resource path Gem uses — the
-// server always re-stamps scenes.json's version on every save
-// (save_manus() in update-data.php), so this reliably produces a fresh
-// commit and re-triggers the Action every time, even with zero real
-// content change. The three buttons below all call this same function:
+// server always stamps a fresh `generatedAt` timestamp on every save
+// (save_manus() in update-data.php), so this reliably produces a fresh,
+// non-empty commit and re-triggers the Action every time, even with zero
+// real content change (a bare `version` re-stamp alone used to only manage
+// this on the first save of each calendar day — see CLAUDE.md). The three
+// buttons below all call this same function:
 // "full rebuild every time" was a deliberate choice over a --only flag,
 // since Manuskript is a merge of every other scene PDF and a partial
 // rebuild risks the three documents drifting out of sync with each other.
 async function manusRegeneratePdfs() {
-  if (manusPdfGenerating) return;
+  if (manusPdfGenerating || manusResourceSaveInFlight) return;
 
   const errEl = manusMainViewErrorEl();
   if (errEl) errEl.textContent = '';
@@ -2808,12 +2832,14 @@ async function manusRegeneratePdfs() {
   const before = (await manusFetchPdfStatus(referenceUrl)).date;
 
   manusPdfGenerating = true;
+  manusResourceSaveInFlight = true;
   renderManusPdfLinksSection();
   renderMainViewActions();
 
   const scenesActs = manusCurrentActsPayload();
   const castRoster = manusBuildCastRoster(scenesActs);
   const result = await siteSaveResource('manus', { scenes: scenesActs, cast: castRoster });
+  manusResourceSaveInFlight = false;
   if (!result.ok) {
     manusPdfGenerating = false;
     renderManusPdfLinksSection();
@@ -2822,6 +2848,11 @@ async function manusRegeneratePdfs() {
     if (el) el.textContent = result.message;
     return;
   }
+  // The write itself has landed — re-enable Gem even though manusPdfGenerating
+  // (and the button's own pulse) stays true for the whole polling phase below,
+  // since that phase does no further writes and other saves are meant to
+  // stay possible while PDFs regenerate in the background.
+  renderMainViewActions();
   siteShowToast('PDF-generering startet (Aktoversigt, Rolleoversigt, Manuskript) – tager et par minutter');
   manusPollPdfCompletion(before, referenceUrl);
 }
@@ -2844,7 +2875,7 @@ function renderMainViewActions() {
   generateBtn.className = 'site-pill-btn site-pill-warm';
   generateBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   generateBtn.textContent = manusPdfGenerating ? 'Genererer...' : "Generér PDF'er";
-  generateBtn.disabled = manusPdfGenerating;
+  generateBtn.disabled = manusPdfGenerating || manusResourceSaveInFlight;
   generateBtn.addEventListener('click', () => manusRegeneratePdfs());
   left.appendChild(generateBtn);
 
@@ -2875,6 +2906,7 @@ function renderMainViewActions() {
   saveBtn.type = 'button';
   saveBtn.className = 'site-pill-btn site-pill-primary';
   saveBtn.textContent = 'Gem';
+  saveBtn.disabled = manusResourceSaveInFlight;
   saveBtn.addEventListener('click', () => manusSaveMain());
   buttons.appendChild(saveBtn);
 
