@@ -37,7 +37,7 @@ const SCENES_DATA = [
   {
     "id": "1-3",
     "number": 3,
-    "name": "Matrevy",
+    "name": "Matrevy Sound",
     "types": [
       "sang"
     ],
