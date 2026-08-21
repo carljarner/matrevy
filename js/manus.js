@@ -2608,7 +2608,6 @@ async function manusSaveMain() {
   setManusSavedOverride({ scenes: manusFlattenActs(scenesActs), cast: castRoster });
   manusDraft = null; // forces a fresh manusInitDraft() next render
   manusResourceSaveInFlight = true;
-  siteShowToast('Manus gemt');
   renderAll();
 
   // Reconcile every non-graduated pool submission's archive location against
@@ -2655,9 +2654,16 @@ async function manusSaveMain() {
   if (finalScenesActs !== scenesActs) {
     setManusSavedOverride({ scenes: manusFlattenActs(finalScenesActs), cast: castRoster });
   }
-  // The optimistic renderAll() above already reflects the saved content;
-  // this second, lighter render exists only to flip Gem/Generér back to
-  // enabled now that the write itself has actually landed.
+  // "Manus gemt" only fires here, once the real GitHub commit has actually
+  // landed — the earlier renderAll() above already optimistically shows the
+  // saved content (so there's no flash back to stale data, and edits made
+  // while this request was in flight safely landed in a fresh, separately
+  // detached manusDraft rather than racing this save), but the toast itself
+  // used to fire at that same optimistic point, before either network call
+  // had even been sent — moved here on request, since a failed save was
+  // only ever visible afterward as small inline text near the button, easy
+  // to miss once a "saved" toast had already been seen.
+  siteShowToast('Manus gemt');
   renderMainViewActions();
 }
 
