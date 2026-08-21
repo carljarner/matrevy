@@ -62,6 +62,16 @@ jobs:
 
       - name: Commit generated PDFs
         run: |
+          # Newer git refuses to operate on a repo it doesn't consider itself
+          # the owner of ("fatal: detected dubious ownership in repository"),
+          # which actions/checkout works around for its own clone — but this
+          # step's git commands are a separate shell invocation and hit the
+          # same check fresh against the checked-out files on the container's
+          # mounted volume, whose UID doesn't necessarily match the
+          # texlive/texlive image's default user (added once the container
+          # switch above surfaced this: this step used to run directly on the
+          # ubuntu-latest runner, where the mismatch never occurred).
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add archive/
