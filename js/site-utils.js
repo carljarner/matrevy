@@ -285,7 +285,16 @@ function siteOpenEditModal(titleText) {
   document.body.appendChild(overlay);
 
   function close() { overlay.remove(); }
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  // A click event's target can be the overlay even when the drag that
+  // produced it started inside the modal — e.g. dragging a <textarea>'s
+  // resize handle, or selecting text, past the modal's edge and releasing
+  // over the backdrop. Checking only the click's own target closes the
+  // modal on that release; requiring the *mousedown* to have also landed on
+  // the overlay itself is what actually distinguishes a genuine backdrop
+  // click from a drag that merely ends there.
+  let backdropMousedown = false;
+  overlay.addEventListener('mousedown', (e) => { backdropMousedown = e.target === overlay; });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && backdropMousedown) close(); });
 
   return { overlay, modal, form, error, actions, close };
 }
@@ -306,9 +315,14 @@ function siteOpenModalWithClose(titleText) {
   }
   document.addEventListener('keydown', onKeydown);
   // Backdrop click closes via the overlay's own listener (from
-  // siteOpenEditModal) — also strip our Escape listener in that case.
+  // siteOpenEditModal) — also strip our Escape listener in that case. Same
+  // mousedown-must-also-be-on-the-backdrop guard as that listener (see its
+  // own comment), so a resize-drag release over the backdrop doesn't strip
+  // the Escape handler out from under a modal that correctly didn't close.
+  let backdropMousedown = false;
+  overlay.addEventListener('mousedown', (e) => { backdropMousedown = e.target === overlay; });
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) document.removeEventListener('keydown', onKeydown);
+    if (e.target === overlay && backdropMousedown) document.removeEventListener('keydown', onKeydown);
   });
 
   const closeX = document.createElement('button');

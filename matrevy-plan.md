@@ -724,6 +724,16 @@ namespace):
   cast conflicts and absences, auto-placed cells visually distinct, re-runnable, with a
   placement summary. Priority 0–3 in the sidebar is currently a manual aid only.
 - **Real per-user login** — only if the shared-password model ever stops being enough.
+- **Compile a video scene's manus field into the PDF pipeline** — Manus's "Vælg
+  scener" tab now has a "Videoer & Bandsange" panel letting a boss write a
+  video/bandsang scene's manus (LaTeX) field, same as sketches/songs. Bandsang
+  is already compiled (`scripts/generate-pdfs.js`'s `isSongScene()`/`hasScript()`
+  already treat it as song-like), but `hasScript()` still excludes `video` on
+  purpose — a video's manus text is saved to `scenes.json` but never gets its
+  own compiled scene PDF or a slot in `Manuskript.pdf`. Revisit once there's a
+  real need; deciding which LaTeX environment to typeset it in is the open
+  question, since `revy.sty` has no dedicated `video` environment (`sketch` is
+  the obvious fallback).
 - **SMS-on-reject (Phase 10)** — discussed 2026-07-16, not built. Two designs considered:
   a zero-infra `sms:<phone>?body=...` link (opens the *admin's own* Messages app,
   pre-filled with a Danish template built from name/amount/category) — no cost, no server

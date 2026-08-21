@@ -418,6 +418,15 @@ a.manus-pdf-title:focus-visible {
   gap: 1.25rem;
 }
 
+/* Third grid column is a stack of two cards (Udvælgelse, then Videoer &
+   Bandsange below it) rather than a single card — same gap as the columns
+   grid itself, so the vertical rhythm matches the horizontal one. */
+.manus-select-col-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
 .manus-select-row {
   display: flex;
   align-items: center;
@@ -516,6 +525,14 @@ a.manus-pdf-title:focus-visible {
 
 .manus-select-panel-btn-row .site-pill-btn {
   flex: 1;
+}
+
+/* Extra breathing room above the Video/Bandsang buttons — they sit right
+   under a data list (unlike the other Udvælgelse panel-groups' button rows,
+   which follow only a heading), so the default panel-group gap alone read as
+   too tight. */
+.manus-media-btn-row {
+  margin-top: 1rem;
 }
 
 /* "Vælg scener" overlay: same type-grouped lists as the main columns, just
@@ -894,6 +911,14 @@ a.manus-pdf-title:focus-visible {
    regardless of source order) — without it the field renders taller than its
    `rows` attribute actually calls for. */
 .edit-field .manus-script-header-textarea {
+  min-height: 0;
+}
+
+/* openVideoBandsangModal's Roller field — same "let `rows` actually drive
+   the height" override as the header textarea above, and for the same
+   reason (the plain .manus-script-textarea rule's min-height: 16rem
+   otherwise floors it well past its 3-4 row default content). */
+.edit-field .manus-script-roles-textarea {
   min-height: 0;
 }
 

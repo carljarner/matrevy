@@ -821,6 +821,21 @@ function manusDraftRowsForLane(lane, draft = manusDraft) {
   return draft.rows.filter(r => r.lane === lane);
 }
 
+// True for any row whose "Videoer & Bandsange" flow this is (see
+// renderMediaColumn() below) — checked off manusRowType(), not row.origin,
+// since a saved-and-reloaded video/bandsang
+// scene comes back as origin:'existing' and is only still distinguishable by
+// its type. Used to keep these rows out of Rollefordeling/Manus/Stjerneark
+// (they have no cast/roles) while still showing in Aktfordeling.
+function manusRowIsManualMedia(row) {
+  const t = manusRowType(row);
+  return t === 'video' || t === 'bandsang';
+}
+
+function manusAnyNonMediaPlaced() {
+  return manusDraft.acts.some(act => manusDraftRowsForLane(act.code).some(r => !manusRowIsManualMedia(r)));
+}
+
 // row.titleOverride (set by the Manus tab's title/author/melody header field
 // — see openScriptSceneModal below) always wins once present, regardless of
 // origin: it's how that field's \title{} line actually renames a scene, a
@@ -962,16 +977,22 @@ function parseEtaDurationMinutes(raw) {
 }
 
 // The inverse of parseRolesText() — reconstructs \role{}[] lines from
-// row.cast, used to seed Rollefordeling's textarea with whatever's currently
-// stored (from a prior "Opdater roller" click, or an auto-import) each time
-// the modal opens.
+// row.cast, used to seed Rollefordeling's (and openVideoBandsangModal's own
+// Roller field's) textarea with whatever's currently stored (from a prior
+// "Opdater roller"/"Gem" click, or an auto-import) each time the modal
+// opens. Filters on roleCode (parseRolesText's own guarantee — every entry
+// it produces has one), not name: an uncast role (no name yet, e.g. a
+// video/bandsang row's still-unfilled placeholder \role{R} Revyst) must
+// round-trip too, or it silently vanishes the next time the modal reopens —
+// the bracket itself is only emitted once a name is actually present.
 function formatRolesText(cast) {
   return cast
-    .filter(c => c.name && c.name.trim())
+    .filter(c => c.roleCode && c.roleCode.trim())
     .map(c => {
-      const code = (c.roleCode || '').trim();
+      const code = c.roleCode.trim();
+      const name = (c.name || '').trim();
       const desc = (c.description || '').trim();
-      return `\\role{${code}}[${c.name.trim()}]${desc ? ' ' + desc : ''}`;
+      return `\\role{${code}}${name ? '[' + name + ']' : ''}${desc ? ' ' + desc : ''}`;
     })
     .join('\n');
 }
@@ -1535,6 +1556,82 @@ function renderSelectRow(row, { interactive = false, selected = row.selected ===
   return el;
 }
 
+// ── "Videoer & Bandsange" (its own card, below Udvælgelse) ──────
+// A row here is title+duration only, like renderSelectRow's own read-only
+// branch above (same duration input markup) — but since there's no PDF to
+// link to, the whole row is itself a click-to-edit target
+// (openVideoBandsangModal). Always rendered as "selected"
+// (.manus-select-row-selected, the same warm-fill/bold-orange style
+// Sketches/Sange give a real in-the-revy row) since a manual media row is
+// selected by construction — there's no separate select/deselect step for
+// it the way an uploaded submission has.
+function renderVideoBandsangRow(row) {
+  const el = document.createElement('div');
+  el.className = 'manus-select-row manus-select-row-selected';
+  el.setAttribute('role', 'button');
+  el.tabIndex = 0;
+
+  const title = document.createElement('span');
+  title.className = 'manus-pdf-title';
+  title.textContent = manusRowTitle(row);
+  el.appendChild(title);
+
+  const durationInput = document.createElement('input');
+  durationInput.type = 'number';
+  durationInput.min = '0';
+  durationInput.step = '0.5';
+  durationInput.className = 'manus-select-duration';
+  durationInput.placeholder = '–';
+  durationInput.value = row.duration != null ? row.duration : '';
+  durationInput.addEventListener('click', (e) => e.stopPropagation());
+  durationInput.addEventListener('input', () => {
+    row.duration = durationInput.value === '' ? null : Number(durationInput.value);
+  });
+  el.appendChild(durationInput);
+  const suffix = document.createElement('span');
+  suffix.className = 'manus-akt-duration-suffix';
+  suffix.textContent = 'min';
+  el.appendChild(suffix);
+
+  const open = () => openVideoBandsangModal(row);
+  el.addEventListener('click', open);
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+  });
+
+  return el;
+}
+
+// Opens the create form for a new manual video/bandsang row — the row itself
+// (same shape the old, now-removed Aktfordeling "+ Tilføj scene" modal used
+// to build) is only pushed into manusDraft.rows once its own "Gem" is
+// clicked with a non-empty title (see openVideoBandsangModal's isNew
+// branch); closing the modal without saving discards it, nothing is placed.
+function addManualMediaRow(manualType) {
+  const row = {
+    key: manusNextKey(),
+    origin: 'manual',
+    lane: 'pool',
+    manualName: '',
+    manualType,
+    selected: true,
+    appliedSelected: true,
+    duration: null,
+    cast: [],
+    priority: 0,
+    dansPriority: null,
+    repeat: false,
+    dansRepeat: null,
+    scriptBody: '',
+    status: '',
+    melody: '',
+    writtenBy: '',
+    sourceProduction: '',
+    sourceYear: '',
+  };
+  openVideoBandsangModal(row, { isNew: true });
+}
+
 // ── "Udvælgelse" control column ─────────────────────────────────
 function renderSelectPanelGroup(heading) {
   const group = document.createElement('div');
@@ -1587,6 +1684,67 @@ function renderSelectionColumn() {
   selectBtn.addEventListener('click', () => openSelectScenesOverlay());
   selectGroup.appendChild(selectBtn);
   section.appendChild(selectGroup);
+
+  return section;
+}
+
+// Its own card, stacked below Udvælgelse in the same (third) column — see
+// renderSelectTab()'s .manus-select-col-stack wrapper — rather than a panel
+// inside Udvælgelse, so it reads as a peer of Sange/Sketches, not a control
+// tucked under "Udvælgelse". Videos/band jingles never come from an upload
+// (data/manuscripts.json is sketch/sang only), so this is the only place to
+// create one. Lists every such row regardless of lane (placed or not), same
+// "show everything of this kind" convention as the Sange/Sketches columns,
+// and the `(N)` header count mirrors theirs too — unlike there, every row
+// here is selected by construction (renderVideoBandsangRow), so the count is
+// simply every row's count, not a filtered "selected so far" one.
+function renderMediaColumn() {
+  const section = document.createElement('section');
+  section.className = 'card manus-column';
+
+  const mediaRows = manusDraft.rows
+    .filter(manusRowIsManualMedia)
+    .slice()
+    .sort((a, b) => manusRowTitle(a).localeCompare(manusRowTitle(b), 'da'));
+
+  const header = document.createElement('div');
+  header.className = 'manus-col-header';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Videoer & Bandsange';
+  header.appendChild(h2);
+  const count = document.createElement('span');
+  count.className = 'manus-col-count';
+  count.textContent = `(${mediaRows.length})`;
+  header.appendChild(count);
+  section.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'manus-col-list';
+  if (!mediaRows.length) {
+    const empty = document.createElement('p');
+    empty.className = 'manus-col-empty';
+    empty.textContent = 'Ingen videoer eller bandsange endnu.';
+    list.appendChild(empty);
+  } else {
+    for (const row of mediaRows) list.appendChild(renderVideoBandsangRow(row));
+  }
+  section.appendChild(list);
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'manus-select-panel-btn-row manus-media-btn-row';
+  const videoBtn = document.createElement('button');
+  videoBtn.type = 'button';
+  videoBtn.className = 'site-pill-btn site-pill-warm';
+  videoBtn.textContent = 'Video';
+  videoBtn.addEventListener('click', () => addManualMediaRow('video'));
+  btnRow.appendChild(videoBtn);
+  const bandBtn = document.createElement('button');
+  bandBtn.type = 'button';
+  bandBtn.className = 'site-pill-btn site-pill-warm';
+  bandBtn.textContent = 'Bandsang';
+  bandBtn.addEventListener('click', () => addManualMediaRow('bandsang'));
+  btnRow.appendChild(bandBtn);
+  section.appendChild(btnRow);
 
   return section;
 }
@@ -1684,13 +1842,22 @@ function renderSelectTab() {
   const columns = document.createElement('div');
   columns.className = 'manus-select-columns';
   for (const type of MANUS_TYPES) columns.appendChild(renderSelectColumn(type));
-  columns.appendChild(renderSelectionColumn());
+
+  // Third column is a stack of two cards (Udvælgelse, then Videoer &
+  // Bandsange below it) rather than a single grid item, so the latter reads
+  // as its own section without disturbing the Sange/Sketches columns' widths.
+  const col3 = document.createElement('div');
+  col3.className = 'manus-select-col-stack';
+  col3.appendChild(renderSelectionColumn());
+  col3.appendChild(renderMediaColumn());
+  columns.appendChild(col3);
+
   mount.appendChild(columns);
 }
 
 // Builds one act's header+body block (unstyled position — the caller places
 // it into the grid or a stack wrapper, see renderActColumnsGrid below).
-function buildActColumn(act, buildColumnBody) {
+function buildActColumn(act, buildColumnBody, rowFilter = null) {
   const col = document.createElement('div');
   col.className = 'manus-kanban-col';
 
@@ -1700,7 +1867,7 @@ function buildActColumn(act, buildColumnBody) {
   label.className = 'manus-akt-label';
   label.textContent = act.label;
   header.appendChild(label);
-  const rowsInAct = manusDraftRowsForLane(act.code);
+  const rowsInAct = rowFilter ? manusDraftRowsForLane(act.code).filter(rowFilter) : manusDraftRowsForLane(act.code);
   const count = document.createElement('span');
   count.className = 'manus-akt-count';
   count.textContent = `${rowsInAct.length} scener`;
@@ -1734,8 +1901,13 @@ function buildActColumn(act, buildColumnBody) {
 // whatever it doesn't wire up (drag-and-drop, in Aktfordeling's case) simply
 // isn't there for the other tabs. colEl (header+body together) is handed
 // through so Aktfordeling can make the *whole* column a drop target, not
-// just the body's own strip — see wireLaneDropZone().
-function renderActColumnsGrid(buildColumnBody, columns = manusDraft.acts.length) {
+// just the body's own strip — see wireLaneDropZone(). `rowFilter`, when
+// given, narrows both the "N scener" header count and rowsInAct together
+// (via buildActColumn) — used by Rollefordeling/Manus/Stjerneark to exclude
+// manual video/bandsang rows (manusRowIsManualMedia) from a tab they have no
+// cast/roles/script relevance in; Aktfordeling passes none, so those rows
+// still count and render there.
+function renderActColumnsGrid(buildColumnBody, columns = manusDraft.acts.length, rowFilter = null) {
   const grid = document.createElement('div');
   grid.className = 'manus-kanban';
   grid.style.gridTemplateColumns = `repeat(${columns}, minmax(220px, 1fr))`;
@@ -1748,7 +1920,7 @@ function renderActColumnsGrid(buildColumnBody, columns = manusDraft.acts.length)
   groups.forEach((group, colIdx) => {
     if (group.length < 2) {
       if (!group.length) return;
-      const col = buildActColumn(group[0], buildColumnBody);
+      const col = buildActColumn(group[0], buildColumnBody, rowFilter);
       col.style.gridColumn = String(colIdx + 1);
       grid.appendChild(col);
       return;
@@ -1756,7 +1928,7 @@ function renderActColumnsGrid(buildColumnBody, columns = manusDraft.acts.length)
     const stack = document.createElement('div');
     stack.className = 'manus-kanban-col-stack';
     stack.style.gridColumn = String(colIdx + 1);
-    for (const act of group) stack.appendChild(buildActColumn(act, buildColumnBody));
+    for (const act of group) stack.appendChild(buildActColumn(act, buildColumnBody, rowFilter));
     grid.appendChild(stack);
   });
 
@@ -1765,68 +1937,13 @@ function renderActColumnsGrid(buildColumnBody, columns = manusDraft.acts.length)
 
 // ── Tab 2: Aktfordeling — act columns in a row, "Ikke placeret" below ──
 // Bandsang/Video never come from an uploaded submission (data/manuscripts.json
-// is sketch/sang only) — this is the only way to get one into the pipeline at
-// all, so it can end up in the generated Aktoversigt/Manuskript output. Lands
-// straight in "Ikke placeret" (appliedSelected: true — there's no prior
-// placement to protect, unlike a Vælg-scener submission, so no staging delay
-// is needed) ready to be dragged into an act like any other row.
-function openAddManualSceneModal() {
-  const { form, error, actions, close } = siteOpenModalWithClose('Tilføj scene');
-
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  form.appendChild(siteEditField('Titel', nameInput));
-
-  const typeToggle = createManusTypeToggle([
-    { value: 'bandsang', label: 'Bandsang' },
-    { value: 'video', label: 'Video' },
-  ]);
-  form.appendChild(siteEditField('Type', typeToggle.element));
-
-  const addBtn = document.createElement('button');
-  addBtn.className = 'site-pill-btn site-pill-primary';
-  addBtn.textContent = 'Tilføj';
-  actions.appendChild(addBtn);
-
-  addBtn.addEventListener('click', () => {
-    const manualName = nameInput.value.trim();
-    const manualType = typeToggle.value;
-    if (!manualType) {
-      error.textContent = 'Vælg om det er en bandsang eller en video.';
-      return;
-    }
-    if (!manualName) {
-      error.textContent = 'Udfyld en titel.';
-      return;
-    }
-    manusDraft.rows.push({
-      key: manusNextKey(),
-      origin: 'manual',
-      lane: 'pool',
-      manualName,
-      manualType,
-      selected: true,
-      appliedSelected: true,
-      duration: null,
-      cast: [],
-      priority: 0,
-      dansPriority: null,
-      repeat: false,
-      dansRepeat: null,
-      scriptBody: '',
-      status: '',
-      melody: '',
-      writtenBy: '',
-      sourceProduction: '',
-      sourceYear: '',
-    });
-    close();
-    renderAktfordelingTab();
-  });
-
-  nameInput.focus();
-}
-
+// is sketch/sang only) — the "Videoer & Bandsange" card in the Vælg scener
+// tab's third column (see addManualMediaRow()/renderMediaColumn() below) is
+// the only way to get one into the pipeline at all, so it can end up in the
+// generated Aktoversigt/Manuskript output. A new row lands straight
+// in "Ikke placeret" (appliedSelected: true — there's no prior placement to
+// protect, unlike a Vælg-scener submission, so no staging delay is needed)
+// ready to be dragged into an act like any other row.
 function renderAktfordelingTab() {
   const mount = document.getElementById('manus-tab-aktfordeling');
   mount.textContent = '';
@@ -1865,13 +1982,6 @@ function renderAktfordelingTab() {
   poolCount.className = 'manus-akt-count';
   poolCount.textContent = `${poolRows.length} scener`;
   poolHeader.appendChild(poolCount);
-
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'btn-small';
-  addBtn.textContent = '+ Tilføj scene';
-  addBtn.addEventListener('click', () => openAddManualSceneModal());
-  poolHeader.appendChild(addBtn);
 
   poolSection.appendChild(poolHeader);
 
@@ -1991,7 +2101,7 @@ function renderRollefordelingTab() {
   const mount = document.getElementById('manus-tab-rollefordeling');
   mount.textContent = '';
 
-  const anyPlaced = manusDraft.acts.some(act => manusDraftRowsForLane(act.code).length);
+  const anyPlaced = manusAnyNonMediaPlaced();
   if (!anyPlaced) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
@@ -2009,7 +2119,7 @@ function renderRollefordelingTab() {
       // renderManusTextTab(), for scriptBody).
       manusImportFromTex(row);
     }
-  }));
+  }, undefined, row => !manusRowIsManualMedia(row)));
 }
 
 // ── Tab: Manus (script text) ─────────────────────────────────────
@@ -2026,7 +2136,8 @@ function renderRollefordelingTab() {
 // (safe to omit), just nothing in this UI sets them anymore. Both textareas
 // mutate the row directly, no draft rebuild — same as the cast editor above.
 function manusRowIsSong(row) {
-  return manusRowType(row) === 'sang';
+  const t = manusRowType(row);
+  return t === 'sang' || t === 'bandsang';
 }
 
 // The header field's raw LaTeX-line text, built fresh every time the modal
@@ -2088,6 +2199,102 @@ function openScriptSceneModal(row) {
   form.appendChild(siteEditField('Manus (LaTeX)', textarea));
 }
 
+// Create/edit view for a "Videoer & Bandsange" row (renderVideoBandsangRow/
+// addManualMediaRow above) — same header (\title{}/\author{}[/\melody{}]) +
+// scriptBody-textarea shape as openScriptSceneModal, reusing its
+// manusBuildHeaderText/manusRowIsSong helpers (manusRowIsSong now also
+// covers 'bandsang' — see its own doc comment), plus a Roller field (raw
+// editable \role{} lines, same textarea-as-LaTeX convention as
+// Rollefordeling's own openRoleSceneModal — see manusApplyMediaRolesText
+// below) between the header and the manus body, since these scenes do get
+// cast eventually even though they never go through the Rollefordeling tab
+// itself. A brand-new row (`isNew: true`) seeds Roller/Manus from a
+// type-specific placeholder template (manusMediaDefaultRolesText/
+// manusMediaDefaultScriptText) instead of starting empty — editing an
+// existing row always shows its real current content instead. The manus
+// body textarea is shorter for video than bandsang/sketch/song (`rows`
+// below) — a video's own manus text is usually just a short cue, not a full
+// script. Unlike openScriptSceneModal, no field is live-bound: everything is
+// staged in the textareas and only applied to `row` when "Gem" is clicked,
+// which also requires a non-empty \title{} (everything else is optional) —
+// for a new row that Gem click is also the moment it actually gets pushed
+// into manusDraft.rows and becomes visible; closing via X/Escape beforehand
+// discards it with no trace, same as the old "+ Tilføj scene" modal's
+// up-front validation, just against the richer LaTeX fields instead of a
+// plain Titel input.
+function manusMediaDefaultRolesText(manualType) {
+  return manualType === 'bandsang'
+    ? '\\role{S1} Sanger\n\\role{S2} Sanger'
+    : '\\role{R} Revyst\n\\role{C} Revyst\n\\role{L} Revyst\n\\role{A} Revyst';
+}
+
+function manusMediaDefaultScriptText(manualType) {
+  return manualType === 'bandsang'
+    ? '\\sings{S1}[Vers] Wow, sikke en god sang vi skal til at synge\n\n\\sings{S2}[Omkvæd] Håber publikum kan lide vores tema i år'
+    : '\\says{C} Er det ikke lidt lang tid siden vi har haft en video?\n\\says{A} Jo! Og det her sceneskift ville passe helt perfekt!\n\\scene{Tenikken viser en sjov video på AV}\n\\says{R} Damn, vi kan sku stadig finde ud af at lave gode videoer\n\\says{L} Virkelig, men nu tror jeg også næste scene er klar til at gå på';
+}
+
+// Mirrors openRoleSceneModal's "Opdater roller" handler exactly (see its own
+// doc comment) — parses the textarea's \role{}[] lines back into row.cast,
+// carrying each roleCode's existing tags forward (a genuinely new roleCode
+// still gets a classifyOrKeep() default).
+function manusApplyMediaRolesText(row, text) {
+  const isSong = manusRowIsSong(row);
+  const isDans = manusRowIsDans(row);
+  const previousTagsByCode = new Map(row.cast.map(c => [c.roleCode, c.tags || []]));
+  row.cast = parseRolesText(text).map(r => {
+    const existing = previousTagsByCode.get(r.roleCode);
+    const tags = existing && existing.length ? existing.slice() : [classifyOrKeep(r.roleCode, isSong, isDans)];
+    return { name: r.name, roleCode: r.roleCode, description: r.description, tags };
+  });
+}
+
+function openVideoBandsangModal(row, { isNew = false } = {}) {
+  const title0 = isNew ? (row.manualType === 'bandsang' ? 'Ny bandsang' : 'Ny video') : manusRowTitle(row);
+  const { modal, form, error, actions, close } = siteOpenModalWithClose(title0);
+  modal.classList.add('manus-script-modal');
+
+  const headerTextarea = document.createElement('textarea');
+  headerTextarea.className = 'manus-script-textarea manus-script-header-textarea';
+  headerTextarea.rows = manusRowIsSong(row) ? 3 : 2;
+  headerTextarea.spellcheck = false;
+  headerTextarea.value = manusBuildHeaderText(row);
+  form.appendChild(siteEditField('Titel / forfatter' + (manusRowIsSong(row) ? ' / melodi' : '') + ' (LaTeX)', headerTextarea));
+
+  const rolesTextarea = document.createElement('textarea');
+  rolesTextarea.className = 'manus-script-textarea manus-script-roles-textarea';
+  rolesTextarea.rows = manusRowType(row) === 'video' ? 4 : 3;
+  rolesTextarea.spellcheck = false;
+  rolesTextarea.value = isNew ? manusMediaDefaultRolesText(row.manualType) : formatRolesText(row.cast);
+  form.appendChild(siteEditField('Roller (LaTeX)', rolesTextarea));
+
+  const bodyTextarea = document.createElement('textarea');
+  bodyTextarea.className = 'manus-script-textarea';
+  bodyTextarea.rows = manusRowType(row) === 'video' ? 8 : 20;
+  bodyTextarea.spellcheck = false;
+  bodyTextarea.value = isNew ? manusMediaDefaultScriptText(row.manualType) : (row.scriptBody || '');
+  form.appendChild(siteEditField('Manus (LaTeX)', bodyTextarea));
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'site-pill-btn site-pill-primary';
+  saveBtn.textContent = 'Gem';
+  actions.appendChild(saveBtn);
+
+  saveBtn.addEventListener('click', () => {
+    if (!extractTexTitle(headerTextarea.value)) {
+      error.textContent = 'Udfyld en titel.';
+      return;
+    }
+    manusApplyHeaderText(row, headerTextarea.value);
+    manusApplyMediaRolesText(row, rolesTextarea.value);
+    row.scriptBody = bodyTextarea.value;
+    if (isNew) manusDraft.rows.push(row);
+    close();
+    renderSelectTab();
+  });
+}
+
 function renderScriptSceneButton(row) {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -2106,7 +2313,7 @@ function renderManusTextTab() {
   const mount = document.getElementById('manus-tab-manus');
   mount.textContent = '';
 
-  const anyPlaced = manusDraft.acts.some(act => manusDraftRowsForLane(act.code).length);
+  const anyPlaced = manusAnyNonMediaPlaced();
   if (!anyPlaced) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
@@ -2124,7 +2331,7 @@ function renderManusTextTab() {
       // above (also triggered from renderRollefordelingTab(), for cast).
       manusImportFromTex(row);
     }
-  }));
+  }, undefined, row => !manusRowIsManualMedia(row)));
 }
 
 // ── Tab 4: Stjerneark ────────────────────────────────────────────
@@ -2215,7 +2422,7 @@ function renderStjerneArkTab() {
   const mount = document.getElementById('manus-tab-stjerneark');
   mount.textContent = '';
 
-  const anyPlaced = manusDraft.acts.some(act => manusDraftRowsForLane(act.code).length);
+  const anyPlaced = manusAnyNonMediaPlaced();
   if (!anyPlaced) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
@@ -2231,7 +2438,7 @@ function renderStjerneArkTab() {
       const entries = split || [scene];
       for (const entry of entries) body.appendChild(renderStarRow(row, entry));
     });
-  }, 3));
+  }, 3, row => !manusRowIsManualMedia(row)));
 }
 
 // ── Tab bar + section chrome ───────────────────────────────────
