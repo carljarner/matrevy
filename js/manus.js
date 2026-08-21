@@ -2971,7 +2971,29 @@ function renderManusPdfLinksSection() {
   const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
   if (!folder) return;
 
-  const openFile = (filename) => window.open(`archive/${folder}/${filename}`, '_blank');
+  // GitHub Pages serves everything under archive/ with a 10-minute
+  // Cache-Control (confirmed live: max-age=600, via the Fastly CDN in
+  // front of Pages). manusFetchPdfStatus's own HEAD check bypasses this
+  // with {cache: 'no-store'}, so the completion poll/toast are honest about
+  // when the file actually changed server-side — but a plain window.open()
+  // here is a normal navigation, subject to that same 10-minute cache, so a
+  // browser that had ever opened this exact URL before could still serve
+  // the pre-regeneration bytes straight from its own cache for up to that
+  // long after the poll already confirmed the real file was updated
+  // (reported live 2026-08-21). Appending manusPdfLastGeneratedAt as a
+  // cache-busting query string forces a fresh fetch exactly when this tab's
+  // own last-known-good timestamp actually changes (i.e. right after a
+  // regeneration this tab observed), while still letting repeat clicks
+  // between regenerations reuse the cache normally. Falls back to
+  // Date.now() before that timestamp has ever loaded. Doesn't help a tab
+  // that never observed a newer regeneration at all (e.g. another
+  // coordinator's tab triggered it) — same accepted cross-tab limitation as
+  // the pulse/poll state themselves (see the "PDF regeneration status"
+  // comment above).
+  const openFile = (filename) => {
+    const bust = manusPdfLastGeneratedAt ? manusPdfLastGeneratedAt.getTime() : Date.now();
+    window.open(`archive/${folder}/${filename}?v=${bust}`, '_blank');
+  };
 
   const linkRow = document.createElement('div');
   linkRow.className = 'manus-pdf-links-row';
