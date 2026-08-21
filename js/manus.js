@@ -2700,11 +2700,16 @@ function renderManusPdfLinksSection() {
   individualBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   individualBtn.textContent = 'Individuelt Manus';
   individualBtn.addEventListener('click', () => {
+    // "Sangboss" is a fixed pseudo-person (every song, regardless of cast —
+    // see scripts/generate-pdfs.js's buildSangbossManuskript), not a
+    // data/cast.json roster entry, so it's added here rather than sourced
+    // from getEffectiveCastData(); pinned first since it's always relevant.
     const names = getEffectiveCastData()
       .map((c) => c.name)
       .slice()
       .sort((a, b) => a.localeCompare(b, 'da'));
-    siteOpenDropdownPicker(individualBtn, names.map((name) => ({ value: name, label: name })), null, (name) => {
+    const options = ['Sangboss', ...names].map((name) => ({ value: name, label: name }));
+    siteOpenDropdownPicker(individualBtn, options, null, (name) => {
       openFile(`manuskripter/${manusSlugifyName(name)}.pdf`);
     });
   });

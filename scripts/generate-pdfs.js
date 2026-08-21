@@ -571,6 +571,18 @@ async function buildActorManuskripts(actsData, prodMeta, scenePdfPaths, castRost
   }
 }
 
+// ── Sangboss: a fixed pseudo-person, not a cast.json roster entry, whose
+// manuscript is every song scene regardless of cast — used by whoever is
+// responsible for the singers, not for a specific actor's own scenes.
+// Generated unconditionally alongside the real per-actor manuscripts.
+async function buildSangbossManuskript(actsData, prodMeta, scenePdfPaths, currentFolder) {
+  const outPath = root(`archive/${currentFolder}/manuskripter/${slugify('Sangboss')}.pdf`);
+  await buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, {
+    skuespillerName: 'Sangboss',
+    sceneFilter: (scene) => isSongScene(scene),
+  });
+}
+
 // ── Main ─────────────────────────────────────────────────────
 async function main() {
   checkPdflatexAvailable();
@@ -651,13 +663,15 @@ async function main() {
   console.log('  Merging Manuskript...');
   await buildManuskriptPdf(scenesJson.acts, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`));
 
-  // 5) One personalized manuscript per cast.json roster entry.
+  // 5) One personalized manuscript per cast.json roster entry, plus the
+  // fixed Sangboss manuscript (every song, regardless of cast).
   console.log('  Building individual manuscripts...');
   await buildActorManuskripts(scenesJson.acts, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
+  await buildSangbossManuskript(scenesJson.acts, prodMeta, scenePdfPaths, currentFolder);
 
   console.log(
     `Done. Wrote Aktoversigt.pdf / Rolleoversigt.pdf / Manuskript.pdf plus ${castJson.cast.length} ` +
-    `individual manuscripts to archive/${currentFolder}/`
+    `individual manuscripts (+ Sangboss) to archive/${currentFolder}/`
   );
 }
 
@@ -673,4 +687,5 @@ module.exports = {
   deriveSourceTexPath,
   extractTexMelody, extractTexAuthor,
   buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
+  buildSangbossManuskript,
 };
