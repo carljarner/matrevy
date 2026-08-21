@@ -1912,7 +1912,7 @@
                 {
                     "id": "3-3",
                     "number": 3,
-                    "name": "Spørg Om Hjælp",
+                    "name": "Spørg Om Hj",
                     "types": [
                         "sang"
                     ],
@@ -2606,5 +2606,5 @@
             ]
         }
     ],
-    "generatedAt": "2026-08-21T22:05:38+02:00"
+    "generatedAt": "2026-08-21T22:21:30+02:00"
 }
