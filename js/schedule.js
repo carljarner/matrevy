@@ -418,12 +418,26 @@ function mountTimeField(mountId, fieldId, initialValue) {
   return field;
 }
 
+function mountDropdownField(mountId, fieldId, options, initialValue) {
+  const mount = document.getElementById(mountId);
+  const field = schedCreateDropdownField(options, initialValue);
+  field.id = fieldId;
+  mount.replaceWith(field);
+  return field;
+}
+
+function minuteOptions(values) {
+  return values.map((v) => ({ value: String(v), label: `${v} min` }));
+}
+
 // ── Boot ──────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   mountTimeField('input-start-mount', 'input-start', '10:00');
   mountTimeField('input-end-mount', 'input-end', '17:00');
   mountTimeField('absent-form-start-mount', 'absent-form-start', '');
   mountTimeField('absent-form-end-mount', 'absent-form-end', '');
+  mountDropdownField('input-segment-mount', 'input-segment', minuteOptions([5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]), '25');
+  mountDropdownField('input-gap-mount', 'input-gap', minuteOptions([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), '5');
 
   // Load scenes/cast up front — a plain page reload is NOT on its own a safe
   // moment to prefer a fresh manus override: state.allScenes always starts
