@@ -19,6 +19,15 @@
    schedule.js/manus.js's own triple-duplicated role-classification
    logic, scripts/generate-pdfs.js's own copy, etc).
 
+   Second tool: an "Arkiv" section for managing data/archive.json's
+   years directly from here (archive.js's own openYearEditor()/
+   deleteYear() exist but were never wired to any UI on arkiv.html).
+   This page also does NOT load js/archive.js (same reasoning as
+   above — it's wired to arkiv.html's own #arkiv-list DOM), so the
+   handful of plain, DOM-independent helpers it needs (slug/path
+   building, file-to-base64, cover re-encoding) are duplicated here
+   too rather than cross-file-reused.
+
    Rendering rule (as elsewhere): createElement/textContent only,
    never innerHTML.
    ========================================================= */
@@ -37,6 +46,64 @@ let koordArchiveOverride = siteLoadOverride('archive');
 
 function getEffectiveArchiveYears() {
   return koordArchiveOverride || ARCHIVE_DATA;
+}
+
+const ARCHIVE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // mirrors archive.js's own constant
+
+// ── Archive year name -> folder/path helpers (duplicated verbatim from
+// archive.js — see file header) ────────────────────────────────
+function slugifyFolderName(name) {
+  const map = { æ: 'ae', ø: 'oe', å: 'aa', Æ: 'Ae', Ø: 'Oe', Å: 'Aa' };
+  let s = name.trim().replace(/[æøåÆØÅ]/g, (ch) => map[ch]);
+  s = s.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_-]/g, '');
+  s = s.replace(/^[_-]+|[_-]+$/g, '');
+  return s;
+}
+
+function buildArchivePath(folder, kind) {
+  if (kind === 'cover') return `archive/${folder}/cover.jpg`;
+  return `archive/${folder}/manus.pdf`; // kind === 'manus'
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result); // "data:<mime>;base64,<data>"
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function stripDataUrlPrefix(dataUrl) {
+  const i = dataUrl.indexOf(',');
+  return i === -1 ? dataUrl : dataUrl.slice(i + 1);
+}
+
+// Cover photos are always re-encoded to JPEG so the stored filename/extension
+// never changes across re-uploads (overwrite-in-place, no orphan-cleanup
+// needed for a changed extension).
+async function compressCoverImage(file, { maxWidth = 1600, quality = 0.8 } = {}) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxWidth / bitmap.width);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+
+// Full-array-replace save, mirroring archive.js's own saveYears() — keeps the
+// localStorage-backed override shadow (siteLoadOverride/siteSaveOverride) in
+// sync so this tab reflects the change immediately, before the GitHub Action
+// regenerates archive-data.js.
+async function saveArchiveYears(next) {
+  const result = await siteSaveResource('archive', { years: next });
+  if (result.ok) {
+    koordArchiveOverride = next;
+    siteSaveOverride('archive', next);
+    renderArkivSection();
+  }
+  return result;
 }
 
 // ── PDF freshness poll (duplicated from manus.js's manusFetchPdfStatus/
@@ -107,6 +174,256 @@ function koordPillBtn(label, variant) {
   return btn;
 }
 
+// ── Arkiv section (add/edit/delete data/archive.json years) ──
+// The card itself only ever shows two buttons — Rediger (opens a dropdown
+// picker of all years, like Manus's own "Individuelt Manus" picker, then the
+// editor for whichever one is chosen) and Tilføj (opens the editor blank).
+// No year list is ever shown directly on this page.
+function renderArkivSection() {
+  const container = document.getElementById('koord-arkiv-body');
+  if (!container) return;
+  container.textContent = '';
+
+  const years = getEffectiveArchiveYears();
+
+  const actionsRow = el('div', 'koord-arkiv-actions');
+
+  const editBtn = el('button', 'btn-small', 'Rediger');
+  editBtn.type = 'button';
+  editBtn.disabled = years.length === 0;
+  editBtn.addEventListener('click', () => openArkivYearPicker(editBtn));
+  actionsRow.appendChild(editBtn);
+
+  const addBtn = el('button', 'btn-small', 'Tilføj');
+  addBtn.type = 'button';
+  addBtn.addEventListener('click', () => openKoordYearEditor());
+  actionsRow.appendChild(addBtn);
+
+  container.appendChild(actionsRow);
+}
+
+// Dropdown popup listing every year (newest first), same primitive as
+// manus.js's "Individuelt Manus" cast picker (siteOpenDropdownPicker).
+// Picking one opens the editor for that entry.
+function openArkivYearPicker(anchor) {
+  const years = getEffectiveArchiveYears().slice().sort((a, b) => b.year - a.year);
+  const options = years.map((y) => ({ value: y.folder, label: y.name }));
+  siteOpenDropdownPicker(anchor, options, null, (folder) => {
+    const entry = getEffectiveArchiveYears().find((y) => y.folder === folder);
+    if (entry) openKoordYearEditor(entry);
+  });
+}
+
+// Near-duplicate of archive.js's openYearEditor(existing) (see file header
+// for why it's not cross-file-reused), trimmed down per Koordinator's own
+// simpler needs: no cover-image preview (just a link to the current file),
+// no manuscript upload (manusPdf is always the CI-generated
+// archive/<folder>/Manuskript.pdf, derived automatically — see
+// scripts/generate-pdfs.js), and X-close/green-Gem-pill chrome instead of
+// the shared edit-modal's Annuller/blue-Gem pair.
+function openKoordYearEditor(existing) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger årgang' : 'Tilføj årgang');
+  modal.classList.add('koord-year-edit-modal');
+
+  const group = el('div', 'koord-year-edit-group');
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'MatRevy 2024';
+  nameInput.value = existing ? existing.name : '';
+
+  const yearInput = document.createElement('input');
+  yearInput.type = 'number';
+  yearInput.min = '1900';
+  yearInput.max = '2100';
+  yearInput.value = existing ? String(existing.year) : '';
+
+  const nameYearRow = el('div', 'koord-year-edit-row');
+  nameYearRow.appendChild(siteEditField('Navn', nameInput));
+  nameYearRow.appendChild(siteEditField('Årstal', yearInput));
+  group.appendChild(nameYearRow);
+
+  if (!existing) {
+    let yearTouched = false;
+    yearInput.addEventListener('input', () => { yearTouched = true; });
+    nameInput.addEventListener('input', () => {
+      if (yearTouched) return;
+      const m = nameInput.value.match(/\b(19|20)\d{2}\b/);
+      if (m) yearInput.value = m[0];
+    });
+  }
+
+  const coverInput = document.createElement('input');
+  coverInput.type = 'file';
+  coverInput.accept = 'image/*';
+  let pendingCover = null;
+  coverInput.addEventListener('change', () => {
+    pendingCover = coverInput.files[0] || null;
+  });
+  const coverField = siteEditField('Cover-foto (kvadratisk billede anbefalet)', coverInput);
+  const coverLink = document.createElement('a');
+  coverLink.target = '_blank';
+  coverLink.rel = 'noopener';
+  coverLink.textContent = 'Nuværende cover-foto';
+  coverLink.className = 'koord-year-edit-current-link';
+  if (existing && existing.coverImage) {
+    coverLink.href = existing.coverImage;
+  } else {
+    coverLink.style.display = 'none';
+  }
+  coverField.appendChild(coverLink);
+  group.appendChild(coverField);
+
+  const youtubeInput = document.createElement('input');
+  youtubeInput.type = 'url';
+  youtubeInput.placeholder = 'https://www.youtube.com/watch?v=...';
+  youtubeInput.value = existing ? existing.youtubeUrl || '' : '';
+  group.appendChild(siteEditField('Link til YouTube', youtubeInput));
+
+  const spotifyInput = document.createElement('input');
+  spotifyInput.type = 'url';
+  spotifyInput.placeholder = 'https://open.spotify.com/album/...';
+  spotifyInput.value = existing ? existing.spotifyUrl || '' : '';
+  group.appendChild(siteEditField('Link til Spotify', spotifyInput));
+
+  const driveInput = document.createElement('input');
+  driveInput.type = 'url';
+  driveInput.placeholder = 'https://drive.google.com/drive/folders/...';
+  driveInput.value = existing ? existing.driveUrl || '' : '';
+  group.appendChild(siteEditField('Link til Google Drive', driveInput));
+
+  form.appendChild(group);
+
+  const progress = el('div', 'koord-progress');
+  form.appendChild(progress);
+
+  const save = koordPillBtn('Gem', 'site-pill-primary');
+
+  if (existing) {
+    const del = el('button', 'site-pill-btn site-pill-danger edit-actions-left', 'Slet');
+    del.type = 'button';
+    del.addEventListener('click', () => { close(); openDeleteArchiveYearConfirm(existing); });
+    actions.appendChild(del);
+  }
+  actions.appendChild(save);
+
+  save.addEventListener('click', async () => {
+    error.textContent = '';
+    const name = nameInput.value.trim();
+    if (!name) { error.textContent = 'Navnet er påkrævet.'; return; }
+
+    const year = parseInt(yearInput.value, 10);
+    if (!Number.isInteger(year) || year < 1900 || year > 2100) {
+      error.textContent = 'Angiv et gyldigt årstal (1900–2100).';
+      return;
+    }
+
+    const current = getEffectiveArchiveYears();
+    // Year is not unique (e.g. a jubilee revy in the same year as a regular
+    // one); folder is the stable unique key, enforced below.
+
+    let folder;
+    if (existing) {
+      folder = existing.folder;
+    } else {
+      const slug = slugifyFolderName(name);
+      if (!slug) {
+        error.textContent = 'Navnet skal indeholde mindst ét bogstav eller tal.';
+        return;
+      }
+      const usedFolders = new Set(current.map((e) => e.folder));
+      folder = slug;
+      let n = 2;
+      while (usedFolders.has(folder)) { folder = `${slug}-${n}`; n++; }
+    }
+
+    if (pendingCover && pendingCover.size > ARCHIVE_MAX_UPLOAD_BYTES) {
+      error.textContent = `Filen "${pendingCover.name}" er for stor (maks. 5 MB).`;
+      return;
+    }
+
+    // manusPdf is never uploaded here — it's always the CI-generated file in
+    // the year's own archive folder (scripts/generate-pdfs.js keeps it
+    // fresh on every "Generér PDF'er" run in Manus).
+    const entryDraft = {
+      year,
+      name,
+      folder,
+      coverImage: existing ? existing.coverImage || '' : '',
+      youtubeUrl: youtubeInput.value.trim(),
+      spotifyUrl: spotifyInput.value.trim(),
+      driveUrl: driveInput.value.trim(),
+      manusPdf: `archive/${folder}/Manuskript.pdf`,
+    };
+
+    save.disabled = true;
+
+    if (pendingCover) {
+      progress.textContent = 'Gemmer cover-foto…';
+      const blob = await compressCoverImage(pendingCover);
+      const dataUrl = await readFileAsDataURL(blob);
+      const path = buildArchivePath(folder, 'cover');
+      const result = await siteUploadFile(path, stripDataUrlPrefix(dataUrl));
+      if (!result.ok) {
+        save.disabled = false;
+        progress.textContent = '';
+        error.textContent = result.message;
+        return;
+      }
+      entryDraft.coverImage = path;
+    }
+    progress.textContent = '';
+
+    const next = existing
+      ? current.map((e) => (e.folder === existing.folder ? entryDraft : e))
+      : current.concat([entryDraft]);
+
+    const result = await saveArchiveYears(next);
+    if (result.ok) {
+      progress.textContent = 'Gemt! Det kan tage et par minutter, før ændringen er synlig for andre eller efter en genindlæsning.';
+      save.textContent = 'Gemt';
+      setTimeout(close, 1400);
+    } else {
+      save.disabled = false;
+      error.textContent = result.message;
+    }
+  });
+
+  nameInput.focus();
+}
+
+// Small custom confirm (not native confirm()) — matches the site's now-usual
+// pattern for a destructive action (Wiki's openDeleteChapterConfirm,
+// Kalender's openDeleteConfirm), rather than archive.js's older confirm()
+// call which this replaces the intent of for Koordinator's own delete path.
+function openDeleteArchiveYearConfirm(entry) {
+  const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${entry.name}"?`);
+  modal.classList.add('koord-arkiv-confirm-modal');
+
+  form.appendChild(el('p', 'koord-arkiv-confirm-text', 'De tilhørende filer bliver ikke slettet fra github.'));
+
+  const cancelBtn = koordPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = koordPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    cancelBtn.disabled = true;
+    confirmBtn.disabled = true;
+    const next = getEffectiveArchiveYears().filter((e) => e.folder !== entry.folder);
+    const result = await saveArchiveYears(next);
+    if (result.ok) {
+      close();
+    } else {
+      error.textContent = result.message || 'Kunne ikke slette årgangen.';
+      cancelBtn.disabled = false;
+      confirmBtn.disabled = false;
+    }
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
 // ── Close-year sequence ──────────────────────────────────────
 // Runs the four (well, six) steps of a Manus year-close in order, reporting
 // progress via onProgress(text) before each step starts. Throws (with a
@@ -138,10 +455,8 @@ async function koordCloseYear({ closingFolder, closingName, closingYear, newFold
       driveUrl: '',
       manusPdf: `archive/${closingFolder}/Manuskript.pdf`,
     }]);
-    const archiveRes = await siteSaveResource('archive', { years: nextYears });
+    const archiveRes = await saveArchiveYears(nextYears);
     if (!archiveRes.ok) throw new Error(archiveRes.message || 'Kunne ikke oprette arkiv-indgangen.');
-    koordArchiveOverride = nextYears;
-    siteSaveOverride('archive', nextYears);
   }
 
   onProgress('Gemmer snapshot af scenes.json/cast.json i arkivet...');
@@ -260,27 +575,24 @@ function renderKoordinator(root) {
 
   const folder = koordCurrentFolder();
 
-  // Card 1: current production status.
-  const statusCard = el('section', 'card');
-  const statusHead = el('div', 'card-head');
-  statusHead.appendChild(el('h2', null, 'Nuværende produktion'));
-  statusCard.appendChild(statusHead);
-  statusCard.appendChild(el('p', null, folder
+  // Card 1: current production status + the two-step year-close workflow —
+  // previously three separate cards, combined into one section per request.
+  const prodCard = el('section', 'card');
+  const prodHead = el('div', 'card-head');
+  prodHead.appendChild(el('h2', null, 'Afslut produktionsår'));
+  prodCard.appendChild(prodHead);
+
+  prodCard.appendChild(el('p', null, folder
     ? `Aktiv produktionsmappe: ${folder}`
     : 'Ingen aktiv produktionsmappe fundet (data/config.json).'));
   const manusLink = document.createElement('a');
   manusLink.href = 'manus.html';
   manusLink.textContent = 'Gå til Manus-siden';
   manusLink.className = 'btn-small';
-  statusCard.appendChild(manusLink);
-  root.appendChild(statusCard);
+  prodCard.appendChild(manusLink);
 
-  // Card 2: step 1 — confirm the final .tex/PDF regeneration has landed.
-  const step1Card = el('section', 'card');
-  const step1Head = el('div', 'card-head');
-  step1Head.appendChild(el('h2', null, 'Trin 1: Klargør de endelige filer'));
-  step1Card.appendChild(step1Head);
-  step1Card.appendChild(el('p', null,
+  prodCard.appendChild(el('h3', 'koord-step-heading', 'Trin 1: Klargør de endelige filer'));
+  prodCard.appendChild(el('p', null,
     'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
     'endelige tekst og rollebesætning og gemmer dem i arkivet (tager et par minutter). Bekræft herunder, at det er landet, ' +
     'før du går videre til trin 2.'));
@@ -299,15 +611,10 @@ function renderKoordinator(root) {
   });
   checkRow.appendChild(checkBtn);
   checkRow.appendChild(statusText);
-  step1Card.appendChild(checkRow);
-  root.appendChild(step1Card);
+  prodCard.appendChild(checkRow);
 
-  // Card 3: step 2 — the actual close-year reset.
-  const step2Card = el('section', 'card');
-  const step2Head = el('div', 'card-head');
-  step2Head.appendChild(el('h2', null, 'Trin 2: Afslut år og start nyt'));
-  step2Card.appendChild(step2Head);
-  step2Card.appendChild(el('p', null,
+  prodCard.appendChild(el('h3', 'koord-step-heading', 'Trin 2: Afslut år og start nyt'));
+  prodCard.appendChild(el('p', null,
     'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter) til et nyt, tomt produktionsår og gemmer et ' +
     'snapshot af scenes.json/cast.json i arkivet. Gør dette KUN efter at have bekræftet trin 1 ovenfor — se ' +
     'beskrivelsen i modalen for detaljer.'));
@@ -315,8 +622,27 @@ function renderKoordinator(root) {
   closeBtn.type = 'button';
   closeBtn.disabled = !folder;
   closeBtn.addEventListener('click', () => openCloseYearModal(folder));
-  step2Card.appendChild(closeBtn);
-  root.appendChild(step2Card);
+  prodCard.appendChild(closeBtn);
+
+  // Card 2: Arkiv — a small sidebar card with just Rediger (pick a year from
+  // a dropdown, like Manus's "Individuelt Manus" picker) and Tilføj. No year
+  // list is shown directly on this page (archive.js's own openYearEditor()/
+  // deleteYear() exist but were never wired to any UI on arkiv.html either).
+  const arkivCard = el('section', 'card');
+  const arkivHead = el('div', 'card-head');
+  arkivHead.appendChild(el('h2', null, 'Arkiv'));
+  arkivCard.appendChild(arkivHead);
+  arkivCard.appendChild(el('p', null, 'Tilføj eller redigér tidligere års arkivindgange.'));
+  const arkivBody = el('div');
+  arkivBody.id = 'koord-arkiv-body';
+  arkivCard.appendChild(arkivBody);
+
+  const columns = el('div', 'koord-columns');
+  columns.appendChild(prodCard);
+  columns.appendChild(arkivCard);
+  root.appendChild(columns);
+
+  renderArkivSection();
 }
 
 // ── Init ─────────────────────────────────────────────────────

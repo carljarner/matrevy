@@ -6,6 +6,7 @@
 .koord-check-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 0.5rem;
 }
@@ -26,4 +27,105 @@
   font-size: 0.9rem;
   color: var(--text-muted);
   margin-bottom: 1rem;
+}
+
+/* Sub-heading for each step inside the merged "Afslut produktionsår" card. */
+.koord-step-heading {
+  margin: 1.25rem 0 0.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* --- Two-column layout: production-year card (main) + a small ---
+   Arkiv sidebar card, same pattern as style.css's .dashboard-columns. */
+.koord-columns {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.koord-columns .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+@media (max-width: 719px) {
+  .koord-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Arkiv card: just the Rediger/Tilføj buttons, no year list -- */
+.koord-arkiv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* --- Arkiv year editor modal --------------------------------- */
+.koord-year-edit-modal {
+  width: min(520px, 94vw);
+}
+
+.koord-year-edit-group {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1rem 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.koord-year-edit-modal .edit-field:last-child {
+  margin-bottom: 0.25rem;
+}
+
+/* Navn + Årstal side by side. */
+.koord-year-edit-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.koord-year-edit-row .edit-field {
+  min-width: 0;
+}
+
+.koord-year-edit-row .edit-field:first-child {
+  flex: 2;
+}
+
+.koord-year-edit-row .edit-field:last-child {
+  flex: 1;
+}
+
+@media (max-width: 719px) {
+  .koord-year-edit-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .koord-year-edit-row .edit-field:first-child,
+  .koord-year-edit-row .edit-field:last-child {
+    flex: 1 1 auto;
+  }
+}
+
+.koord-year-edit-current-link {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+}
+
+/* --- Delete-year confirm popup: narrower than the standard edit-modal -- */
+.koord-arkiv-confirm-modal {
+  width: min(360px, 90vw);
+}
+
+.koord-arkiv-confirm-text {
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0 0 1rem;
 }
