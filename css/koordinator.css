@@ -16,10 +16,15 @@
   color: var(--text-muted);
 }
 
+/* No reserved height while empty (matches archive.js's own .arkiv-edit-
+   progress) — otherwise every modal using this pays a permanent gap above
+   its button row even when there's nothing to show yet. */
 .koord-progress {
   font-size: 0.9rem;
   color: var(--text-muted);
-  min-height: 1.2em;
+}
+
+.koord-progress:not(:empty) {
   margin-top: 0.25rem;
 }
 
@@ -113,15 +118,34 @@
   }
 }
 
-.koord-year-edit-current-link {
-  display: block;
-  margin-top: 0.35rem;
-  font-size: 0.9rem;
+/* Choose-file button + (if any) a link to the existing cover, on one row
+   instead of the link sitting on its own line below. */
+.koord-year-edit-file-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* Override .edit-field input's width:100% so the file input only takes the
+   space it needs, leaving room for the current-cover link beside it. */
+.koord-year-edit-file-row input[type="file"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* .btn-small on an <a> otherwise keeps the browser's default underline. */
+.koord-year-edit-file-row a.btn-small {
+  text-decoration: none;
 }
 
 /* --- Delete-year confirm popup: narrower than the standard edit-modal -- */
 .koord-arkiv-confirm-modal {
   width: min(360px, 90vw);
+}
+
+.koord-arkiv-confirm-modal h2 {
+  text-align: center;
 }
 
 .koord-arkiv-confirm-text {

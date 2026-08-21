@@ -175,41 +175,38 @@ function koordPillBtn(label, variant) {
 }
 
 // ── Arkiv section (add/edit/delete data/archive.json years) ──
-// The card itself only ever shows two buttons — Rediger (opens a dropdown
-// picker of all years, like Manus's own "Individuelt Manus" picker, then the
-// editor for whichever one is chosen) and Tilføj (opens the editor blank).
-// No year list is ever shown directly on this page.
+// The card itself only ever shows one button — Rediger, opening a dropdown
+// picker (same primitive as Manus's own "Individuelt Manus" picker) that
+// lists every year plus a leading "+ Tilføj" row. No year list is ever
+// shown directly on this page.
 function renderArkivSection() {
   const container = document.getElementById('koord-arkiv-body');
   if (!container) return;
   container.textContent = '';
 
-  const years = getEffectiveArchiveYears();
-
   const actionsRow = el('div', 'koord-arkiv-actions');
 
   const editBtn = el('button', 'btn-small', 'Rediger');
   editBtn.type = 'button';
-  editBtn.disabled = years.length === 0;
   editBtn.addEventListener('click', () => openArkivYearPicker(editBtn));
   actionsRow.appendChild(editBtn);
-
-  const addBtn = el('button', 'btn-small', 'Tilføj');
-  addBtn.type = 'button';
-  addBtn.addEventListener('click', () => openKoordYearEditor());
-  actionsRow.appendChild(addBtn);
 
   container.appendChild(actionsRow);
 }
 
-// Dropdown popup listing every year (newest first), same primitive as
-// manus.js's "Individuelt Manus" cast picker (siteOpenDropdownPicker).
-// Picking one opens the editor for that entry.
+const KOORD_ARKIV_ADD_VALUE = '__add__';
+
+// Dropdown popup listing "+ Tilføj" followed by every year (newest first),
+// same primitive as manus.js's "Individuelt Manus" cast picker
+// (siteOpenDropdownPicker). Picking a year opens the editor for that entry;
+// picking "+ Tilføj" opens it blank.
 function openArkivYearPicker(anchor) {
   const years = getEffectiveArchiveYears().slice().sort((a, b) => b.year - a.year);
-  const options = years.map((y) => ({ value: y.folder, label: y.name }));
-  siteOpenDropdownPicker(anchor, options, null, (folder) => {
-    const entry = getEffectiveArchiveYears().find((y) => y.folder === folder);
+  const options = [{ value: KOORD_ARKIV_ADD_VALUE, label: '+ Tilføj' }]
+    .concat(years.map((y) => ({ value: y.folder, label: y.name })));
+  siteOpenDropdownPicker(anchor, options, null, (value) => {
+    if (value === KOORD_ARKIV_ADD_VALUE) { openKoordYearEditor(); return; }
+    const entry = getEffectiveArchiveYears().find((y) => y.folder === value);
     if (entry) openKoordYearEditor(entry);
   });
 }
@@ -256,23 +253,25 @@ function openKoordYearEditor(existing) {
   const coverInput = document.createElement('input');
   coverInput.type = 'file';
   coverInput.accept = 'image/*';
+  coverInput.className = 'site-file-input';
   let pendingCover = null;
   coverInput.addEventListener('change', () => {
     pendingCover = coverInput.files[0] || null;
   });
-  const coverField = siteEditField('Cover-foto (kvadratisk billede anbefalet)', coverInput);
-  const coverLink = document.createElement('a');
-  coverLink.target = '_blank';
-  coverLink.rel = 'noopener';
-  coverLink.textContent = 'Nuværende cover-foto';
-  coverLink.className = 'koord-year-edit-current-link';
+  const coverRow = el('div', 'koord-year-edit-file-row');
+  coverRow.appendChild(coverInput);
   if (existing && existing.coverImage) {
+    // .btn-small — same treatment as this page's own "Gå til Manus-siden"
+    // link and Wiki's attachment links, rather than a plain blue &lt;a&gt;.
+    const coverLink = document.createElement('a');
+    coverLink.target = '_blank';
+    coverLink.rel = 'noopener';
+    coverLink.textContent = 'Nuværende cover-foto';
+    coverLink.className = 'btn-small';
     coverLink.href = existing.coverImage;
-  } else {
-    coverLink.style.display = 'none';
+    coverRow.appendChild(coverLink);
   }
-  coverField.appendChild(coverLink);
-  group.appendChild(coverField);
+  group.appendChild(siteEditField('Cover-foto (kvadratisk billede anbefalet)', coverRow));
 
   const youtubeInput = document.createElement('input');
   youtubeInput.type = 'url';
