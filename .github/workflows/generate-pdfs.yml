@@ -2,10 +2,14 @@ name: Generate manuscript PDFs
 
 # Fires on the exact same trigger as embed-scenes.yml (any push touching
 # data/scenes.json or data/cast.json) — a manus.html save already produces
-# this push (see save_manus() in server/update-data.php, which always
-# re-stamps scenes.json's version, guaranteeing a fresh commit even when a
-# Main Manus View "Generér <X>" button re-saves otherwise-unchanged data
-# purely to re-trigger this workflow). No workflow_dispatch/API trigger is
+# this push (see save_manus() in server/update-data.php, which stamps a
+# second-granularity `generatedAt` timestamp onto both files on every save,
+# guaranteeing a fresh, non-empty commit even when a Main Manus View
+# "Generér PDF'er" click re-saves otherwise-unchanged data purely to
+# re-trigger this workflow — `version` alone, at day granularity, wasn't
+# enough: every same-day resave after the first produced a byte-identical
+# PUT and a genuinely empty commit that GitHub's path filter below silently
+# ignored, caught live 2026-08-21). No workflow_dispatch/API trigger is
 # used, deliberately — that would need the site's GitHub token to gain an
 # "Actions: read & write" permission it doesn't have today.
 on:

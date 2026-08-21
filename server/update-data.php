@@ -1175,15 +1175,30 @@ function save_manus($payload) {
   }
 
   $today = date('Y-m-d');
+  // A same-day resave with unchanged acts/cast previously produced a
+  // byte-identical JSON body once `version` had already been stamped to
+  // today's date earlier that day — GitHub's Contents API still accepts
+  // that PUT, but the resulting commit has a genuinely empty diff, which
+  // silently fails to trigger the path-filtered embed-scenes.yml/
+  // generate-pdfs.yml workflows (confirmed live 2026-08-21: four real
+  // "Generér PDF'er" clicks in a row all produced 0-addition/0-deletion
+  // commits). `version` itself stays date-only since it's real displayed
+  // content (printed on every scene manuscript's running header via
+  // revy.sty's \version{}) — this second, purely-mechanical field is what
+  // actually guarantees a real diff on every single save, same-day repeats
+  // included.
+  $now = date('c');
 
-  update_file('data/scenes.json', function ($json) use ($scenesActs, $today) {
+  update_file('data/scenes.json', function ($json) use ($scenesActs, $today, $now) {
     $json['acts'] = $scenesActs;
     $json['version'] = $today;
+    $json['generatedAt'] = $now;
     return $json;
   }, 'Opdater scenes.json via manus-værktøj');
 
-  update_file('data/cast.json', function ($json) use ($castList) {
+  update_file('data/cast.json', function ($json) use ($castList, $now) {
     $json['cast'] = $castList;
+    $json['generatedAt'] = $now;
     return $json;
   }, 'Opdater cast.json via manus-værktøj');
 }
