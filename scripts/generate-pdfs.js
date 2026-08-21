@@ -638,22 +638,40 @@ async function main() {
     }
   }
 
-  // 1) One PDF per sketch/song scene with actual script text.
+  // 1) One PDF per sketch/song scene with actual script text. Skipped
+  // (no pdflatex spawn at all) when the freshly-composed .tex is
+  // byte-identical to what's already archived at deriveSourceTexPath and
+  // that scene's PDF already exists on disk — the dominant real workflow is
+  // "edit one scene, click Generér", so this turns an always-full-32-scene
+  // rebuild into a handful of actual compiles. Note prodMeta.version (baked
+  // into every scene's \version{} line via buildSceneTex) is re-stamped to
+  // today's date on every manus save, so this cache only holds within the
+  // same day — acceptable, since same-day re-generates are the common case.
   const scenePdfPaths = new Map();
   for (const act of realActs) {
     for (const scene of act.scenes) {
       if (!hasScript(scene)) continue;
       const slug = slugify(scene.name) || scene.id;
       const tex = buildSceneTex(scene, prodMeta);
+      const destRel = deriveSourcePdfPath(scene, currentFolder);
+      const texRel = deriveSourceTexPath(scene, currentFolder);
+      const destAbs = root(destRel);
+      const texAbs = root(texRel);
+      const unchanged = fs.existsSync(destAbs) && fs.existsSync(texAbs)
+        && fs.readFileSync(texAbs, 'utf8') === tex;
+      if (unchanged) {
+        console.log(`  Skipping scene "${scene.name}" (unchanged)`);
+        scenePdfPaths.set(scene.id, destAbs);
+        continue;
+      }
       console.log(`  Compiling scene "${scene.name}"...`);
       const builtPdf = writeAndCompile(`scene-${slug}`, `${slug}.tex`, tex);
-      const destRel = deriveSourcePdfPath(scene, currentFolder);
       const dest = copyToRepo(builtPdf, destRel);
       scenePdfPaths.set(scene.id, dest);
       // Persist the exact composed .tex that was just compiled (not a
       // separate reconstruction) so the archived source is guaranteed to
       // match the archived PDF byte-for-byte.
-      writeTextToRepo(tex, deriveSourceTexPath(scene, currentFolder));
+      writeTextToRepo(tex, texRel);
     }
   }
 

@@ -2672,6 +2672,11 @@ let manusPdfTimestampLoaded = false;
 let manusPdfLastGeneratedAt = null; // Date | null
 let manusPdfConfirmedAbsent = false; // true only on a genuine 404 — distinct from "couldn't check"
 let manusPdfCheckFailed = false; // true when the check itself couldn't run/complete at all
+// true only when manusPollPdfCompletion gave up after MANUS_PDF_POLL_TIMEOUT_MS without
+// ever observing Manuskript.pdf's Last-Modified change — kept distinct from the idle state
+// so the UI can say so explicitly instead of silently looking identical to a real success.
+// Cleared at the start of the next manusRegeneratePdfs() call.
+let manusPdfPollTimedOut = false;
 
 // A genuine 404 (never generated) is reported distinctly from "couldn't
 // check" (thrown fetch — e.g. fetch() flatly refuses file:// URLs with "URL
@@ -2707,6 +2712,10 @@ function manusFormatGeneratedAt(date) {
 }
 
 function manusPdfStatusText() {
+  // Checked before manusPdfLastGeneratedAt so a timed-out poll always reads
+  // as "we couldn't confirm this" rather than silently falling back to
+  // whatever (now stale) timestamp was last known.
+  if (manusPdfPollTimedOut) return 'Kunne ikke bekræfte om PDF’erne er opdateret endnu — tjek "Tjek om klar" på Koordinator-siden om lidt';
   if (manusPdfLastGeneratedAt) return manusFormatGeneratedAt(manusPdfLastGeneratedAt);
   if (manusPdfConfirmedAbsent) return 'Endnu ikke genereret';
   if (manusPdfCheckFailed) return 'Sidst genereret: ukendt';
@@ -2736,7 +2745,14 @@ function manusLoadPdfTimestampIfNeeded() {
 }
 
 const MANUS_PDF_POLL_INTERVAL_MS = 10000;
-const MANUS_PDF_POLL_TIMEOUT_MS = 10 * 60 * 1000;
+// A generous backstop, not the primary completion signal: the real pipeline
+// is a fresh commit → generate-pdfs.yml (queue + compile) → a second commit
+// → a GitHub Pages redeploy, so it can legitimately take several minutes,
+// especially under concurrent Actions load. This used to be 10 minutes,
+// which could time out before that full chain finished — the timeout branch
+// below now says so explicitly instead of silently reverting to idle as if
+// generation had succeeded.
+const MANUS_PDF_POLL_TIMEOUT_MS = 20 * 60 * 1000;
 
 function manusPollPdfCompletion(beforeDate, url) {
   const startedAt = Date.now();
@@ -2745,14 +2761,17 @@ function manusPollPdfCompletion(beforeDate, url) {
   const tick = async () => {
     if (Date.now() - startedAt > MANUS_PDF_POLL_TIMEOUT_MS) {
       manusPdfGenerating = false;
+      manusPdfPollTimedOut = true;
       renderManusPdfLinksSection();
       renderMainViewActions();
+      siteShowToast('Kunne ikke bekræfte at PDF’erne er opdateret — tjek Koordinator-siden om lidt');
       return;
     }
     const current = await manusFetchPdfStatus(url);
     const currentTime = current.date ? current.date.getTime() : null;
     if (currentTime !== null && currentTime !== beforeTime) {
       manusPdfGenerating = false;
+      manusPdfPollTimedOut = false;
       manusPdfLastGeneratedAt = current.date;
       manusPdfConfirmedAbsent = false;
       manusPdfCheckFailed = false;
@@ -2783,6 +2802,7 @@ async function manusRegeneratePdfs() {
 
   const errEl = manusMainViewErrorEl();
   if (errEl) errEl.textContent = '';
+  manusPdfPollTimedOut = false;
 
   const referenceUrl = manusPdfReferenceUrl();
   const before = (await manusFetchPdfStatus(referenceUrl)).date;
