@@ -107,15 +107,28 @@ async function saveArchiveYears(next) {
 }
 
 // ── PDF freshness poll (duplicated from manus.js's manusFetchPdfStatus/
-// manusPdfReferenceUrl — see file header) ──────────────────────────
-async function koordFetchPdfStatus(url) {
-  if (!url) return { date: null, confirmedAbsent: false, checkFailed: true };
+// manusPdfReferenceUrl — see file header). Queries GitHub's Commits API
+// scoped to the file's own path rather than a same-origin HEAD request's
+// Last-Modified/ETag headers: those reflect when the *site* was last
+// redeployed (any push to main, not just one touching this file), not when
+// this file's content last actually changed — confirmed live 2026-08-21 via
+// a completely unrelated, untouched file (CNAME) still reporting "today" as
+// its Last-Modified. This is a one-shot manual check (the "Tjek om klar"
+// button below), not a repeating poll, so the unauthenticated 60/hour rate
+// limit isn't a practical concern here the way it is for manus.js's own
+// repeating MANUS_PDF_POLL_INTERVAL_MS poll. ────────────────────────
+async function koordFetchPdfStatus(path) {
+  if (!path) return { date: null, confirmedAbsent: false, checkFailed: true };
   try {
-    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-    if (res.status === 404) return { date: null, confirmedAbsent: true, checkFailed: false };
+    const res = await fetch(
+      `https://api.github.com/repos/carljarner/matrevy/commits?path=${encodeURIComponent(path)}&per_page=1`,
+      { cache: 'no-store' }
+    );
     if (!res.ok) return { date: null, confirmedAbsent: false, checkFailed: true };
-    const header = res.headers.get('last-modified');
-    return { date: header ? new Date(header) : null, confirmedAbsent: false, checkFailed: !header };
+    const commits = await res.json();
+    if (!Array.isArray(commits) || !commits.length) return { date: null, confirmedAbsent: true, checkFailed: false };
+    const date = new Date(commits[0].commit.committer.date);
+    return { date: isNaN(date.getTime()) ? null : date, confirmedAbsent: false, checkFailed: isNaN(date.getTime()) };
   } catch (e) {
     return { date: null, confirmedAbsent: false, checkFailed: true };
   }

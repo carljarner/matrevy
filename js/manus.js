@@ -108,6 +108,11 @@ const MANUS_TYPE_COLUMN_LABEL = { sketch: 'Sketches', sang: 'Sange' };
 // public content, so a plain fetch() needs no server round-trip.
 const MANUS_TEX_RAW_BASE = 'https://raw.githubusercontent.com/carljarner/matrevy/main/';
 
+// GitHub's Commits API, used by manusFetchPdfStatus (below) to check a
+// specific file's real change history rather than the deployed site's own
+// (redeploy-tainted) headers. Unauthenticated, like MANUS_TEX_RAW_BASE.
+const MANUS_COMMITS_API_BASE = 'https://api.github.com/repos/carljarner/matrevy/commits';
+
 // ── Duplicated from import.js/schedule.js ───────────────────────
 // manus.html doesn't load either script, and this file already reimplements
 // rather than cross-file-reuses their DOM-coupled logic (see the Main Manus
@@ -2672,12 +2677,14 @@ async function manusSaveMain() {
 // the site's GitHub token has no Actions permission to poll workflow status,
 // so save_manus() returning ok just means the scenes.json/cast.json commit
 // landed, not that generate-pdfs.yml has actually run pdflatex yet. The only
-// way to detect real completion is to watch one of the generated files' own
-// Last-Modified header (same-origin HEAD request, no CORS issue) for a
-// change versus a snapshot taken right before triggering. Manuskript.pdf is
-// used as that reference file since it's the last file the build produces
-// before the workflow's single end-of-job commit, and every file in that
-// commit goes live together. This is plain in-memory state, not synced
+// way to detect real completion is to watch one of the generated files'
+// real git commit history (via the public GitHub Commits API — see
+// manusFetchPdfStatus below for why a same-origin HEAD request's
+// Last-Modified header doesn't work here) for a change versus a snapshot
+// taken right before triggering. Manuskript.pdf is used as that reference
+// file since it's the last file the build produces before the workflow's
+// single end-of-job commit, and every file in that commit goes live
+// together. This is plain in-memory state, not synced
 // through the server — a page reload mid-poll silently drops back to idle
 // (same accepted limitation as manusDraft's own dirty tracking elsewhere in
 // this file), and another visitor's tab never sees this tab's pulse.
@@ -2698,36 +2705,65 @@ let manusResourceSaveInFlight = false;
 let manusPdfGenerating = false;
 let manusPdfTimestampLoaded = false;
 let manusPdfLastGeneratedAt = null; // Date | null
-let manusPdfConfirmedAbsent = false; // true only on a genuine 404 — distinct from "couldn't check"
+let manusPdfConfirmedAbsent = false; // true only when the file has no commit history at all — distinct from "couldn't check"
 let manusPdfCheckFailed = false; // true when the check itself couldn't run/complete at all
 // true only when manusPollPdfCompletion gave up after MANUS_PDF_POLL_TIMEOUT_MS without
-// ever observing Manuskript.pdf's Last-Modified change — kept distinct from the idle state
+// ever observing a newer commit touching Manuskript.pdf — kept distinct from the idle state
 // so the UI can say so explicitly instead of silently looking identical to a real success.
 // Cleared at the start of the next manusRegeneratePdfs() call.
 let manusPdfPollTimedOut = false;
 
-// A genuine 404 (never generated) is reported distinctly from "couldn't
-// check" (thrown fetch — e.g. fetch() flatly refuses file:// URLs with "URL
-// scheme file is not supported", the same file:// limitation documented at
-// the top of this file for the login endpoint, or a transient network
-// error): only the 404 case is safe to ever surface as "Endnu ikke
-// genereret" — silently mapping a failed check to that same message would
-// misreport a file that actually exists. checkFailed gets its own visible
-// fallback text below rather than staying blank, so a file:// visitor sees
-// an honest "Ukendt" instead of what looks like a missing feature.
-async function manusFetchPdfStatus(url) {
-  if (!url) return { date: null, confirmedAbsent: false, checkFailed: true };
+// A genuine "never generated" (empty commit history for the path) is
+// reported distinctly from "couldn't check" (thrown fetch, a non-2xx from
+// the GitHub API — e.g. rate-limited, or fetch() flatly refusing file://
+// URLs with "URL scheme file is not supported", the same file://
+// limitation documented at the top of this file for the login endpoint):
+// only the former is safe to ever surface as "Endnu ikke genereret" —
+// silently mapping a failed check to that same message would misreport a
+// file that actually exists. checkFailed gets its own visible fallback
+// text below rather than staying blank, so a file:// visitor (or one
+// hitting GitHub's unauthenticated API rate limit) sees an honest "Ukendt"
+// instead of what looks like a missing feature.
+//
+// Deliberately queries the GitHub Commits API scoped to this exact file
+// path, rather than the deployed file's own Last-Modified/ETag headers
+// (an earlier version did a same-origin HEAD request instead): GitHub
+// Pages sets those headers to when the *site* was last redeployed, not
+// when that specific file's content last actually changed — confirmed
+// live 2026-08-21 by checking a completely unrelated, untouched file
+// (CNAME, last really changed 2026-07-10) and finding its Last-Modified
+// header still read as "today." Since *any* push to main redeploys the
+// whole site (a scenes.json/cast.json commit, embed-scenes.yml's fast
+// commit, ...), that HEAD-based check could — and did — report "changed"
+// well before generate-pdfs.yml's own commit (the one that actually
+// produces new PDF bytes) had even landed, showing "PDF'erne er
+// opdateret" before it was true. The Commits API's `path` filter reflects
+// real git history for that one file, immune to unrelated redeploys. This
+// is a public repo, so no auth token is needed — but unauthenticated
+// requests are capped at 60/hour per IP, hence the poll interval/timeout
+// below being sized to stay well under that even for one full-length poll.
+async function manusFetchPdfStatus(path) {
+  if (!path) return { date: null, confirmedAbsent: false, checkFailed: true };
   try {
-    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
-    if (res.status === 404) return { date: null, confirmedAbsent: true, checkFailed: false };
+    const res = await fetch(
+      `${MANUS_COMMITS_API_BASE}?path=${encodeURIComponent(path)}&per_page=1`,
+      { cache: 'no-store' }
+    );
     if (!res.ok) return { date: null, confirmedAbsent: false, checkFailed: true };
-    const header = res.headers.get('last-modified');
-    return { date: header ? new Date(header) : null, confirmedAbsent: false, checkFailed: !header };
+    const commits = await res.json();
+    if (!Array.isArray(commits) || !commits.length) return { date: null, confirmedAbsent: true, checkFailed: false };
+    const date = new Date(commits[0].commit.committer.date);
+    return { date: isNaN(date.getTime()) ? null : date, confirmedAbsent: false, checkFailed: isNaN(date.getTime()) };
   } catch (e) {
     return { date: null, confirmedAbsent: false, checkFailed: true };
   }
 }
 
+// Repo-relative path, not a URL — fed to the GitHub Commits API's `path`
+// filter above (also happens to be the same string a browser HEAD request
+// against the deployed site would have used, back when this checked
+// Last-Modified headers instead — kept the name to avoid touching every
+// call site over a cosmetic rename).
 function manusPdfReferenceUrl() {
   const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
   return folder ? `archive/${folder}/Manuskript.pdf` : null;
@@ -2772,15 +2808,25 @@ function manusLoadPdfTimestampIfNeeded() {
   });
 }
 
-const MANUS_PDF_POLL_INTERVAL_MS = 10000;
+// 15s, not the earlier 10s: manusFetchPdfStatus now hits GitHub's
+// unauthenticated Commits API (60 requests/hour per IP) instead of a plain
+// same-origin HEAD request, so the interval is sized to keep a single
+// full-length poll comfortably under that ceiling (see
+// MANUS_PDF_POLL_TIMEOUT_MS below) — a real concern given this is used by a
+// small group who may share one venue/rehearsal WiFi's public IP.
+const MANUS_PDF_POLL_INTERVAL_MS = 15000;
 // A generous backstop, not the primary completion signal: the real pipeline
 // is a fresh commit → generate-pdfs.yml (queue + compile) → a second commit
-// → a GitHub Pages redeploy, so it can legitimately take several minutes,
-// especially under concurrent Actions load. This used to be 10 minutes,
-// which could time out before that full chain finished — the timeout branch
-// below now says so explicitly instead of silently reverting to idle as if
-// generation had succeeded.
-const MANUS_PDF_POLL_TIMEOUT_MS = 20 * 60 * 1000;
+// → a GitHub Pages redeploy, so it can legitimately take a couple of
+// minutes, especially under concurrent Actions load — confirmed live
+// 2026-08-21 at ~2.5 minutes end-to-end for a normal run (see CLAUDE.md for
+// the per-step timing breakdown). 10 minutes at the 15s interval above caps
+// a single full-timeout poll at 40 requests, safely under the 60/hour
+// unauthenticated ceiling; this was 20 minutes when the check was still a
+// free same-origin HEAD request with no rate limit to worry about. The
+// timeout branch below says so explicitly instead of silently reverting to
+// idle as if generation had succeeded.
+const MANUS_PDF_POLL_TIMEOUT_MS = 10 * 60 * 1000;
 
 function manusPollPdfCompletion(beforeDate, url) {
   const startedAt = Date.now();
