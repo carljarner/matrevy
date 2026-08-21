@@ -33,5 +33,20 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # List every generated *-data.js output here (see scripts/embed-scenes.js's EMBEDS)
           git add js/scenes-data.js js/calendar-data.js js/archive-data.js js/posts-data.js js/bosses-data.js js/wiki-data.js js/manuscripts-data.js js/config-data.js calendar.ics
-          git diff --staged --quiet || git commit -m "Regenerate embedded data files"
-          git push
+          if git diff --staged --quiet; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          git commit -m "Regenerate embedded data files"
+          # generate-pdfs.yml fires on the exact same data/*.json push trigger
+          # and, since it's now fast enough (skip-unchanged-scene compiling)
+          # to often finish and push around the same time this job does,
+          # a bare `git push` here started intermittently losing the race
+          # ("! [rejected] main -> main (fetch first)") once save_manus()
+          # started guaranteeing a real diff on every save (previously a
+          # same-day resave was a silent no-op that never even reached this
+          # step — see CLAUDE.md's generatedAt note). Mirrors
+          # generate-pdfs.yml's own rebase-before-push guard.
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
