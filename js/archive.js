@@ -533,9 +533,7 @@ function openYearEditor(existing) {
 
     const result = await saveYears(next);
     if (result.ok) {
-      progress.textContent = 'Gemt! Det kan tage et par minutter, før ændringen er synlig for andre eller efter en genindlæsning.';
-      save.textContent = 'Gemt';
-      setTimeout(close, 1400);
+      close();
     } else {
       save.disabled = false;
       error.textContent = result.message;
