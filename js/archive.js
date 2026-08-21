@@ -19,6 +19,7 @@
 'use strict';
 
 const ARCHIVE_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const ARCHIVE_PLACEHOLDER_COVER = 'archive/_assets/placeholder-cover.jpg';
 
 // ── Data (with a localStorage-backed shadow after a save) ────
 let archiveOverride = siteLoadOverride('archive');
@@ -76,18 +77,14 @@ function renderArchive() {
 function buildPoster(entry, variant) {
   const modifier = variant === 'wide' ? 'arkiv-poster--wide' : 'arkiv-poster--square';
   const wrap = document.createElement('div');
-  if (entry.coverImage) {
-    const img = document.createElement('img');
-    img.className = `arkiv-poster ${modifier}`;
-    img.src = entry.coverImage;
-    img.loading = 'lazy';
-    img.decoding = 'async';
-    img.alt = entry.name;
-    img.addEventListener('error', () => wrap.replaceChildren(buildPlaceholder(entry, modifier)), { once: true });
-    wrap.appendChild(img);
-  } else {
-    wrap.appendChild(buildPlaceholder(entry, modifier));
-  }
+  const img = document.createElement('img');
+  img.className = `arkiv-poster ${modifier}`;
+  img.src = entry.coverImage || ARCHIVE_PLACEHOLDER_COVER;
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.alt = entry.name;
+  img.addEventListener('error', () => wrap.replaceChildren(buildPlaceholder(entry, modifier)), { once: true });
+  wrap.appendChild(img);
   return wrap;
 }
 
