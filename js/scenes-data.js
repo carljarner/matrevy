@@ -2578,6 +2578,39 @@ const SCENES_DATA = [
     "melody": "Gilli: “Kender Ik’ I Morgen”",
     "writtenBy": "Johan ’19",
     "actLabel": "Ekstranumre"
+  },
+  {
+    "id": "pool-1",
+    "number": 1,
+    "name": "Test",
+    "types": [
+      "video"
+    ],
+    "schedulable": false,
+    "cast": [],
+    "priority": 0,
+    "repeat": false,
+    "duration": 3,
+    "scriptBody": "\\says{C} Er det ikke lidt lang tid siden vi har haft en video?\n\\says{A} Jo! Og det her sceneskift ville passe helt perfekt!\n\\scene{Tenikken viser en sjov video på AV}\n\\says{R} Damn, vi kan sku stadig finde ud af at lave gode videoer\n\\says{L} Virkelig, men nu tror jeg også næste scene er klar til at gå på",
+    "writtenBy": "Test '21",
+    "actLabel": "Ikke placeret"
+  },
+  {
+    "id": "pool-2",
+    "number": 2,
+    "name": "Testband",
+    "types": [
+      "bandsang"
+    ],
+    "schedulable": false,
+    "cast": [],
+    "priority": 0,
+    "repeat": false,
+    "duration": 4,
+    "scriptBody": "\\sings{S1}[Vers] Wow, sikke en god sang vi skal til at synge\n\n\\sings{S2}[Omkvæd] Håber publikum kan lide vores tema i år",
+    "melody": "Carl: \"Hello\"",
+    "writtenBy": "Carl '21",
+    "actLabel": "Ikke placeret"
   }
 ];
 const CAST_DATA = [
