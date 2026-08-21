@@ -1648,7 +1648,7 @@ function addManualMediaRow(manualType) {
     key: manusNextKey(),
     origin: 'manual',
     lane: 'pool',
-    manualName: '',
+    manualName: manualType === 'bandsang' ? 'Bandsang: ' : 'Video: ',
     manualType,
     selected: true,
     appliedSelected: true,
