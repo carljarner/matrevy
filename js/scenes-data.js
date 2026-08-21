@@ -1918,7 +1918,7 @@ const SCENES_DATA = [
   {
     "id": "3-3",
     "number": 3,
-    "name": "Spørg Om Hjælp",
+    "name": "Spørg Om Hj",
     "types": [
       "sang"
     ],
