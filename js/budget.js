@@ -495,8 +495,8 @@ function renderYearToolbar(container) {
 // then budget_set_active_year, the same two-call sequence the old standalone
 // "Start nyt budgetår" modal used). The confirm button reads "Vælg" or
 // "Opret" depending on which path is currently shown; the dropdown's own
-// "+ Opret nyt budget" option switches the modal into the create path, and
-// when no year exists yet at all the create fields are the only thing shown.
+// "+ Tilføj" option (listed first) switches the modal into the create path,
+// and when no year exists yet at all the create fields are the only thing shown.
 function openSwitchActiveYearModal(root) {
   const hasYears = budgetYearsList.length > 0;
   const NEW_YEAR_VALUE = '__new__';
@@ -510,12 +510,16 @@ function openSwitchActiveYearModal(root) {
   yearInput.min = '2000';
   yearInput.max = '2100';
   yearInput.value = String(budgetActiveYear != null ? budgetActiveYear + 1 : new Date().getFullYear());
-  newYearFields.appendChild(siteEditField('Årstal', yearInput));
 
   const labelInput = el('input');
   labelInput.type = 'text';
   labelInput.value = `MatRevy ${yearInput.value}`;
-  newYearFields.appendChild(siteEditField('Label', labelInput));
+
+  const newYearFieldRow = el('div');
+  newYearFieldRow.className = 'edit-field-row';
+  newYearFieldRow.appendChild(siteEditField('Label', labelInput));
+  newYearFieldRow.appendChild(siteEditField('Årstal', yearInput));
+  newYearFields.appendChild(newYearFieldRow);
 
   function isCreatingNew() {
     return !hasYears || yearSelect.value === NEW_YEAR_VALUE;
@@ -530,11 +534,11 @@ function openSwitchActiveYearModal(root) {
   if (hasYears) {
     form.appendChild(el('p', 'budget-intro',
       'Vælg et eksisterende budget, eller opret et nyt.'));
-    const yearOptions = budgetYearsList
+    const yearOptions = [{ value: NEW_YEAR_VALUE, label: '+ Tilføj' }];
+    yearOptions.push(...budgetYearsList
       .slice()
       .sort((a, b) => b.year - a.year)
-      .map((y) => ({ value: String(y.year), label: y.label }));
-    yearOptions.push({ value: NEW_YEAR_VALUE, label: '+ Opret nyt budget' });
+      .map((y) => ({ value: String(y.year), label: y.label })));
     const defaultValue = budgetActiveYear != null ? String(budgetActiveYear) : yearOptions[0].value;
     yearSelect = siteCreateDropdownField(yearOptions, defaultValue);
     yearSelect.addEventListener('change', updateNewYearFieldsVisibility);
@@ -611,12 +615,16 @@ function openRenameYearModal(root) {
   yearInput.min = '2000';
   yearInput.max = '2100';
   yearInput.value = String(oldYear);
-  form.appendChild(siteEditField('Nyt årstal', yearInput));
 
   const labelInput = el('input');
   labelInput.type = 'text';
   labelInput.value = budgetYearLabel(oldYear);
-  form.appendChild(siteEditField('Ny label', labelInput));
+
+  const fieldRow = el('div');
+  fieldRow.className = 'edit-field-row';
+  fieldRow.appendChild(siteEditField('Ny label', labelInput));
+  fieldRow.appendChild(siteEditField('Nyt årstal', yearInput));
+  form.appendChild(fieldRow);
 
   const confirmBtn = budgetPillBtn('Omdøb', 'site-pill-warm');
   confirmBtn.addEventListener('click', async () => {
