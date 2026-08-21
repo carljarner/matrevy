@@ -4,6 +4,39 @@ const SCENES_DATA = [
   {
     "id": "1-1",
     "number": 1,
+    "name": "Test",
+    "types": [
+      "video"
+    ],
+    "schedulable": false,
+    "cast": [],
+    "priority": 0,
+    "repeat": false,
+    "duration": 3,
+    "scriptBody": "\\says{C} Er det ikke lidt lang tid siden vi har haft en video?\n\\says{A} Jo! Og det her sceneskift ville passe helt perfekt!\n\\scene{Tenikken viser en sjov video på AV}\n\\says{R} Damn, vi kan sku stadig finde ud af at lave gode videoer\n\\says{L} Virkelig, men nu tror jeg også næste scene er klar til at gå på",
+    "writtenBy": "Test '21",
+    "actLabel": "Akt 1"
+  },
+  {
+    "id": "1-2",
+    "number": 2,
+    "name": "Testband",
+    "types": [
+      "bandsang"
+    ],
+    "schedulable": false,
+    "cast": [],
+    "priority": 0,
+    "repeat": false,
+    "duration": 4,
+    "scriptBody": "\\sings{S1}[Vers] Wow, sikke en god sang vi skal til at synge\n\n\\sings{S2}[Omkvæd] Håber publikum kan lide vores tema i år",
+    "melody": "Carl: \"Hello\"",
+    "writtenBy": "Carl '21",
+    "actLabel": "Akt 1"
+  },
+  {
+    "id": "1-3",
+    "number": 3,
     "name": "Matrevy Sound",
     "types": [
       "sang"
@@ -87,8 +120,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-2",
-    "number": 2,
+    "id": "1-4",
+    "number": 4,
     "name": "Forskønnelsen",
     "types": [
       "sketch"
@@ -160,8 +193,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-3",
-    "number": 3,
+    "id": "1-5",
+    "number": 5,
     "name": "Forklar For Mig",
     "types": [
       "sang"
@@ -272,8 +305,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-4",
-    "number": 4,
+    "id": "1-6",
+    "number": 6,
     "name": "En Instruktor Siger Op",
     "types": [
       "sketch"
@@ -318,24 +351,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-5",
-    "number": 5,
-    "name": "Test",
-    "types": [
-      "video"
-    ],
-    "schedulable": false,
-    "cast": [],
-    "priority": 0,
-    "repeat": false,
-    "duration": 3,
-    "scriptBody": "\\says{C} Er det ikke lidt lang tid siden vi har haft en video?\n\\says{A} Jo! Og det her sceneskift ville passe helt perfekt!\n\\scene{Tenikken viser en sjov video på AV}\n\\says{R} Damn, vi kan sku stadig finde ud af at lave gode videoer\n\\says{L} Virkelig, men nu tror jeg også næste scene er klar til at gå på",
-    "writtenBy": "Test '21",
-    "actLabel": "Akt 1"
-  },
-  {
-    "id": "1-6",
-    "number": 6,
+    "id": "1-7",
+    "number": 7,
     "name": "Hos Numerologen",
     "types": [
       "sketch"
@@ -386,23 +403,6 @@ const SCENES_DATA = [
     "scriptBody": "\\scene{N sidder på scenen og læser i NumIntro bogen, enten meget optaget eller træt. Der står en tavle bag hende. K kommer ind.}\n\\says{K} Hej!\n\\says{N} ...\n\\says{K} Øhhh, hej?\n\\says{N}[sløvt] Hallo... Hvad kan jeg hjælpe med? \n\\says{K} Nu skal du høre, det er fordi jeg har haft nogle ret dårlige måneder, og mit horoskop bliver ved med at være imod mig. Og så tænkte jeg bare \"nå, du er sikkert bare uheldig\", men det kan det altså ikke blive ved med at være, vel?\n\\says{N} Altså statistisk set bør du være uheldig halvdelen af tiden.\n\\says{K} Jeg tror ikke rigtig på sådan noget statistik. Jeg tænkte mere, om jeg skulle ændre mit navn, så det matcher min energi og min aura. Du ved.\n\\says{N} Dit navn? Hmmm, jeg tror du er gået forkert, for jeg er altså ekspert i num.. (afbrudt)\n\\says{K} Numerologi, ikke?!\n\\says{N}[Prøver at indvende] nej, altså\n\\says{K} Jeg kan da se lige der på dit skrivebord, du arbejder med en masse tal og sådan.\n\\says{N} Nej, men det er altså nogle lidt andre tal, som jeg kigger på... \n\\scene{N bliver distraheret, fordi K tager en pung/pose med mønter i op af lommen og begynder at ryste den.}\n\\says{N}[grådigt og lummert] Tjoo, jeg kunne måske godt kigge på det!\n\\scene{N bliver mere ivrig, rejser sig og rækker ud efter posen}\n\\scene{N drejer rundt om sig selv, putter posen i lommen og tager et papir frem med en tabel på i en glidende bevægelse}\n\\says{K} Ej, hvor godt at du vil hjælpe mig - endelig noget, der går min vej.\n\\says{N}[skuffet, men ivrig] Ok, lad mig se det!\n\\scene{N tager papiret, går rundt med det og begynder at læse. K følger efter}\n\\says{K}[prøvende] Og så hernede står mine oplysninger, og dem skal du så putte ind her...\n\\says{N}[afvisende, afbrydende] Jaja, jeg har styr på det, bare lad mig! \n\\says{N}[Distræt, fokuseret, læser højt] Frigg Nøhr Maj Larsen. \n\\says{K} Med 3 g'er \n\\scene{N går om bag tavlen, begynder at regne og snakker videre. K kigger lidt med men beslutter sig så for at sætte sig ved bordet.}\n\\says{N} Født 5. august 1997 på Frederiksberg Hospital. Det er postnummer 2000, det er nemt at regne med. Stjernetegn, Løven. \n\\says{K} Ja, og tvilling i ascendant!\n\\scene{N s beregninger bliver mere og mere vilde og hektiske. Der ryger kridt, tavlesvampe og diverse artefakter ud over scenen, over og under tavlen (ninjaer). Band eller teknik laver fjollede tegneserielyde}\n\\says{N} Reduceret tværsum ... Indbyrdes primiske ... Det er fuldmåne lige om lidt ... Varulve ... \n\\says{K} Er du ok deromme?\n\\scene{Der flyver artefakter i hovedet på N. K er uberørt}\n\\says{N} Riemann hypotesen ... Kvantemekanik .. Programmering i Maple ... Machine learning! \n\\says{K}[prøvende?] Det lyder altså lidt irrelevant, er du snart færdig?\n\\says{N} Øjeblik, jeg skal bare lige... sådan!\n\\says{N}[anstrengt] Hvis du bare hjælper mig med at få tavlen vendt.\n\\scene{N og K vender tavlen rundt. Der er et totalt kaos af buzzwords, dårlig tavleorden og misforståede teoremer/regnestykker. (Der står {\\normalfont \\texttt{ from axioms import axiom\\_of\\_choice as aoc}}). Numerologen har (måske) skiftet outfit i mellemtiden.}\n\\says{N} Tadaaa! Og nu til betalingen.\n\\scene{N lister \"grådigt\" over mod Ks lommer for at få sin betaling. K afviger manøvren}\n\\says{K} Du må lige hjælpe mig med, hvad det betyder, det der. \n\\says{N} Det er da let nok. Jeg har jo den bedste tavleorden på instituttet. \n\\scene{Latterpause, forhåbentlig}\n\\says{N} Heroppe, der har vi alle dine oplysninger som input til funktionen, og hernede sker der en masse ting, som jeg ikke rigtig forstår, men det plejer at virke, eller... Der var dengang for en uge siden, hvor det ikke virkede, og jeg sad oppe hele natten for at prøve at...\n\\says{K} Stop! Jeg behøver ikke kende alle mellemregningerne. Jeg vil bare gerne høre: Passer mit navn til min energi og min indre rytme, eller skal jeg lave navneforandring?\n\\scene{N tænker over spørgsmålet, mens hun analyserer tavlens indhold.}\n\\says{N}[peger på \\texttt{from axioms import axiom\\_of\\_choice as aoc} linjen] Altså, i det her skridt bruger jeg choice , så det kommer an på, om du tror på det eller ej.\n\\scene{Lys ned.}",
     "duration": 2.5,
     "writtenBy": "KE '18 og Carl '21",
-    "actLabel": "Akt 1"
-  },
-  {
-    "id": "1-7",
-    "number": 7,
-    "name": "Testband",
-    "types": [
-      "bandsang"
-    ],
-    "schedulable": false,
-    "cast": [],
-    "priority": 0,
-    "repeat": false,
-    "duration": 4,
-    "scriptBody": "\\sings{S1}[Vers] Wow, sikke en god sang vi skal til at synge\n\n\\sings{S2}[Omkvæd] Håber publikum kan lide vores tema i år",
-    "melody": "Carl: \"Hello\"",
-    "writtenBy": "Carl '21",
     "actLabel": "Akt 1"
   },
   {
