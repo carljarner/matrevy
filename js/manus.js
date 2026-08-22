@@ -1533,6 +1533,120 @@ function renderSelectColumn(type) {
   return section;
 }
 
+// ── Delete a scene from Vælg scener — sketch/song (admin only, purges the
+// uploaded files too) or video/bandsang (any boss, in-memory draft only) ──
+// Two-step confirm mirroring budget.js's openDeleteYearWarning/
+// openDeleteYearConfirm — step 1's wording branches on manusRowIsManualMedia
+// (a manual row has no backing archive files, so it skips that sentence),
+// step 2 is the same "Er du sikker?" confirm either way. Works on a row
+// regardless of placement (still-unplaced pool upload or already in an act)
+// — on success the row is filtered out of manusDraft.rows entirely, so a
+// placed scene also disappears from its act (effective on the next Gem).
+function openManuscriptDeleteWarning(row) {
+  const { modal, form, actions, close } = siteOpenModalWithClose('Slet scene?');
+  modal.classList.add('manus-delete-warning-modal');
+
+  const info = document.createElement('p');
+  info.textContent = manusRowIsManualMedia(row)
+    ? `Slet "${manusRowTitle(row)}" permanent?`
+    : `Dette sletter "${manusRowTitle(row)}" permanent, inklusive de uploadede .tex- og .pdf-filer fra GitHub.`;
+  form.appendChild(info);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.textContent = 'Annuller';
+  cancelBtn.addEventListener('click', close);
+
+  const continueBtn = document.createElement('button');
+  continueBtn.className = 'site-pill-btn site-pill-danger';
+  continueBtn.textContent = 'Fortsæt';
+  continueBtn.addEventListener('click', () => {
+    close();
+    openManuscriptDeleteConfirm(row);
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(continueBtn);
+}
+
+function openManuscriptDeleteConfirm(row) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('manus-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'manus-confirm-text';
+  info.textContent = 'Er du sikker?';
+  form.appendChild(info);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.textContent = 'Annuller';
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.textContent = 'Slet';
+  confirmBtn.addEventListener('click', async () => {
+    // A manual media row has no backing archive files/manuscripts.json
+    // record — nothing to call the server for, just drop it from the draft.
+    if (manusRowIsManualMedia(row)) {
+      manusDraft.rows = manusDraft.rows.filter(r => r.key !== row.key);
+      close();
+      renderSelectTab();
+      return;
+    }
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const pdfPath = manusRowPdfPath(row);
+    const texPath = manusRowTexPath(row);
+    const id = row.origin === 'pool' ? row.submission.id : null;
+    const result = await manusApi('manuscripts_delete', { pdfPath, texPath, id });
+    if (result.ok) {
+      manusDraft.rows = manusDraft.rows.filter(r => r.key !== row.key);
+      if (id) {
+        manuscriptsOverride = getEffectiveManuscripts().filter(s => s.id !== id);
+        siteSaveOverride('manuscripts', manuscriptsOverride);
+      }
+      close();
+      renderSelectTab();
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// Plain numeric text field for a row's duration — deliberately not
+// <input type="number">, whose spinner arrows steal the click (and the
+// keyboard focus lands mid-value) instead of just placing the caret. Filters
+// on every keystroke to digits plus a single "," or "." (both treated as the
+// decimal point, matching how a Dane would naturally type a fraction).
+// Shared by renderSelectRow's read-only branch and renderVideoBandsangRow.
+function manusCreateDurationInput(row) {
+  const durationInput = document.createElement('input');
+  durationInput.type = 'text';
+  durationInput.inputMode = 'decimal';
+  durationInput.className = 'manus-select-duration';
+  durationInput.placeholder = '–';
+  durationInput.value = row.duration != null ? row.duration : '';
+  durationInput.addEventListener('click', (e) => e.stopPropagation());
+  durationInput.addEventListener('input', () => {
+    let v = durationInput.value.replace(/[^0-9.,]/g, '');
+    const sepIdx = v.search(/[.,]/);
+    if (sepIdx !== -1) {
+      v = v.slice(0, sepIdx + 1) + v.slice(sepIdx + 1).replace(/[.,]/g, '');
+    }
+    if (v !== durationInput.value) durationInput.value = v;
+    row.duration = v === '' ? null : Number(v.replace(',', '.'));
+  });
+  return durationInput;
+}
+
 // Title + duration only. Selection itself is no longer toggled by clicking
 // a row here — that moved into the "Vælg scener" overlay (openSelectScenesOverlay)
 // so a stray click on this list can't silently flip whether a scene is in the
@@ -1576,23 +1690,31 @@ function renderSelectRow(row, { interactive = false, selected = row.selected ===
     return el;
   }
 
-  const durationInput = document.createElement('input');
-  durationInput.type = 'number';
-  durationInput.min = '0';
-  durationInput.step = '0.5';
-  durationInput.className = 'manus-select-duration';
-  durationInput.placeholder = '–';
-  durationInput.value = row.duration != null ? row.duration : '';
+  const durationInput = manusCreateDurationInput(row);
   durationInput.dataset.manusSelectDuration = row.key;
-  durationInput.addEventListener('click', (e) => e.stopPropagation());
-  durationInput.addEventListener('input', () => {
-    row.duration = durationInput.value === '' ? null : Number(durationInput.value);
-  });
   el.appendChild(durationInput);
   const suffix = document.createElement('span');
   suffix.className = 'manus-akt-duration-suffix';
   suffix.textContent = 'min';
   el.appendChild(suffix);
+
+  // Admin-only, stricter than the page's ambient boss floor — see
+  // openManuscriptDeleteWarning above. Never shown for a manual media row
+  // (manusRowPdfPath is always null there; those get Feature A's in-modal
+  // Slet button instead).
+  if (siteHasLevel('admin') && manusRowPdfPath(row)) {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'manus-select-remove';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Slet permanent';
+    removeBtn.setAttribute('aria-label', `Slet ${manusRowTitle(row)} permanent`);
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openManuscriptDeleteWarning(row);
+    });
+    el.appendChild(removeBtn);
+  }
 
   return el;
 }
@@ -1617,22 +1739,27 @@ function renderVideoBandsangRow(row) {
   title.textContent = manusRowTitle(row);
   el.appendChild(title);
 
-  const durationInput = document.createElement('input');
-  durationInput.type = 'number';
-  durationInput.min = '0';
-  durationInput.step = '0.5';
-  durationInput.className = 'manus-select-duration';
-  durationInput.placeholder = '–';
-  durationInput.value = row.duration != null ? row.duration : '';
-  durationInput.addEventListener('click', (e) => e.stopPropagation());
-  durationInput.addEventListener('input', () => {
-    row.duration = durationInput.value === '' ? null : Number(durationInput.value);
-  });
+  const durationInput = manusCreateDurationInput(row);
   el.appendChild(durationInput);
   const suffix = document.createElement('span');
   suffix.className = 'manus-akt-duration-suffix';
   suffix.textContent = 'min';
   el.appendChild(suffix);
+
+  // Same in-row delete entry point as a sketch/song's (no admin gate here —
+  // a manual media row has no backing archive files, so openManuscriptDeleteWarning
+  // skips that sentence for it; see manusRowIsManualMedia there).
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'manus-select-remove';
+  removeBtn.textContent = '✕';
+  removeBtn.title = 'Slet';
+  removeBtn.setAttribute('aria-label', `Slet ${manusRowTitle(row)}`);
+  removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openManuscriptDeleteWarning(row);
+  });
+  el.appendChild(removeBtn);
 
   const open = () => openVideoBandsangModal(row);
   el.addEventListener('click', open);

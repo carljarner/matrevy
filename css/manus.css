@@ -481,7 +481,7 @@ a.manus-pdf-title:focus-visible {
 
 .manus-select-duration {
   flex: none;
-  width: 3.6rem;
+  width: 2.6rem;
   padding: 0.2rem 0.35rem;
   font-size: 0.85rem;
   border: 1px solid var(--border);
@@ -494,6 +494,34 @@ a.manus-pdf-title:focus-visible {
   outline: none;
   border-color: var(--accent-warm);
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Admin-only permanent delete (Vælg scener rows) — black at rest, unlike
+   .manus-pdf-remove's muted-gray, per explicit "black x" request. */
+.manus-select-remove {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.2rem;
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  transition: color 0.15s, box-shadow 0.15s;
+}
+
+@media (hover: hover) {
+  .manus-select-remove:hover { color: var(--danger); }
+}
+
+.manus-select-remove:focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
 }
 
 /* "Udvælgelse" control column — stacked heading+button groups rather than
@@ -870,6 +898,31 @@ a.manus-pdf-title:focus-visible {
    content is genuinely LaTeX source, not prose. */
 .manus-script-modal {
   width: min(720px, 94vw);
+}
+
+/* --- Delete confirmations (video/bandsang Slet, admin pool delete) ---
+   Step 1 of the pool-delete flow (openManuscriptDeleteWarning) keeps its
+   heading but is narrower than the default .edit-modal chrome (480px) it
+   would otherwise inherit. Step 2 (openManuscriptDeleteConfirm) and the
+   video/bandsang delete confirm (openDeleteMediaRowConfirm) both drop the
+   usual h2 heading in favor of one bold centered line — the shared
+   "Er du sikker?" redesign already used by Kalender's .cal-confirm-modal/
+   .cal-confirm-text (calendar.css), Wiki's .wiki-confirm-modal/-text
+   (wiki.css) and Forside's .post-confirm-modal/-text (style.css). */
+.manus-delete-warning-modal {
+  width: min(380px, 90vw);
+}
+
+.manus-confirm-modal {
+  width: min(300px, 85vw);
+}
+
+.login-modal .manus-confirm-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 0.5rem;
 }
 
 .manus-script-roles-heading {

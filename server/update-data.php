@@ -219,6 +219,20 @@ if ($action === 'manuscripts_sync_selection') {
   manuscripts_sync_selection($body);
 }
 
+// manuscripts_delete is admin-level (stricter than the `manuscripts`
+// resource's boss-level save_manuscripts) — permanently deletes a
+// submission's pdf/tex files from the repo AND its JSON record (if one
+// still exists) in one request, unlike save_manuscripts (record-only) or
+// manuscripts_sync_selection (files moved, never deleted). Not in
+// $RESOURCES: only accepts a single {pdfPath, texPath, id?}, never a
+// full-array replace.
+if ($action === 'manuscripts_delete') {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK['admin']) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  manuscripts_delete($body);
+}
+
 if ($action !== 'save') {
   respond(400, ['error' => 'unknown_action']);
 }
@@ -1579,6 +1593,38 @@ function manuscripts_sync_selection($body) {
   }, 'Synkroniser manus-udvælgelse');
 
   respond(200, ['ok' => true, 'results' => $results]);
+}
+
+// Admin-only permanent delete: removes the pdf+tex files from the repo and,
+// if a matching submission record still exists, drops it from
+// data/manuscripts.json too. Matches by pdfPath/texPath (not just id) so an
+// already-placed row — which the client only knows via its scene's
+// sourcePdf/sourceTex, never the original submission id — is still cleaned
+// up correctly; if no submission matches, the filter below is a no-op and
+// only the files are removed.
+function manuscripts_delete($body) {
+  $pdfPath = $body['pdfPath'] ?? '';
+  $texPath = $body['texPath'] ?? '';
+  $id = $body['id'] ?? null;
+  if (!is_string($pdfPath) || !preg_match(ARCHIVE_MANUS_ANY_RE, $pdfPath)
+      || !is_string($texPath) || !preg_match(ARCHIVE_MANUS_ANY_RE, $texPath)) {
+    respond(400, ['error' => 'bad_path']);
+  }
+
+  delete_file($pdfPath, 'Slet manus permanent: ' . $pdfPath);
+  delete_file($texPath, 'Slet manus permanent: ' . $texPath);
+
+  update_file('data/manuscripts.json', function ($json) use ($pdfPath, $texPath, $id) {
+    $submissions = (is_array($json['submissions'] ?? null)) ? $json['submissions'] : [];
+    $json['submissions'] = array_values(array_filter($submissions, function ($s) use ($pdfPath, $texPath, $id) {
+      if ($id !== null && ($s['id'] ?? null) === $id) return false;
+      if (($s['pdfPath'] ?? null) === $pdfPath || ($s['texPath'] ?? null) === $texPath) return false;
+      return true;
+    }));
+    return $json;
+  }, 'Slet manus permanent fra manuscripts.json');
+
+  respond(200, ['ok' => true]);
 }
 
 // Boss/admin: full-array replace, used only for removing a submission (the
