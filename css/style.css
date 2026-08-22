@@ -182,6 +182,9 @@ body {
 .site-gate-card {
   width: 50%;
   min-width: 260px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
 }
 
 @media (max-width: 719px) {
@@ -190,7 +193,7 @@ body {
 
 .site-gate-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   margin-top: 0.75rem;
 }
 

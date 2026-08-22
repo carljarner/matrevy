@@ -756,7 +756,7 @@ function appendNextPostsBatch(list, sentinel) {
 }
 
 // ── Rendering: the feed (single merged, pinned-first, sorted list) ──
-function renderPostFeed(posts, listId, adminId, canCreate) {
+function renderPostFeed(posts, listId, adminId, canCreate, emptyMessage) {
   const list = document.getElementById(listId);
   if (!list) return;
 
@@ -778,7 +778,7 @@ function renderPostFeed(posts, listId, adminId, canCreate) {
   list.textContent = '';
   if (posts.length === 0) {
     const empty = document.createElement('p');
-    empty.textContent = 'Ingen opslag endnu.';
+    empty.textContent = emptyMessage || 'Ingen opslag endnu.';
     list.appendChild(empty);
     return;
   }
@@ -814,7 +814,8 @@ function renderPosts() {
           return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
         })
     : [];
-  renderPostFeed(all, 'posts-list', 'posts-admin', siteHasLevel('revyst'));
+  renderPostFeed(all, 'posts-list', 'posts-admin', siteHasLevel('revyst'),
+    siteHasLevel('revyst') ? undefined : 'Log ind for at se opslag');
 }
 
 // ── Detail modal: image, full text, comments, admin actions ──
