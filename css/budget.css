@@ -572,9 +572,21 @@
 
 .budget-save-bar {
   display: flex;
+  position: relative;
   justify-content: space-between;
   gap: 0.75rem;
   margin-top: 0.75rem;
+}
+
+/* Placeholder button — true-centers it in the row regardless of the
+   Slet/Gem buttons' own widths, since a 3-child space-between row only
+   centers the middle child when the outer two are equal width. */
+.budget-edit-placeholder {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* --- Mobile (site-wide 719px convention) ------------------ */

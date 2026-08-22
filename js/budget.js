@@ -861,6 +861,11 @@ function renderBudgetSheet(container) {
   deleteYearBtn.type = 'button';
   deleteYearBtn.addEventListener('click', () => openDeleteYearWarning(document.getElementById('budget-root')));
   saveBar.appendChild(deleteYearBtn);
+  // Placeholder reminder — not implemented yet, deliberately inert.
+  const editBudgetBtn = el('button', 'btn-small budget-edit-placeholder', 'Rediger');
+  editBudgetBtn.type = 'button';
+  editBudgetBtn.disabled = true;
+  saveBar.appendChild(editBudgetBtn);
   const saveBtn = el('button', 'site-btn-primary', 'Gem');
   saveBtn.type = 'button';
   saveBtn.addEventListener('click', () => saveBudgetSheet());
@@ -1412,7 +1417,7 @@ function openExpenseEditModal(root, exp) {
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
-    `${budgetCategoryLabel(exp.category)} · ${exp.name || '—'} · ${exp.phone || '—'}`));
+    `${budgetCategoryLabel(exp.category)} · ${formatKr(exp.amount)} · ${exp.name || '—'} · ${exp.phone || '—'}`));
   form.appendChild(el('p', 'budget-intro',
     `Bilag ${exp.bilag || '—'}`
     + ` · Indsendt ${formatDaNumeric(String(exp.date || '').slice(0, 10))}`
