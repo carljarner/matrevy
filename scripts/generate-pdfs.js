@@ -133,8 +133,17 @@ function slugify(name) {
 function isSongScene(scene) { return (scene.types || []).some((t) => t === 'sang' || t === 'bandsang'); }
 function isDansScene(scene) { return (scene.types || []).includes('dans'); }
 function hasScript(scene) {
-  return !!scene.scriptBody && (scene.types || []).some((t) => t === 'sketch' || t === 'sang' || t === 'bandsang');
+  return !!scene.scriptBody && (scene.types || []).some((t) => t === 'sketch' || t === 'sang' || t === 'bandsang' || t === 'video');
 }
+
+// A manually-added video/bandsang row (see js/manus.js's "Videoer &
+// Bandsange" card) has no rehearsable cast and is never schedulable in
+// Øveplan — Rolleoversigt (the "Rollefordeling" PDF) exists to show who's
+// cast where for rehearsal-scheduling purposes, so these rows are excluded
+// from it entirely (mirrors js/manus.js's own manusRowIsManualMedia(), which
+// checks `types`, not `origin`, for the identical reason). Manuskript (the
+// "Manus" PDF), by contrast, must include everything — see hasScript above.
+function isMediaScene(scene) { return (scene.types || []).some((t) => t === 'video' || t === 'bandsang'); }
 
 function deriveSourcePdfPath(scene, currentFolder) {
   if (scene.sourcePdf) return scene.sourcePdf;
@@ -330,8 +339,15 @@ ${body}\\end{document}
 // any TeX is emitted, so it just writes one `&\actor{Name}` column header
 // per actor directly — same visual result, no macro trickery needed.
 function buildRolleoversigtTex(actsData, prodMeta) {
+  // Only schedulable scenes (sketches/songs) belong here — see isMediaScene's
+  // own doc comment above for why video/bandsang rows are excluded.
+  const actsSchedulable = actsData.map((act) => ({
+    ...act,
+    scenes: act.scenes.filter((s) => !isMediaScene(s)),
+  }));
+
   const actorSet = new Set();
-  for (const act of actsData) {
+  for (const act of actsSchedulable) {
     for (const s of act.scenes) {
       for (const c of s.cast || []) if (c.name) actorSet.add(c.name);
     }
@@ -344,7 +360,7 @@ function buildRolleoversigtTex(actsData, prodMeta) {
   header += '\\\\\\hline\n';
 
   let body = '';
-  for (const act of actsData) {
+  for (const act of actsSchedulable) {
     body += `\\multicolumn{${n + 2}}{|l|}{\\textbf{${texEscape(act.label)}}}\\\\\n\\hline\n`;
     act.scenes.forEach((s, i) => {
       const labelByActor = new Map(sceneCastLabels(s).map((e) => [e.name, e.label]));
@@ -500,7 +516,7 @@ function writeTextToRepo(text, repoRelativeOut) {
 // individual copy just gets the actor's own name centered under the title
 // instead of a labeled fill-in line.
 async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, opts = {}) {
-  const { skuespillerName = '', sceneFilter = () => true } = opts;
+  const { skuespillerName = '', sceneFilter = () => true, aktoversigtPdfPath = '' } = opts;
   const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
   const out = await PDFDocument.create();
 
@@ -535,6 +551,17 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
       font: boldFont,
       color: rgb(0, 0, 0),
     });
+  }
+
+  // The master Manuskript.pdf gets the just-compiled Aktoversigt spliced in
+  // right after the title page, ahead of the per-scene scripts (per explicit
+  // request) — individual/Sangboss manuscripts don't pass this option, so
+  // they stay title-page-then-scripts as before.
+  if (aktoversigtPdfPath) {
+    const bytes = fs.readFileSync(aktoversigtPdfPath);
+    const src = await PDFDocument.load(bytes);
+    const pages = await out.copyPages(src, src.getPageIndices());
+    for (const p of pages) out.addPage(p);
   }
 
   for (const act of actsData) {
@@ -687,9 +714,13 @@ async function main() {
   const rolePdf = writeAndCompile('rolleoversigt', 'Rolleoversigt.tex', roleTex);
   copyToRepo(rolePdf, `archive/${currentFolder}/Rolleoversigt.pdf`);
 
-  // 4) Manuskript — merge every compiled scene PDF, in act order.
+  // 4) Manuskript — merge every compiled scene PDF, in act order, with
+  // Aktoversigt spliced in right after the title page (per explicit
+  // request).
   console.log('  Merging Manuskript...');
-  await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`));
+  await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`), {
+    aktoversigtPdfPath: aktPdf,
+  });
 
   // 5) One personalized manuscript per cast.json roster entry, plus the
   // fixed Sangboss manuscript (every song, regardless of cast).
@@ -711,7 +742,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  texEscape, slugify, classifyOrKeep, castRoleLabels, sceneCastLabels, hasScript, deriveSourcePdfPath,
+  texEscape, slugify, classifyOrKeep, castRoleLabels, sceneCastLabels, hasScript, isMediaScene, deriveSourcePdfPath,
   deriveSourceTexPath,
   extractTexMelody, extractTexAuthor,
   buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
