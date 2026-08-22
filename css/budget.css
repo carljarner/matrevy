@@ -315,6 +315,13 @@
   padding: 0 0.3rem;
 }
 
+.budget-thumb-pdf-label {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* --- Paid browser ----------------------------------------- */
 .budget-filter {
   display: flex;
@@ -338,6 +345,21 @@
 .budget-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Blank rows padding the paid-ledger table out to its "10 entries" height
+   (see js/budget.js's renderPaidTable) — invisible, no dividing border, so
+   a filtered/near-empty result doesn't visibly collapse the card. */
+/* "tr.budget-row-filler td", not ".budget-row-filler td", specifically to
+   out-specificity the later ".budget-table td { border-bottom: ... }" base
+   rule below — both are otherwise a single class + a type selector, and the
+   base rule wins ties by appearing later in the file. */
+tr.budget-row-filler td {
+  border-bottom: none;
+}
+
+.budget-empty-msg {
+  color: var(--text-muted);
 }
 
 .budget-paid-toggle {
@@ -404,6 +426,22 @@
    rather than shrink. */
 .budget-td-narrow {
   word-break: break-word;
+}
+
+/* Kommentar (the paid-ledger table's 6th column) shifted 110px right of
+   where it'd otherwise sit, without touching the five equal-width columns
+   before it (.budget-col-eq) or the actions column after it — a left
+   padding on the same cell reads identically to an actual spacer column
+   here, since there's no vertical border between columns to expose the
+   difference. Scoped to ≥720px: the ≤719px block below turns every row
+   into a stacked card, where this padding would misalign the label/value
+   pairs, so it must lose to that block's own td padding reset — instead of
+   fighting for specificity there, it's simply not declared for that width. */
+@media (min-width: 720px) {
+  .budget-table:not(.budget-sheet-table) th:nth-child(6),
+  .budget-table:not(.budget-sheet-table) td:nth-child(6) {
+    padding-left: 110px;
+  }
 }
 
 .budget-table td.budget-td-amount {
@@ -502,6 +540,14 @@
 .budget-save-status.error { color: var(--danger); }
 
 .budget-sheet-table { min-width: 460px; }
+
+/* Planlagt/Brugt/Rest headers centered over their (right-aligned) number
+   columns; Kategori (1st) stays left-aligned as a row label. */
+.budget-sheet-table th:nth-child(2),
+.budget-sheet-table th:nth-child(3),
+.budget-sheet-table th:nth-child(4) {
+  text-align: center;
+}
 
 /* Brugt/Rest hold formatted kr amounts that grow/shrink as figures change
    (e.g. "0,00 kr" vs "-12.345,67 kr") — a fixed floor sized for the largest
@@ -728,4 +774,12 @@
   .budget-table:not(.budget-sheet-table) td:nth-child(7) {
     justify-content: flex-end;
   }
+
+  /* The card-per-row mobile layout above already reads as a natural,
+     variable-length list — the desktop-only "hold 10 rows of height"
+     padding would instead render as a stack of empty bordered/labelled
+     cards, so it's dropped entirely here. ".budget-table tr.budget-row-filler"
+     (not just ".budget-row-filler") to out-specificity the plain
+     ".budget-table tr { display: block }" rule above. */
+  .budget-table tr.budget-row-filler { display: none; }
 }

@@ -410,14 +410,23 @@ function budget_category_keys() {
 }
 
 // The ONLY guard between a request's "file" field and reading an arbitrary
-// file off the host. Receipts are always JPEGs named "<key>_<n>.jpg" (paid)
-// or "pending/<id>.jpg" (submitted). Keep it strict.
+// file off the host. Receipts are named "<key>_<n>.<ext>" (paid) or
+// "pending/<id>.<ext>" (submitted), ext being jpg (re-encoded images) or
+// pdf (uploaded as-is — see budget_receipt_ext). Keep it strict.
 // A function, not a `const`: the budget-action dispatch runs before any
 // top-level `const` line in this file has executed (PHP registers const
 // declarations in execution order), so a const here would be undefined at
 // call time — see budget_category_keys() for the same reason.
 function budget_receipt_re() {
-  return '#^(pending/)?[A-Za-z0-9_]+\.jpg$#';
+  return '#^(pending/)?[A-Za-z0-9_]+\.(jpg|pdf)$#';
+}
+
+// Validates a client-supplied receipt extension, defaulting to 'jpg' (every
+// caller pre-dating PDF support omits this field entirely).
+function budget_receipt_ext($body) {
+  $ext = $body['receiptExt'] ?? 'jpg';
+  if ($ext !== 'jpg' && $ext !== 'pdf') respond(400, ['error' => 'invalid_shape']);
+  return $ext;
 }
 
 // ~5 MB cap on a decoded receipt (mirrors MAX_UPLOAD_BYTES, inlined for the
@@ -609,10 +618,11 @@ function budget_submit($body) {
     respond(400, ['error' => 'invalid_shape']);
   }
   $raw = budget_decode_receipt($receipt);
+  $ext = budget_receipt_ext($body);
 
   $id = dechex(time()) . bin2hex(random_bytes(4));
   $receiptsDir = budget_receipts_dir($year);
-  if (@file_put_contents($receiptsDir . '/pending/' . $id . '.jpg', $raw) === false) {
+  if (@file_put_contents($receiptsDir . '/pending/' . $id . '.' . $ext, $raw) === false) {
     respond(500, ['error' => 'budget_storage_unavailable']);
   }
 
@@ -623,7 +633,7 @@ function budget_submit($body) {
     'name'        => trim($name),
     'phone'       => trim($phone),
     'comment'     => trim($comment),
-    'receiptFile' => 'pending/' . $id . '.jpg',
+    'receiptFile' => 'pending/' . $id . '.' . $ext,
     'createdAt'   => date('c'),
   ];
   budget_mutate($year, 'requests.json', ['requests' => []], function ($json) use ($request) {
@@ -674,14 +684,15 @@ function budget_receipt($body) {
   }
   $path = budget_year_dir($year) . '/receipts/' . $file;
   if (!is_file($path)) respond(404, ['error' => 'not_found']);
-  header('Content-Type: image/jpeg');
+  $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+  header('Content-Type: ' . ($ext === 'pdf' ? 'application/pdf' : 'image/jpeg'));
   header('Content-Length: ' . filesize($path));
   readfile($path);
   exit;
 }
 
 // Admin: approve a pending request → assign the next bilag number for its
-// category, rename the receipt to "<key>_<n>.jpg", move it into the ledger.
+// category, rename the receipt to "<key>_<n>.<ext>", move it into the ledger.
 // $body['year'] (optional) picks which year's pending requests to approve
 // into; defaults to the active year.
 function budget_approve($body) {
@@ -714,13 +725,16 @@ function budget_approve($body) {
 
   $category = $found['category'];
   $n = budget_next_n($year, $category);
-  $receiptFile = $category . '_' . $n . '.jpg';
 
-  // Rename the receipt pending/<id>.jpg → <key>_<n>.jpg (best-effort).
+  // Rename the receipt pending/<id>.<ext> → <key>_<n>.<ext> (best-effort) —
+  // ext follows whatever the pending file actually is (jpg or pdf), never
+  // hardcoded, so a PDF receipt doesn't get silently renamed to .jpg.
   $receiptsDir = budget_receipts_dir($year);
   $oldPath = $receiptsDir . '/' . ($found['receiptFile'] ?? '');
   $newRel = '';
   if (preg_match(budget_receipt_re(), $found['receiptFile'] ?? '') && is_file($oldPath)) {
+    $ext = strtolower(pathinfo($found['receiptFile'], PATHINFO_EXTENSION));
+    $receiptFile = $category . '_' . $n . '.' . $ext;
     if (@rename($oldPath, $receiptsDir . '/' . $receiptFile)) $newRel = $receiptFile;
   }
 
@@ -857,8 +871,9 @@ function budget_expense_add($body) {
   $receiptRel = '';
   if ($receipt !== '') {
     $raw = budget_decode_receipt($receipt);
+    $ext = budget_receipt_ext($body);
     $receiptsDir = budget_receipts_dir($year);
-    $receiptRel = $category . '_' . $n . '.jpg';
+    $receiptRel = $category . '_' . $n . '.' . $ext;
     if (@file_put_contents($receiptsDir . '/' . $receiptRel, $raw) === false) {
       respond(500, ['error' => 'budget_storage_unavailable']);
     }
@@ -980,7 +995,7 @@ function budget_expense_remove($body) {
 }
 
 // Admin: edit a pending request. Category may change (no bilag assigned yet; the
-// receipt stays pending/<id>.jpg regardless). $body['year'] (optional) picks
+// receipt stays pending/<id>.<ext> regardless). $body['year'] (optional) picks
 // which year; defaults to the active year.
 function budget_request_update($body) {
   $year     = budget_resolve_year($body);

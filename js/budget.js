@@ -7,7 +7,7 @@
      photo, comment).
    - Admins (kasserer) review pending requests and approve them
      (paid) — which assigns the next bilagsnummer, renames the
-     receipt to "<kategori>_<n>.jpg" and moves it into the ledger —
+     receipt to "<kategori>_<n>.<ext>" and moves it into the ledger —
      plus a read-only browser of paid expenses by category.
 
    Unlike the other data-driven pages, the budget data is PRIVATE:
@@ -137,18 +137,26 @@ async function compressReceiptImage(file, { maxWidth = 1600, quality = 0.8 } = {
   return blob;
 }
 
-// Returns raw base64 JPEG bytes for upload. Prefers a re-encoded/
-// downscaled JPEG; falls back to the original file bytes if the
-// browser can't process the image at all (better a big-but-working
-// receipt than a blocked submit).
+function isPdfFile(file) {
+  return file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+}
+
+// Returns { base64, size, ext } for upload. A PDF is sent through
+// unchanged (there's nothing to re-encode/downscale) with ext:'pdf';
+// an image prefers a re-encoded/downscaled JPEG, falling back to the
+// original file bytes if the browser can't process it at all (better
+// a big-but-working receipt than a blocked submit) — always ext:'jpg'.
 async function receiptToBase64(file) {
+  if (isPdfFile(file)) {
+    return { base64: await blobToBase64(file), size: file.size, ext: 'pdf' };
+  }
   let blob;
   try {
     blob = await compressReceiptImage(file);
   } catch (e) {
     blob = file;
   }
-  return { base64: await blobToBase64(blob), size: blob.size };
+  return { base64: await blobToBase64(blob), size: blob.size, ext: 'jpg' };
 }
 
 // ── Authenticated API ────────────────────────────────────────
@@ -273,8 +281,8 @@ function renderRevystForm(root) {
 
   const receiptInput = el('input', 'site-file-input');
   receiptInput.type = 'file';
-  receiptInput.accept = 'image/*';
-  card.appendChild(siteEditField('Billede af kvittering', receiptInput));
+  receiptInput.accept = 'image/*,application/pdf';
+  card.appendChild(siteEditField('Kvittering (billede eller PDF)', receiptInput));
 
   const commentInput = el('textarea');
   commentInput.placeholder = 'valgfrit';
@@ -304,18 +312,18 @@ function renderRevystForm(root) {
     if (!(amount > 0)) return setMsg('Angiv et gyldigt beløb.', 'error');
     if (!name) return setMsg('Skriv dit navn.', 'error');
     if (!phone) return setMsg('Skriv dit telefonnummer.', 'error');
-    if (!file) return setMsg('Vedhæft et billede af kvitteringen.', 'error');
+    if (!file) return setMsg('Vedhæft en kvittering (billede eller PDF).', 'error');
 
     submitBtn.disabled = true;
     setMsg('Sender …', null);
     try {
-      const { base64: receiptBase64, size } = await receiptToBase64(file);
+      const { base64: receiptBase64, size, ext: receiptExt } = await receiptToBase64(file);
       if (size > 5 * 1024 * 1024) {
         submitBtn.disabled = false;
-        return setMsg('Billedet er for stort (maks. 5 MB). Prøv et mindre billede.', 'error');
+        return setMsg('Filen er for stor (maks. 5 MB). Prøv en mindre fil.', 'error');
       }
       const result = await budgetApi('budget_submit', {
-        category, amount, name, phone, comment, receiptBase64,
+        category, amount, name, phone, comment, receiptBase64, receiptExt,
       });
       if (result.ok) {
         categorySelect.value = '';
@@ -329,7 +337,7 @@ function renderRevystForm(root) {
         setMsg('', null); // cancelled password prompt
       }
     } catch (e) {
-      setMsg('Kunne ikke behandle billedet. Prøv et andet billede.', 'error');
+      setMsg('Kunne ikke behandle filen. Prøv en anden fil.', 'error');
     }
     submitBtn.disabled = false;
   });
@@ -342,6 +350,19 @@ function budgetReceiptThumb(file) {
   const wrap = el('div', 'budget-thumb');
   if (!file) {
     wrap.appendChild(el('span', 'budget-thumb-empty', 'Ingen kvittering'));
+    return wrap;
+  }
+  // A PDF can't be shown inline as an <img> — a clickable placeholder opens
+  // it in a new tab instead, fetched lazily on click (not up front) so a
+  // list of pending requests doesn't eagerly download every PDF at once.
+  if (/\.pdf$/i.test(file)) {
+    wrap.classList.add('budget-thumb-pdf');
+    const link = el('span', 'budget-thumb-empty budget-thumb-pdf-label', 'PDF');
+    link.addEventListener('click', async () => {
+      const url = await budgetFetchReceipt(file);
+      if (url) window.open(url, '_blank');
+    });
+    wrap.appendChild(link);
     return wrap;
   }
   wrap.appendChild(el('span', 'budget-thumb-empty', 'Henter …'));
@@ -1230,11 +1251,6 @@ function renderPaidTable(wrap) {
     .filter((e) => budgetPaidFilter === 'alle' || e.category === budgetPaidFilter)
     .sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
-  if (rows.length === 0) {
-    wrap.appendChild(el('p', 'budget-intro', 'Ingen betalte udgifter i denne kategori endnu.'));
-    return;
-  }
-
   const visibleRows = budgetPaidExpanded ? rows : rows.slice(0, BUDGET_PAID_PAGE_SIZE);
 
   const table = el('table', 'budget-table budget-table-fixed');
@@ -1294,6 +1310,42 @@ function renderPaidTable(wrap) {
 
     tbody.appendChild(tr);
   });
+
+  // Keep the section at its "10 entries" height even when a filter (or a
+  // near-empty ledger) leaves fewer rows to show, so switching categories
+  // doesn't make the card visibly collapse/grow — pad out with blank filler
+  // rows rather than reserving height via a measured min-height, since the
+  // real per-row height varies with wrapped Kommentar text anyway.
+  if (!budgetPaidExpanded) {
+    if (visibleRows.length === 0) {
+      // Not .budget-intro (font-size 0.9rem vs. the table's own 0.85rem) —
+      // that mismatch alone was enough to make this row noticeably taller
+      // than the plain filler rows padding out the rest of the height.
+      const emptyTr = el('tr');
+      const emptyTd = el('td', 'budget-empty-msg', 'Ingen betalte udgifter i denne kategori endnu.');
+      emptyTd.colSpan = 7;
+      emptyTr.appendChild(emptyTd);
+      tbody.appendChild(emptyTr);
+    }
+    const shown = Math.max(visibleRows.length, 1);
+    for (let i = shown; i < BUDGET_PAID_PAGE_SIZE; i++) {
+      const fillerTr = el('tr', 'budget-row-filler');
+      for (let c = 0; c < 6; c++) fillerTr.appendChild(el('td', null, ' '));
+      // A real row's height actually comes from its 1.8rem Se/Rediger icon
+      // buttons, not from any of the text columns — a hidden same-size
+      // placeholder here reproduces that height exactly, tracking
+      // .budget-icon-btn automatically instead of hardcoding a pixel value.
+      const actionsTd = el('td');
+      const actionsWrap = el('span', 'budget-action-icons');
+      const placeholder = el('span', 'budget-icon-btn');
+      placeholder.style.visibility = 'hidden';
+      actionsWrap.appendChild(placeholder);
+      actionsTd.appendChild(actionsWrap);
+      fillerTr.appendChild(actionsTd);
+      tbody.appendChild(fillerTr);
+    }
+  }
+
   table.appendChild(tbody);
   wrap.appendChild(table);
 
@@ -1392,8 +1444,8 @@ function openExpenseAddModal(root) {
 
   const receiptInput = el('input', 'site-file-input');
   receiptInput.type = 'file';
-  receiptInput.accept = 'image/*';
-  form.appendChild(siteEditField('Billede af kvittering (valgfrit)', receiptInput));
+  receiptInput.accept = 'image/*,application/pdf';
+  form.appendChild(siteEditField('Kvittering (billede eller PDF, valgfrit)', receiptInput));
 
   const confirmBtn = budgetPillBtn('Tilføj', 'site-pill-primary');
   confirmBtn.addEventListener('click', async () => {
@@ -1404,19 +1456,21 @@ function openExpenseAddModal(root) {
     confirmBtn.disabled = true;
     error.textContent = '';
     let receiptBase64 = '';
+    let receiptExt = '';
     const file = receiptInput.files && receiptInput.files[0];
     if (file) {
       try {
-        const { base64, size } = await receiptToBase64(file);
-        if (size > 5 * 1024 * 1024) {
+        const result = await receiptToBase64(file);
+        if (result.size > 5 * 1024 * 1024) {
           confirmBtn.disabled = false;
-          error.textContent = 'Billedet er for stort (maks. 5 MB).';
+          error.textContent = 'Filen er for stor (maks. 5 MB).';
           return;
         }
-        receiptBase64 = base64;
+        receiptBase64 = result.base64;
+        receiptExt = result.ext;
       } catch (e) {
         confirmBtn.disabled = false;
-        error.textContent = 'Kunne ikke behandle billedet. Prøv et andet.';
+        error.textContent = 'Kunne ikke behandle filen. Prøv en anden.';
         return;
       }
     }
@@ -1428,6 +1482,7 @@ function openExpenseAddModal(root) {
       settled: true,
       comment: commentInput.value.trim(),
       receiptBase64,
+      receiptExt,
       year: budgetViewYear,
     });
     if (result.ok) {
