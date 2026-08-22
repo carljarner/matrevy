@@ -2366,9 +2366,16 @@ function openSelectScenesOverlay() {
     if (MANUS_TYPES.includes(manusRowType(row))) pending.set(row.key, row.selected === true);
   }
 
+  // Fixed-height modal with the list area as its own scroll region (like
+  // openPointEntryModal's .manus-points-list) — the shared `actions` bar
+  // with the Gem button below `form` stays visible without scrolling.
+  const scrollMount = document.createElement('div');
+  scrollMount.className = 'manus-select-overlay-scroll';
+  form.appendChild(scrollMount);
+
   const listsMount = document.createElement('div');
   listsMount.className = 'manus-select-overlay-lists';
-  form.appendChild(listsMount);
+  scrollMount.appendChild(listsMount);
 
   function togglePending(key) {
     pending.set(key, !pending.get(key));
@@ -2590,7 +2597,7 @@ function renderAktfordelingTab() {
   if (!poolRows.length) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
-    empty.textContent = 'Ingen uplaceret manus.';
+    empty.textContent = 'Ingen uplacerede scener.';
     poolGrid.appendChild(empty);
   } else {
     for (const row of poolRows) poolGrid.appendChild(renderDraftRowCard(row));

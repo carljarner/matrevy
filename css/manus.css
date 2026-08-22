@@ -566,7 +566,11 @@ a.manus-pdf-title:focus-visible {
 /* "Vælg scener" overlay: same type-grouped lists as the main columns, just
    without the duration field (selection only) — Sketches/Sange side by
    side (MANUS_TYPES order), stacking to one column on mobile like every
-   other two-up layout on this page. */
+   other two-up layout on this page. Fixed-height with its own internal
+   scroll (see .manus-select-overlay-scroll below), same shape as the
+   "Indtast point" modal (.manus-points-list), so the Gem button in the
+   shared `actions` bar underneath stays visible without scrolling the whole
+   modal. */
 .manus-select-overlay-lists {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -574,17 +578,45 @@ a.manus-pdf-title:focus-visible {
   align-items: start;
 }
 
-/* Wider than the shared .edit-modal's 480px default (like Rollefordeling's
-   .manus-role-modal/Manus's .manus-script-modal) so two side-by-side columns
-   of scene rows have room to breathe. */
+/* Each type group's own row list is itself two columns of (smaller) scene
+   entries, not one long column — so the wider modal fits four columns of
+   scenes total (two for Sketches, two for Sange) rather than sitting mostly
+   empty. */
+.manus-select-overlay-group .manus-col-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+
+/* Same overall width as .manus-points-modal (js/manus.js's "Indtast point")
+   — wide enough for the four-column scene layout above, versus the shared
+   .edit-modal's 480px default (like Rollefordeling's .manus-role-modal/
+   Manus's .manus-script-modal). */
 .manus-select-overlay-modal {
-  width: min(640px, 92vw);
+  width: min(1040px, 96vw);
 }
 
 .manus-select-overlay-group h3 {
   margin: 0 0 0.5rem;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+/* The scrollable middle area — same 55vh cap as .manus-points-list/
+   .manus-points-results-scroll, so all three "list-plus-fixed-controls-
+   below" modals on this page share one consistent shape. */
+.manus-select-overlay-scroll {
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+/* Smaller than the read-only Sketches/Sange columns' own rows (this overlay
+   packs two columns of them side by side per type, see .manus-col-list
+   above) — tighter padding/font/gap so a title still reads comfortably at
+   the narrower per-row width. */
+.manus-select-overlay-group .manus-select-row {
+  padding: 0.3rem 0.4rem;
+  font-size: 0.85rem;
 }
 
 /* "Indtast point" modal (js/manus.js's openPointEntryModal) — much wider
@@ -885,6 +917,13 @@ a.manus-pdf-title:focus-visible {
   overflow-x: auto;
   padding-bottom: 0.25rem;
   min-height: 2rem;
+}
+
+/* Matches .manus-kanban-col-header's own 0.6rem left padding so the empty
+   message lines up flush with "Ikke placeret" above it, instead of sitting
+   flush against the grid's own edge. */
+.manus-kanban-pool-grid .manus-col-empty {
+  padding-left: 0.6rem;
 }
 
 .manus-akt-row {
