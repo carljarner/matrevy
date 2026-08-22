@@ -390,12 +390,36 @@ const BUDGET_PAID_PAGE_SIZE = 10;
 // Which year the admin view is currently displaying/editing — decoupled
 // from which year is "active" (where new revyst submissions/receipts
 // land, see budgetActiveYear below): viewing a past year for corrections
-// (e.g. via "Tilføj udgift") must never change where new uploads go. Both
-// start null and are set from budget_read's own response on first load
-// (the server resolves budgetViewYear=null to "the active year" — see
-// budget_resolve_year in update-data.php — so the very first load always
+// (e.g. via "Tilføj udgift") must never change where new uploads go.
+// Persisted in localStorage so a page refresh keeps showing whatever year
+// the admin last picked in the "Viser budget for" toggle, instead of always
+// resetting to the active year — budgetSetViewYear() is the only thing
+// that should ever assign budgetViewYear, so every change stays persisted.
+// Both start from whatever's persisted (null if nothing/invalid — the
+// server resolves budgetViewYear=null to "the active year", see
+// budget_resolve_year in update-data.php — so a first-ever visit still
 // shows the active year without this client needing to already know it).
-let budgetViewYear = null;
+const BUDGET_VIEW_YEAR_KEY = 'matrevy-budget-view-year';
+
+function budgetLoadPersistedViewYear() {
+  try {
+    const raw = localStorage.getItem(BUDGET_VIEW_YEAR_KEY);
+    const year = raw != null ? Number(raw) : NaN;
+    return Number.isInteger(year) ? year : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function budgetSetViewYear(year) {
+  budgetViewYear = year;
+  try {
+    if (year == null) localStorage.removeItem(BUDGET_VIEW_YEAR_KEY);
+    else localStorage.setItem(BUDGET_VIEW_YEAR_KEY, String(year));
+  } catch (e) { /* ignore (private browsing, storage disabled, ...) */ }
+}
+
+let budgetViewYear = budgetLoadPersistedViewYear();
 let budgetActiveYear = null;
 let budgetYearsList = []; // [{year, label, createdAt}], from years.json
 
@@ -413,7 +437,7 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
     return;
   }
   const data = result.data || {};
-  budgetViewYear = data.year != null ? data.year : budgetViewYear;
+  budgetSetViewYear(data.year != null ? data.year : budgetViewYear);
   budgetActiveYear = data.activeYear != null ? data.activeYear : budgetActiveYear;
   budgetYearsList = Array.isArray(data.years) ? data.years : budgetYearsList;
   budgetSetPageTitle(budgetViewYear);
@@ -446,7 +470,33 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   renderYearToolbar(rightCol);
   renderPendingSection(rightCol);
   renderPaidSection(root);
+  budgetSyncPendingColumnHeight();
 }
+
+// CSS Grid's align-items:stretch only stretches the *shorter* row item up to
+// the row's own height — it doesn't cap the *taller* one, so with enough
+// pending requests the old plain-CSS approach let Afventende udlæg's own
+// content height dictate the whole row's height, growing past (and dragging
+// along) the Budget card instead of scrolling internally within it. Budget
+// is the one column whose height should drive the layout, so its rendered
+// height is measured here and applied to the sibling column as an explicit
+// px height — only then does .budget-col-pending's flex:1 + its
+// .budget-scroll-wrap's overflow-y:auto (css/budget.css) actually cap and
+// scroll rather than just stretching arbitrarily tall. Skipped below the
+// mobile breakpoint, where .budget-columns collapses to one stacked column
+// and every card should size to its own content instead.
+function budgetSyncPendingColumnHeight() {
+  const sheetCard = document.querySelector('.budget-sheet-card');
+  const colRight = document.querySelector('.budget-col-right');
+  if (!sheetCard || !colRight) return;
+  if (window.innerWidth <= 719) {
+    colRight.style.height = '';
+    return;
+  }
+  colRight.style.height = sheetCard.getBoundingClientRect().height + 'px';
+}
+
+window.addEventListener('resize', budgetSyncPendingColumnHeight);
 
 // ── Admin: year toolbar (switch/rename which budget is shown) ──
 function budgetYearLabel(year) {
@@ -483,7 +533,7 @@ function renderYearToolbar(container) {
   yearSelect.addEventListener('change', () => {
     const year = Number(yearSelect.value);
     if (Number.isInteger(year) && year !== budgetViewYear) {
-      budgetViewYear = year;
+      budgetSetViewYear(year);
       loadAndRenderAdmin(document.getElementById('budget-root'));
     }
   });
@@ -597,7 +647,7 @@ function openSwitchActiveYearModal(root) {
         if (activateResult.message) error.textContent = activateResult.message;
         return;
       }
-      budgetViewYear = year;
+      budgetSetViewYear(year);
       close();
       loadAndRenderAdmin(root);
       return;
@@ -608,7 +658,7 @@ function openSwitchActiveYearModal(root) {
     confirmBtn.disabled = true;
     const result = await budgetApi('budget_set_active_year', { year });
     if (result.ok) {
-      budgetViewYear = year;
+      budgetSetViewYear(year);
       close();
       loadAndRenderAdmin(root);
     } else {
@@ -659,7 +709,7 @@ function openRenameYearModal(root) {
     error.textContent = '';
     const result = await budgetApi('budget_rename_year', { oldYear, newYear, newLabel });
     if (result.ok) {
-      budgetViewYear = newYear;
+      budgetSetViewYear(newYear);
       close();
       loadAndRenderAdmin(root);
     } else {
@@ -719,7 +769,7 @@ function openDeleteYearConfirm(root, year) {
     const result = await budgetApi('budget_delete_year', { year });
     if (result.ok) {
       close();
-      budgetViewYear = null; // let the next load resolve to whatever's active (or the bootstrap state)
+      budgetSetViewYear(null); // let the next load resolve to whatever's active (or the bootstrap state)
       loadAndRenderAdmin(root);
     } else {
       confirmBtn.disabled = false;
@@ -1035,6 +1085,32 @@ function ensureBudgetSheetTimers(root) {
   });
 }
 
+// Base order is time-of-upload, oldest first — but requests are first
+// grouped by phone number (the stable per-person key; a name can vary in
+// spelling) so a later request from someone who already has one pending
+// lands right next to their earlier one instead of being scattered far
+// below it, since these get paid back together in one transfer. A group's
+// position in the list follows its OLDEST member's createdAt (keeping the
+// original queue-fairness ordering), which is what "moves up" a later
+// same-phone request — it jumps out of its own chronological slot to join
+// its group earlier in the list; members within a group stay oldest-first.
+function budgetGroupRequestsByPhone(requests) {
+  const groups = new Map();
+  requests.forEach((req) => {
+    const key = req.phone || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(req);
+  });
+  const byCreatedAt = (a, b) => String(a.createdAt).localeCompare(String(b.createdAt));
+  const groupList = [];
+  groups.forEach((members) => {
+    members.sort(byCreatedAt);
+    groupList.push({ anchor: members[0].createdAt, members });
+  });
+  groupList.sort((a, b) => String(a.anchor).localeCompare(String(b.anchor)));
+  return groupList.flatMap((g) => g.members);
+}
+
 function renderPendingSection(container) {
   const card = el('section', 'card budget-col-pending');
   const head = el('div', 'card-head');
@@ -1052,9 +1128,7 @@ function renderPendingSection(container) {
   const root = document.getElementById('budget-root');
   const scrollWrap = el('div', 'budget-scroll-wrap');
   const list = el('div', 'budget-list');
-  budgetState.requests
-    .slice()
-    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+  budgetGroupRequestsByPhone(budgetState.requests)
     .forEach((req) => list.appendChild(buildPendingCard(root, req)));
   scrollWrap.appendChild(list);
   card.appendChild(scrollWrap);

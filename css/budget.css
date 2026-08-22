@@ -14,7 +14,14 @@
   display: grid;
   grid-template-columns: 2fr 1fr;   /* Budget ~2/3, Afventende udlæg ~1/3 */
   gap: 1.25rem;
-  align-items: stretch;             /* pending grows to the Budget card's height */
+  /* NOT stretch: grid's align-items:stretch is bidirectional — with a long
+     pending list it would inflate this row's own height (and the Budget
+     card along with it) to match, rather than capping pending. Budget
+     sizes to its own content only; js/budget.js's
+     budgetSyncPendingColumnHeight() then measures that and applies it as
+     an explicit height to .budget-col-right, which is what actually caps
+     Afventende udlæg's list (its .budget-scroll-wrap scrolls internally). */
+  align-items: start;
   margin-bottom: 1.25rem;
 }
 
@@ -26,9 +33,11 @@
 .budget-columns > .card { margin-bottom: 0; min-width: 0; }
 
 /* --- Right column wrapper (year-switcher card + Afventende udlæg) ---- */
-/* The actual grid child in .budget-columns' 1fr track, so the grid's
-   align-items:stretch stretches this whole stack to the Budget card's
-   height; the two cards inside it stack vertically with a gap. */
+/* The actual grid child in .budget-columns' 1fr track — js/budget.js's
+   budgetSyncPendingColumnHeight() sets this element's height explicitly to
+   match the Budget card's (see .budget-columns above for why that's a JS
+   height, not align-items:stretch); the two cards inside it stack
+   vertically with a gap. */
 .budget-col-right {
   display: flex;
   flex-direction: column;
@@ -386,8 +395,17 @@ tr.budget-row-filler td {
   table-layout: fixed;
 }
 
+/* 11%, not 9% — widened so the five equal columns themselves absorb the
+   ~110px that used to be blank padding sitting unused inside Kommentar's
+   own cell before it. (A literal `calc(9% + 22px)` would be the more
+   exact translation of "+22px each," but table columns don't reliably
+   support calc() mixing % and px under table-layout:fixed — Chromium
+   silently discards every colgroup width the moment one of them fails to
+   resolve, collapsing all of them back to equal auto-sizing. A flat 11%
+   is the closest plain-percentage equivalent at this table's typical
+   rendered width.) */
 .budget-col-eq {
-  width: 9%;
+  width: 11%;
 }
 
 .budget-col-actions {
@@ -412,9 +430,17 @@ tr.budget-row-filler td {
 /* .budget-table td's own text-align:left (above) has higher specificity
    (one class + one type selector) than a bare single-class override like
    .budget-td-num, so every text-align override below is re-qualified as
-   ".budget-table td.xxx" to actually win instead of silently losing. */
+   ".budget-table td.xxx" to actually win instead of silently losing.
+   Budget-sheet-only (Planlagt/Brugt/Rest): centered, not right-aligned —
+   these columns are often wider than their own content (the Planlagt
+   input's 120px cap, a short "0,00 kr"), so a plain right-align leaves
+   the box/figure hugging the right edge, visibly off-center under the
+   now-centered header (see the th:nth-child rule below) rather than
+   sitting under it. The Planlagt input keeps its own internal
+   text-align:right (see .budget-plan-input) — only the input's outer
+   position within its (possibly wider) cell changes here. */
 .budget-table td.budget-td-num {
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -426,22 +452,6 @@ tr.budget-row-filler td {
    rather than shrink. */
 .budget-td-narrow {
   word-break: break-word;
-}
-
-/* Kommentar (the paid-ledger table's 6th column) shifted 110px right of
-   where it'd otherwise sit, without touching the five equal-width columns
-   before it (.budget-col-eq) or the actions column after it — a left
-   padding on the same cell reads identically to an actual spacer column
-   here, since there's no vertical border between columns to expose the
-   difference. Scoped to ≥720px: the ≤719px block below turns every row
-   into a stacked card, where this padding would misalign the label/value
-   pairs, so it must lose to that block's own td padding reset — instead of
-   fighting for specificity there, it's simply not declared for that width. */
-@media (min-width: 720px) {
-  .budget-table:not(.budget-sheet-table) th:nth-child(6),
-  .budget-table:not(.budget-sheet-table) td:nth-child(6) {
-    padding-left: 110px;
-  }
 }
 
 .budget-table td.budget-td-amount {
