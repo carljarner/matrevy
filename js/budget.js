@@ -1243,11 +1243,11 @@ function renderPaidTable(wrap) {
   const tbody = el('tbody');
   rows.forEach((e) => {
     const tr = el('tr', e.deleted ? 'budget-row-deleted' : null);
-    tr.appendChild(el('td', null, e.bilag || '—'));
-    tr.appendChild(el('td', null, formatDaNumeric(String(e.date || '').slice(0, 10))));
-    tr.appendChild(el('td', null, formatDaNumeric(String(e.approvedAt || '').slice(0, 10))));
-    tr.appendChild(el('td', 'budget-td-num', formatKr(e.amount)));
-    tr.appendChild(el('td', null, e.paidBy || '—'));
+    tr.appendChild(el('td', 'budget-td-narrow', e.bilag || '—'));
+    tr.appendChild(el('td', 'budget-td-narrow', formatDaNumeric(String(e.date || '').slice(0, 10))));
+    tr.appendChild(el('td', 'budget-td-narrow', formatDaNumeric(String(e.approvedAt || '').slice(0, 10))));
+    tr.appendChild(el('td', 'budget-td-amount', formatKr(e.amount)));
+    tr.appendChild(el('td', 'budget-td-narrow', e.paidBy || '—'));
     tr.appendChild(el('td', null, e.comment || ''));
 
     const actionsTd = el('td', 'budget-td-actions');

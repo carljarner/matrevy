@@ -362,14 +362,34 @@
   white-space: nowrap;
 }
 
-.budget-td-num {
+/* .budget-table td's own text-align:left (above) has higher specificity
+   (one class + one type selector) than a bare single-class override like
+   .budget-td-num, so every text-align override below is re-qualified as
+   ".budget-table td.xxx" to actually win instead of silently losing. */
+.budget-table td.budget-td-num {
   text-align: right;
   white-space: nowrap;
 }
 
-.budget-td-actions {
+/* Betalte udgifter (paid-expense) table only: every column but the trailing
+   icons is flush left and sized to its content (width:1% is the standard
+   table-layout:auto trick for "shrink to content"), so the leftover row
+   width all goes to the free-text Kommentar column instead of being spread
+   evenly across every column. */
+.budget-td-narrow {
+  white-space: nowrap;
+  width: 1%;
+}
+
+.budget-table td.budget-td-amount {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.budget-table td.budget-td-actions {
   text-align: right;
   white-space: nowrap;
+  padding-right: 0;
 }
 
 .budget-action-icons {
