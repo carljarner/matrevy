@@ -857,11 +857,11 @@ function renderBudgetSheet(container) {
 
   // Save bar.
   const saveBar = el('div', 'budget-save-bar');
-  const deleteYearBtn = el('button', 'site-btn-danger', 'Slet budget');
+  const deleteYearBtn = el('button', 'site-btn-danger', 'Slet');
   deleteYearBtn.type = 'button';
   deleteYearBtn.addEventListener('click', () => openDeleteYearWarning(document.getElementById('budget-root')));
   saveBar.appendChild(deleteYearBtn);
-  const saveBtn = el('button', 'site-btn-primary', 'Gem budget');
+  const saveBtn = el('button', 'site-btn-primary', 'Gem');
   saveBtn.type = 'button';
   saveBtn.addEventListener('click', () => saveBudgetSheet());
   saveBar.appendChild(saveBtn);
@@ -871,7 +871,7 @@ function renderBudgetSheet(container) {
     plannedInputs, restCells, spent, incomeList,
     incomeRows,
     totalPlannedCell, totalBrugtCell, totalRestCell,
-    incomeTotalCell, netCell, status,
+    incomeTotalCell, netCell, status, saveBtn,
   };
   budgetSheetSnapshot = JSON.stringify(collectSheetPayload());
 
@@ -968,14 +968,21 @@ function collectSheetPayload() {
 async function saveBudgetSheet() {
   if (!budgetSheet) return { ok: false };
   const payload = collectSheetPayload();
+  // Disable immediately so the click reads as registered right away — same
+  // instant feedback as Manus's Gem button (manusSaveMain) disabling itself
+  // for the duration of its own save.
+  if (budgetSheet.saveBtn) budgetSheet.saveBtn.disabled = true;
   budgetSheet.status.textContent = 'Gemmer …';
   budgetSheet.status.className = 'budget-save-status';
   const result = await budgetApi('budget_save_sheet', payload);
+  if (budgetSheet.saveBtn) budgetSheet.saveBtn.disabled = false;
   if (result.ok) {
     budgetSheetSnapshot = JSON.stringify(payload);
     budgetState.budget = { planned: payload.planned, income: payload.income };
     budgetSheet.status.textContent = 'Gemt kl. ' + nowHhmm();
     budgetSheet.status.className = 'budget-save-status';
+    // Same bottom-of-page confirmation banner as Manus's "Manus gemt" toast.
+    siteShowToast('Budget gemt');
   } else if (result.message) {
     budgetSheet.status.textContent = result.message;
     budgetSheet.status.className = 'budget-save-status error';
@@ -1224,7 +1231,7 @@ function renderPaidTable(wrap) {
   const table = el('table', 'budget-table');
   const thead = el('thead');
   const htr = el('tr');
-  ['Bilag', 'Dato', 'Betalt', 'Beløb', 'Udlægsholder', 'Kommentar', 'Kvittering', '']
+  ['Bilag', 'Dato', 'Betalt', 'Beløb', 'Udlægsholder', 'Kommentar', '']
     .forEach((h) => htr.appendChild(el('th', null, h)));
   thead.appendChild(htr);
   table.appendChild(thead);
@@ -1238,31 +1245,89 @@ function renderPaidTable(wrap) {
     tr.appendChild(el('td', 'budget-td-num', formatKr(e.amount)));
     tr.appendChild(el('td', null, e.paidBy || '—'));
     tr.appendChild(el('td', null, e.comment || ''));
-    const receiptTd = el('td');
+
+    const actionsTd = el('td', 'budget-td-actions');
+    const actionsWrap = el('span', 'budget-action-icons');
     if (e.receiptFile) {
-      const link = el('button', 'btn-small', 'Se');
-      link.addEventListener('click', async () => {
-        link.disabled = true;
+      const viewBtn = el('button', 'budget-icon-btn');
+      viewBtn.type = 'button';
+      viewBtn.setAttribute('aria-label', 'Se kvittering');
+      viewBtn.appendChild(budgetPictureIcon());
+      viewBtn.addEventListener('click', async () => {
+        viewBtn.disabled = true;
         const url = await budgetFetchReceipt(e.receiptFile);
-        link.disabled = false;
+        viewBtn.disabled = false;
         if (url) window.open(url, '_blank');
       });
-      receiptTd.appendChild(link);
-    } else {
-      receiptTd.appendChild(el('span', 'budget-thumb-empty', '—'));
+      actionsWrap.appendChild(viewBtn);
     }
-    tr.appendChild(receiptTd);
-
-    const editTd = el('td');
-    const editBtn = el('button', 'btn-small', 'Rediger');
+    const editBtn = el('button', 'budget-icon-btn');
+    editBtn.type = 'button';
+    editBtn.setAttribute('aria-label', 'Rediger udgift');
+    editBtn.appendChild(budgetPencilIcon());
     editBtn.addEventListener('click', () => openExpenseEditModal(document.getElementById('budget-root'), e));
-    editTd.appendChild(editBtn);
-    tr.appendChild(editTd);
+    actionsWrap.appendChild(editBtn);
+    actionsTd.appendChild(actionsWrap);
+    tr.appendChild(actionsTd);
 
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
   wrap.appendChild(table);
+}
+
+// Icon-only action buttons for the paid-ledger table (Se/Rediger), matching
+// calendar.js's cal-list-edit-btn pencil convention — see budget.css's
+// .budget-icon-btn for the shared button chrome.
+function budgetPencilIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const body = document.createElementNS(svgNS, 'path');
+  body.setAttribute('d', 'M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z');
+  svg.appendChild(body);
+  const tip = document.createElementNS(svgNS, 'path');
+  tip.setAttribute('d', 'M9 4l3 3');
+  svg.appendChild(tip);
+  return svg;
+}
+
+function budgetPictureIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const frame = document.createElementNS(svgNS, 'rect');
+  frame.setAttribute('x', '2');
+  frame.setAttribute('y', '3');
+  frame.setAttribute('width', '12');
+  frame.setAttribute('height', '10');
+  frame.setAttribute('rx', '1.3');
+  svg.appendChild(frame);
+  const sun = document.createElementNS(svgNS, 'circle');
+  sun.setAttribute('cx', '5.7');
+  sun.setAttribute('cy', '6.7');
+  sun.setAttribute('r', '0.9');
+  sun.setAttribute('fill', 'currentColor');
+  sun.setAttribute('stroke', 'none');
+  svg.appendChild(sun);
+  const mountains = document.createElementNS(svgNS, 'path');
+  mountains.setAttribute('d', 'M2.7 12l3.4-3.6 2.3 2.2 2-2.4 2.9 3.3');
+  svg.appendChild(mountains);
+  return svg;
 }
 
 // ── Admin: add a direct expense (no revyst request) ──────────
@@ -1347,9 +1412,10 @@ function openExpenseEditModal(root, exp) {
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
-    `${budgetCategoryLabel(exp.category)} · bilag ${exp.bilag || '—'}`));
+    `${budgetCategoryLabel(exp.category)} · ${exp.name || '—'} · ${exp.phone || '—'}`));
   form.appendChild(el('p', 'budget-intro',
-    `Indsendt ${formatDaNumeric(String(exp.date || '').slice(0, 10))}`
+    `Bilag ${exp.bilag || '—'}`
+    + ` · Indsendt ${formatDaNumeric(String(exp.date || '').slice(0, 10))}`
     + ` · Betalt ${formatDaNumeric(String(exp.approvedAt || '').slice(0, 10))}`));
 
   // A soft-deleted expense shows no editable fields — just its status and

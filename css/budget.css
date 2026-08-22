@@ -367,6 +367,46 @@
   white-space: nowrap;
 }
 
+.budget-td-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.budget-action-icons {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+/* Icon-only Se/Rediger buttons — matches calendar.js's list-view
+   .cal-list-edit-btn pencil convention. */
+.budget-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .budget-icon-btn:hover {
+    background: var(--accent-warm-fill);
+    color: var(--accent-warm-text);
+  }
+}
+
+.budget-icon-btn:focus-visible {
+  outline: none;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+}
+
 /* A soft-deleted expense: still shown, crossed out, excluded from Brugt. */
 .budget-row-deleted td {
   text-decoration: line-through;
@@ -418,6 +458,18 @@
 .budget-save-status.error { color: var(--danger); }
 
 .budget-sheet-table { min-width: 460px; }
+
+/* Brugt/Rest hold formatted kr amounts that grow/shrink as figures change
+   (e.g. "0,00 kr" vs "-12.345,67 kr") — a fixed floor sized for the largest
+   realistic amount (xx.xxx,xx kr) keeps these two columns from reflowing
+   the whole table as numbers change. Also covers the header cells and the
+   "I alt" footer row, since they share the same column positions. */
+.budget-sheet-table th:nth-child(3),
+.budget-sheet-table td:nth-child(3),
+.budget-sheet-table th:nth-child(4),
+.budget-sheet-table td:nth-child(4) {
+  min-width: 8rem;
+}
 
 .budget-sheet-table .budget-plan-input,
 .budget-income-amount {
@@ -608,7 +660,6 @@
   .budget-table:not(.budget-sheet-table) td:nth-child(4)::before { content: "Beløb"; }
   .budget-table:not(.budget-sheet-table) td:nth-child(5)::before { content: "Udlægsholder"; }
   .budget-table:not(.budget-sheet-table) td:nth-child(6)::before { content: "Kommentar"; }
-  .budget-table:not(.budget-sheet-table) td:nth-child(7)::before { content: "Kvittering"; }
 
   /* Free text (name, comment) reads better left-aligned than right. */
   .budget-table:not(.budget-sheet-table) td:nth-child(5),
@@ -616,10 +667,9 @@
     text-align: left;
   }
 
-  /* The two action-button columns: just the button, right-aligned, no label
-     needed for the unlabelled trailing edit column. */
-  .budget-table:not(.budget-sheet-table) td:nth-child(7),
-  .budget-table:not(.budget-sheet-table) td:nth-child(8) {
+  /* The trailing Se/Rediger icon column: just the icons, right-aligned, no
+     label needed for the unlabelled column. */
+  .budget-table:not(.budget-sheet-table) td:nth-child(7) {
     justify-content: flex-end;
   }
 }
