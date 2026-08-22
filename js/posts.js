@@ -804,12 +804,16 @@ function renderPostFeed(posts, listId, adminId, canCreate) {
 }
 
 function renderPosts() {
-  const all = getEffectivePosts()
-    .slice()
-    .sort((a, b) => {
-      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-      return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
-    });
+  // Public (not-logged-in) visitors see an empty board — posts are for
+  // logged-in revyster and up, not anonymous readers.
+  const all = siteHasLevel('revyst')
+    ? getEffectivePosts()
+        .slice()
+        .sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+        })
+    : [];
   renderPostFeed(all, 'posts-list', 'posts-admin', siteHasLevel('revyst'));
 }
 

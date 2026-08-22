@@ -227,7 +227,19 @@ function openLoginModal() {
   overlay.id = 'login-overlay';
 
   const modal = document.createElement('div');
-  modal.className = 'login-modal';
+  modal.className = 'login-modal site-modal';
+
+  function close() { document.removeEventListener('keydown', onKeydown); overlay.remove(); }
+  function onKeydown(e) { if (e.key === 'Escape') close(); }
+  document.addEventListener('keydown', onKeydown);
+
+  const closeX = document.createElement('button');
+  closeX.type = 'button';
+  closeX.className = 'site-modal-close';
+  closeX.textContent = '✕';
+  closeX.setAttribute('aria-label', 'Luk');
+  closeX.addEventListener('click', close);
+  modal.appendChild(closeX);
 
   const heading = document.createElement('h2');
   heading.textContent = 'Log ind';
@@ -244,30 +256,28 @@ function openLoginModal() {
   modal.appendChild(error);
 
   const actions = document.createElement('div');
-  actions.className = 'login-actions';
+  actions.className = 'login-actions login-actions-end';
   const submit = document.createElement('button');
   submit.className = 'site-btn-primary';
   submit.textContent = 'Log ind';
-  const cancel = document.createElement('button');
-  cancel.className = 'site-pill-btn';
-  cancel.textContent = 'Annuller';
-  actions.appendChild(cancel);
   actions.appendChild(submit);
   modal.appendChild(actions);
 
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
-  function close() { overlay.remove(); }
-  cancel.addEventListener('click', close);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  // Same mousedown-must-also-be-on-the-backdrop guard as
+  // siteOpenModalWithClose — a resize-drag release over the backdrop
+  // shouldn't count as a genuine backdrop click.
+  let backdropMousedown = false;
+  overlay.addEventListener('mousedown', (e) => { backdropMousedown = e.target === overlay; });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && backdropMousedown) close(); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit.click(); });
 
   submit.addEventListener('click', async () => {
     const password = input.value.trim();
     if (!password) return;
     submit.disabled = true;
-    submit.textContent = 'Logger ind…';
     error.textContent = '';
     try {
       const res = await fetch(SITE_API_ENDPOINT, {
@@ -296,7 +306,6 @@ function openLoginModal() {
       error.textContent = 'Kunne ikke kontakte serveren. Tjek din internetforbindelse.';
     } finally {
       submit.disabled = false;
-      submit.textContent = 'Log ind';
     }
   });
 
@@ -339,15 +348,15 @@ function applyPageGate() {
   card.className = 'card site-gate-card';
   const h = document.createElement('h2');
   h.textContent = 'Log ind for at se denne side';
-  const p = document.createElement('p');
-  p.textContent = 'Denne side er for revyens medlemmer. Tryk på "Log ind" og indtast den fælles adgangskode.';
+  const actions = document.createElement('div');
+  actions.className = 'site-gate-actions';
   const btn = document.createElement('button');
   btn.className = 'site-login-btn site-gate-login';
   btn.textContent = 'Log ind';
   btn.addEventListener('click', openLoginModal);
+  actions.appendChild(btn);
   card.appendChild(h);
-  card.appendChild(p);
-  card.appendChild(btn);
+  card.appendChild(actions);
   gate.appendChild(card);
 
   const footer = document.querySelector('.site-footer');

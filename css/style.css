@@ -171,13 +171,27 @@ body {
 .site-gate-login {
   background: var(--accent);
   border: none;
-  margin-top: 0.5rem;
 }
 
 @media (hover: hover) {
   .site-gate-login:hover {
     background: #2f6cb3;
   }
+}
+
+.site-gate-card {
+  width: 50%;
+  min-width: 260px;
+}
+
+@media (max-width: 719px) {
+  .site-gate-card { width: 100%; }
+}
+
+.site-gate-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
 }
 
 .login-overlay {
@@ -239,6 +253,13 @@ body {
   gap: 0.6rem;
   justify-content: center;
   margin-top: 1.5rem;
+}
+
+/* The plain login modal (openLoginModal in site.js, not one of
+   site-utils.js's edit modals) puts its single submit button in the
+   bottom-right corner instead of centering it. */
+.login-actions.login-actions-end {
+  justify-content: flex-end;
 }
 
 .site-btn-primary {
