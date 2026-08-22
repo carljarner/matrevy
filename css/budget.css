@@ -224,27 +224,29 @@
 }
 
 .budget-item {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  justify-content: space-between;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.85rem 1rem;
 }
 
-.budget-item-main {
-  flex: 1;
-  min-width: 0;
-}
-
 .budget-item-top {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.6rem;
   margin-bottom: 0.4rem;
+}
+
+/* Badge+amount grouped together on the left, so .budget-item-top's own
+   justify-content:space-between only has to split two things — this group
+   and the receipt icon button — rather than spacing all three apart evenly. */
+.budget-item-top-left {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .budget-item-line {
@@ -259,19 +261,20 @@
   white-space: pre-wrap;
 }
 
+/* Centered as a group with even gaps, not stretched edge-to-edge — natural
+   button width now that removing the old receipt thumbnail (see below)
+   leaves the whole card width for this row, where a full-width stretch
+   would read as needlessly wide. */
 .budget-item-actions {
   display: flex;
-  gap: 0.4rem;
+  justify-content: center;
+  gap: 0.6rem;
   margin-top: 0.7rem;
   flex-wrap: nowrap;
 }
 
-/* The three actions share the budget-sheet input fill and shrink to fit the
-   narrow column; each hover-tints in a muted theme-matched shade. */
+/* Each hover-tints in a muted theme-matched shade. */
 #budget-root .budget-item-actions .btn-small {
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0.3rem 0.4rem;
   background: var(--input-bg);
   border-color: var(--border);
   color: var(--text);
@@ -295,40 +298,66 @@
   }
 }
 
-/* --- Receipt thumbnail (pending cards) -------------------- */
-.budget-thumb {
-  flex: 0 0 auto;
-  width: 88px;
-  height: 88px;
-  border-radius: 6px;
+/* --- Collapsed phone-number group (pending list) ----------- */
+/* Same card chrome as a standalone .budget-item, wrapping a header (name +
+   phone, and the "Godkend alle" batch action) over each member's own row —
+   every request stays individually approvable/editable/rejectable. */
+.budget-group {
+  background: var(--surface);
   border: 1px solid var(--border);
-  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.budget-group-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
 }
 
-.budget-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  cursor: pointer;
-  display: block;
-}
-
-.budget-thumb-empty {
-  font-size: 0.72rem;
-  color: #8b949e;
-  text-align: center;
-  padding: 0 0.3rem;
-}
-
-.budget-thumb-pdf-label {
-  cursor: pointer;
+.budget-group-title {
+  font-size: 0.9rem;
   font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  color: var(--header);
+}
+
+/* Each row is separated by a rule instead of its own border/background, so
+   the group still reads as one collapsed section rather than a stack of
+   separate cards. */
+.budget-group-row {
+  padding-top: 0.7rem;
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--border);
+}
+
+.budget-group-row:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+/* --- "Godkend alle" modal (one phone-number group) --------- */
+.budget-approve-all-list {
+  margin: 0.5rem 0;
+}
+
+.budget-approve-all-line {
+  font-size: 0.9rem;
+  color: var(--header);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.budget-approve-all-line:last-child {
+  border-bottom: none;
+}
+
+.budget-approve-all-total {
+  font-weight: 600;
+  color: var(--header);
+  margin-top: 0.5rem;
 }
 
 /* --- Paid browser ----------------------------------------- */
@@ -694,16 +723,6 @@ tr.budget-row-filler td {
   /* Stack the two columns; the pending list flows naturally (no cap). */
   .budget-columns { grid-template-columns: 1fr; }
   .budget-scroll-wrap { max-height: none; overflow-y: visible; }
-
-  .budget-item {
-    flex-direction: column-reverse;
-    align-items: stretch;
-  }
-
-  .budget-thumb {
-    width: 100%;
-    height: 140px;
-  }
 
   /* Both budget tables (the 4-column sheet, the 8-column paid ledger) have
      more columns than a phone's width can show — cramming them illegibly or

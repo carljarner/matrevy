@@ -345,40 +345,25 @@ function renderRevystForm(root) {
   root.appendChild(card);
 }
 
-// ── Receipt thumbnail (lazy, private) ────────────────────────
-function budgetReceiptThumb(file) {
-  const wrap = el('div', 'budget-thumb');
-  if (!file) {
-    wrap.appendChild(el('span', 'budget-thumb-empty', 'Ingen kvittering'));
-    return wrap;
-  }
-  // A PDF can't be shown inline as an <img> — a clickable placeholder opens
-  // it in a new tab instead, fetched lazily on click (not up front) so a
-  // list of pending requests doesn't eagerly download every PDF at once.
-  if (/\.pdf$/i.test(file)) {
-    wrap.classList.add('budget-thumb-pdf');
-    const link = el('span', 'budget-thumb-empty budget-thumb-pdf-label', 'PDF');
-    link.addEventListener('click', async () => {
-      const url = await budgetFetchReceipt(file);
-      if (url) window.open(url, '_blank');
-    });
-    wrap.appendChild(link);
-    return wrap;
-  }
-  wrap.appendChild(el('span', 'budget-thumb-empty', 'Henter …'));
-  budgetFetchReceipt(file).then((url) => {
-    wrap.replaceChildren();
-    if (!url) {
-      wrap.appendChild(el('span', 'budget-thumb-empty', 'Kvittering utilgængelig'));
-      return;
-    }
-    const img = el('img');
-    img.src = url;
-    img.alt = 'Kvittering';
-    img.addEventListener('click', () => window.open(url, '_blank'));
-    wrap.appendChild(img);
+// Small icon button that fetches a receipt (private, password-gated) lazily
+// on click and opens it in a new tab — the same convention as the paid
+// ledger's own "Se kvittering" button (.budget-icon-btn/budgetPictureIcon),
+// reused here for pending requests too. Works identically for an image or a
+// PDF receipt (window.open just displays whatever the browser gets), so
+// there's no image-vs-PDF branching needed here unlike the old inline
+// thumbnail this replaces.
+function budgetReceiptIconBtn(file) {
+  const btn = el('button', 'budget-icon-btn');
+  btn.type = 'button';
+  btn.setAttribute('aria-label', 'Se kvittering');
+  btn.appendChild(budgetPictureIcon());
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    const url = await budgetFetchReceipt(file);
+    btn.disabled = false;
+    if (url) window.open(url, '_blank');
   });
-  return wrap;
+  return btn;
 }
 
 // ── Admin: management view ───────────────────────────────────
@@ -1088,12 +1073,16 @@ function ensureBudgetSheetTimers(root) {
 // Base order is time-of-upload, oldest first — but requests are first
 // grouped by phone number (the stable per-person key; a name can vary in
 // spelling) so a later request from someone who already has one pending
-// lands right next to their earlier one instead of being scattered far
-// below it, since these get paid back together in one transfer. A group's
-// position in the list follows its OLDEST member's createdAt (keeping the
-// original queue-fairness ordering), which is what "moves up" a later
-// same-phone request — it jumps out of its own chronological slot to join
-// its group earlier in the list; members within a group stay oldest-first.
+// collapses into the same section entry as their earlier one instead of
+// being scattered far below it, since these get paid back together in one
+// transfer. A group's position in the list follows its OLDEST member's
+// createdAt (keeping the original queue-fairness ordering), which is what
+// "moves up" a later same-phone request — it jumps out of its own
+// chronological slot to join its group earlier in the list; members within
+// a group stay oldest-first. Returns the groups themselves (not a flattened
+// list) — renderPendingSection renders a single group's one member as a
+// plain card, and a multi-member group as one collapsed section (see
+// buildPendingGroup) that can be approved one row at a time or all at once.
 function budgetGroupRequestsByPhone(requests) {
   const groups = new Map();
   requests.forEach((req) => {
@@ -1108,7 +1097,7 @@ function budgetGroupRequestsByPhone(requests) {
     groupList.push({ anchor: members[0].createdAt, members });
   });
   groupList.sort((a, b) => String(a.anchor).localeCompare(String(b.anchor)));
-  return groupList.flatMap((g) => g.members);
+  return groupList;
 }
 
 function renderPendingSection(container) {
@@ -1128,24 +1117,37 @@ function renderPendingSection(container) {
   const root = document.getElementById('budget-root');
   const scrollWrap = el('div', 'budget-scroll-wrap');
   const list = el('div', 'budget-list');
-  budgetGroupRequestsByPhone(budgetState.requests)
-    .forEach((req) => list.appendChild(buildPendingCard(root, req)));
+  budgetGroupRequestsByPhone(budgetState.requests).forEach((group) => {
+    if (group.members.length > 1) {
+      list.appendChild(buildPendingGroup(root, group.members));
+    } else {
+      list.appendChild(buildPendingCard(root, group.members[0]));
+    }
+  });
   scrollWrap.appendChild(list);
   card.appendChild(scrollWrap);
   container.appendChild(card);
 }
 
-function buildPendingCard(root, req) {
-  const item = el('div', 'budget-item');
+// The shared inner content of one request — its category/amount/receipt-icon
+// top line, optional name+phone line (omitted inside a group, where the
+// group header already states it once), optional comment, and its own
+// Godkend/Rediger/Afvis row — used both for a standalone card and for one
+// row inside a collapsed phone-group (buildPendingGroup), so either way a
+// single request is always approvable/editable/rejectable on its own.
+function buildPendingRowContent(root, req, { showNamePhone = true } = {}) {
+  const wrap = el('div', 'budget-item-content');
 
-  const main = el('div', 'budget-item-main');
   const top = el('div', 'budget-item-top');
-  top.appendChild(el('span', 'budget-badge', budgetCategoryLabel(req.category)));
-  top.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
-  main.appendChild(top);
+  const topLeft = el('span', 'budget-item-top-left');
+  topLeft.appendChild(el('span', 'budget-badge', budgetCategoryLabel(req.category)));
+  topLeft.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
+  top.appendChild(topLeft);
+  if (req.receiptFile) top.appendChild(budgetReceiptIconBtn(req.receiptFile));
+  wrap.appendChild(top);
 
-  main.appendChild(el('div', 'budget-item-line', req.name + ' · ' + req.phone));
-  if (req.comment) main.appendChild(el('div', 'budget-item-note', req.comment));
+  if (showNamePhone) wrap.appendChild(el('div', 'budget-item-line', req.name + ' · ' + req.phone));
+  if (req.comment) wrap.appendChild(el('div', 'budget-item-note', req.comment));
 
   const actions = el('div', 'budget-item-actions');
   const approveBtn = el('button', 'btn-small budget-act-approve', 'Godkend');
@@ -1157,11 +1159,39 @@ function buildPendingCard(root, req) {
   actions.appendChild(approveBtn);
   actions.appendChild(editBtn);
   actions.appendChild(rejectBtn);
-  main.appendChild(actions);
+  wrap.appendChild(actions);
 
-  item.appendChild(main);
-  item.appendChild(budgetReceiptThumb(req.receiptFile));
+  return wrap;
+}
+
+function buildPendingCard(root, req) {
+  const item = el('div', 'budget-item');
+  item.appendChild(buildPendingRowContent(root, req, { showNamePhone: true }));
   return item;
+}
+
+// A collapsed section for every pending request sharing one phone number:
+// a header (name/phone + a "Godkend alle" batch action) over each request's
+// own row, still individually approvable/editable/rejectable.
+function buildPendingGroup(root, members) {
+  const group = el('div', 'budget-group');
+
+  const header = el('div', 'budget-group-header');
+  header.appendChild(el('span', 'budget-group-title', `${members[0].name} · ${members[0].phone}`));
+  const approveAllBtn = el('button', 'btn-small budget-act-approve', 'Godkend alle');
+  approveAllBtn.addEventListener('click', () => openApproveAllModal(root, members));
+  header.appendChild(approveAllBtn);
+  group.appendChild(header);
+
+  const rows = el('div', 'budget-group-rows');
+  members.forEach((req) => {
+    const row = el('div', 'budget-group-row');
+    row.appendChild(buildPendingRowContent(root, req, { showNamePhone: false }));
+    rows.appendChild(row);
+  });
+  group.appendChild(rows);
+
+  return group;
 }
 
 // A rounded "pill" button — see style.css's shared .site-pill-btn for the
@@ -1204,6 +1234,61 @@ function openApproveModal(root, req) {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;
     }
+  });
+  actions.appendChild(confirmBtn);
+}
+
+// Batch version of openApproveModal for one phone-number group: one line per
+// request (category · amount only — no comments, this is meant as a quick
+// recap before a single bank transfer, not a full review) plus the total
+// amount actually being transferred to that person. Confirming approves
+// every member sequentially against the existing single-request
+// budget_approve action (each call's own date/paidBy still comes from that
+// request, exactly as a normal one-by-one approval would) — there's no
+// separate batch endpoint. A failure partway through stops there (whatever
+// already succeeded stays approved, per this endpoint's usual re-run-safe
+// posture) and reloads the view so the list reflects the true state rather
+// than the stale pre-batch one.
+function openApproveAllModal(root, members) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Godkend alle udlæg');
+  modal.classList.add('budget-confirm-modal');
+
+  form.appendChild(el('p', 'budget-intro', `${members[0].name} · ${members[0].phone}`));
+
+  const list = el('div', 'budget-approve-all-list');
+  members.forEach((req) => {
+    list.appendChild(el('div', 'budget-approve-all-line',
+      `${budgetCategoryLabel(req.category)} · ${formatKr(req.amount)}`));
+  });
+  form.appendChild(list);
+
+  const total = members.reduce((sum, req) => sum + (Number(req.amount) || 0), 0);
+  form.appendChild(el('p', 'budget-approve-all-total', `I alt at overføre: ${formatKr(total)}`));
+
+  const confirmBtn = budgetPillBtn('Betalt', 'site-pill-primary');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    for (const req of members) {
+      const result = await budgetApi('budget_approve', {
+        id: req.id,
+        paidBy: req.name,
+        settled: true,
+        date: String(req.createdAt || '').slice(0, 10) || todayIso(),
+        year: budgetViewYear,
+      });
+      if (!result.ok) {
+        confirmBtn.disabled = false;
+        if (result.message) error.textContent = result.message;
+        // Whatever already succeeded in this loop is real and approved —
+        // reflect that in the list behind the still-open modal, same as
+        // the rest of the page would after any other successful save.
+        reloadAdmin(root);
+        return;
+      }
+    }
+    close();
+    reloadAdmin(root);
   });
   actions.appendChild(confirmBtn);
 }
