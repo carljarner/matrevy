@@ -16,10 +16,12 @@
    comments and (for boss/admin) the Rediger/Slet buttons for the post
    itself — unchanged from before this redesign.
 
-   The feed renders in batches (see "Infinite scroll" below) since all
-   posts are already in memory (POSTS_DATA/postsOverride) — there's no
-   server-side pagination on this static site, so "loading more" is
-   purely incremental DOM rendering triggered by an IntersectionObserver.
+   The feed only shows posts from the last POSTS_INITIAL_MONTHS months by
+   default (pinned posts are exempt — they always show); "Indlæs en måned
+   mere" at the bottom widens the window by one calendar month and
+   re-renders. Since every post is already in memory (POSTS_DATA/
+   postsOverride), this is a date-cutoff filter, not count-based pagination
+   — there's no server round-trip involved.
 
    Unlike calendar.js/archive.js's siteSaveResource-only flow, creating a
    post (or a comment) needs an ANY-level authenticated call (revyst
@@ -35,7 +37,11 @@
 'use strict';
 
 const POSTS_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-const POSTS_BATCH_SIZE = 10;
+const POSTS_INITIAL_MONTHS = 6;
+// Persists across re-renders within the page's lifetime (mutations like
+// pinning/commenting call renderPosts() again) — only resets to the
+// 6-month default on a fresh page load, not on every re-render.
+let postsMonthsBack = POSTS_INITIAL_MONTHS;
 
 // ── Data (with a localStorage-backed shadow after a create/save) ──
 // Same idea as calendar.js/archive.js: the embed regeneration takes ~1-2
@@ -696,8 +702,8 @@ function createPostCardElement(post) {
 // ── Feed section dividers (pinned "Fastgjorte posts" vs. plain "Opslag") ──
 // A plain rule opens the pinned section (only if it's non-empty), and a
 // labeled "Opslag" rule marks the start of the regular posts that follow —
-// `postsFeedAll` is always pinned-first (see renderPosts' sort), so the
-// boundary between the two is exactly `postsFeedPinnedCount`.
+// renderPostFeed's `posts` array is always pinned-first (see renderPosts'
+// sort), so the boundary between the two is exactly its own pinned count.
 function createPostFeedDivider() {
   const div = document.createElement('div');
   div.className = 'post-feed-divider';
@@ -718,45 +724,24 @@ function createPostFeedEmptyPinnedNotice() {
   return p;
 }
 
-// ── Infinite scroll (batch-reveal of already-in-memory posts) ──
-// All posts are already loaded (POSTS_DATA/postsOverride) — "loading
-// more" just means rendering more of the already-sorted array into the
-// DOM as the user approaches the bottom of the feed, via a single
-// sentinel element watched by an IntersectionObserver.
-let postsFeedAll = [];
-let postsFeedPinnedCount = 0;
-let postsFeedRendered = 0;
-let postsFeedObserver = null;
-
-// Appends the divider/section-label for index `i`, if any, then the post
-// card itself — shared by the batch loop and the no-sentinel fallback so
-// the section breaks render identically either way.
-function appendPostAtIndex(list, i) {
-  if (i === 0) {
-    list.appendChild(createPostFeedDivider());
-    if (postsFeedPinnedCount === 0) list.appendChild(createPostFeedEmptyPinnedNotice());
-  }
-  if (i === postsFeedPinnedCount && postsFeedAll.length > postsFeedPinnedCount) {
-    list.appendChild(createPostFeedSectionLabel('Opslag'));
-    list.appendChild(createPostFeedDivider());
-  }
-  list.appendChild(createPostCardElement(postsFeedAll[i]));
-}
-
-// `sentinel` sits as a sibling right after `list` (see index.html) —
-// cards are simply appended into `list`, never relative to `sentinel`.
-function appendNextPostsBatch(list, sentinel) {
-  const end = Math.min(postsFeedRendered + POSTS_BATCH_SIZE, postsFeedAll.length);
-  for (let i = postsFeedRendered; i < end; i++) appendPostAtIndex(list, i);
-  postsFeedRendered = end;
-  if (postsFeedRendered >= postsFeedAll.length && postsFeedObserver) {
-    postsFeedObserver.disconnect();
-    postsFeedObserver = null;
-  }
+// ── Time-window cutoff (default 6 months, widened by the load-more button) ──
+// Returns a YYYY-MM-DD date string `monthsBack` calendar months before
+// today — compared lexically against a post's `date.split('T')[0]`, which
+// works since both are the same zero-padded ISO date format.
+function postsCutoffDateIso(monthsBack) {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsBack);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // ── Rendering: the feed (single merged, pinned-first, sorted list) ──
-function renderPostFeed(posts, listId, adminId, canCreate, emptyMessage) {
+// `posts` is already filtered to the current time window and sorted by
+// renderPosts(); `hasMore` says whether any older unpinned post exists
+// beyond that window, controlling the "Indlæs en måned mere" button.
+function renderPostFeed(posts, listId, adminId, canCreate, emptyMessage, hasMore) {
   const list = document.getElementById(listId);
   if (!list) return;
 
@@ -774,8 +759,10 @@ function renderPostFeed(posts, listId, adminId, canCreate, emptyMessage) {
     }
   }
 
-  if (postsFeedObserver) { postsFeedObserver.disconnect(); postsFeedObserver = null; }
   list.textContent = '';
+  const loadMoreSlot = document.getElementById('posts-load-more');
+  if (loadMoreSlot) loadMoreSlot.textContent = '';
+
   if (posts.length === 0) {
     const empty = document.createElement('p');
     empty.textContent = emptyMessage || 'Ingen opslag endnu.';
@@ -783,39 +770,45 @@ function renderPostFeed(posts, listId, adminId, canCreate, emptyMessage) {
     return;
   }
 
-  postsFeedAll = posts;
-  postsFeedPinnedCount = posts.filter(p => p.pinned).length;
-  postsFeedRendered = 0;
-
-  const sentinel = document.getElementById('posts-sentinel');
-  if (sentinel) {
-    appendNextPostsBatch(list, sentinel);
-    if (postsFeedRendered < postsFeedAll.length) {
-      postsFeedObserver = new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting) appendNextPostsBatch(list, sentinel);
-      }, { rootMargin: '400px' });
-      postsFeedObserver.observe(sentinel);
+  const pinnedCount = posts.filter(p => p.pinned).length;
+  posts.forEach((post, i) => {
+    if (i === 0) {
+      list.appendChild(createPostFeedDivider());
+      if (pinnedCount === 0) list.appendChild(createPostFeedEmptyPinnedNotice());
     }
-  } else {
-    // No sentinel in the DOM (shouldn't happen) — render everything at once.
-    for (let i = 0; i < postsFeedAll.length; i++) appendPostAtIndex(list, i);
-    postsFeedRendered = postsFeedAll.length;
+    if (i === pinnedCount && posts.length > pinnedCount) {
+      list.appendChild(createPostFeedSectionLabel('Opslag'));
+      list.appendChild(createPostFeedDivider());
+    }
+    list.appendChild(createPostCardElement(post));
+  });
+
+  if (hasMore && loadMoreSlot) {
+    const moreBtn = document.createElement('button');
+    moreBtn.className = 'btn-small posts-load-more-btn';
+    moreBtn.textContent = 'Indlæs en måned mere';
+    moreBtn.addEventListener('click', () => {
+      postsMonthsBack += 1;
+      renderPosts();
+    });
+    loadMoreSlot.appendChild(moreBtn);
   }
 }
 
 function renderPosts() {
   // Public (not-logged-in) visitors see an empty board — posts are for
   // logged-in revyster and up, not anonymous readers.
-  const all = siteHasLevel('revyst')
-    ? getEffectivePosts()
-        .slice()
-        .sort((a, b) => {
-          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-          return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
-        })
-    : [];
-  renderPostFeed(all, 'posts-list', 'posts-admin', siteHasLevel('revyst'),
-    siteHasLevel('revyst') ? undefined : 'Log ind for at se opslag');
+  const all = siteHasLevel('revyst') ? getEffectivePosts().slice() : [];
+  const cutoff = postsCutoffDateIso(postsMonthsBack);
+  const visible = all
+    .filter(p => p.pinned || p.date.split('T')[0] >= cutoff)
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+    });
+  const hasMore = all.some(p => !p.pinned && p.date.split('T')[0] < cutoff);
+  renderPostFeed(visible, 'posts-list', 'posts-admin', siteHasLevel('revyst'),
+    siteHasLevel('revyst') ? undefined : 'Log ind for at se opslag', hasMore);
 }
 
 // ── Detail modal: image, full text, comments, admin actions ──

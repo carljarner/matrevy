@@ -20,9 +20,10 @@
     <!-- Post board, rendered by posts.js from posts-data.js.
          Left: a single Facebook-style feed of every post, pinned ones
          sorted first and visually separated from the rest by a labeled
-         "Opslag" break (renderPostFeed batches posts in via an
-         IntersectionObserver on #posts-sentinel as the user scrolls —
-         revyst+ can create, boss/admin edit/delete/pin from each card).
+         "Opslag" break. Only posts from the last 6 months show by default
+         (pinned posts are exempt); "Indlæs en måned mere" in #posts-load-more
+         widens that window by one month at a time (revyst+ can create,
+         boss/admin edit/delete/pin from each card).
          Right: the Bosser card, rendered by bosses.js from bosses-data.js
          (admin-only "Rediger" button next to the title opens an edit
          overlay for the title + each names/role row, with add/remove). -->
@@ -33,7 +34,7 @@
           <span id="posts-admin"></span>
         </div>
         <div class="message-list" id="posts-list"></div>
-        <div id="posts-sentinel" aria-hidden="true"></div>
+        <div id="posts-load-more"></div>
       </section>
 
       <section class="card dashboard-board-bosses">

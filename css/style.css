@@ -548,8 +548,10 @@ body.site-menu-open {
   flex-direction: column;
 }
 
-#posts-sentinel {
-  height: 1px;
+#posts-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
 }
 
 .card .boss-list {
@@ -1193,7 +1195,7 @@ body.site-menu-open {
 
 /* --- Post feed section breaks (Forside) -------------------- */
 /* Plain rule opening the pinned section; a second, labeled one ("Opslag")
-   marks where the regular posts start — see posts.js's appendPostAtIndex. */
+   marks where the regular posts start — see posts.js's renderPostFeed. */
 .post-feed-divider {
   border-top: 1px solid var(--border);
 }
