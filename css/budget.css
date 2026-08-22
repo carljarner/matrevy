@@ -223,13 +223,6 @@
   gap: 0.9rem;
 }
 
-.budget-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.85rem 1rem;
-}
-
 .budget-item-top {
   display: flex;
   align-items: center;
@@ -247,11 +240,6 @@
   gap: 0.6rem;
   flex-wrap: wrap;
   min-width: 0;
-}
-
-.budget-item-line {
-  font-size: 0.9rem;
-  color: var(--header);
 }
 
 .budget-item-note {
@@ -298,10 +286,10 @@
   }
 }
 
-/* --- Collapsed phone-number group (pending list) ----------- */
-/* Same card chrome as a standalone .budget-item, wrapping a header (name +
-   phone, and the "Godkend alle" batch action) over each member's own row —
-   every request stays individually approvable/editable/rejectable. */
+/* --- Pending group (one collapsible section per phone number, even a
+   group of one) — a card wrapping a header (name + phone, a chevron to
+   toggle it, and the "Godkend alle" batch action) over each member's own
+   row; every request stays individually approvable/editable/rejectable. */
 .budget-group {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -314,13 +302,51 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
+}
+
+.budget-group:not(.budget-group-collapsed) .budget-group-header {
   margin-bottom: 0.6rem;
+}
+
+/* The clickable open/close target — name+phone plus the chevron, kept
+   separate from "Godkend alle" (a sibling button in the same header) so
+   toggling the section and batch-approving it are two distinct click
+   targets rather than one competing for the whole header. */
+.budget-group-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+  min-width: 0;
+}
+
+.budget-group-chevron {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  transition: transform 0.15s;
+  flex: 0 0 auto;
+}
+
+.budget-group-collapsed .budget-group-chevron {
+  transform: rotate(-90deg);
 }
 
 .budget-group-title {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--header);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.budget-group-collapsed .budget-group-rows {
+  display: none;
 }
 
 /* Each row is separated by a rule instead of its own border/background, so

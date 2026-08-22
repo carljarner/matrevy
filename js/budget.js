@@ -1072,17 +1072,19 @@ function ensureBudgetSheetTimers(root) {
 
 // Base order is time-of-upload, oldest first — but requests are first
 // grouped by phone number (the stable per-person key; a name can vary in
-// spelling) so a later request from someone who already has one pending
-// collapses into the same section entry as their earlier one instead of
-// being scattered far below it, since these get paid back together in one
-// transfer. A group's position in the list follows its OLDEST member's
-// createdAt (keeping the original queue-fairness ordering), which is what
-// "moves up" a later same-phone request — it jumps out of its own
-// chronological slot to join its group earlier in the list; members within
-// a group stay oldest-first. Returns the groups themselves (not a flattened
-// list) — renderPendingSection renders a single group's one member as a
-// plain card, and a multi-member group as one collapsed section (see
-// buildPendingGroup) that can be approved one row at a time or all at once.
+// spelling — e.g. "Carl" vs "Carl J" — so the phone number, not the name,
+// is what actually identifies the group) so a later request from someone
+// who already has one pending collapses into the same section entry as
+// their earlier one instead of being scattered far below it, since these
+// get paid back together in one transfer. A group's position in the list
+// follows its OLDEST member's createdAt (keeping the original
+// queue-fairness ordering), which is what "moves up" a later same-phone
+// request — it jumps out of its own chronological slot to join its group
+// earlier in the list; members within a group stay oldest-first. Returns
+// the groups themselves — renderPendingSection renders every group (even a
+// lone request) as one collapsible section via buildPendingGroup, so the
+// list is uniformly "one section per phone number" rather than special-
+// casing the single-request case.
 function budgetGroupRequestsByPhone(requests) {
   const groups = new Map();
   requests.forEach((req) => {
@@ -1117,12 +1119,8 @@ function renderPendingSection(container) {
   const root = document.getElementById('budget-root');
   const scrollWrap = el('div', 'budget-scroll-wrap');
   const list = el('div', 'budget-list');
-  budgetGroupRequestsByPhone(budgetState.requests).forEach((group) => {
-    if (group.members.length > 1) {
-      list.appendChild(buildPendingGroup(root, group.members));
-    } else {
-      list.appendChild(buildPendingCard(root, group.members[0]));
-    }
+  budgetGroupRequestsByPhone(budgetState.requests).forEach((group, index) => {
+    list.appendChild(buildPendingGroup(root, group.members, { defaultOpen: index === 0 }));
   });
   scrollWrap.appendChild(list);
   card.appendChild(scrollWrap);
@@ -1130,12 +1128,12 @@ function renderPendingSection(container) {
 }
 
 // The shared inner content of one request — its category/amount/receipt-icon
-// top line, optional name+phone line (omitted inside a group, where the
-// group header already states it once), optional comment, and its own
-// Godkend/Rediger/Afvis row — used both for a standalone card and for one
-// row inside a collapsed phone-group (buildPendingGroup), so either way a
-// single request is always approvable/editable/rejectable on its own.
-function buildPendingRowContent(root, req, { showNamePhone = true } = {}) {
+// top line, optional comment, and its own Godkend/Rediger/Afvis row — one
+// row inside a phone-number group (buildPendingGroup), so a single request
+// is always approvable/editable/rejectable on its own regardless of how
+// many others share its phone number. Name/phone are never repeated per row
+// — the group header above already states them once.
+function buildPendingRowContent(root, req) {
   const wrap = el('div', 'budget-item-content');
 
   const top = el('div', 'budget-item-top');
@@ -1146,7 +1144,6 @@ function buildPendingRowContent(root, req, { showNamePhone = true } = {}) {
   if (req.receiptFile) top.appendChild(budgetReceiptIconBtn(req.receiptFile));
   wrap.appendChild(top);
 
-  if (showNamePhone) wrap.appendChild(el('div', 'budget-item-line', req.name + ' · ' + req.phone));
   if (req.comment) wrap.appendChild(el('div', 'budget-item-note', req.comment));
 
   const actions = el('div', 'budget-item-actions');
@@ -1164,20 +1161,26 @@ function buildPendingRowContent(root, req, { showNamePhone = true } = {}) {
   return wrap;
 }
 
-function buildPendingCard(root, req) {
-  const item = el('div', 'budget-item');
-  item.appendChild(buildPendingRowContent(root, req, { showNamePhone: true }));
-  return item;
-}
-
-// A collapsed section for every pending request sharing one phone number:
-// a header (name/phone + a "Godkend alle" batch action) over each request's
-// own row, still individually approvable/editable/rejectable.
-function buildPendingGroup(root, members) {
-  const group = el('div', 'budget-group');
+// One collapsible section per phone number — every pending request is shown
+// this way, even a lone one, so the list is uniformly "one section per
+// person" (a group of one still gets the same header + "Godkend alle",
+// which is just a one-item batch there). The header's name is always the
+// GROUP's oldest member's — the phone number is the real identity, and
+// picking one consistent name (rather than e.g. showing whichever request
+// happens to render) sidesteps spelling drift like "Carl" vs "Carl J."
+// Only the first section in the list (index 0, the site-wide oldest-anchor
+// convention) opens expanded; every other section starts collapsed.
+function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
+  const group = el('div', 'budget-group' + (defaultOpen ? '' : ' budget-group-collapsed'));
 
   const header = el('div', 'budget-group-header');
-  header.appendChild(el('span', 'budget-group-title', `${members[0].name} · ${members[0].phone}`));
+  const summary = el('button', 'budget-group-summary');
+  summary.type = 'button';
+  summary.appendChild(el('span', 'budget-group-chevron', '▾'));
+  summary.appendChild(el('span', 'budget-group-title', `${members[0].name} · ${members[0].phone}`));
+  summary.addEventListener('click', () => group.classList.toggle('budget-group-collapsed'));
+  header.appendChild(summary);
+
   const approveAllBtn = el('button', 'btn-small budget-act-approve', 'Godkend alle');
   approveAllBtn.addEventListener('click', () => openApproveAllModal(root, members));
   header.appendChild(approveAllBtn);
@@ -1186,7 +1189,7 @@ function buildPendingGroup(root, members) {
   const rows = el('div', 'budget-group-rows');
   members.forEach((req) => {
     const row = el('div', 'budget-group-row');
-    row.appendChild(buildPendingRowContent(root, req, { showNamePhone: false }));
+    row.appendChild(buildPendingRowContent(root, req));
     rows.appendChild(row);
   });
   group.appendChild(rows);
