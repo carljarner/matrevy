@@ -769,7 +769,7 @@ a.manus-pdf-title:focus-visible {
 .manus-points-results-table th:nth-child(3),
 .manus-points-results-table td:nth-child(3) {
   width: 10%;
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
 }
 
