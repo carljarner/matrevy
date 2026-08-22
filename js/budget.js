@@ -1415,8 +1415,9 @@ function openExpenseEditModal(root, exp) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger udgift');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
-  form.appendChild(el('p', 'budget-intro',
-    `${budgetCategoryLabel(exp.category)} · ${formatKr(exp.amount)} · ${exp.name || '—'} · ${exp.phone || '—'}`));
+  const summaryParts = [budgetCategoryLabel(exp.category), formatKr(exp.amount), exp.paidBy || '—'];
+  if (exp.phone) summaryParts.push(exp.phone);
+  form.appendChild(el('p', 'budget-intro', summaryParts.join(' · ')));
   form.appendChild(el('p', 'budget-intro',
     `Bilag ${exp.bilag || '—'}`
     + ` · Indsendt ${formatDaNumeric(String(exp.date || '').slice(0, 10))}`
