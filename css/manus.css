@@ -587,6 +587,197 @@ a.manus-pdf-title:focus-visible {
   font-weight: 600;
 }
 
+/* "Indtast point" modal (js/manus.js's openPointEntryModal) — much wider
+   than the default .edit-modal/.manus-select-overlay-modal since each row
+   now carries eleven point circles (0-10) plus a comment field side by
+   side, not just a couple of narrow inputs. Both the entry and results view
+   share the same shape — a scrollable area (.manus-points-list /
+   .manus-points-results-scroll, same 55vh max-height so the modal is the
+   same overall height in either mode) with a fixed control row directly
+   below it — so switching between them never changes the modal's height. */
+.manus-points-modal {
+  width: min(1040px, 96vw);
+}
+
+.manus-points-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.manus-points-results-scroll {
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.manus-points-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.manus-points-row:last-child {
+  border-bottom: none;
+}
+
+.manus-points-row-title {
+  flex: 0 1 200px;
+}
+
+/* Shared 3-column layout for both the entry view's sheet-navigator row
+   (‹ Forrige / Ark i/N / Næste › ... Resultat) and the results view's
+   button row (Nulstil / Udskriv / Tilbage) — a middle column that's exactly
+   as wide as its own content (auto) flanked by two equal (1fr) columns, so
+   .manus-points-col-center is always truly centered on the row regardless
+   of what's in -start/-end, while -start/-end pin to the outer edges. */
+.manus-points-grid-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  /* Matches .login-modal's own 1.5rem padding — since the shared `actions`
+     bar is hidden (js/manus.js), that padding is also exactly the space
+     below this row, so top/bottom end up visually equal. */
+  margin-top: 1.5rem;
+}
+
+.manus-points-col-start  { grid-column: 1; justify-self: start; }
+.manus-points-col-center { grid-column: 2; justify-self: center; }
+.manus-points-col-end    { grid-column: 3; justify-self: end; }
+
+.manus-points-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.manus-points-sheet-label {
+  font-weight: 600;
+  min-width: 6ch;
+  text-align: center;
+}
+
+.manus-points-circles {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+
+/* Same visual language as Stjerneark's .manus-prio-circle (grey until
+   picked, own color previewed on hover, permanent per-value class so CSS
+   alone drives the hover preview) — see MANUS_POINTS_VALUES in manus.js —
+   just eleven values (0-10) instead of four, so the 4-color categorical
+   Stjerneark palette is respread here as a continuous red→amber→green
+   gradient (0=red/worst, 10=green/best) built from the same three anchor
+   colors (--prio-3-rgb, --prio-2-rgb, --prio-0-rgb). */
+.manus-points-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  background: #f0f1f2;
+  color: var(--neutral-border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.manus-points-circle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.manus-points-circle-v0.manus-points-circle-active  { background: rgb(252 165 165); color: #7f1d1d; }
+.manus-points-circle-v1.manus-points-circle-active  { background: rgb(252 174 147); color: #7f1d1d; }
+.manus-points-circle-v2.manus-points-circle-active  { background: rgb(252 183 130); color: #7f1d1d; }
+.manus-points-circle-v3.manus-points-circle-active  { background: rgb(252 193 112); color: #7f1d1d; }
+.manus-points-circle-v4.manus-points-circle-active  { background: rgb(252 202  95); color: #78350f; }
+.manus-points-circle-v5.manus-points-circle-active  { background: rgb(252 211  77); color: #78350f; }
+.manus-points-circle-v6.manus-points-circle-active  { background: rgb(228 217  96); color: #78350f; }
+.manus-points-circle-v7.manus-points-circle-active  { background: rgb(205 222 115); color: #78350f; }
+.manus-points-circle-v8.manus-points-circle-active  { background: rgb(181 228 134); color: #14532d; }
+.manus-points-circle-v9.manus-points-circle-active  { background: rgb(158 233 153); color: #14532d; }
+.manus-points-circle-v10.manus-points-circle-active { background: rgb(134 239 172); color: #14532d; }
+
+@media (hover: hover) {
+  .manus-points-circle-v0:hover  { background: rgb(252 165 165); color: #7f1d1d; }
+  .manus-points-circle-v1:hover  { background: rgb(252 174 147); color: #7f1d1d; }
+  .manus-points-circle-v2:hover  { background: rgb(252 183 130); color: #7f1d1d; }
+  .manus-points-circle-v3:hover  { background: rgb(252 193 112); color: #7f1d1d; }
+  .manus-points-circle-v4:hover  { background: rgb(252 202  95); color: #78350f; }
+  .manus-points-circle-v5:hover  { background: rgb(252 211  77); color: #78350f; }
+  .manus-points-circle-v6:hover  { background: rgb(228 217  96); color: #78350f; }
+  .manus-points-circle-v7:hover  { background: rgb(205 222 115); color: #78350f; }
+  .manus-points-circle-v8:hover  { background: rgb(181 228 134); color: #14532d; }
+  .manus-points-circle-v9:hover  { background: rgb(158 233 153); color: #14532d; }
+  .manus-points-circle-v10:hover { background: rgb(134 239 172); color: #14532d; }
+}
+
+/* Not wrapped in .edit-field (too cramped for a label per compact row), so
+   this copies .edit-field input's look directly rather than inheriting it. */
+.manus-points-comment-input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--input-bg);
+  color: var(--header);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.manus-points-comment-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.manus-points-results-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.manus-points-results-table th,
+.manus-points-results-table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+/* Navn/Gennemsnit/Antal stay narrow so Kommentarer (the column that
+   actually needs room for running text) gets most of the table's width. */
+.manus-points-results-table th:nth-child(1),
+.manus-points-results-table td:nth-child(1) {
+  width: 24%;
+}
+
+.manus-points-results-table th:nth-child(2),
+.manus-points-results-table td:nth-child(2),
+.manus-points-results-table th:nth-child(3),
+.manus-points-results-table td:nth-child(3) {
+  width: 10%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.manus-points-results-table th:nth-child(4),
+.manus-points-results-table td:nth-child(4) {
+  width: 56%;
+}
+
 /* --- Tab: Aktfordeling — act columns in a row, "Ikke placeret" below --
    .manus-kanban is a CSS grid with one column per act (column count set
    inline per render — see renderActColumnsGrid() — so it always matches
@@ -1135,6 +1326,14 @@ a.manus-pdf-title:focus-visible {
   }
 
   .manus-print-col-point { width: 60pt; }
+
+  /* Point averages (manusPrintPointResults) read better centered in their
+     narrow fixed-width column; harmless on the blank Stemmeark sheet, whose
+     Point cells have no content either way. */
+  .manus-print-table th:nth-child(2),
+  .manus-print-table td:nth-child(2) {
+    text-align: center;
+  }
 
   .manus-print-table tbody tr:nth-child(even) td {
     background: #eee;

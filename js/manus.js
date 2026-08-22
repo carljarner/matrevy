@@ -515,6 +515,14 @@ function openUploadModal() {
       error.textContent = 'Udfyld titel, afsender, og vælg både en .pdf- og en .tex-fil.';
       return;
     }
+    const normalizedTitle = title.toLowerCase();
+    const isDuplicate = getEffectiveManuscripts().some(
+      s => (s.title || '').trim().toLowerCase() === normalizedTitle
+    );
+    if (isDuplicate) {
+      error.textContent = 'Der findes allerede et manus med den titel. Vælg en anden titel.';
+      return;
+    }
     if (pdfFile.size > MANUS_MAX_UPLOAD_BYTES || texFile.size > MANUS_MAX_UPLOAD_BYTES) {
       error.textContent = 'Filerne skal hver især være under 5 MB.';
       return;
@@ -598,18 +606,17 @@ function confirmDeleteManuscript(item) {
 }
 
 // ── "Hent stemmeark": printable Navn/Point/Kommentar sheet ─────
-function manusOpenVotingSheet(type) {
-  const items = getEffectiveManuscripts()
-    .filter(s => s.type === type)
-    .slice()
-    .sort((a, b) => a.title.localeCompare(b.title, 'da'));
-
+// Shared by the blank voting sheet (manusOpenVotingSheet, rows with no
+// point/comment yet) and the point-entry modal's results print
+// (manusPrintPointResults, rows already computed/ordered) — same table
+// shape either way, just with or without values filled in.
+function manusRenderPrintTable(titleText, rows) {
   const sheet = document.getElementById('manus-print-sheet');
   sheet.textContent = '';
 
   const title = document.createElement('h2');
   title.className = 'manus-print-title';
-  title.textContent = `Stemmeark – ${MANUS_TYPE_COLUMN_LABEL[type]}`;
+  title.textContent = titleText;
   sheet.appendChild(title);
 
   const table = document.createElement('table');
@@ -634,19 +641,438 @@ function manusOpenVotingSheet(type) {
   table.appendChild(thead);
 
   const tbody = document.createElement('tbody');
-  for (const item of items) {
+  for (const row of rows) {
     const tr = document.createElement('tr');
     const tdName = document.createElement('td');
-    tdName.textContent = item.title;
+    tdName.textContent = row.name;
     tr.appendChild(tdName);
-    tr.appendChild(document.createElement('td'));
-    tr.appendChild(document.createElement('td'));
+    const tdPoint = document.createElement('td');
+    tdPoint.textContent = row.point || '';
+    tr.appendChild(tdPoint);
+    const tdComment = document.createElement('td');
+    tdComment.textContent = row.comment || '';
+    tr.appendChild(tdComment);
     tbody.appendChild(tr);
   }
   table.appendChild(tbody);
   sheet.appendChild(table);
 
   window.print();
+}
+
+function manusOpenVotingSheet(type) {
+  const items = getEffectiveManuscripts()
+    .filter(s => s.type === type)
+    .slice()
+    .sort((a, b) => a.title.localeCompare(b.title, 'da'));
+
+  manusRenderPrintTable(
+    `Stemmeark – ${MANUS_TYPE_COLUMN_LABEL[type]}`,
+    items.map(item => ({ name: item.title }))
+  );
+}
+
+// Used by the point-entry modal's results view "Udskriv" button — same
+// sheet shape/header as manusOpenVotingSheet's blank one, but rows are
+// already sorted by descending average with Point/Kommentar filled in.
+function manusPrintPointResults(type, rows) {
+  manusRenderPrintTable(
+    `Stemmeark – ${MANUS_TYPE_COLUMN_LABEL[type]}`,
+    rows.map(row => ({
+      name: row.title,
+      point: row.avg === null ? '' : formatPointsAvg(row.avg),
+      comment: row.comments.join(' / '),
+    }))
+  );
+}
+
+// ── "Indtast point": transcribe one paper Stemmeark at a time ──
+// Purely localStorage-based (matrevy-manus-points) — unlike every other
+// Manus resource this deliberately never syncs through the server/GitHub;
+// it's private scratch data for whichever single browser transcribes the
+// physical Stemmeark sheets (see CLAUDE.md's Manus section for why every
+// other resource here IS globally synced — this is the one exception).
+// Votes are keyed by each submission's stable server-assigned `id` (from
+// data/manuscripts.json, via getEffectiveManuscripts() — the very same
+// source manusOpenVotingSheet() above reads), not by any manusDraft.rows
+// key or scene.id — those are a runtime counter / recomputed positional
+// string respectively and don't survive a save+reload, but a submission's
+// id never changes regardless of placement.
+//
+// store[type] = { sheets: [ { [submissionId]: { point?, comment? } }, ... ] }
+// — one plain object per physical sheet, indexed by position (sheet #N is
+// sheets[N-1]); an item key only exists on a sheet once it actually has a
+// point and/or comment, so `Object.keys(sheet).length === 0` is exactly
+// "this sheet is empty" (used by the left-nav pruning rule below).
+const MANUS_POINTS_KEY = 'matrevy-manus-points';
+const MANUS_POINTS_VALUES = Array.from({ length: 11 }, (_, i) => i); // 0-10
+
+function loadPointsStore() {
+  try {
+    const raw = localStorage.getItem(MANUS_POINTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePointsStore(store) {
+  try {
+    localStorage.setItem(MANUS_POINTS_KEY, JSON.stringify(store));
+  } catch {
+    // localStorage unavailable (private browsing quota, etc.) — silently drop.
+  }
+}
+
+// Same source/filter/sort as manusOpenVotingSheet() so this modal's row
+// order always matches what's on the physical printed sheet.
+function pointsItemsForType(type) {
+  return getEffectiveManuscripts()
+    .filter(s => s.type === type)
+    .slice()
+    .sort((a, b) => a.title.localeCompare(b.title, 'da'));
+}
+
+function isPointsSheetEmpty(sheet) {
+  return Object.keys(sheet).length === 0;
+}
+
+// Below 6 is displayed as a flat "< 6" (in both the results table and the
+// printed sheet) rather than the exact figure — sorting still uses the real
+// `avg`, only this display string is coarsened. Only call with a non-null
+// avg; callers handle the "no votes yet" case themselves.
+function formatPointsAvg(avg) {
+  return avg < 6 ? '< 6' : avg.toFixed(1);
+}
+
+function openPointEntryModal(type) {
+  const store = loadPointsStore();
+  if (!store[type] || !Array.isArray(store[type].sheets)) store[type] = { sheets: [] };
+  const bucket = store[type];
+
+  // Resume on the last sheet (most likely where transcription left off).
+  let currentIndex = Math.max(0, bucket.sheets.length - 1);
+
+  // Every click/keystroke saves straight to localStorage (see
+  // renderPointsRow() below), so there's no in-progress work a backdrop
+  // click or Escape could lose — the modal closes normally.
+  const { modal, form, actions, close } = siteOpenModalWithClose(
+    `Indtast point – ${MANUS_TYPE_COLUMN_LABEL[type]}`
+  );
+  modal.classList.add('manus-points-modal');
+  // Both views put their own button row in `form` (see the sheet-navigator
+  // and results button row below) — the shared bottom `actions` bar is
+  // unused here, and left visible it added its own margin-top below the
+  // real button row, unbalancing the space above/below it.
+  actions.style.display = 'none';
+
+  let mode = 'entry'; // 'entry' | 'results'
+
+  function renderBody() {
+    form.textContent = '';
+    if (mode === 'entry') renderEntryView();
+    else renderResultsView();
+  }
+
+  // Guarantees at least one sheet exists and currentIndex points at a real
+  // one — needed after "Nulstil alle point" empties the array, and cheap
+  // enough to just call unconditionally on every entry-view render.
+  function ensureSheets() {
+    if (bucket.sheets.length === 0) bucket.sheets.push({});
+    if (currentIndex >= bucket.sheets.length) currentIndex = bucket.sheets.length - 1;
+    if (currentIndex < 0) currentIndex = 0;
+  }
+
+  function renderEntryView() {
+    ensureSheets();
+    const sheet = bucket.sheets[currentIndex];
+
+    const items = pointsItemsForType(type);
+    if (items.length === 0) {
+      const empty = document.createElement('p');
+      empty.textContent = 'Ingen uploads af denne type endnu.';
+      form.appendChild(empty);
+    } else {
+      const list = document.createElement('div');
+      list.className = 'manus-points-list';
+      for (const item of items) list.appendChild(renderPointsRow(item, sheet));
+      form.appendChild(list);
+    }
+
+    // Sheet navigator — sits right below the row list (still inside `form`,
+    // so it's always visible without scrolling the list itself) — moving
+    // right past the last sheet creates a fresh blank one; moving left off
+    // the last sheet drops it first if it was never actually filled in.
+    // "Resultat" shares this same row, pinned to the right, via the shared
+    // .manus-points-grid-row 3-column layout (see manus.css).
+    const nav = document.createElement('div');
+    nav.className = 'manus-points-grid-row';
+
+    const navGroup = document.createElement('div');
+    navGroup.className = 'manus-points-nav-group manus-points-col-center';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.className = 'site-pill-btn';
+    prevBtn.textContent = '‹ Forrige';
+    prevBtn.disabled = currentIndex === 0;
+    prevBtn.addEventListener('click', () => {
+      const isLast = currentIndex === bucket.sheets.length - 1;
+      if (isLast && bucket.sheets.length > 1 && isPointsSheetEmpty(bucket.sheets[currentIndex])) {
+        bucket.sheets.pop();
+      }
+      currentIndex = Math.max(0, currentIndex - 1);
+      savePointsStore(store);
+      renderBody();
+    });
+
+    const label = document.createElement('span');
+    label.className = 'manus-points-sheet-label';
+    label.textContent = `Ark ${currentIndex + 1}/${bucket.sheets.length}`;
+
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'site-pill-btn';
+    nextBtn.textContent = 'Næste ›';
+    nextBtn.addEventListener('click', () => {
+      if (currentIndex === bucket.sheets.length - 1) bucket.sheets.push({});
+      currentIndex += 1;
+      savePointsStore(store);
+      renderBody();
+    });
+
+    navGroup.appendChild(prevBtn);
+    navGroup.appendChild(label);
+    navGroup.appendChild(nextBtn);
+    nav.appendChild(navGroup);
+
+    const resultsBtn = document.createElement('button');
+    resultsBtn.type = 'button';
+    resultsBtn.className = 'site-pill-btn site-pill-warm manus-points-col-end';
+    resultsBtn.textContent = 'Resultat';
+    resultsBtn.addEventListener('click', () => {
+      mode = 'results';
+      renderBody();
+    });
+    nav.appendChild(resultsBtn);
+
+    form.appendChild(nav);
+  }
+
+  // One row: title + eleven 0-10 point circles + a comment field. Every
+  // click/keystroke writes straight into `sheet`/localStorage immediately
+  // (no separate save step, mirroring schedule.js's per-mutation autosave)
+  // and only that row's own circle highlighting is refreshed — never a full
+  // renderEntryView() — so typing a comment elsewhere keeps its focus/caret.
+  function renderPointsRow(item, sheet) {
+    const row = document.createElement('div');
+    row.className = 'manus-points-row';
+
+    const title = document.createElement('span');
+    title.className = 'manus-points-row-title';
+    title.textContent = item.title;
+    row.appendChild(title);
+
+    function currentEntry(create) {
+      let entry = sheet[item.id];
+      if (!entry && create) entry = sheet[item.id] = {};
+      return entry;
+    }
+    function pruneIfEmpty(entry) {
+      if (entry && entry.point === undefined && !entry.comment) delete sheet[item.id];
+    }
+
+    const circles = document.createElement('div');
+    circles.className = 'manus-points-circles';
+    const circleEls = [];
+    for (const value of MANUS_POINTS_VALUES) {
+      const circle = document.createElement('button');
+      circle.type = 'button';
+      circle.className = `manus-points-circle manus-points-circle-v${value}`;
+      circle.dataset.value = String(value);
+      circle.textContent = String(value);
+      circle.addEventListener('click', () => {
+        const entry = currentEntry(true);
+        if (entry.point === value) delete entry.point;
+        else entry.point = value;
+        pruneIfEmpty(entry);
+        savePointsStore(store);
+        updateCircles();
+      });
+      circles.appendChild(circle);
+      circleEls.push(circle);
+    }
+    row.appendChild(circles);
+
+    function updateCircles() {
+      const entry = sheet[item.id];
+      const active = entry ? entry.point : undefined;
+      for (const el of circleEls) {
+        el.classList.toggle('manus-points-circle-active', Number(el.dataset.value) === active);
+      }
+    }
+    updateCircles();
+
+    const commentInput = document.createElement('input');
+    commentInput.type = 'text';
+    commentInput.className = 'manus-points-comment-input';
+    commentInput.placeholder = 'Kommentar';
+    commentInput.value = (sheet[item.id] && sheet[item.id].comment) || '';
+    commentInput.addEventListener('input', () => {
+      const entry = currentEntry(true);
+      if (commentInput.value.trim()) entry.comment = commentInput.value;
+      else delete entry.comment;
+      pruneIfEmpty(entry);
+      savePointsStore(store);
+    });
+    row.appendChild(commentInput);
+
+    return row;
+  }
+
+  function computePointsStats(item) {
+    let sum = 0, count = 0;
+    const comments = [];
+    for (const sheet of bucket.sheets) {
+      const entry = sheet[item.id];
+      if (!entry) continue;
+      if (typeof entry.point === 'number') { sum += entry.point; count += 1; }
+      if (entry.comment && entry.comment.trim()) comments.push(entry.comment.trim());
+    }
+    return { avg: count > 0 ? sum / count : null, count, comments };
+  }
+
+  function renderResultsView() {
+    const items = pointsItemsForType(type);
+    const rows = items.map(item => ({ title: item.title, ...computePointsStats(item) }));
+    rows.sort((a, b) => {
+      if (a.avg === null && b.avg === null) return a.title.localeCompare(b.title, 'da');
+      if (a.avg === null) return 1;
+      if (b.avg === null) return -1;
+      return b.avg - a.avg;
+    });
+
+    const table = document.createElement('table');
+    table.className = 'manus-points-results-table';
+
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    for (const label of ['Navn', 'Gennemsnit', 'Antal', 'Kommentarer']) {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const row of rows) {
+      const tr = document.createElement('tr');
+
+      const tdName = document.createElement('td');
+      tdName.textContent = row.title;
+      tr.appendChild(tdName);
+
+      const tdAvg = document.createElement('td');
+      tdAvg.textContent = row.avg === null ? '–' : formatPointsAvg(row.avg);
+      tr.appendChild(tdAvg);
+
+      const tdCount = document.createElement('td');
+      tdCount.textContent = String(row.count);
+      tr.appendChild(tdCount);
+
+      const tdComments = document.createElement('td');
+      tdComments.textContent = row.comments.join(' / ');
+      tr.appendChild(tdComments);
+
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+
+    const scroll = document.createElement('div');
+    scroll.className = 'manus-points-results-scroll';
+    scroll.appendChild(table);
+    form.appendChild(scroll);
+
+    // Button row directly below the scroll area (same .manus-points-grid-row
+    // layout as the entry view's sheet navigator, so both views end up the
+    // same overall height) — Nulstil far left, Udskriv centered, Tilbage
+    // far right.
+    const buttonRow = document.createElement('div');
+    buttonRow.className = 'manus-points-grid-row';
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'site-pill-btn site-pill-danger manus-points-col-start';
+    resetBtn.textContent = 'Nulstil';
+    resetBtn.addEventListener('click', () => {
+      openResetPointsConfirm(bucket, store, renderBody);
+    });
+
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.className = 'site-pill-btn site-pill-warm manus-points-col-center';
+    printBtn.textContent = 'Udskriv';
+    printBtn.addEventListener('click', () => {
+      // Close the modal first — otherwise it's still sitting on top of the
+      // actual print sheet at print time (it isn't hidden by the @media
+      // print rules, since manusOpenVotingSheet never has a modal open when
+      // it prints), which is what made the printout look like a screenshot
+      // of the app instead of the plain typewriter-style sheet.
+      close();
+      manusPrintPointResults(type, rows);
+    });
+
+    const backBtn = document.createElement('button');
+    backBtn.type = 'button';
+    backBtn.className = 'site-pill-btn manus-points-col-end';
+    backBtn.textContent = 'Tilbage';
+    backBtn.addEventListener('click', () => {
+      mode = 'entry';
+      renderBody();
+    });
+
+    buttonRow.appendChild(resetBtn);
+    buttonRow.appendChild(printBtn);
+    buttonRow.appendChild(backBtn);
+    form.appendChild(buttonRow);
+  }
+
+  renderBody();
+}
+
+// Same "Er du sikker?" narrow-confirm shape as openManuscriptDeleteConfirm
+// above. Mutates `bucket` (the same object stored at store[type]) in place
+// rather than replacing store[type] wholesale, so the caller's already-held
+// `bucket` closure reference stays correct after a reset.
+function openResetPointsConfirm(bucket, store, onReset) {
+  const { modal, form, actions, close } = siteOpenEditModal('');
+  modal.classList.add('manus-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'manus-confirm-text';
+  info.textContent = 'Er du sikker?';
+  form.appendChild(info);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.textContent = 'Annuller';
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.textContent = 'Nulstil';
+  confirmBtn.addEventListener('click', () => {
+    bucket.sheets = [];
+    savePointsStore(store);
+    close();
+    onReset();
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Main Manus View (boss/admin only) — shared draft state ────
@@ -1836,12 +2262,17 @@ function renderSelectionColumn() {
   section.appendChild(voteGroup);
 
   const pointGroup = renderSelectPanelGroup('Indtast point');
-  const pointBtn = document.createElement('button');
-  pointBtn.type = 'button';
-  pointBtn.className = 'site-pill-btn site-pill-warm';
-  pointBtn.textContent = 'Point';
-  pointBtn.disabled = true;
-  pointGroup.appendChild(pointBtn);
+  const pointBtnRow = document.createElement('div');
+  pointBtnRow.className = 'manus-select-panel-btn-row';
+  for (const type of MANUS_TYPES) {
+    const pointBtn = document.createElement('button');
+    pointBtn.type = 'button';
+    pointBtn.className = 'site-pill-btn site-pill-warm';
+    pointBtn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
+    pointBtn.addEventListener('click', () => openPointEntryModal(type));
+    pointBtnRow.appendChild(pointBtn);
+  }
+  pointGroup.appendChild(pointBtnRow);
   section.appendChild(pointGroup);
 
   const selectGroup = renderSelectPanelGroup('Vælg Scener');

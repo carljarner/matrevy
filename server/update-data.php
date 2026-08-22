@@ -1439,6 +1439,16 @@ function manuscripts_create($body) {
     $existing = (is_array($decoded) && isset($decoded['submissions']) && is_array($decoded['submissions']))
       ? $decoded['submissions'] : [];
   }
+  // Titles must be unique across all types, not just within one — both
+  // sketch and song uploads stage into the same flat submitted/ folder, so
+  // a same-titled sketch and song would otherwise slugify to the same
+  // filename and the second upload would silently overwrite the first.
+  $normalizedTitle = mb_strtolower(trim($title));
+  foreach ($existing as $s) {
+    if (mb_strtolower(trim($s['title'] ?? '')) === $normalizedTitle) {
+      respond(409, ['error' => 'duplicate_title']);
+    }
+  }
   $slug = manus_unique_slug($type, trim($title), $existing);
 
   $pdfPath = 'archive/' . $folder . '/submitted/' . $slug . '.pdf';
