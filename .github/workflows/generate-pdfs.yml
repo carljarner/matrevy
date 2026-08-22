@@ -1,17 +1,30 @@
 name: Generate manuscript PDFs
 
-# Fires on the exact same trigger as embed-scenes.yml (any push touching
-# data/scenes.json or data/cast.json) — a manus.html save already produces
-# this push (see save_manus() in server/update-data.php, which stamps a
-# second-granularity `generatedAt` timestamp onto both files on every save,
-# guaranteeing a fresh, non-empty commit even when a Main Manus View
-# "Generér PDF'er" click re-saves otherwise-unchanged data purely to
-# re-trigger this workflow — `version` alone, at day granularity, wasn't
-# enough: every same-day resave after the first produced a byte-identical
-# PUT and a genuinely empty commit that GitHub's path filter below silently
-# ignored, caught live 2026-08-21). No workflow_dispatch/API trigger is
-# used, deliberately — that would need the site's GitHub token to gain an
-# "Actions: read & write" permission it doesn't have today.
+# Fires on the exact same push trigger as embed-scenes.yml (any push
+# touching data/scenes.json or data/cast.json) — both a plain Gem and a
+# "Generér PDF'er" click on Main Manus View produce this push (see
+# save_manus() in server/update-data.php, which stamps a second-granularity
+# `generatedAt` timestamp onto both files on every save, guaranteeing a
+# fresh, non-empty commit even when "Generér PDF'er" re-saves
+# otherwise-unchanged data purely to re-trigger this workflow — `version`
+# alone, at day granularity, wasn't enough: every same-day resave after the
+# first produced a byte-identical PUT and a genuinely empty commit that
+# GitHub's path filter silently ignored, caught live 2026-08-21).
+#
+# The job itself only actually runs for a "Generér PDF'er" click, though
+# (2026-08-22) — a bare Gem shouldn't force every coordinator to wait
+# through a ~2.5 min CI regen just to save a draft edit. manusRegeneratePdfs()
+# (js/manus.js) sends regeneratePdfs:true, which save_manus() turns into a
+# `[regen-pdfs]` marker in the commit message; the job-level `if:` below
+# checks for exactly that marker and no-ops (shown as skipped, not run) for
+# an ordinary Gem's commit. embed-scenes.yml is untouched by this and keeps
+# firing on every save regardless, so scenes-data.js/CAST_DATA (what drives
+# Vælg scener, Øveplan, etc.) stay live within ~1-2 min either way — only
+# the compiled PDFs lag behind a bare Gem until "Generér PDF'er" is clicked.
+#
+# No workflow_dispatch/API trigger is used, deliberately — that would need
+# the site's GitHub token to gain an "Actions: read & write" permission it
+# doesn't have today.
 on:
   push:
     branches: [main]
@@ -28,6 +41,7 @@ concurrency:
 
 jobs:
   generate:
+    if: contains(github.event.head_commit.message, '[regen-pdfs]')
     runs-on: ubuntu-latest
     # A plain `apt-get install texlive ...` here used to take several
     # minutes on every single run (no package caching, full TeX Live

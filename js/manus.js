@@ -520,7 +520,7 @@ function openUploadModal() {
       s => (s.title || '').trim().toLowerCase() === normalizedTitle
     );
     if (isDuplicate) {
-      error.textContent = 'Der findes allerede et manus med den titel. Vælg en anden titel.';
+      error.textContent = 'Der findes allerede en scene med den titel. Vælg en anden titel.';
       return;
     }
     if (pdfFile.size > MANUS_MAX_UPLOAD_BYTES || texFile.size > MANUS_MAX_UPLOAD_BYTES) {
@@ -3431,10 +3431,15 @@ function manusPollPdfCompletion(beforeDate, url) {
 // as-is through the same boss-level `manus` resource path Gem uses — the
 // server always stamps a fresh `generatedAt` timestamp on every save
 // (save_manus() in update-data.php), so this reliably produces a fresh,
-// non-empty commit and re-triggers the Action every time, even with zero
-// real content change (a bare `version` re-stamp alone used to only manage
-// this on the first save of each calendar day — see CLAUDE.md). The three
-// buttons below all call this same function:
+// non-empty commit even with zero real content change (a bare `version`
+// re-stamp alone used to only manage this on the first save of each
+// calendar day — see CLAUDE.md). The three buttons below all call this
+// same function. The `regeneratePdfs: true` flag sent below is what
+// actually asks generate-pdfs.yml to run: save_manus() turns it into a
+// `[regen-pdfs]` commit-message marker, which the workflow's job-level
+// `if:` checks for — a plain Gem (manusSaveMain, no flag) still saves
+// normally but leaves the last-generated PDFs untouched, so frequent
+// in-progress Gem clicks don't each force a ~2.5 min CI regen:
 // "full rebuild every time" was a deliberate choice over a --only flag,
 // since Manuskript is a merge of every other scene PDF and a partial
 // rebuild risks the three documents drifting out of sync with each other.
@@ -3455,7 +3460,7 @@ async function manusRegeneratePdfs() {
 
   const scenesActs = manusCurrentActsPayload();
   const castRoster = manusBuildCastRoster(scenesActs);
-  const result = await siteSaveResource('manus', { scenes: scenesActs, cast: castRoster });
+  const result = await siteSaveResource('manus', { scenes: scenesActs, cast: castRoster, regeneratePdfs: true });
   manusResourceSaveInFlight = false;
   if (!result.ok) {
     manusPdfGenerating = false;

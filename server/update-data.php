@@ -1203,18 +1203,29 @@ function save_manus($payload) {
   // included.
   $now = date('c');
 
+  // Only an explicit "Generér PDF'er" click asks the PDF pipeline
+  // (generate-pdfs.yml) to actually run — a plain Gem just persists the
+  // draft. manusRegeneratePdfs() sends regeneratePdfs:true in the payload;
+  // that becomes a `[regen-pdfs]` marker in both commits' messages, which
+  // generate-pdfs.yml's own job-level `if:` checks for (see that workflow).
+  // embed-scenes.yml is untouched by this and still runs on every save
+  // regardless, so scenes-data.js/CAST_DATA stay live immediately either
+  // way — only the compiled PDFs are decoupled from a bare Gem.
+  $regeneratePdfs = ($payload['regeneratePdfs'] ?? false) === true;
+  $pdfMarker = $regeneratePdfs ? ' [regen-pdfs]' : '';
+
   update_file('data/scenes.json', function ($json) use ($scenesActs, $today, $now) {
     $json['acts'] = $scenesActs;
     $json['version'] = $today;
     $json['generatedAt'] = $now;
     return $json;
-  }, 'Opdater scenes.json via manus-værktøj');
+  }, 'Opdater scenes.json via manus-værktøj' . $pdfMarker);
 
   update_file('data/cast.json', function ($json) use ($castList, $now) {
     $json['cast'] = $castList;
     $json['generatedAt'] = $now;
     return $json;
-  }, 'Opdater cast.json via manus-værktøj');
+  }, 'Opdater cast.json via manus-værktøj' . $pdfMarker);
 }
 
 function save_calendar($payload) {
