@@ -580,13 +580,13 @@
 
 /* Placeholder button — true-centers it in the row regardless of the
    Slet/Gem buttons' own widths, since a 3-child space-between row only
-   centers the middle child when the outer two are equal width. */
+   centers the middle child when the outer two are equal width. Not
+   greyed out — styled at full strength (.site-btn-warm) so the look can
+   be checked, even though it's not wired to anything yet. */
 .budget-edit-placeholder {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  opacity: 0.5;
-  cursor: default;
 }
 
 /* --- Mobile (site-wide 719px convention) ------------------ */

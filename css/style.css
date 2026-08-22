@@ -284,6 +284,29 @@ body {
   box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.35);
 }
 
+/* Solid-warm sibling of .site-btn-primary/-danger — same tier/shape, for a
+   secondary (non-save, non-destructive) action that should still read as
+   visually equal-weight, e.g. Budget's "Rediger" next to "Slet"/"Gem". */
+.site-btn-warm {
+  border-radius: 6px;
+  padding: 0.45rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  background: var(--accent-warm-text);
+  color: #ffffff;
+  border: none;
+}
+
+@media (hover: hover) {
+  .site-btn-warm:hover { background: #7a5200; }
+}
+.site-btn-warm:disabled { opacity: 0.6; cursor: default; }
+.site-btn-warm:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
 /* --- Overlay pill buttons (site-wide second-level standard) -----
    Every button inside a .login-overlay/.login-modal (login, editor,
    and confirm-dialog forms) except the blue .site-btn-primary. Idle

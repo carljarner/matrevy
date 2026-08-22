@@ -862,9 +862,8 @@ function renderBudgetSheet(container) {
   deleteYearBtn.addEventListener('click', () => openDeleteYearWarning(document.getElementById('budget-root')));
   saveBar.appendChild(deleteYearBtn);
   // Placeholder reminder — not implemented yet, deliberately inert.
-  const editBudgetBtn = el('button', 'btn-small budget-edit-placeholder', 'Rediger');
+  const editBudgetBtn = el('button', 'site-btn-warm budget-edit-placeholder', 'Rediger');
   editBudgetBtn.type = 'button';
-  editBudgetBtn.disabled = true;
   saveBar.appendChild(editBudgetBtn);
   const saveBtn = el('button', 'site-btn-primary', 'Gem');
   saveBtn.type = 'button';
