@@ -1232,7 +1232,20 @@ function renderPaidTable(wrap) {
     return;
   }
 
-  const table = el('table', 'budget-table');
+  const table = el('table', 'budget-table budget-table-fixed');
+
+  // A <colgroup> is the only reliable way to force N columns to genuinely
+  // equal widths regardless of how long each one's own content happens to
+  // be (a per-cell width:1% just shrinks each column to its own content,
+  // which is the opposite of "equal") — paired with table-layout:fixed
+  // (below) so these declared widths are authoritative rather than a mere
+  // auto-layout hint content can still override.
+  const colgroup = el('colgroup');
+  for (let i = 0; i < 5; i++) colgroup.appendChild(el('col', 'budget-col-eq'));
+  colgroup.appendChild(el('col'));
+  colgroup.appendChild(el('col', 'budget-col-actions'));
+  table.appendChild(colgroup);
+
   const thead = el('thead');
   const htr = el('tr');
   ['Bilag', 'Dato', 'Betalt', 'Beløb', 'Udlægsholder', 'Kommentar', '']

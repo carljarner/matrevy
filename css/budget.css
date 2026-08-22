@@ -347,6 +347,25 @@
   font-size: 0.85rem;
 }
 
+/* Betalte udgifter (paid-expense) table only: table-layout:fixed makes the
+   <colgroup> below (in js/budget.js) authoritative, so the five leading
+   columns come out genuinely equal-width instead of each merely shrinking
+   to its own content (which is what a plain auto-layout width:1% gives —
+   the opposite of "equal", since Udlægsholder's content is naturally wider
+   than Dato's). Kommentar's own <col> is left with no declared width, so it
+   absorbs whatever's left over. */
+.budget-table-fixed {
+  table-layout: fixed;
+}
+
+.budget-col-eq {
+  width: 9%;
+}
+
+.budget-col-actions {
+  width: 80px;
+}
+
 .budget-table th,
 .budget-table td {
   text-align: left;
@@ -371,19 +390,18 @@
   white-space: nowrap;
 }
 
-/* Betalte udgifter (paid-expense) table only: every column but the trailing
-   icons is flush left and sized to its content (width:1% is the standard
-   table-layout:auto trick for "shrink to content"), so the leftover row
-   width all goes to the free-text Kommentar column instead of being spread
-   evenly across every column. */
+/* Betalte udgifter (paid-expense) table only: column widths themselves are
+   governed by the <colgroup> (.budget-col-eq/-actions above, paired with
+   .budget-table-fixed) — these two classes are left to just wrap a long
+   value (Udlægsholder in particular) instead of forcing nowrap, which under
+   a genuinely fixed column width would overflow into neighbouring cells
+   rather than shrink. */
 .budget-td-narrow {
-  white-space: nowrap;
-  width: 1%;
+  word-break: break-word;
 }
 
 .budget-table td.budget-td-amount {
   text-align: left;
-  white-space: nowrap;
 }
 
 .budget-table td.budget-td-actions {
