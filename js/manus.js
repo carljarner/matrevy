@@ -3727,12 +3727,12 @@ function confirmLeaveDirtyPage(href) {
 
   const stayBtn = document.createElement('button');
   stayBtn.className = 'site-pill-btn';
-  stayBtn.textContent = 'Bliv her';
+  stayBtn.textContent = 'Bliv';
   stayBtn.addEventListener('click', close);
 
   const leaveBtn = document.createElement('button');
   leaveBtn.className = 'site-pill-btn site-pill-danger';
-  leaveBtn.textContent = 'Forlad uden at gemme';
+  leaveBtn.textContent = 'Forlad';
   leaveBtn.addEventListener('click', () => { window.location.href = href; });
 
   actions.appendChild(stayBtn);
