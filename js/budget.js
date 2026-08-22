@@ -363,6 +363,8 @@ function budgetReceiptThumb(file) {
 // ── Admin: management view ───────────────────────────────────
 let budgetState = { requests: [], expenses: [], budget: { planned: {}, income: [] } };
 let budgetPaidFilter = 'alle';
+let budgetPaidExpanded = false;
+const BUDGET_PAID_PAGE_SIZE = 10;
 
 // Which year the admin view is currently displaying/editing — decoupled
 // from which year is "active" (where new revyst submissions/receipts
@@ -1208,6 +1210,7 @@ function renderPaidSection(root) {
   );
   filterSelect.addEventListener('change', () => {
     budgetPaidFilter = filterSelect.value;
+    budgetPaidExpanded = false;
     renderPaidTable(tableWrap);
   });
   filterWrap.appendChild(el('label', null, 'Vis:'));
@@ -1232,6 +1235,8 @@ function renderPaidTable(wrap) {
     return;
   }
 
+  const visibleRows = budgetPaidExpanded ? rows : rows.slice(0, BUDGET_PAID_PAGE_SIZE);
+
   const table = el('table', 'budget-table budget-table-fixed');
 
   // A <colgroup> is the only reliable way to force N columns to genuinely
@@ -1254,7 +1259,7 @@ function renderPaidTable(wrap) {
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  rows.forEach((e) => {
+  visibleRows.forEach((e) => {
     const tr = el('tr', e.deleted ? 'budget-row-deleted' : null);
     tr.appendChild(el('td', 'budget-td-narrow', e.bilag || '—'));
     tr.appendChild(el('td', 'budget-td-narrow', formatDaNumeric(String(e.date || '').slice(0, 10))));
@@ -1291,6 +1296,19 @@ function renderPaidTable(wrap) {
   });
   table.appendChild(tbody);
   wrap.appendChild(table);
+
+  if (rows.length > BUDGET_PAID_PAGE_SIZE) {
+    const toggleWrap = el('div', 'budget-paid-toggle');
+    const toggleBtn = el('button', 'btn-small',
+      budgetPaidExpanded ? 'Vis færre' : `Vis alle (${rows.length})`);
+    toggleBtn.type = 'button';
+    toggleBtn.addEventListener('click', () => {
+      budgetPaidExpanded = !budgetPaidExpanded;
+      renderPaidTable(wrap);
+    });
+    toggleWrap.appendChild(toggleBtn);
+    wrap.appendChild(toggleWrap);
+  }
 }
 
 // Icon-only action buttons for the paid-ledger table (Se/Rediger), matching

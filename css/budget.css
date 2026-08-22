@@ -340,6 +340,12 @@
   -webkit-overflow-scrolling: touch;
 }
 
+.budget-paid-toggle {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.8rem;
+}
+
 .budget-table {
   width: 100%;
   min-width: 620px;
