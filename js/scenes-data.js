@@ -4,39 +4,6 @@ const SCENES_DATA = [
   {
     "id": "1-1",
     "number": 1,
-    "name": "Test",
-    "types": [
-      "video"
-    ],
-    "schedulable": false,
-    "cast": [],
-    "priority": 0,
-    "repeat": false,
-    "duration": 3,
-    "scriptBody": "\\says{C} Er det ikke lidt lang tid siden vi har haft en video?\n\\says{A} Jo! Og det her sceneskift ville passe helt perfekt!\n\\scene{Tenikken viser en sjov video på AV}\n\\says{R} Damn, vi kan sku stadig finde ud af at lave gode videoer\n\\says{L} Virkelig, men nu tror jeg også næste scene er klar til at gå på",
-    "writtenBy": "Test '21",
-    "actLabel": "Akt 1"
-  },
-  {
-    "id": "1-2",
-    "number": 2,
-    "name": "Testband",
-    "types": [
-      "bandsang"
-    ],
-    "schedulable": false,
-    "cast": [],
-    "priority": 0,
-    "repeat": false,
-    "duration": 4,
-    "scriptBody": "\\sings{S1}[Vers] Wow, sikke en god sang vi skal til at synge\n\n\\sings{S2}[Omkvæd] Håber publikum kan lide vores tema i år",
-    "melody": "Carl: \"Hello\"",
-    "writtenBy": "Carl '21",
-    "actLabel": "Akt 1"
-  },
-  {
-    "id": "1-3",
-    "number": 3,
     "name": "Matrevy Sound",
     "types": [
       "sang"
@@ -120,8 +87,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-4",
-    "number": 4,
+    "id": "1-2",
+    "number": 2,
     "name": "Forskønnelsen",
     "types": [
       "sketch"
@@ -193,8 +160,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-5",
-    "number": 5,
+    "id": "1-3",
+    "number": 3,
     "name": "Forklar For Mig",
     "types": [
       "sang"
@@ -305,8 +272,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-6",
-    "number": 6,
+    "id": "1-4",
+    "number": 4,
     "name": "En Instruktor Siger Op",
     "types": [
       "sketch"
@@ -351,8 +318,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-7",
-    "number": 7,
+    "id": "1-5",
+    "number": 5,
     "name": "Hos Numerologen",
     "types": [
       "sketch"
@@ -406,8 +373,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-8",
-    "number": 8,
+    "id": "1-6",
+    "number": 6,
     "name": "1612",
     "types": [
       "sang"
@@ -471,8 +438,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-9",
-    "number": 9,
+    "id": "1-7",
+    "number": 7,
     "name": "Kaffebarista",
     "types": [
       "sketch"
@@ -544,8 +511,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-10",
-    "number": 10,
+    "id": "1-8",
+    "number": 8,
     "name": "Dygtig Vejleder",
     "types": [
       "sketch"
@@ -590,8 +557,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-11",
-    "number": 11,
+    "id": "1-9",
+    "number": 9,
     "name": "Whist",
     "types": [
       "sang"
@@ -693,8 +660,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-12",
-    "number": 12,
+    "id": "1-10",
+    "number": 10,
     "name": "Hvorfor Er Der To Af Dem",
     "types": [
       "sketch"
@@ -748,8 +715,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-13",
-    "number": 13,
+    "id": "1-11",
+    "number": 11,
     "name": "IT Konsulent Baby",
     "types": [
       "sang"
