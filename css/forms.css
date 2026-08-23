@@ -44,6 +44,10 @@
   font-size: 0.9rem;
   color: var(--text-muted);
   margin-bottom: 0.75rem;
+  /* A section description (e.g. Rolleønsker's Akt 1 intro) can be several
+     \n-separated paragraphs — pre-line keeps those line breaks while still
+     collapsing incidental whitespace and wrapping normally. */
+  white-space: pre-line;
 }
 
 /* Delete-confirm modals (section/field/form/template) — title + message

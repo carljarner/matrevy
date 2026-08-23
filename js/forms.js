@@ -56,7 +56,7 @@ const FORMS_DYNAMIC_TEMPLATES = [
   {
     id: 'rolleonsker',
     title: 'Rolleønsker',
-    description: 'Genereres fra de nuværende scener i scenes.json',
+    description: 'Genereres fra de nuværende scener i aktfordeling',
     generate: formsGenerateRolleonskerSections,
   },
 ];
@@ -204,38 +204,126 @@ function formsOptionsFromRehearsals(sourceFilter) {
 }
 
 // ── "Rolleønsker" dynamic template ────────────────────────────
-// Builds one section per act (in SCENES_DATA's own order, i.e.
-// actLabel-grouped the same way js/schedule.js regroups this flat embed)
-// and one "Skala 1-5" question per scene, two for a sang-typed scene
-// (Sanger/rapper + Danser). schedulable:false scenes (videos, bandsang —
-// no rehearsable cast) are skipped entirely, and an act left with no
-// fields after filtering is dropped rather than rendered empty.
+// A bespoke 5-section layout (not a generic "one section per act" loop):
+// a static intro section, one section per act with a hardcoded intro text
+// (Akt 3's also folds in Ekstranumre — same fixed 4-act assumption
+// js/manus.js's manusBuildActSkeleton makes), and a static closing
+// section. Only the per-scene "Skala 1-5" questions inside the act
+// sections are actually generated from SCENES_DATA; everything else
+// (section text, the extra comment/checkbox/select fields) is fixed
+// copy the boss asked for, so it comes back exactly the same way every
+// time "Rolleønsker" is clicked. schedulable:false scenes (videos,
+// bandsang — no rehearsable cast) are skipped entirely.
 function formsGenerateRolleonskerSections() {
-  if (typeof SCENES_DATA === 'undefined' || !Array.isArray(SCENES_DATA)) return [];
+  const byAct = formsRolleonskerScenesByAct();
+  const year = formsCurrentProductionYear();
+
+  return [
+    {
+      id: formsNewFieldId(),
+      title: `Rolleønsker MatRevy ${year}`,
+      description: `Velkommen til Matrevy ${year}. Hvis du vil være på scenen, skal du svare på dette spørgeskema.`,
+      fields: [
+        { id: formsNewFieldId(), type: 'text', label: 'Fulde navn', required: true,
+          placeholder: 'Du må godt droppe et mellemnavn eller to' },
+        { id: formsNewFieldId(), type: 'checkboxes', label: 'Jeg vil gerne', required: true,
+          options: [
+            { value: 'Danse', label: 'Danse' },
+            { value: 'Synge (solo/kor)', label: 'Synge (solo/kor)' },
+            { value: 'Skuespil', label: 'Skuespil' },
+          ] },
+      ],
+    },
+    {
+      id: formsNewFieldId(),
+      title: 'Akt 1',
+      description: [
+        'Denne skal du udfylde, hvis og kun hvis du er sceneperson.',
+        'Ved hvert spørgsmål skal du vælge et tal mellem 1 og 5, som beskriver hvor meget du har lyst til at være med i det nummer. Hvis der er flere ting at lave i nummeret (forsanger/kor/danser/skuespiller/statist), vil der være flere spørgsmål til det.',
+        'Rollefordelingen bliver lavet på baggrund af dine ønsker, men vi kan ikke trylle. Forvent derfor ikke at få alle de ting, du har givet mange point.',
+        'Derudover anbefaler vi, at du bruger hele skalaen. Hvis du kun giver 1 og 5, så har vi ikke nogen ide om, hvad du allerhelst vil have, eller allermindst vil have.',
+        'Endeligt kommer der en kommentar, hvor du i fritekst kan angive de numre, som du allerhelst vil være med i.',
+      ].join('\n'),
+      fields: [
+        ...formsRolleonskerSceneFields(byAct['Akt 1'] || []),
+        formsRolleonskerTextareaField('Kommentarer til dine ønsker i akt 1?', 'for eksempel roller du vil eller ikke vil have'),
+      ],
+    },
+    {
+      id: formsNewFieldId(),
+      title: 'Akt 2',
+      description: '',
+      fields: [
+        ...formsRolleonskerSceneFields(byAct['Akt 2'] || []),
+        formsRolleonskerTextareaField('Kommentarer til dine ønsker i akt 2?', 'For eksempel roller du vil eller ikke vil have'),
+      ],
+    },
+    {
+      id: formsNewFieldId(),
+      title: 'Akt 3',
+      description: '',
+      fields: [
+        ...formsRolleonskerSceneFields(byAct['Akt 3'] || []),
+        ...formsRolleonskerSceneFields(byAct['Ekstranumre'] || []),
+        formsRolleonskerTextareaField('Kommentarer til dine ønsker i akt 3?', 'For eksempel roller du vil eller ikke vil have'),
+        formsRolleonskerTextareaField('Hvad vil du aller helst lave?', 'Vælg fra alle akter, angiv 2-4 ting'),
+      ],
+    },
+    {
+      id: formsNewFieldId(),
+      title: 'Tilmelding',
+      description: '',
+      fields: [
+        { id: formsNewFieldId(), type: 'select', label: 'Har du husket at svare på tilmeldingsarket?', required: true,
+          options: [
+            { value: 'Ja da!', label: 'Ja da!' },
+            { value: 'Nej, men jeg skynder mig at gøre det nu!', label: 'Nej, men jeg skynder mig at gøre det nu!' },
+          ] },
+      ],
+    },
+  ];
+}
+
+// scene.actLabel -> that act's schedulable scenes, in SCENES_DATA's own
+// order (act-then-scene). schedulable:false (video/bandsang) scenes are
+// dropped here so every call site downstream never sees them.
+function formsRolleonskerScenesByAct() {
   const byAct = {};
-  const actOrder = [];
+  if (typeof SCENES_DATA === 'undefined' || !Array.isArray(SCENES_DATA)) return byAct;
   for (const scene of SCENES_DATA) {
     if (scene.schedulable === false) continue;
     const label = scene.actLabel || '';
-    if (!byAct[label]) { byAct[label] = []; actOrder.push(label); }
-    const isSong = Array.isArray(scene.types) && scene.types.includes('sang');
-    if (isSong) {
-      byAct[label].push(formsRolleonskerField(`${scene.name} — Sanger/rapper`));
-      byAct[label].push(formsRolleonskerField(`${scene.name} — Danser`));
-    } else {
-      byAct[label].push(formsRolleonskerField(scene.name));
-    }
+    if (!byAct[label]) byAct[label] = [];
+    byAct[label].push(scene);
   }
-  return actOrder
-    .filter((label) => byAct[label].length > 0)
-    .map((label) => ({ id: formsNewFieldId(), title: label, description: '', fields: byAct[label] }));
+  return byAct;
 }
 
-function formsRolleonskerField(label) {
+// One Skala field per scene, two (Sanger/rapper + Danser) for a
+// sang-typed scene.
+function formsRolleonskerSceneFields(scenes) {
+  const fields = [];
+  for (const scene of scenes) {
+    const isSong = Array.isArray(scene.types) && scene.types.includes('sang');
+    if (isSong) {
+      fields.push(formsRolleonskerScaleField(`${scene.name} (Sanger/rapper)`));
+      fields.push(formsRolleonskerScaleField(`${scene.name} (Danser)`));
+    } else {
+      fields.push(formsRolleonskerScaleField(scene.name));
+    }
+  }
+  return fields;
+}
+
+function formsRolleonskerScaleField(label) {
   return {
     id: formsNewFieldId(), type: 'scale', label, required: false,
     scaleMin: 1, scaleMax: 5, scaleMinLabel: 'Virkelig ikke', scaleMaxLabel: 'Virkelig gerne',
   };
+}
+
+function formsRolleonskerTextareaField(label, placeholder) {
+  return { id: formsNewFieldId(), type: 'textarea', label, required: false, placeholder };
 }
 
 function formsResolveOptions(field) {
