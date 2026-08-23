@@ -452,8 +452,9 @@ function formsFillInHasAnyAnswer(inputs) {
 // the visitor their own unsaved answers, nothing destructive elsewhere —
 // same modal chrome as every other confirm dialog on the site.
 function formsOpenLeaveWarning(onLeave) {
-  const { form, actions, close } = siteOpenModalWithClose('Forlad siden?');
-  form.appendChild(el('p', 'forms-intro', 'Det du har indtastet slettes.'));
+  const { modal, form, actions, close } = siteOpenModalWithClose('Forlad siden?');
+  modal.classList.add('forms-center-modal', 'forms-leave-modal');
+  form.appendChild(el('p', 'forms-intro', 'Dine ændringer glemmes.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const leaveBtn = formsPillBtn('Forlad', 'site-pill-warm');

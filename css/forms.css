@@ -54,6 +54,13 @@
   text-align: center;
 }
 
+/* Leave-without-saving confirm (formsOpenLeaveWarning) — a one-line
+   question, so narrower than the default .edit-modal (480px), same idea as
+   Kalender's .cal-confirm-modal/Posts' .post-confirm-modal. */
+.forms-leave-modal {
+  width: min(300px, 85vw);
+}
+
 .forms-msg {
   font-size: 0.85rem;
   min-height: 1.2rem;
