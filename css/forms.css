@@ -166,9 +166,20 @@
   width: max-content;
   min-width: 100%;
 }
-.forms-responses-table th,
-.forms-responses-table td {
+
+/* Each cell's text is capped to 200px with an ellipsis rather than
+   growing to fit its longest answer — the max-width has to sit on this
+   inner inline-block wrapper (formsResponseCell()'s span), not the <td>
+   itself, since a table cell's own max-width isn't reliably respected
+   under the table's default auto layout. The wrapper's `title` (also set
+   by formsResponseCell()) surfaces the full text on hover. */
+.forms-response-cell-text {
+  display: inline-block;
+  max-width: 200px;
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
+  vertical-align: top;
 }
 
 .forms-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.15rem; }

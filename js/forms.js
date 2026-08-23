@@ -1646,6 +1646,31 @@ function formsOpenSaveAsTemplateModal(templates, suggestedTitle, sections) {
   if (pickerDd.value === FORMS_NEW_TEMPLATE_VALUE) nameInput.focus();
 }
 
+// dd/mm/yyyy kl. hh:mm — deliberately the compact numeric style rather
+// than site-utils.js's formatDaDateTime ("5. august 2026 kl. 10:00"),
+// since the Sendt column is capped to 200px (see .forms-responses-table
+// th/td) and needs to stay short. Reuses site-utils.js's parseIsoDateTime
+// so a floating local timestamp is still built from its own parts, not
+// re-parsed as UTC.
+function formsFormatSubmittedAt(iso) {
+  const d = parseIsoDateTime(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// A responses-table cell whose text is wrapped in an inner span capped to
+// 200px with an ellipsis (see .forms-response-cell-text in forms.css —
+// the cap has to live on this inner wrapper, not the <td>/<th> itself, to
+// actually be respected under the table's auto layout). The span's
+// `title` surfaces the full text on hover without widening the column.
+function formsResponseCell(tag, text) {
+  const cell = el(tag);
+  const inner = el('span', 'forms-response-cell-text', text);
+  inner.title = text;
+  cell.appendChild(inner);
+  return cell;
+}
+
 // ── Responses screen ("Se svar" row action) + CSV export ─────
 // Appended below the tab bar renderAdminView already rendered (Oversigt
 // stays the active tab — this is a view onto one form from within
@@ -1680,17 +1705,16 @@ async function formsRenderResponsesScreen(root, formId) {
   const table = el('table', 'forms-responses-table');
   const thead = el('thead');
   const headRow = el('tr');
-  headRow.appendChild(el('th', null, 'Sendt'));
-  columns.forEach((c) => headRow.appendChild(el('th', null, c.label)));
+  headRow.appendChild(formsResponseCell('th', 'Sendt'));
+  columns.forEach((c) => headRow.appendChild(formsResponseCell('th', c.label)));
   thead.appendChild(headRow);
   table.appendChild(thead);
   const tbody = el('tbody');
   for (const r of responses) {
     const row = el('tr');
-    row.appendChild(el('td', null,
-      typeof formatDaDateTime === 'function' ? formatDaDateTime(r.submittedAt) : r.submittedAt));
+    row.appendChild(formsResponseCell('td', formsFormatSubmittedAt(r.submittedAt)));
     for (const c of columns) {
-      row.appendChild(el('td', null, c.get(r.answers)));
+      row.appendChild(formsResponseCell('td', c.get(r.answers)));
     }
     tbody.appendChild(row);
   }
