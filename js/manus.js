@@ -1387,6 +1387,16 @@ function extractTexMelody(texText) {
   return m ? m[1].trim() : '';
 }
 
+function extractTexRevyname(texText) {
+  const m = texText.match(/\\revyname\{([^}]*)\}/);
+  return m ? m[1].trim() : '';
+}
+
+function extractTexRevyyear(texText) {
+  const m = texText.match(/\\revyyear\{([^}]*)\}/);
+  return m ? m[1].trim() : '';
+}
+
 // \eta{} holds the scene's running time, but freely as hand-typed prose
 // ("$3$ minutter", "$15$ sekunder", "$1$ minut og $46$ sekunder",
 // "$2:56$ minutter", "$3-4$ minutter", "?", "Ved ikke", ...) rather than a
@@ -2753,15 +2763,20 @@ function renderRollefordelingTab() {
 // Reuses the same per-act kanban (renderActColumnsGrid) and button-opens-
 // overlay pattern as Rollefordeling (openRoleSceneModal/renderRoleSceneButton
 // above) — a scene is a button; clicking it opens an overlay with a small
-// header textarea (title/author/melody, see below), a read-only "Roller"
-// reference list (renderRoleSummaryList(), which \says{}/\sings{} labels
-// exist), and a plain monospace textarea for the scene's actual LaTeX body
-// (row.scriptBody — everything that goes between \begin{sketch}/\begin{song}
-// and \end{...} in the .tex scripts/generate-pdfs.js builds).
-// status/sourceProduction/sourceYear were tried and cut for being too much
-// to fill in per scene; scenes.json/generate-pdfs.js still support them
-// (safe to omit), just nothing in this UI sets them anymore. Both textareas
-// mutate the row directly, no draft rebuild — same as the cast editor above.
+// header textarea (revyname/revyyear/title/author/melody, see below), a
+// read-only "Roller" reference list (renderRoleSummaryList(), which
+// \says{}/\sings{} labels exist), and a plain monospace textarea for the
+// scene's actual LaTeX body (row.scriptBody — everything that goes between
+// \begin{sketch}/\begin{song} and \end{...} in the .tex
+// scripts/generate-pdfs.js builds).
+// \revyname{}/\revyyear{} let a scene keep its original production's name/
+// year (e.g. a sketch actually performed in 2024) instead of always falling
+// back to the current one — generate-pdfs.js already prioritizes
+// scene.sourceProduction/sourceYear over the current production, this is
+// just the UI that sets them. `status` was also tried and cut for being too
+// much to fill in per scene; scenes.json/generate-pdfs.js still support it
+// (safe to omit), just nothing in this UI sets it. Both textareas mutate the
+// row directly, no draft rebuild — same as the cast editor above.
 function manusRowIsSong(row) {
   const t = manusRowType(row);
   return t === 'sang' || t === 'bandsang';
@@ -2769,11 +2784,17 @@ function manusRowIsSong(row) {
 
 // The header field's raw LaTeX-line text, built fresh every time the modal
 // opens (or the auto-import backfill lands) from the row's current
-// title/writtenBy/melody — the same "reconstruct from the row, don't persist
-// the textarea's own text" convention Rollefordeling's role textarea uses
-// (formatRolesText). \melody{} only appears for a song-typed row.
+// sourceProduction/sourceYear/title/writtenBy/melody — the same
+// "reconstruct from the row, don't persist the textarea's own text"
+// convention Rollefordeling's role textarea uses (formatRolesText).
+// \revyname{}/\revyyear{} are blank by default (every scene today) — left
+// blank, manusRowScene omits them from the saved scene entirely, so
+// generate-pdfs.js keeps falling back to the current production's name/
+// year. \melody{} only appears for a song-typed row.
 function manusBuildHeaderText(row) {
   const lines = [
+    `\\revyname{${row.sourceProduction || ''}}`,
+    `\\revyyear{${row.sourceYear || ''}}`,
     `\\title{${manusRowTitle(row)}}`,
     `\\author{${row.writtenBy || ''}}`,
   ];
@@ -2785,8 +2806,12 @@ function manusBuildHeaderText(row) {
 // every keystroke — live-bound, exactly like the scriptBody textarea below
 // it, not a separate "Opdater" step. An empty/removed \title{} line is
 // ignored (never blanks row.titleOverride, since a scene must keep a name);
-// \author{}/\melody{} clear normally when emptied.
+// \revyname{}/\revyyear{}/\author{}/\melody{} clear normally when emptied
+// (clearing revyname/revyyear reverts the scene to the current production's
+// name/year, since manusRowScene omits an empty sourceProduction/sourceYear).
 function manusApplyHeaderText(row, text) {
+  row.sourceProduction = extractTexRevyname(text);
+  row.sourceYear = extractTexRevyyear(text);
   const title = extractTexTitle(text);
   if (title) row.titleOverride = title;
   row.writtenBy = extractTexAuthor(text);
@@ -2800,7 +2825,7 @@ function openScriptSceneModal(row) {
 
   const headerTextarea = document.createElement('textarea');
   headerTextarea.className = 'manus-script-textarea manus-script-header-textarea';
-  headerTextarea.rows = manusRowIsSong(row) ? 3 : 2;
+  headerTextarea.rows = manusRowIsSong(row) ? 5 : 4;
   headerTextarea.spellcheck = false;
   headerTextarea.setAttribute('data-manus-header-textarea', row.key);
   headerTextarea.value = manusBuildHeaderText(row);
@@ -2812,7 +2837,7 @@ function openScriptSceneModal(row) {
     // anything outside this textarea.
     if (headingEl) headingEl.textContent = manusRowTitle(row);
   });
-  form.appendChild(siteEditField('Titel / forfatter' + (manusRowIsSong(row) ? ' / melodi' : '') + ' (LaTeX)', headerTextarea));
+  form.appendChild(siteEditField('Revynavn / år / titel / forfatter' + (manusRowIsSong(row) ? ' / melodi' : '') + ' (LaTeX)', headerTextarea));
 
   form.appendChild(renderRoleSummaryList(row, 'Roller:'));
 
@@ -2827,8 +2852,9 @@ function openScriptSceneModal(row) {
 }
 
 // Create/edit view for a "Videoer & Bandsange" row (renderVideoBandsangRow/
-// addManualMediaRow above) — same header (\title{}/\author{}[/\melody{}]) +
-// scriptBody-textarea shape as openScriptSceneModal, reusing its
+// addManualMediaRow above) — same header (\revyname{}/\revyyear{}/\title{}/
+// \author{}[/\melody{}]) + scriptBody-textarea shape as openScriptSceneModal,
+// reusing its
 // manusBuildHeaderText/manusRowIsSong helpers (manusRowIsSong now also
 // covers 'bandsang' — see its own doc comment), plus a Roller field (raw
 // editable \role{} lines, same textarea-as-LaTeX convention as
@@ -2883,10 +2909,10 @@ function openVideoBandsangModal(row, { isNew = false } = {}) {
 
   const headerTextarea = document.createElement('textarea');
   headerTextarea.className = 'manus-script-textarea manus-script-header-textarea';
-  headerTextarea.rows = manusRowIsSong(row) ? 3 : 2;
+  headerTextarea.rows = manusRowIsSong(row) ? 5 : 4;
   headerTextarea.spellcheck = false;
   headerTextarea.value = manusBuildHeaderText(row);
-  form.appendChild(siteEditField('Titel / forfatter' + (manusRowIsSong(row) ? ' / melodi' : '') + ' (LaTeX)', headerTextarea));
+  form.appendChild(siteEditField('Revynavn / år / titel / forfatter' + (manusRowIsSong(row) ? ' / melodi' : '') + ' (LaTeX)', headerTextarea));
 
   const rolesTextarea = document.createElement('textarea');
   rolesTextarea.className = 'manus-script-textarea manus-script-roles-textarea';
