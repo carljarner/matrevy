@@ -320,26 +320,43 @@ async function renderFormFillIn(root, formId) {
 }
 
 // ── Boss/admin: management view ──────────────────────────────
-async function renderAdminView(root) {
+// Three screens, all rendered directly into `root` (never a modal) so the
+// whole admin flow reads as one page: 'overview' (dashboard table),
+// 'builder' (create/edit a form, folding in the old template picker/
+// manager modals), 'responses' (one form's answers + CSV export). Only
+// 'overview'/'builder' sit behind the tab bar — 'responses' is entered from
+// a row action and left via its own back button, mirroring the revyst-side
+// renderFormFillIn's in-page back pattern.
+function renderAdminView(root, screen) {
+  screen = screen || { name: 'overview' };
+  if (screen.name === 'responses') {
+    formsRenderResponsesScreen(root, screen.formId);
+    return;
+  }
+
   root.replaceChildren();
+  const tabs = el('div', 'forms-admin-tabs');
+  const overviewTab = el('button', 'forms-admin-tab' + (screen.name === 'overview' ? ' active' : ''), 'Oversigt');
+  overviewTab.type = 'button';
+  overviewTab.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
+  const builderTab = el('button', 'forms-admin-tab' + (screen.name === 'builder' ? ' active' : ''),
+    screen.name === 'builder' && screen.existingDefinition ? 'Rediger formular' : 'Ny formular');
+  builderTab.type = 'button';
+  builderTab.addEventListener('click', () => renderAdminView(root, { name: 'builder' }));
+  tabs.appendChild(overviewTab);
+  tabs.appendChild(builderTab);
+  root.appendChild(tabs);
 
-  const actionsRow = el('div', 'forms-admin-actions');
-  const newBtn = el('button', 'site-btn-primary', 'Ny formular');
-  newBtn.type = 'button';
-  newBtn.addEventListener('click', () => formsOpenBuilder(root, null, null));
-  const fromTemplateBtn = el('button', 'btn-small', 'Opret fra skabelon');
-  fromTemplateBtn.type = 'button';
-  fromTemplateBtn.addEventListener('click', () => formsOpenTemplatePicker(root));
-  const templatesBtn = el('button', 'btn-small', 'Skabeloner');
-  templatesBtn.type = 'button';
-  templatesBtn.addEventListener('click', () => formsOpenTemplateManager(root));
-  actionsRow.appendChild(newBtn);
-  actionsRow.appendChild(fromTemplateBtn);
-  actionsRow.appendChild(templatesBtn);
+  if (screen.name === 'builder') {
+    formsRenderBuilderScreen(root, screen.existingDefinition || null);
+  } else {
+    formsRenderOverviewScreen(root);
+  }
+}
 
+async function formsRenderOverviewScreen(root) {
   const card = el('section', 'card');
   card.appendChild(el('h2', null, 'Formularer'));
-  card.appendChild(actionsRow);
   const tableWrap = el('div', null, 'Henter formularer …');
   card.appendChild(tableWrap);
   root.appendChild(card);
@@ -352,7 +369,7 @@ async function renderAdminView(root) {
   }
   const forms = Array.isArray(result.data.forms) ? result.data.forms : [];
   if (forms.length === 0) {
-    tableWrap.appendChild(el('p', 'forms-intro', 'Ingen formularer endnu. Opret den første ovenfor.'));
+    tableWrap.appendChild(el('p', 'forms-intro', 'Ingen formularer endnu. Opret den første under fanen "Ny formular".'));
     return;
   }
 
@@ -383,7 +400,7 @@ async function renderAdminView(root) {
           productionYear: def.productionYear, fromTemplateId: def.fromTemplateId, fields: def.fields,
         });
       }
-      renderAdminView(root);
+      renderAdminView(root, { name: 'overview' });
     });
     statusCell.appendChild(statusChip);
     row.appendChild(statusCell);
@@ -397,11 +414,11 @@ async function renderAdminView(root) {
     editBtn.type = 'button';
     editBtn.addEventListener('click', async () => {
       const full = await formsApi('forms_admin_read', { formId: f.id });
-      if (full.ok) formsOpenBuilder(root, full.data.definition, null);
+      if (full.ok) renderAdminView(root, { name: 'builder', existingDefinition: full.data.definition });
     });
     const respBtn = el('button', 'btn-small', 'Se svar');
     respBtn.type = 'button';
-    respBtn.addEventListener('click', () => formsOpenResponses(f.id));
+    respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
     const delBtn = el('button', 'btn-small-danger', 'Slet');
     delBtn.type = 'button';
     delBtn.addEventListener('click', () => formsOpenDeleteConfirm(root, f));
@@ -428,7 +445,7 @@ function formsOpenDeleteConfirm(root, f) {
     const result = await formsApi('forms_delete', { formId: f.id });
     if (result.ok) {
       close();
-      renderAdminView(root);
+      renderAdminView(root, { name: 'overview' });
     } else {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;
@@ -645,29 +662,52 @@ function formsValidateAndCleanFields(draftFields) {
   };
 }
 
-// ── Builder modal (create / edit a form) ─────────────────────
-function formsOpenBuilder(root, existingDefinition, templateFields) {
+// ── Builder screen (Ny formular / Rediger formular tab) ──────
+// Renders directly into `root` — no modal — so the whole create/edit flow
+// lives in the page. Folds in what used to be two separate modals: a
+// "start from a template" strip (new forms only) and the ability to save
+// the current draft as a reusable template.
+function formsRenderBuilderScreen(root, existingDefinition) {
   const isEdit = !!(existingDefinition && existingDefinition.id);
-  const { modal, form, error, actions, close } = siteOpenModalWithClose(isEdit ? 'Rediger formular' : 'Ny formular');
-  modal.classList.add('forms-builder-modal');
+  const card = el('section', 'card forms-builder-card');
+  card.appendChild(el('h2', null, isEdit ? 'Rediger formular' : 'Ny formular'));
+  root.appendChild(card);
+
+  const draftFields = existingDefinition
+    ? JSON.parse(JSON.stringify(existingDefinition.fields || []))
+    : [];
+  // A from-scratch form gets one starting field so the editor isn't empty.
+  if (draftFields.length === 0 && !existingDefinition) {
+    draftFields.push({ id: formsNewFieldId(), type: 'text', label: 'Navn', required: true });
+  }
+
+  let fieldListEl; // assigned below, referenced by the template strip's onUse
+  const error = el('p', 'forms-msg error');
+
+  if (!existingDefinition) {
+    card.appendChild(formsRenderTemplateStrip((fields) => {
+      draftFields.splice(0, draftFields.length, ...JSON.parse(JSON.stringify(fields)));
+      formsRenderFieldEditor(fieldListEl, draftFields, () => { error.textContent = ''; });
+    }));
+  }
 
   const titleInput = el('input');
   titleInput.type = 'text';
   titleInput.value = existingDefinition ? existingDefinition.title : '';
-  form.appendChild(siteEditField('Titel', titleInput));
+  card.appendChild(siteEditField('Titel', titleInput));
 
   const descInput = el('textarea');
   descInput.rows = 2;
   descInput.value = existingDefinition ? existingDefinition.description || '' : '';
-  form.appendChild(siteEditField('Beskrivelse', descInput));
+  card.appendChild(siteEditField('Beskrivelse', descInput));
 
   const statusDd = siteCreateDropdownField(
     [{ value: 'closed', label: 'Lukket' }, { value: 'open', label: 'Åben' }],
     existingDefinition ? existingDefinition.status : 'closed');
-  form.appendChild(siteEditField('Status', statusDd));
+  card.appendChild(siteEditField('Status', statusDd));
 
   const deadlineField = siteCreateDateField(existingDefinition ? existingDefinition.deadline : '');
-  form.appendChild(siteEditField('Frist (valgfri)', deadlineField));
+  card.appendChild(siteEditField('Frist (valgfri)', deadlineField));
 
   const yearInput = el('input');
   yearInput.type = 'text';
@@ -675,41 +715,32 @@ function formsOpenBuilder(root, existingDefinition, templateFields) {
   yearInput.placeholder = 'fx 2026';
   yearInput.value = existingDefinition && existingDefinition.productionYear != null
     ? String(existingDefinition.productionYear) : '';
-  form.appendChild(siteEditField('Produktionsår (valgfri)', yearInput));
+  card.appendChild(siteEditField('Produktionsår (valgfri)', yearInput));
 
-  const draftFields = existingDefinition
-    ? JSON.parse(JSON.stringify(existingDefinition.fields || []))
-    : (templateFields ? JSON.parse(JSON.stringify(templateFields)) : []);
-  // Template-cloned fields keep their ids (fine — uniqueness is only
-  // required within one form/template), but give a from-scratch form at
-  // least one starting field so the editor isn't empty.
-  if (draftFields.length === 0 && !existingDefinition) {
-    draftFields.push({ id: formsNewFieldId(), type: 'text', label: 'Navn', required: true });
-  }
-
-  form.appendChild(el('h3', null, 'Felter'));
-  const fieldListEl = el('div', 'forms-field-list');
-  form.appendChild(fieldListEl);
+  card.appendChild(el('h3', null, 'Felter'));
+  fieldListEl = el('div', 'forms-field-list');
+  card.appendChild(fieldListEl);
   formsRenderFieldEditor(fieldListEl, draftFields, () => { error.textContent = ''; });
 
-  const saveAsTemplateBtn = formsPillBtn('Gem som skabelon');
-  saveAsTemplateBtn.addEventListener('click', async () => {
+  card.appendChild(error);
+
+  const actionsRow = el('div', 'forms-builder-actions');
+
+  const saveAsTemplateBtn = el('button', 'btn-small', 'Gem som skabelon');
+  saveAsTemplateBtn.type = 'button';
+  saveAsTemplateBtn.addEventListener('click', () => {
     error.textContent = '';
     const cleaned = formsValidateAndCleanFields(draftFields);
     if (cleaned.error) { error.textContent = cleaned.error; return; }
-    const templateTitle = (prompt('Navn på skabelon:', titleInput.value) || '').trim();
-    if (!templateTitle) return;
-    saveAsTemplateBtn.disabled = true;
-    const result = await formsApi('templates_save', { title: templateTitle, description: '', fields: cleaned.fields });
-    saveAsTemplateBtn.disabled = false;
-    if (result.ok) siteShowToast('Skabelon gemt.');
-    else if (result.message) error.textContent = result.message;
+    formsOpenSaveAsTemplateModal(titleInput.value, cleaned.fields);
   });
 
-  const cancelBtn = formsPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
+  const cancelBtn = el('button', 'btn-small', 'Annuller');
+  cancelBtn.type = 'button';
+  cancelBtn.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
 
-  const saveBtn = formsPillBtn('Gem formular', 'site-pill-primary');
+  const saveBtn = el('button', 'site-btn-primary', 'Gem formular');
+  saveBtn.type = 'button';
   saveBtn.addEventListener('click', async () => {
     error.textContent = '';
     const title = titleInput.value.trim();
@@ -728,101 +759,121 @@ function formsOpenBuilder(root, existingDefinition, templateFields) {
     const result = await formsApi('forms_save', payload);
     saveBtn.disabled = false;
     if (result.ok) {
-      close();
-      renderAdminView(root);
+      renderAdminView(root, { name: 'overview' });
     } else if (result.message) {
       error.textContent = result.message;
     }
   });
 
-  actions.appendChild(saveAsTemplateBtn);
-  actions.appendChild(cancelBtn);
-  actions.appendChild(saveBtn);
+  actionsRow.appendChild(saveAsTemplateBtn);
+  actionsRow.appendChild(cancelBtn);
+  actionsRow.appendChild(saveBtn);
+  card.appendChild(actionsRow);
 }
 
-// ── Template picker ("Opret fra skabelon") ───────────────────
-async function formsOpenTemplatePicker(root) {
-  const { form, error, actions, close } = siteOpenModalWithClose('Opret fra skabelon');
+// Inline "start from a template" strip shown atop a brand-new (non-edit)
+// builder screen — replaces the old separate "Opret fra skabelon"/
+// "Skabeloner" modals with one embedded list: a template can be loaded
+// into the current draft or deleted outright, right where forms get built.
+function formsRenderTemplateStrip(onUse) {
+  const wrap = el('div', 'forms-template-strip');
+  wrap.appendChild(el('h3', null, 'Start fra en skabelon'));
   const listWrap = el('div', null, 'Henter skabeloner …');
-  form.appendChild(listWrap);
-  const cancelBtn = formsPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-  actions.appendChild(cancelBtn);
-
-  const result = await formsApi('templates_list', {});
-  listWrap.replaceChildren();
-  if (!result.ok) { if (result.message) error.textContent = result.message; return; }
-  const templates = Array.isArray(result.data.templates) ? result.data.templates : [];
-  if (templates.length === 0) {
-    listWrap.appendChild(el('p', 'forms-intro', 'Ingen skabeloner endnu.'));
-    return;
-  }
-  for (const t of templates) {
-    const row = el('div', 'forms-template-row');
-    row.appendChild(el('div', 'forms-open-title', t.title));
-    const useBtn = el('button', 'btn-small', 'Brug');
-    useBtn.type = 'button';
-    useBtn.addEventListener('click', () => {
-      close();
-      formsOpenBuilder(root, null, t.fields);
-    });
-    row.appendChild(useBtn);
-    listWrap.appendChild(row);
-  }
-}
-
-// ── Template manager (list + delete) ─────────────────────────
-async function formsOpenTemplateManager(root) {
-  const { form, error, actions, close } = siteOpenModalWithClose('Skabeloner');
-  const listWrap = el('div', null, 'Henter skabeloner …');
-  form.appendChild(listWrap);
-  const closeBtn = formsPillBtn('Luk');
-  closeBtn.addEventListener('click', close);
-  actions.appendChild(closeBtn);
+  wrap.appendChild(listWrap);
 
   async function reload() {
     const result = await formsApi('templates_list', {});
     listWrap.replaceChildren();
-    if (!result.ok) { if (result.message) error.textContent = result.message; return; }
+    if (!result.ok) {
+      if (result.message) listWrap.appendChild(el('p', 'forms-msg error', result.message));
+      return;
+    }
     const templates = Array.isArray(result.data.templates) ? result.data.templates : [];
     if (templates.length === 0) {
-      listWrap.appendChild(el('p', 'forms-intro', 'Ingen skabeloner endnu.'));
+      listWrap.appendChild(el('p', 'forms-intro',
+        'Ingen skabeloner endnu. Gem en formular som skabelon nedenfor for at genbruge den senere.'));
       return;
     }
     for (const t of templates) {
       const row = el('div', 'forms-template-row');
       row.appendChild(el('div', 'forms-open-title', t.title));
+      const rowActions = el('div', 'forms-row-actions');
+      const useBtn = el('button', 'btn-small', 'Brug');
+      useBtn.type = 'button';
+      useBtn.addEventListener('click', () => onUse(t.fields));
       const delBtn = el('button', 'btn-small-danger', 'Slet');
       delBtn.type = 'button';
       delBtn.addEventListener('click', async () => {
         delBtn.disabled = true;
         const res = await formsApi('templates_delete', { id: t.id });
-        if (res.ok) reload(); else { delBtn.disabled = false; if (res.message) error.textContent = res.message; }
+        if (res.ok) reload(); else delBtn.disabled = false;
       });
-      row.appendChild(delBtn);
+      rowActions.appendChild(useBtn);
+      rowActions.appendChild(delBtn);
+      row.appendChild(rowActions);
       listWrap.appendChild(row);
     }
   }
   reload();
+  return wrap;
 }
 
-// ── Responses viewer + CSV export ────────────────────────────
-async function formsOpenResponses(formId) {
-  const { form, error, actions, close } = siteOpenModalWithClose('Svar');
-  form.appendChild(el('p', null, 'Henter svar …'));
-  const closeBtn = formsPillBtn('Luk');
-  closeBtn.addEventListener('click', close);
-  actions.appendChild(closeBtn);
+// Small modal just for naming a new template — replaces a bare
+// window.prompt() (previously the only non-password prompt() on the site)
+// with the same styled edit-field/pill-button chrome every other confirm
+// dialog uses.
+function formsOpenSaveAsTemplateModal(suggestedTitle, fields) {
+  const { form, error, actions, close } = siteOpenModalWithClose('Gem som skabelon');
+  const nameInput = el('input');
+  nameInput.type = 'text';
+  nameInput.value = suggestedTitle || '';
+  form.appendChild(siteEditField('Navn på skabelon', nameInput));
+
+  const cancelBtn = formsPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = formsPillBtn('Gem', 'site-pill-primary');
+  confirmBtn.addEventListener('click', async () => {
+    const title = nameInput.value.trim();
+    if (!title) { error.textContent = 'Skriv et navn.'; return; }
+    confirmBtn.disabled = true;
+    const result = await formsApi('templates_save', { title, description: '', fields });
+    confirmBtn.disabled = false;
+    if (result.ok) { close(); siteShowToast('Skabelon gemt.'); }
+    else if (result.message) error.textContent = result.message;
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+  nameInput.focus();
+}
+
+// ── Responses screen ("Se svar" row action) + CSV export ─────
+// Rendered directly into `root`, mirroring renderFormFillIn's in-page
+// back-button pattern rather than opening a modal — a response table can
+// get wide/long, which a small modal never suited well.
+async function formsRenderResponsesScreen(root, formId) {
+  root.replaceChildren();
+  const card = el('section', 'card');
+  const backBtn = el('button', 'btn-small', '← Tilbage til oversigt');
+  backBtn.type = 'button';
+  backBtn.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
+  card.appendChild(backBtn);
+
+  const body = el('div', null, 'Henter svar …');
+  card.appendChild(body);
+  root.appendChild(card);
 
   const result = await formsApi('forms_admin_read', { formId });
-  form.replaceChildren();
-  if (!result.ok) { if (result.message) error.textContent = result.message; return; }
+  body.replaceChildren();
+  if (!result.ok) {
+    body.appendChild(el('p', 'forms-msg error', result.message || 'Kunne ikke hente svar.'));
+    return;
+  }
   const definition = result.data.definition;
   const responses = Array.isArray(result.data.responses) ? result.data.responses : [];
-  form.appendChild(el('h3', null, definition.title));
+  body.appendChild(el('h2', null, definition.title));
 
   if (responses.length === 0) {
-    form.appendChild(el('p', 'forms-intro', 'Ingen svar endnu.'));
+    body.appendChild(el('p', 'forms-intro', 'Ingen svar endnu.'));
     return;
   }
 
@@ -848,12 +899,12 @@ async function formsOpenResponses(formId) {
   }
   table.appendChild(tbody);
   wrap.appendChild(table);
-  form.appendChild(wrap);
+  body.appendChild(wrap);
 
   const exportBtn = el('button', 'btn-small', 'Eksportér CSV');
   exportBtn.type = 'button';
   exportBtn.addEventListener('click', () => formsExportCsv(definition, responses));
-  form.appendChild(exportBtn);
+  body.appendChild(exportBtn);
 }
 
 function formsFormatAnswerForDisplay(v) {
