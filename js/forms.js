@@ -620,6 +620,51 @@ async function renderFormFillIn(root, formId) {
   showPage(0);
 }
 
+// ── Builder dirty-tracking (snapshot-diff, mirrors manus.js's
+// manusIsDirty/manusLastSavedSnapshot and budget.js's budgetIsSheetDirty) ──
+// Set only while the builder screen (Ny/Rediger formular) is mounted; null
+// on every other screen, since only the builder has anything unsaved to
+// lose. A live comparison against a snapshot taken right after the screen
+// mounts, not a flag set at every mutation site — this catches every edit
+// path (title/status/deadline/revy inputs, section/field edits, applying a
+// template) for free, the same reasoning as manus.js's own comment on why
+// it polls a diff instead. `collapsed` is UI-only bookkeeping (a section's
+// disclosure state) and excluded from both sides of the diff, exactly like
+// manus.js's `_`-prefixed-key exclusion, so toggling a section open/closed
+// never itself counts as an edit.
+let formsBuilderDraft = null; // { titleInput, statusDd, deadlineField, revyDd, draftSections }
+let formsBuilderSnapshot = null;
+
+function formsBuilderPayloadForDiff() {
+  if (!formsBuilderDraft) return null;
+  const { titleInput, statusDd, deadlineField, revyDd, draftSections } = formsBuilderDraft;
+  return {
+    title: titleInput.value, status: statusDd.value,
+    deadline: deadlineField.value || null, productionYear: revyDd.value,
+    sections: draftSections,
+  };
+}
+
+function formsBuilderSerializeForDiff(payload) {
+  return JSON.stringify(payload, (key, value) => (key === 'collapsed' ? undefined : value));
+}
+
+function formsBuilderIsDirty() {
+  if (!formsBuilderDraft) return false;
+  return formsBuilderSerializeForDiff(formsBuilderPayloadForDiff()) !== formsBuilderSnapshot;
+}
+
+// Guards any navigation away from a modified, unsaved builder screen with
+// the same styled confirm modal the revyst fill-in view's back arrow uses
+// (formsOpenLeaveWarning) — used by the tab bar, the builder's own
+// Annuller, and (for header/mobile-menu nav links) the DOMContentLoaded
+// click interceptor below. A plain pass-through once the builder isn't
+// dirty (or isn't even mounted, e.g. from the overview/responses screens).
+function formsGuardedNavigate(action) {
+  if (formsBuilderIsDirty()) formsOpenLeaveWarning(action);
+  else action();
+}
+
 // ── Boss/admin: management view ──────────────────────────────
 // Three screens, all rendered directly into `root` (never a modal) so the
 // whole admin flow reads as one page: 'overview' (dashboard table),
@@ -630,6 +675,11 @@ async function renderFormFillIn(root, formId) {
 // renderFormFillIn's in-page back pattern.
 function renderAdminView(root, screen) {
   screen = screen || { name: 'overview' };
+  // The builder is the only screen with anything to lose — dropping the
+  // dirty-tracking draft whenever we render anything else keeps a stale
+  // reference from outliving its own screen (formsRenderBuilderScreen sets
+  // a fresh one itself when screen.name IS 'builder').
+  if (screen.name !== 'builder') { formsBuilderDraft = null; formsBuilderSnapshot = null; }
   root.replaceChildren();
   const tabs = el('div', 'forms-admin-tabs');
   // "Se svar" is a view onto one form from within Oversigt, not a separate
@@ -638,11 +688,11 @@ function renderAdminView(root, screen) {
   const overviewActive = screen.name === 'overview' || screen.name === 'responses';
   const overviewTab = el('button', 'forms-admin-tab' + (overviewActive ? ' active' : ''), 'Oversigt');
   overviewTab.type = 'button';
-  overviewTab.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
+  overviewTab.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'overview' })));
   const builderTab = el('button', 'forms-admin-tab' + (screen.name === 'builder' ? ' active' : ''),
     screen.name === 'builder' && screen.existingDefinition ? 'Rediger formular' : 'Ny formular');
   builderTab.type = 'button';
-  builderTab.addEventListener('click', () => renderAdminView(root, { name: 'builder' }));
+  builderTab.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'builder' })));
   tabs.appendChild(overviewTab);
   tabs.appendChild(builderTab);
   root.appendChild(tabs);
@@ -1360,7 +1410,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   const cancelBtn = el('button', 'site-btn-warm forms-builder-cancel', 'Annuller');
   cancelBtn.type = 'button';
-  cancelBtn.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
+  cancelBtn.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'overview' })));
 
   const saveBtn = el('button', 'site-btn-primary', 'Gem');
   saveBtn.type = 'button';
@@ -1392,6 +1442,13 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   actionsRow.appendChild(cancelBtn);
   actionsRow.appendChild(saveBtn);
   card.appendChild(actionsRow);
+
+  // Baseline snapshot for the dirty-tracking above — taken once, right here
+  // at the end of setup, so the initial scaffold (a brand new form's default
+  // "Navn" field, or an existing form's just-loaded sections) never itself
+  // reads as unsaved; only a real edit after this point does.
+  formsBuilderDraft = { titleInput, statusDd, deadlineField, revyDd, draftSections };
+  formsBuilderSnapshot = formsBuilderSerializeForDiff(formsBuilderPayloadForDiff());
 }
 
 // One section's editor block — every section, including the first, is the
@@ -1850,4 +1907,28 @@ document.addEventListener('DOMContentLoaded', () => {
   } else if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
     renderFormsList(root);
   }
+
+  // Native beforeunload dialog — the one case a page can't restyle, but the
+  // only mechanism that actually covers tab close/refresh/typed-URL/back
+  // (mirrors manus.js's identical manusIsDirty/beforeunload pairing).
+  window.addEventListener('beforeunload', (e) => {
+    if (formsBuilderIsDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // Site-styled stand-in for that native dialog, for the one case that CAN
+  // be intercepted before the page unloads: clicking one of this page's own
+  // in-page links (header nav, mobile menu nav, or any other outbound <a>).
+  // Same gating as manus.js's own click interceptor — a new-tab/modified
+  // click, a hash-only/javascript: link, or a click while nothing is
+  // unsaved all pass through untouched.
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const link = e.target.closest('a[href]');
+    if (!link || link.target === '_blank') return;
+    const href = link.getAttribute('href');
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+    if (!formsBuilderIsDirty()) return;
+    e.preventDefault();
+    formsOpenLeaveWarning(() => { window.location.href = link.href; });
+  }, true);
 });
