@@ -1672,7 +1672,11 @@ function forms_validate_field_spec($f, &$seenIds) {
     'required' => !empty($f['required']),
   ];
 
-  if ($type === 'select' || $type === 'checkboxes') {
+  if ($type === 'text' || $type === 'textarea') {
+    $placeholder = $f['placeholder'] ?? '';
+    if (!is_string($placeholder) || mb_strlen($placeholder) > 200) return null;
+    $clean['placeholder'] = $placeholder;
+  } else if ($type === 'select' || $type === 'checkboxes') {
     $source = $f['optionsSource'] ?? 'manual';
     if (!in_array($source, ['manual', 'scenes', 'rehearsals'], true)) return null;
     $clean['optionsSource'] = $source;

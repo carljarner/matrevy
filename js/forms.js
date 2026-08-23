@@ -16,12 +16,13 @@
    under FORMS_DATA_DIR — a submitted answer may contain a name, phone
    number, or other personal information.
 
-   Two field types ("select"/"checkboxes" with optionsSource "scenes" or
-   "rehearsals") source their option list LIVE from this site's own public
-   data (SCENES_DATA/CALENDAR_DATA, embedded via scenes-data.js/
-   calendar-data.js) at render time — never baked into the stored
-   FieldSpec, so a form always offers whatever scenes/rehearsals exist
-   right now.
+   select/checkboxes options are always manually typed in the builder now
+   — but a field's optionsSource can still be "scenes"/"rehearsals" if it
+   was created before that picker was removed, in which case its options
+   still resolve LIVE from this site's own public data (SCENES_DATA/
+   CALENDAR_DATA, embedded via scenes-data.js/calendar-data.js) at render
+   time, same as always; only the ability to create a new one that way
+   is gone.
 
    Rendering rule (as elsewhere): createElement/textContent only, never
    innerHTML.
@@ -29,26 +30,16 @@
 
 'use strict';
 
-// ── Calendar categories (duplicated from calendar.js — that file isn't
-// loaded on this page; per this codebase's established convention, small
-// shared lookups get copied per-feature rather than imported). Only used
-// here to label the "rehearsals" live-options source's category filter;
-// the actual keys must stay in sync with CAL_CATEGORIES in calendar.js. ─
-const FORMS_CAL_CATEGORIES = {
-  deadline:     { label: 'Deadline' },
-  manus:        { label: 'Manus' },
-  ove:          { label: 'Øvning' },
-  forestilling: { label: 'Forestilling' },
-  andet:        { label: 'Andet' },
-};
-
 // ── Field type palette ───────────────────────────────────────
+// "yesno" is deliberately gone from this picker (no longer offered for a
+// new question) but formsRenderAnswerInput/forms_validate_answer still
+// support it server- and client-side, so any already-saved yesno field
+// keeps working — only the ability to create a new one is removed.
 const FORMS_FIELD_TYPES = [
   { value: 'text',        label: 'Kort svar' },
   { value: 'textarea',    label: 'Langt svar' },
   { value: 'select',      label: 'Vælg én' },
   { value: 'checkboxes',  label: 'Vælg flere' },
-  { value: 'yesno',       label: 'Ja/nej' },
   { value: 'scale',       label: 'Skala' },
   { value: 'grid_single', label: 'Gitter (vælg én)' },
   { value: 'grid_multi',  label: 'Gitter (vælg flere)' },
@@ -185,8 +176,11 @@ function formsSectionsFromDefinition(def) {
 // "Vælg én" (select) and Skala, whose only real difference is where the
 // option list comes from (live-resolved options vs. a synthesized numeric
 // range). `name` scopes the radios into one exclusive group.
-function formsRenderRadioRow(options, name) {
-  const wrap = el('div', 'forms-radio-row');
+// `inline` puts the caption beside its circle (used by "Vælg én") instead
+// of centered below it (Skala's default — a numbered scale reads better
+// with the digit directly under its own circle).
+function formsRenderRadioRow(options, name, inline) {
+  const wrap = el('div', 'forms-radio-row' + (inline ? ' forms-radio-row-inline' : ''));
   const radios = [];
   for (const opt of options) {
     const optEl = el('label', 'forms-radio-option');
@@ -217,13 +211,14 @@ function formsRenderAnswerInput(field) {
   if (field.type === 'textarea') {
     const input = el('textarea');
     input.rows = 4;
+    input.placeholder = field.placeholder || '';
     input.formsValue = () => input.value.trim();
     return input;
   }
   if (field.type === 'select') {
     // A row of clickable circles, not a dropdown — same idea as Skala,
     // just fed live-resolved options instead of a numeric range.
-    return formsRenderRadioRow(formsResolveOptions(field), 'sel_' + field.id);
+    return formsRenderRadioRow(formsResolveOptions(field), 'sel_' + field.id, true);
   }
   if (field.type === 'checkboxes') {
     const wrap = el('div', 'forms-checkbox-list');
@@ -318,6 +313,7 @@ function formsRenderAnswerInput(field) {
   // text (default)
   const input = el('input');
   input.type = 'text';
+  input.placeholder = field.placeholder || '';
   input.formsValue = () => input.value.trim();
   return input;
 }
@@ -360,7 +356,7 @@ async function renderFormsList(root) {
 // ── Revyst: fill in + submit one form ────────────────────────
 async function renderFormFillIn(root, formId) {
   root.replaceChildren();
-  const card = el('section', 'card forms-form');
+  const card = el('section', 'card forms-form forms-fillin-wide');
   const backBtn = el('button', 'forms-back-btn', '←');
   backBtn.type = 'button';
   backBtn.title = 'Tilbage til formularer';
@@ -467,23 +463,35 @@ async function renderFormFillIn(root, formId) {
       nav = null;
       return;
     }
+    // Grid layout (1fr auto 1fr), same idea as Manus's point-entry modal's
+    // .manus-points-grid-row: prev/label/next always sits truly centered
+    // regardless of what's in the right-hand slot, rather than shifting
+    // left once Send svar appears there on the last page.
     nav = el('div', 'forms-fillin-nav-row');
     const navGroup = el('div', 'forms-fillin-nav-group');
+    const isLast = currentPage === pageEls.length - 1;
+
     const prevBtn = el('button', 'btn-small', '‹ Forrige');
     prevBtn.type = 'button';
     prevBtn.disabled = currentPage === 0;
     prevBtn.addEventListener('click', () => showPage(currentPage - 1));
     navGroup.appendChild(prevBtn);
-    navGroup.appendChild(el('span', 'forms-fillin-page-label', `Sektion ${currentPage + 1}/${pageEls.length}`));
-    if (currentPage === pageEls.length - 1) {
-      navGroup.appendChild(submitBtn);
-    } else {
-      const nextBtn = el('button', 'btn-small', 'Næste ›');
-      nextBtn.type = 'button';
-      nextBtn.addEventListener('click', () => showPage(currentPage + 1));
-      navGroup.appendChild(nextBtn);
-    }
+
+    navGroup.appendChild(el('span', 'forms-fillin-page-label', `${currentPage + 1}/${pageEls.length}`));
+
+    // Næste stays visible on the last page too, just disabled — it never
+    // gets replaced by Send svar, which has its own slot to the right.
+    const nextBtn = el('button', 'btn-small', 'Næste ›');
+    nextBtn.type = 'button';
+    nextBtn.disabled = isLast;
+    nextBtn.addEventListener('click', () => showPage(currentPage + 1));
+    navGroup.appendChild(nextBtn);
     nav.appendChild(navGroup);
+
+    const submitSlot = el('div', 'forms-fillin-submit-slot');
+    if (isLast) submitSlot.appendChild(submitBtn);
+    nav.appendChild(submitSlot);
+
     body.appendChild(nav);
   }
   function showPage(idx) {
@@ -656,8 +664,10 @@ function formsRenderFieldEditor(listEl, draftFields, onChange) {
 function formsResetFieldTypeExtras(field) {
   delete field.optionsSource; delete field.options; delete field.sourceFilter;
   delete field.rows; delete field.scaleMin; delete field.scaleMax;
-  delete field.scaleMinLabel; delete field.scaleMaxLabel;
-  if (field.type === 'select' || field.type === 'checkboxes') {
+  delete field.scaleMinLabel; delete field.scaleMaxLabel; delete field.placeholder;
+  if (field.type === 'text' || field.type === 'textarea') {
+    field.placeholder = '';
+  } else if (field.type === 'select' || field.type === 'checkboxes') {
     field.optionsSource = 'manual';
     field.options = [];
   } else if (field.type === 'scale') {
@@ -695,7 +705,7 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
   });
   topRow.appendChild(typeDd);
 
-  const removeBtn = el('button', 'btn-small btn-small-danger', '✕');
+  const removeBtn = el('button', 'boss-edit-remove', '✕');
   removeBtn.type = 'button';
   removeBtn.addEventListener('click', () => {
     draftFields.splice(idx, 1);
@@ -725,10 +735,24 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
 }
 
 function formsRenderFieldTypeConfig(field, onChange) {
+  if (field.type === 'text' || field.type === 'textarea') return formsRenderPlaceholderConfig(field, onChange);
   if (field.type === 'select' || field.type === 'checkboxes') return formsRenderOptionsEditor(field, onChange);
   if (field.type === 'scale') return formsRenderScaleConfig(field, onChange);
   if (field.type === 'grid_single' || field.type === 'grid_multi') return formsRenderGridConfig(field, onChange);
   return null;
+}
+
+// Kort svar/Langt svar's only config: the placeholder text shown inside
+// the empty input when a revyst visitor fills the form in.
+function formsRenderPlaceholderConfig(field, onChange) {
+  const wrap = el('div', 'forms-options-editor');
+  const input = el('input');
+  input.type = 'text';
+  input.placeholder = 'fx Skriv dit svar her';
+  input.value = field.placeholder || '';
+  input.addEventListener('input', () => { field.placeholder = input.value; onChange(); });
+  wrap.appendChild(siteEditField('Pladsholder (valgfri)', input));
+  return wrap;
 }
 
 // Flat "one input per option + remove" editor operating on `options` in
@@ -752,7 +776,7 @@ function formsRenderManualOptionsList(options, onChange, rerender) {
       opt.value = textInput.value;
       onChange();
     });
-    const rm = el('button', 'btn-small btn-small-danger', '✕');
+    const rm = el('button', 'boss-edit-remove', '✕');
     rm.type = 'button';
     rm.addEventListener('click', () => { options.splice(i, 1); rerender(); onChange(); });
     optRow.appendChild(textInput);
@@ -845,7 +869,7 @@ function formsRenderGridConfig(field, onChange) {
       input.placeholder = 'Række';
       input.value = r.label || '';
       input.addEventListener('input', () => { r.label = input.value; onChange(); });
-      const rm = el('button', 'btn-small btn-small-danger', '✕');
+      const rm = el('button', 'boss-edit-remove', '✕');
       rm.type = 'button';
       rm.addEventListener('click', () => { field.rows.splice(i, 1); renderRows(); onChange(); });
       rRow.appendChild(input);
@@ -876,71 +900,27 @@ function formsRenderGridConfig(field, onChange) {
   return wrap;
 }
 
+// Select/checkboxes' options are always manually typed now — the earlier
+// "Valgmuligheder fra" (Skriv selv / Scener / Prøver-kalender) picker is
+// gone, since manual was the only source anyone actually used. A field
+// from before this change that still has a live source gets silently
+// normalized back to manual the first time it's opened here; the live-
+// resolution code (formsOptionsFromScenes/Rehearsals, formsResolveOptions)
+// stays in place so any such already-saved field still renders correctly
+// in the fill-in view until it's next edited and re-saved.
 function formsRenderOptionsEditor(field, onChange) {
+  if (field.optionsSource !== 'manual') {
+    field.optionsSource = 'manual';
+    delete field.sourceFilter;
+  }
+  if (!Array.isArray(field.options)) field.options = [];
+
   const wrap = el('div', 'forms-options-editor');
-  const sourceDd = siteCreateDropdownField([
-    { value: 'manual', label: 'Skriv selv' },
-    { value: 'scenes', label: 'Scener (live)' },
-    { value: 'rehearsals', label: 'Prøver/kalender (live)' },
-  ], field.optionsSource || 'manual');
-  wrap.appendChild(siteEditField('Valgmuligheder fra', sourceDd));
-
-  const bodyWrap = el('div');
-  wrap.appendChild(bodyWrap);
-
   function renderBody() {
-    bodyWrap.replaceChildren();
-    if (field.optionsSource === 'manual') {
-      if (!Array.isArray(field.options)) field.options = [];
-      bodyWrap.appendChild(formsRenderManualOptionsList(field.options, onChange, renderBody));
-    } else {
-      // Live-sourced — show a read-only preview of what will be offered.
-      if (field.optionsSource === 'scenes') {
-        const onlyRow = el('label', 'forms-required-label');
-        const onlyBox = document.createElement('input');
-        onlyBox.type = 'checkbox';
-        onlyBox.checked = !!(field.sourceFilter && field.sourceFilter.schedulableOnly);
-        onlyBox.addEventListener('change', () => {
-          field.sourceFilter = { schedulableOnly: onlyBox.checked };
-          onChange();
-          renderPreview();
-        });
-        onlyRow.appendChild(onlyBox);
-        onlyRow.appendChild(document.createTextNode('Kun scener der kan øves'));
-        bodyWrap.appendChild(onlyRow);
-      } else if (field.optionsSource === 'rehearsals') {
-        const catOptions = [{ value: '', label: 'Alle kategorier' },
-          ...Object.entries(FORMS_CAL_CATEGORIES).map(([key, def]) => ({ value: key, label: def.label }))];
-        const catDd = siteCreateDropdownField(catOptions, (field.sourceFilter && field.sourceFilter.category) || '');
-        catDd.addEventListener('change', () => {
-          field.sourceFilter = catDd.value ? { category: catDd.value } : null;
-          onChange();
-          renderPreview();
-        });
-        bodyWrap.appendChild(siteEditField('Kun kategori', catDd));
-      }
-      const preview = el('div', 'forms-options-preview');
-      bodyWrap.appendChild(preview);
-      function renderPreview() {
-        const opts = formsResolveOptions(field);
-        preview.textContent = opts.length
-          ? 'Viser lige nu: ' + opts.map((o) => o.label).join(', ')
-          : 'Ingen muligheder fundet lige nu.';
-      }
-      renderPreview();
-    }
+    wrap.replaceChildren();
+    wrap.appendChild(formsRenderManualOptionsList(field.options, onChange, renderBody));
   }
   renderBody();
-
-  sourceDd.addEventListener('change', () => {
-    field.optionsSource = sourceDd.value;
-    if (field.optionsSource === 'manual' && !Array.isArray(field.options)) field.options = [];
-    if (field.optionsSource !== 'manual') delete field.options;
-    if (field.optionsSource === 'manual') delete field.sourceFilter;
-    renderBody();
-    onChange();
-  });
-
   return wrap;
 }
 
@@ -973,7 +953,9 @@ function formsValidateAndCleanFields(draftFields) {
       const clean = { id: f.id, type: f.type, label: f.label.trim(), required: !!f.required };
       if (f.optionsSource) clean.optionsSource = f.optionsSource;
       if (f.sourceFilter !== undefined) clean.sourceFilter = f.sourceFilter;
-      if (f.type === 'select' || f.type === 'checkboxes') {
+      if (f.type === 'text' || f.type === 'textarea') {
+        clean.placeholder = (f.placeholder || '').trim();
+      } else if (f.type === 'select' || f.type === 'checkboxes') {
         if (f.options) clean.options = f.options.filter((o) => o.value && o.label);
       } else if (f.type === 'scale') {
         clean.scaleMin = Number(f.scaleMin);
@@ -1155,11 +1137,11 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   const block = el('div', 'forms-section-block');
 
   // Collapsible, open by default — a disclosure button (chevron + "Sektion
-  // N") toggles a body wrapper holding everything else. Collapse state is
-  // local to this render, not persisted on `section` itself, since the
-  // only things that tear down and rebuild every section block wholesale
-  // (add/remove a section, apply a template) are coarse actions where
-  // resetting back to "all open" is a reasonable side effect.
+  // N") toggles a body wrapper holding everything else. Collapse state
+  // lives on `section.collapsed` (a client-only field the clean/save path
+  // never copies out) rather than a local variable, since adding/removing
+  // a section rebuilds every block from scratch — a plain local `let`
+  // would silently re-open every other section whenever one changed.
   const head = el('div', 'forms-section-head');
   const toggleBtn = el('button', 'forms-section-toggle');
   toggleBtn.type = 'button';
@@ -1181,13 +1163,14 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   block.appendChild(head);
 
   const bodyEl = el('div', 'forms-section-body');
+  bodyEl.style.display = section.collapsed ? 'none' : '';
   block.appendChild(bodyEl);
 
-  let collapsed = false;
+  chevron.textContent = section.collapsed ? '▸' : '▾';
   toggleBtn.addEventListener('click', () => {
-    collapsed = !collapsed;
-    bodyEl.style.display = collapsed ? 'none' : '';
-    chevron.textContent = collapsed ? '▸' : '▾';
+    section.collapsed = !section.collapsed;
+    bodyEl.style.display = section.collapsed ? 'none' : '';
+    chevron.textContent = section.collapsed ? '▸' : '▾';
   });
 
   const titleInput = el('input');
