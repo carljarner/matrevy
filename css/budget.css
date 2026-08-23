@@ -210,8 +210,7 @@
   .budget-approve-modal .edit-field select:hover,
   .budget-approve-modal .edit-field textarea:hover,
   .budget-sheet-table .budget-plan-input:hover,
-  .budget-income-amount:hover,
-  .budget-income-note-input:hover {
+  .budget-income-amount:hover {
     border-color: var(--accent-warm);
   }
 }
@@ -685,30 +684,6 @@ tr.budget-row-filler td {
 
 .budget-income-amount { flex: 0 0 130px; text-align: right; }
 
-.budget-income-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-/* Free-text description under the "Andet" income row. */
-.budget-income-note-input {
-  width: 100%;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  background: var(--input-bg);
-  color: var(--text);
-}
-
-.budget-income-note-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
 .budget-net-row {
   display: flex;
   align-items: baseline;
@@ -742,64 +717,77 @@ tr.budget-row-filler td {
   transform: translateX(-50%);
 }
 
-/* --- "Rediger kategorier" modal (openManageCategoriesModal) ------------ */
-.budget-categories-modal {
-  width: min(90vw, 32rem);
+/* --- Category structure editing (buildCategoryEditSection, the sheet's
+   own Rediger/Annuller toggle) ------------------------------------------ */
+
+.budget-sheet-table-editing { min-width: 460px; }
+
+.budget-sheet-table-editing th:nth-child(3),
+.budget-sheet-table-editing th:nth-child(4) {
+  text-align: center;
 }
 
-.budget-manage-subhead {
-  margin: 1rem 0 0.4rem;
-  font-size: 0.95rem;
+/* The expense table gains a leading drag-handle column and a trailing
+   delete column when editing — narrow, icon-only, unlike the data columns. */
+.budget-sheet-table-editing th:first-child,
+.budget-sheet-table-editing td:first-child,
+.budget-sheet-table-editing th:last-child,
+.budget-sheet-table-editing td:last-child {
+  width: 2rem;
+  min-width: 2rem;
 }
 
-.budget-manage-subhead:first-child {
-  margin-top: 0;
+.budget-drag-handle-cell {
+  cursor: grab;
+  color: var(--text-muted);
+  text-align: center;
 }
 
-.budget-manage-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
+.budget-manage-tr.budget-drop-target {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
 }
 
-.budget-manage-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0.6rem;
+.budget-manage-name-input {
+  width: 100%;
+  padding: 0.3rem 0.45rem;
   border: 1px solid var(--border);
   border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--input-bg);
+  color: var(--text);
 }
 
-.budget-manage-label-input {
-  flex: 1;
-  min-width: 0;
-}
-
-.budget-manage-abbrev-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  flex-shrink: 0;
-}
-
-.budget-manage-abbrev-input {
-  width: 5.5rem;
-  flex-shrink: 0;
+.budget-manage-bilag-input {
+  width: 100%;
+  max-width: 7rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: var(--input-bg);
+  color: var(--text);
   text-align: center;
   text-transform: uppercase;
 }
 
-.budget-manage-abbrev-input:disabled {
+.budget-manage-name-input:focus,
+.budget-manage-bilag-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.budget-manage-input-locked {
   background: var(--surface-2);
   color: var(--text-muted);
   cursor: not-allowed;
 }
 
-.budget-manage-lock-note {
-  font-size: 0.85rem;
-  flex-shrink: 0;
+.budget-td-remove {
+  text-align: center;
 }
 
 .budget-manage-remove-btn {
@@ -827,6 +815,7 @@ tr.budget-row-filler td {
   align-items: flex-end;
   gap: 0.5rem;
   flex-wrap: wrap;
+  margin: 0.6rem 0;
 }
 
 .budget-manage-add-row .edit-field {
@@ -839,6 +828,26 @@ tr.budget-row-filler td {
   padding: 0.6rem 0.75rem;
   font-size: 1rem;
   line-height: 1;
+}
+
+/* Indtægter rows while editing: name input + read-only amount + delete —
+   reuses .budget-income-list's flex-column spacing from the normal view. */
+.budget-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.budget-manage-row .budget-manage-name-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.budget-income-amount-readonly {
+  flex: 0 0 130px;
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 
 /* Warning-tinted variant of .budget-badge for a pending request whose
@@ -922,21 +931,24 @@ tr.budget-row-filler td {
     max-width: none;
   }
 
-  .budget-table:not(.budget-sheet-table) td:nth-child(2)::before { content: "Dato"; }
-  .budget-table:not(.budget-sheet-table) td:nth-child(3)::before { content: "Betalt"; }
-  .budget-table:not(.budget-sheet-table) td:nth-child(4)::before { content: "Beløb"; }
-  .budget-table:not(.budget-sheet-table) td:nth-child(5)::before { content: "Udlægsholder"; }
-  .budget-table:not(.budget-sheet-table) td:nth-child(6)::before { content: "Kommentar"; }
+  /* .budget-sheet-table-editing (the Rediger-mode expense table) is also
+     excluded here — its columns don't match the paid ledger's either, and
+     it gets its own plain (unlabelled) mobile treatment below instead. */
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(2)::before { content: "Dato"; }
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(3)::before { content: "Betalt"; }
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(4)::before { content: "Beløb"; }
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(5)::before { content: "Udlægsholder"; }
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(6)::before { content: "Kommentar"; }
 
   /* Free text (name, comment) reads better left-aligned than right. */
-  .budget-table:not(.budget-sheet-table) td:nth-child(5),
-  .budget-table:not(.budget-sheet-table) td:nth-child(6) {
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(5),
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(6) {
     text-align: left;
   }
 
   /* The trailing Se/Rediger icon column: just the icons, right-aligned, no
      label needed for the unlabelled column. */
-  .budget-table:not(.budget-sheet-table) td:nth-child(7) {
+  .budget-table:not(.budget-sheet-table):not(.budget-sheet-table-editing) td:nth-child(7) {
     justify-content: flex-end;
   }
 
@@ -948,9 +960,27 @@ tr.budget-row-filler td {
      ".budget-table tr { display: block }" rule above. */
   .budget-table tr.budget-row-filler { display: none; }
 
-  /* "Rediger kategorier": label input can already shrink to fit (flex:1,
-     min-width:0), but the fixed-width abbrev input eats too much of a
-     phone's width alongside it — narrow it further and let rows wrap. */
-  .budget-manage-row { flex-wrap: wrap; }
-  .budget-manage-abbrev-input { width: 4.5rem; }
+  /* The Rediger-mode expense table's columns (drag handle / Kategori /
+     Bilagskode / Brugt / delete) don't line up with the generic
+     first-cell-as-heading + labelled-value-rows pattern above (the drag
+     handle isn't a heading, and Kategori/Bilagskode are inputs, not plain
+     text) — skip both, let every cell just stack plainly in order; the
+     inputs' own content already carries the meaning. */
+  .budget-sheet-table-editing td:first-child {
+    font-weight: normal;
+  }
+  .budget-sheet-table-editing td:not(:first-child) {
+    display: block;
+    text-align: left;
+  }
+  .budget-sheet-table-editing td:not(:first-child)::before {
+    content: none;
+  }
+  .budget-manage-bilag-input { max-width: none; }
+
+  /* Indtægter rows (both normal and Rediger mode) already stack fine via
+     .budget-income-row's own flex — just let the name/amount shrink to fit
+     a phone's width instead of overflowing. */
+  .budget-income-name,
+  .budget-manage-row .budget-manage-name-input { min-width: 0; }
 }

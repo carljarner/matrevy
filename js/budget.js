@@ -424,6 +424,9 @@ let budgetActiveYear = null;
 let budgetYearsList = []; // [{year, label, createdAt}], from years.json
 
 async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
+  // A full reload (year switch, post-save refresh, ...) always lands back
+  // in the normal sheet view, never mid-category-edit.
+  budgetCategoriesEditMode = false;
   if (showLoading) {
     root.replaceChildren();
     const loading = el('p', 'budget-intro', 'Henter budgetdata …');
@@ -809,6 +812,8 @@ async function reloadAdmin(root) {
 let budgetSheet = null;
 let budgetSheetSnapshot = null;
 let budgetSheetTimersReady = false;
+// Toggled by the sheet's own Rediger/Annuller button — see buildBudgetSheetCard.
+let budgetCategoriesEditMode = false;
 
 function computeSpentByCategory() {
   const map = {};
@@ -824,6 +829,10 @@ function computeSpentByCategory() {
 // pattern) rather than a one-way flag, so manually reverting a typed value back to
 // its last-saved amount flips the status back to "Gemt" instead of staying dirty.
 function budgetIsSheetDirty() {
+  // No live planned/income-amount inputs exist while structurally editing
+  // categories (Planlagt is replaced by Bilagskode, income amounts go
+  // read-only) — autosave/beforeunload simply have nothing to track then.
+  if (budgetCategoriesEditMode) return false;
   return !!budgetSheet && JSON.stringify(collectSheetPayload()) !== budgetSheetSnapshot;
 }
 
@@ -841,6 +850,23 @@ function nowHhmm() {
 }
 
 function renderBudgetSheet(container) {
+  const card = buildBudgetSheetCard();
+  container.appendChild(card);
+  ensureBudgetSheetTimers(container);
+}
+
+// Builds the whole Budget card, in one of two modes:
+// - Normal: Kategori (static) / Planlagt (editable) / Brugt / Rest, income
+//   rows with an editable amount — the routine day-to-day sheet.
+// - budgetCategoriesEditMode: Kategori (editable) / Bilagskode (editable,
+//   locked once a paid expense exists under that key) / Brugt / delete "✕",
+//   draggable rows, plus an add-row; income rows go name-editable + a
+//   read-only amount + delete. Toggled by the Rediger/Annuller button — a
+//   pure client-side re-render (card.replaceWith), no server round trip
+//   just to flip the mode. "Gem" is dual-purpose: it saves the sheet
+//   (budget_save_sheet) in normal mode, or the category draft
+//   (budget_categories_save) in edit mode.
+function buildBudgetSheetCard() {
   const card = el('section', 'card budget-sheet-card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Budget'));
@@ -848,6 +874,55 @@ function renderBudgetSheet(container) {
   head.appendChild(status);
   card.appendChild(head);
 
+  let categoryDrafts = null;
+  if (budgetCategoriesEditMode) {
+    budgetSheet = null;
+    categoryDrafts = buildCategoryEditSection(card);
+  } else {
+    const refs = buildNormalSheetSection(card);
+    budgetSheet = { ...refs, status };
+  }
+
+  const saveBar = el('div', 'budget-save-bar');
+  const deleteYearBtn = el('button', 'site-btn-danger', 'Slet');
+  deleteYearBtn.type = 'button';
+  deleteYearBtn.addEventListener('click', () => openDeleteYearWarning(document.getElementById('budget-root')));
+  saveBar.appendChild(deleteYearBtn);
+
+  const editBudgetBtn = el('button', 'site-btn-warm budget-edit-btn', budgetCategoriesEditMode ? 'Annuller' : 'Rediger');
+  editBudgetBtn.type = 'button';
+  editBudgetBtn.addEventListener('click', () => {
+    // Toggling off with unsaved edits simply discards them — the draft
+    // lives only inside this card's closure, so a fresh render pulls
+    // straight from budgetState.categories again.
+    budgetCategoriesEditMode = !budgetCategoriesEditMode;
+    const newCard = buildBudgetSheetCard();
+    card.replaceWith(newCard);
+  });
+  saveBar.appendChild(editBudgetBtn);
+
+  const saveBtn = el('button', 'site-btn-primary', budgetCategoriesEditMode ? 'Gem kategorier' : 'Gem');
+  saveBtn.type = 'button';
+  if (budgetCategoriesEditMode) {
+    saveBtn.addEventListener('click', () => saveCategoryEdits(saveBtn, status, categoryDrafts));
+  } else {
+    budgetSheet.saveBtn = saveBtn;
+    saveBtn.addEventListener('click', () => saveBudgetSheet());
+  }
+  saveBar.appendChild(saveBtn);
+  card.appendChild(saveBar);
+
+  if (!budgetCategoriesEditMode) {
+    budgetSheetSnapshot = JSON.stringify(collectSheetPayload());
+    updateSheetTotals();
+  }
+
+  return card;
+}
+
+// Normal-mode content (table + income list + net row). Returns the DOM refs
+// budgetSheet needs for live totals/dirty-tracking.
+function buildNormalSheetSection(card) {
   const spent = computeSpentByCategory();
   const plannedInputs = {};
   const restCells = {};
@@ -902,7 +977,6 @@ function renderBudgetSheet(container) {
   tableWrap.appendChild(table);
   card.appendChild(tableWrap);
 
-  // Income section — two fixed rows.
   const incomeHead = el('div', 'budget-subhead');
   incomeHead.appendChild(el('h3', null, 'Indtægter'));
   const incomeTotalCell = el('span', 'budget-amount', formatKr(0));
@@ -923,47 +997,19 @@ function renderBudgetSheet(container) {
     incomeList.appendChild(buildIncomeRow(def, stored, incomeRows));
   });
 
-  // Net result.
   const netRow = el('div', 'budget-net-row');
   netRow.appendChild(el('span', null, 'Resultat (indtægter − brugt)'));
   const netCell = el('span', 'budget-net-value');
   netRow.appendChild(netCell);
   card.appendChild(netRow);
 
-  // Save bar.
-  const saveBar = el('div', 'budget-save-bar');
-  const deleteYearBtn = el('button', 'site-btn-danger', 'Slet');
-  deleteYearBtn.type = 'button';
-  deleteYearBtn.addEventListener('click', () => openDeleteYearWarning(document.getElementById('budget-root')));
-  saveBar.appendChild(deleteYearBtn);
-  const editBudgetBtn = el('button', 'site-btn-warm budget-edit-btn', 'Rediger');
-  editBudgetBtn.type = 'button';
-  editBudgetBtn.addEventListener('click', () => openManageCategoriesModal(document.getElementById('budget-root')));
-  saveBar.appendChild(editBudgetBtn);
-  const saveBtn = el('button', 'site-btn-primary', 'Gem');
-  saveBtn.type = 'button';
-  saveBtn.addEventListener('click', () => saveBudgetSheet());
-  saveBar.appendChild(saveBtn);
-  card.appendChild(saveBar);
-
-  budgetSheet = {
-    plannedInputs, restCells, spent, incomeList,
-    incomeRows,
-    totalPlannedCell, totalBrugtCell, totalRestCell,
-    incomeTotalCell, netCell, status, saveBtn,
+  return {
+    plannedInputs, restCells, spent, incomeList, incomeRows,
+    totalPlannedCell, totalBrugtCell, totalRestCell, incomeTotalCell, netCell,
   };
-  budgetSheetSnapshot = JSON.stringify(collectSheetPayload());
-
-  updateSheetTotals();
-
-  container.appendChild(card);
-  ensureBudgetSheetTimers(container);
 }
 
 function buildIncomeRow(def, stored, incomeRows) {
-  // Wrapper so the optional description (Andet) can sit under the amount row.
-  const wrap = el('div', 'budget-income-group');
-
   const row = el('div', 'budget-income-row');
   row.appendChild(el('span', 'budget-income-name', def.label));
 
@@ -975,24 +1021,9 @@ function buildIncomeRow(def, stored, incomeRows) {
   if (amt != null && amt !== '') amountInput.value = String(amt).replace('.', ',');
   amountInput.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
   row.appendChild(amountInput);
-  wrap.appendChild(row);
 
-  const entry = { key: def.key, amountInput };
-
-  // Every income row can carry an optional free-text note (e.g. what a
-  // catch-all like "Andet" covers, or who a sponsorship came from) — not
-  // just the original hardcoded "Andet" row, now that income categories are
-  // freely add/renamable via "Rediger kategorier".
-  const noteInput = el('input', 'budget-income-note-input');
-  noteInput.type = 'text';
-  noteInput.placeholder = `Note om "${def.label}" (valgfrit)`;
-  if (stored.note != null) noteInput.value = String(stored.note);
-  noteInput.addEventListener('input', () => { budgetRefreshSheetStatus(); });
-  wrap.appendChild(noteInput);
-  entry.noteInput = noteInput;
-
-  incomeRows.push(entry);
-  return wrap;
+  incomeRows.push({ key: def.key, amountInput });
+  return row;
 }
 
 function updateSheetTotals() {
@@ -1034,12 +1065,7 @@ function collectSheetPayload() {
   });
   const income = budgetSheet.incomeRows.map((r) => {
     const amount = parseAmount(r.amountInput.value);
-    const line = {
-      key: r.key,
-      amount: Number.isFinite(amount) && amount >= 0 ? amount : 0,
-    };
-    if (r.noteInput) line.note = r.noteInput.value.trim();
-    return line;
+    return { key: r.key, amount: Number.isFinite(amount) && amount >= 0 ? amount : 0 };
   });
   return { planned, income, year: budgetViewYear };
 }
@@ -1087,24 +1113,65 @@ function ensureBudgetSheetTimers(root) {
   });
 }
 
-// ── Admin: manage categories (add/rename/delete) ──────────────
-// Modeled directly on wiki.js's openManageChaptersModal — same local-draft +
-// re-render-the-whole-list pattern, minus drag-reorder (category order here
-// is cosmetic only). Two sections: Udgiftskategorier (label + abbrev, the
-// abbrev locked once a paid expense exists under that key) and Indtægter
-// (label only). A single "Gem" sends the whole draft via
-// budget_categories_save (one atomic replace, mirroring saveBudgetSheet's
-// "send the full next array" shape) rather than per-row calls.
-function openManageCategoriesModal(root) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger kategorier');
-  modal.classList.add('budget-categories-modal');
+// Mirrors wiki.js's wikiWireDropHighlight / manus.js's wireDropHighlight —
+// duplicated here per the site's per-page convention (see CLAUDE.md):
+// counting dragenter/dragleave pairs (rather than toggling straight off
+// dragover/dragleave) avoids the highlight flickering as the pointer
+// crosses child element boundaries.
+function budgetWireDropHighlight(rowEl, onDrop) {
+  let depth = 0;
+  rowEl.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    depth++;
+    rowEl.classList.add('budget-drop-target');
+  });
+  rowEl.addEventListener('dragover', (e) => { e.preventDefault(); }); // required for 'drop' to fire
+  rowEl.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) rowEl.classList.remove('budget-drop-target');
+  });
+  rowEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    depth = 0;
+    rowEl.classList.remove('budget-drop-target');
+    onDrop();
+  });
+}
 
-  let draftExpense = budgetState.categories.expense.map((c) => ({ ...c }));
-  let draftIncome = budgetState.categories.income.map((c) => ({ ...c }));
+// Splices `item` out of `draft` and reinserts it just before `beforeItem`
+// (or at the end if `beforeItem` is falsy) — mirrors wiki.js's
+// moveDraftItem/manus.js's manusMoveRow, adapted to array-of-objects
+// identity instead of an id lookup since a brand-new draft row has no key
+// yet to look up by.
+function budgetMoveDraftItem(draft, item, beforeItem, rerender) {
+  const idx = draft.indexOf(item);
+  if (idx === -1) return;
+  draft.splice(idx, 1);
+  const beforeIdx = beforeItem ? draft.indexOf(beforeItem) : -1;
+  if (beforeIdx === -1) draft.push(item);
+  else draft.splice(beforeIdx, 0, item);
+  rerender();
+}
 
-  // Keys of categories that already have at least one non-deleted paid
-  // expense — their abbrev (and therefore future receipt filenames) is
-  // locked, mirroring the server-side abbrev_locked check.
+// ── Admin: category structure editing (Rediger toggle on the sheet) ──────
+// Turns the Budget card into an editable form in place — Kategori becomes
+// name-editable, Planlagt is replaced by an editable Bilagskode (receipt-
+// shortening) column locked once a paid expense exists under that key,
+// rows are draggable to reorder (mirrors Aktfordeling's drag-and-drop in
+// manus.js), and a trailing "✕" deletes a row — blocked (via the same
+// bottom banner used site-wide, siteShowToast) under the identical
+// "already in use" condition as the Bilagskode lock. Indtægter rows get
+// the same name-editable + delete treatment, with amount shown read-only
+// (structure editing only — amounts stay editable in the normal view) and
+// deletion blocked whenever an amount is already on record.
+function buildCategoryEditSection(card) {
+  const draftExpense = budgetState.categories.expense.map((c) => ({ ...c }));
+  const draftIncome = budgetState.categories.income.map((c) => ({ ...c }));
+  const spent = computeSpentByCategory();
+  const storedIncome = budgetState.budget.income || [];
+
+  // Keys with ≥1 non-deleted paid expense in this year — the single
+  // condition shared by both the Bilagskode lock and the delete block.
   const paidCategoryKeys = new Set(
     budgetState.expenses.filter((e) => !e.deleted).map((e) => e.category)
   );
@@ -1113,219 +1180,218 @@ function openManageCategoriesModal(root) {
     return String(raw || '').toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20);
   }
 
-  // Impact summary for the remove-confirmation, computed entirely from
-  // already-loaded state — no network round trip just to show a warning.
-  function expenseImpact(key) {
-    const pending = budgetState.requests.filter((r) => r.category === key).length;
-    const planned = budgetState.budget.planned[key];
-    const paid = budgetState.expenses.filter((e) => e.category === key && !e.deleted).length;
-    const parts = [];
-    if (pending) parts.push(`${pending} afventende anmodning${pending === 1 ? '' : 'er'}`);
-    if (planned) parts.push(`${formatKr(planned)} planlagt`);
-    if (paid) parts.push(`${paid} betalt${paid === 1 ? '' : 'e'} udgift${paid === 1 ? '' : 'er'}`);
-    return parts;
-  }
+  const tableWrap = el('div', 'budget-table-wrap');
+  const table = el('table', 'budget-table budget-sheet-table-editing');
+  const thead = el('thead');
+  const htr = el('tr');
+  ['', 'Kategori', 'Bilagskode', 'Brugt', ''].forEach((h) => htr.appendChild(el('th', null, h)));
+  thead.appendChild(htr);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  card.appendChild(tableWrap);
 
-  function incomeImpact(key) {
-    const stored = (budgetState.budget.income || []).find((r) => r.key === key || r.id === key);
-    return stored && stored.amount ? [`${formatKr(stored.amount)} registreret`] : [];
-  }
+  let dragItem = null;
 
-  const expenseHead = document.createElement('h3');
-  expenseHead.className = 'budget-manage-subhead';
-  expenseHead.textContent = 'Udgiftskategorier';
-  form.appendChild(expenseHead);
-
-  const expenseList = document.createElement('div');
-  expenseList.className = 'budget-manage-list';
-  form.appendChild(expenseList);
-
-  function renderExpenseList() {
-    expenseList.textContent = '';
+  function renderExpenseRows() {
+    tbody.textContent = '';
     draftExpense.forEach((item) => {
-      const row = document.createElement('div');
-      row.className = 'budget-manage-row';
-
-      const labelInput = document.createElement('input');
-      labelInput.type = 'text';
-      labelInput.className = 'budget-manage-label-input';
-      labelInput.value = item.label;
-      labelInput.addEventListener('input', () => { item.label = labelInput.value; });
-      row.appendChild(labelInput);
-
-      const abbrevWrap = document.createElement('span');
-      abbrevWrap.className = 'budget-manage-abbrev-wrap';
-      const abbrevInput = document.createElement('input');
-      abbrevInput.type = 'text';
-      abbrevInput.className = 'budget-manage-abbrev-input';
-      abbrevInput.maxLength = 20;
-      abbrevInput.value = item.abbrev;
-      const locked = item.key && paidCategoryKeys.has(item.key);
-      abbrevInput.disabled = locked;
-      if (locked) abbrevInput.title = 'Låst — der findes allerede betalte udgifter i denne kategori';
-      abbrevInput.addEventListener('input', () => {
-        abbrevInput.value = sanitizeAbbrev(abbrevInput.value);
-        item.abbrev = abbrevInput.value;
+      const tr = el('tr', 'budget-manage-tr');
+      tr.draggable = true;
+      tr.addEventListener('dragstart', (e) => {
+        dragItem = item;
+        e.dataTransfer.effectAllowed = 'move';
       });
-      abbrevWrap.appendChild(abbrevInput);
-      if (locked) {
-        const lockNote = document.createElement('span');
-        lockNote.className = 'budget-manage-lock-note';
-        lockNote.textContent = '🔒';
-        lockNote.title = 'Låst — der findes allerede betalte udgifter i denne kategori';
-        abbrevWrap.appendChild(lockNote);
-      }
-      row.appendChild(abbrevWrap);
+      tr.addEventListener('dragend', () => tr.classList.remove('budget-drop-target'));
+      budgetWireDropHighlight(tr, () => {
+        if (dragItem && dragItem !== item) budgetMoveDraftItem(draftExpense, dragItem, item, renderExpenseRows);
+      });
 
-      const removeBtn = document.createElement('button');
+      tr.appendChild(el('td', 'budget-drag-handle-cell', '⠿'));
+
+      const nameTd = el('td');
+      const nameInput = el('input', 'budget-manage-name-input');
+      nameInput.type = 'text';
+      nameInput.value = item.label;
+      nameInput.addEventListener('input', () => { item.label = nameInput.value; });
+      nameTd.appendChild(nameInput);
+      tr.appendChild(nameTd);
+
+      const bilagTd = el('td');
+      const bilagInput = el('input', 'budget-manage-bilag-input');
+      bilagInput.type = 'text';
+      bilagInput.maxLength = 20;
+      bilagInput.value = item.abbrev;
+      const locked = !!item.key && paidCategoryKeys.has(item.key);
+      if (locked) {
+        bilagInput.readOnly = true;
+        bilagInput.classList.add('budget-manage-input-locked');
+        bilagInput.title = 'Låst — der findes allerede en betalt udgift i denne kategori';
+        bilagInput.addEventListener('click', () => {
+          siteShowToast('Kan ikke ændre bilagskode — der findes allerede en betalt udgift i denne kategori.');
+        });
+      } else {
+        bilagInput.addEventListener('input', () => {
+          bilagInput.value = sanitizeAbbrev(bilagInput.value);
+          item.abbrev = bilagInput.value;
+        });
+      }
+      bilagTd.appendChild(bilagInput);
+      tr.appendChild(bilagTd);
+
+      tr.appendChild(el('td', 'budget-td-num budget-brugt-cell', formatKr((item.key && spent[item.key]) || 0)));
+
+      const removeTd = el('td', 'budget-td-remove');
+      const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
       removeBtn.type = 'button';
-      removeBtn.className = 'budget-manage-remove-btn';
-      removeBtn.textContent = '✕';
       removeBtn.title = 'Fjern kategori';
       removeBtn.addEventListener('click', () => {
-        const impact = item.key ? expenseImpact(item.key) : [];
-        const warning = impact.length
-          ? `Denne kategori bruges af: ${impact.join(', ')}. Slet alligevel?`
-          : `Fjern kategorien "${item.label}"?`;
-        if (!window.confirm(warning)) return;
-        draftExpense = draftExpense.filter((d) => d !== item);
-        renderExpenseList();
+        if (item.key && paidCategoryKeys.has(item.key)) {
+          siteShowToast('Kan ikke slette kategori — der findes allerede en betalt udgift i denne kategori.');
+          return;
+        }
+        const idx = draftExpense.indexOf(item);
+        if (idx !== -1) draftExpense.splice(idx, 1);
+        renderExpenseRows();
       });
-      row.appendChild(removeBtn);
+      removeTd.appendChild(removeBtn);
+      tr.appendChild(removeTd);
 
-      expenseList.appendChild(row);
+      tbody.appendChild(tr);
     });
   }
-  renderExpenseList();
+  renderExpenseRows();
 
-  const expenseNameInput = document.createElement('input');
+  const expenseAddRow = el('div', 'budget-manage-add-row');
+  const expenseNameInput = el('input');
   expenseNameInput.type = 'text';
   expenseNameInput.placeholder = 'F.eks. Efterfest';
-  const expenseAbbrevInput = document.createElement('input');
-  expenseAbbrevInput.type = 'text';
-  expenseAbbrevInput.maxLength = 20;
-  expenseAbbrevInput.placeholder = 'Fest';
-  expenseAbbrevInput.className = 'budget-manage-abbrev-input';
-  expenseAbbrevInput.addEventListener('input', () => {
-    expenseAbbrevInput.value = sanitizeAbbrev(expenseAbbrevInput.value);
+  const expenseBilagInput = el('input', 'budget-manage-bilag-input');
+  expenseBilagInput.type = 'text';
+  expenseBilagInput.maxLength = 20;
+  expenseBilagInput.placeholder = 'Fest';
+  expenseBilagInput.addEventListener('input', () => {
+    expenseBilagInput.value = sanitizeAbbrev(expenseBilagInput.value);
   });
-
-  const expenseAddBtn = document.createElement('button');
+  const expenseAddBtn = el('button', 'btn-small budget-manage-add-btn', '+');
   expenseAddBtn.type = 'button';
-  expenseAddBtn.className = 'btn-small budget-manage-add-btn';
-  expenseAddBtn.textContent = '+';
   expenseAddBtn.title = 'Tilføj kategori';
   expenseAddBtn.addEventListener('click', () => {
     const label = expenseNameInput.value.trim();
-    const abbrev = sanitizeAbbrev(expenseAbbrevInput.value) || sanitizeAbbrev(label);
+    const abbrev = sanitizeAbbrev(expenseBilagInput.value) || sanitizeAbbrev(label);
     if (!label || !abbrev) return;
     draftExpense.push({ key: null, label, abbrev });
     expenseNameInput.value = '';
-    expenseAbbrevInput.value = '';
-    renderExpenseList();
+    expenseBilagInput.value = '';
+    renderExpenseRows();
   });
-
-  const expenseAddRow = document.createElement('div');
-  expenseAddRow.className = 'budget-manage-add-row';
   expenseAddRow.appendChild(siteEditField('Ny kategori', expenseNameInput));
-  expenseAddRow.appendChild(siteEditField('Forkortelse', expenseAbbrevInput));
+  expenseAddRow.appendChild(siteEditField('Bilagskode', expenseBilagInput));
   expenseAddRow.appendChild(expenseAddBtn);
-  form.appendChild(expenseAddRow);
+  card.appendChild(expenseAddRow);
 
-  const incomeHead = document.createElement('h3');
-  incomeHead.className = 'budget-manage-subhead';
-  incomeHead.textContent = 'Indtægter';
-  form.appendChild(incomeHead);
+  const incomeHead = el('div', 'budget-subhead');
+  incomeHead.appendChild(el('h3', null, 'Indtægter'));
+  card.appendChild(incomeHead);
 
-  const incomeList = document.createElement('div');
-  incomeList.className = 'budget-manage-list';
-  form.appendChild(incomeList);
+  const incomeList = el('div', 'budget-income-list');
+  card.appendChild(incomeList);
 
-  function renderIncomeList() {
+  function renderIncomeRows() {
     incomeList.textContent = '';
     draftIncome.forEach((item) => {
-      const row = document.createElement('div');
-      row.className = 'budget-manage-row';
+      const row = el('div', 'budget-manage-row');
 
-      const labelInput = document.createElement('input');
-      labelInput.type = 'text';
-      labelInput.className = 'budget-manage-label-input';
-      labelInput.value = item.label;
-      labelInput.addEventListener('input', () => { item.label = labelInput.value; });
-      row.appendChild(labelInput);
+      const nameInput = el('input', 'budget-manage-name-input');
+      nameInput.type = 'text';
+      nameInput.value = item.label;
+      nameInput.addEventListener('input', () => { item.label = nameInput.value; });
+      row.appendChild(nameInput);
 
-      const removeBtn = document.createElement('button');
+      const stored = item.key ? storedIncome.find((x) => x && (x.key === item.key || x.id === item.key)) : null;
+      const amount = stored && stored.amount != null ? Number(stored.amount) || 0 : 0;
+      row.appendChild(el('span', 'budget-income-amount-readonly', formatKr(amount)));
+
+      const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
       removeBtn.type = 'button';
-      removeBtn.className = 'budget-manage-remove-btn';
-      removeBtn.textContent = '✕';
       removeBtn.title = 'Fjern indtægt';
       removeBtn.addEventListener('click', () => {
-        const impact = item.key ? incomeImpact(item.key) : [];
-        const warning = impact.length
-          ? `Denne indtægt har: ${impact.join(', ')}. Slet alligevel?`
-          : `Fjern indtægten "${item.label}"?`;
-        if (!window.confirm(warning)) return;
-        draftIncome = draftIncome.filter((d) => d !== item);
-        renderIncomeList();
+        if (amount) {
+          siteShowToast('Kan ikke slette indtægt — der er allerede angivet et beløb.');
+          return;
+        }
+        const idx = draftIncome.indexOf(item);
+        if (idx !== -1) draftIncome.splice(idx, 1);
+        renderIncomeRows();
       });
       row.appendChild(removeBtn);
 
       incomeList.appendChild(row);
     });
   }
-  renderIncomeList();
+  renderIncomeRows();
 
-  const incomeNameInput = document.createElement('input');
+  const incomeAddRow = el('div', 'budget-manage-add-row');
+  const incomeNameInput = el('input');
   incomeNameInput.type = 'text';
   incomeNameInput.placeholder = 'F.eks. Sponsorat';
-  const incomeAddBtn = document.createElement('button');
+  const incomeAddBtn = el('button', 'btn-small budget-manage-add-btn', '+');
   incomeAddBtn.type = 'button';
-  incomeAddBtn.className = 'btn-small budget-manage-add-btn';
-  incomeAddBtn.textContent = '+';
   incomeAddBtn.title = 'Tilføj indtægt';
   incomeAddBtn.addEventListener('click', () => {
     const label = incomeNameInput.value.trim();
     if (!label) return;
     draftIncome.push({ key: null, label });
     incomeNameInput.value = '';
-    renderIncomeList();
+    renderIncomeRows();
   });
-
-  const incomeAddRow = document.createElement('div');
-  incomeAddRow.className = 'budget-manage-add-row';
   incomeAddRow.appendChild(siteEditField('Ny indtægt', incomeNameInput));
   incomeAddRow.appendChild(incomeAddBtn);
-  form.appendChild(incomeAddRow);
+  card.appendChild(incomeAddRow);
 
-  const save = budgetPillBtn('Gem', 'site-pill-primary');
-  actions.appendChild(save);
+  return { draftExpense, draftIncome };
+}
 
-  save.addEventListener('click', async () => {
-    if (draftExpense.length === 0) { error.textContent = 'Der skal være mindst én udgiftskategori.'; return; }
-    if (draftIncome.length === 0) { error.textContent = 'Der skal være mindst én indtægt.'; return; }
-    if (draftExpense.some((c) => !c.label.trim() || !c.abbrev.trim())) {
-      error.textContent = 'Udfyld navn og forkortelse for hver udgiftskategori.';
-      return;
-    }
-    if (draftIncome.some((c) => !c.label.trim())) {
-      error.textContent = 'Udfyld navn for hver indtægt.';
-      return;
-    }
-    save.disabled = true;
-    error.textContent = '';
-    const result = await budgetApi('budget_categories_save', {
-      year: budgetViewYear,
-      expense: draftExpense.map((c) => ({ key: c.key || undefined, label: c.label.trim(), abbrev: c.abbrev.trim() })),
-      income: draftIncome.map((c) => ({ key: c.key || undefined, label: c.label.trim() })),
-    });
-    if (result.ok) {
-      close();
-      reloadAdmin(root);
-    } else {
-      save.disabled = false;
-      error.textContent = result.message || 'Kunne ikke gemme kategorierne.';
-    }
+async function saveCategoryEdits(saveBtn, status, categoryDrafts) {
+  const { draftExpense, draftIncome } = categoryDrafts;
+  if (draftExpense.length === 0) {
+    status.textContent = 'Der skal være mindst én udgiftskategori.';
+    status.className = 'budget-save-status error';
+    return;
+  }
+  if (draftIncome.length === 0) {
+    status.textContent = 'Der skal være mindst én indtægt.';
+    status.className = 'budget-save-status error';
+    return;
+  }
+  if (draftExpense.some((c) => !c.label.trim() || !c.abbrev.trim())) {
+    status.textContent = 'Udfyld navn og bilagskode for hver kategori.';
+    status.className = 'budget-save-status error';
+    return;
+  }
+  if (draftIncome.some((c) => !c.label.trim())) {
+    status.textContent = 'Udfyld navn for hver indtægt.';
+    status.className = 'budget-save-status error';
+    return;
+  }
+  saveBtn.disabled = true;
+  status.textContent = 'Gemmer …';
+  status.className = 'budget-save-status';
+  const result = await budgetApi('budget_categories_save', {
+    year: budgetViewYear,
+    expense: draftExpense.map((c) => ({ key: c.key || undefined, label: c.label.trim(), abbrev: c.abbrev.trim() })),
+    income: draftIncome.map((c) => ({ key: c.key || undefined, label: c.label.trim() })),
   });
+  if (result.ok) {
+    budgetCategoriesEditMode = false;
+    siteShowToast('Kategorier gemt');
+    reloadAdmin(document.getElementById('budget-root'));
+  } else {
+    saveBtn.disabled = false;
+    status.textContent = result.message || 'Kunne ikke gemme kategorierne.';
+    status.className = 'budget-save-status error';
+  }
 }
 
 // Base order is time-of-upload, oldest first — but requests are first
