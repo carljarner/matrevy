@@ -623,6 +623,28 @@ function formsRenderOptionsEditor(field, onChange) {
   return wrap;
 }
 
+// Shared by both save paths in the builder modal: trims labels and drops
+// half-filled manual option rows before anything is sent to the server, so
+// "Gem som skabelon" validates identically to "Gem formular" instead of
+// surfacing the raw server-side invalid_field error.
+function formsValidateAndCleanFields(draftFields) {
+  for (const f of draftFields) {
+    if (!f.label || !f.label.trim()) return { error: 'Alle felter skal have et spørgsmål.' };
+    if ((f.type === 'select' || f.type === 'checkboxes') && f.optionsSource === 'manual'
+        && (!f.options || f.options.filter((o) => o.value && o.label).length === 0)) {
+      return { error: `Tilføj mindst én valgmulighed til "${f.label}".` };
+    }
+  }
+  return {
+    fields: draftFields.map((f) => ({
+      id: f.id, type: f.type, label: f.label.trim(), required: !!f.required,
+      ...(f.optionsSource ? { optionsSource: f.optionsSource } : {}),
+      ...(f.options ? { options: f.options.filter((o) => o.value && o.label) } : {}),
+      ...(f.sourceFilter !== undefined ? { sourceFilter: f.sourceFilter } : {}),
+    })),
+  };
+}
+
 // ── Builder modal (create / edit a form) ─────────────────────
 function formsOpenBuilder(root, existingDefinition, templateFields) {
   const isEdit = !!(existingDefinition && existingDefinition.id);
@@ -672,10 +694,13 @@ function formsOpenBuilder(root, existingDefinition, templateFields) {
 
   const saveAsTemplateBtn = formsPillBtn('Gem som skabelon');
   saveAsTemplateBtn.addEventListener('click', async () => {
+    error.textContent = '';
+    const cleaned = formsValidateAndCleanFields(draftFields);
+    if (cleaned.error) { error.textContent = cleaned.error; return; }
     const templateTitle = (prompt('Navn på skabelon:', titleInput.value) || '').trim();
     if (!templateTitle) return;
     saveAsTemplateBtn.disabled = true;
-    const result = await formsApi('templates_save', { title: templateTitle, description: '', fields: draftFields });
+    const result = await formsApi('templates_save', { title: templateTitle, description: '', fields: cleaned.fields });
     saveAsTemplateBtn.disabled = false;
     if (result.ok) siteShowToast('Skabelon gemt.');
     else if (result.message) error.textContent = result.message;
@@ -689,26 +714,15 @@ function formsOpenBuilder(root, existingDefinition, templateFields) {
     error.textContent = '';
     const title = titleInput.value.trim();
     if (!title) { error.textContent = 'Skriv en titel.'; return; }
-    for (const f of draftFields) {
-      if (!f.label || !f.label.trim()) { error.textContent = 'Alle felter skal have et spørgsmål.'; return; }
-      if ((f.type === 'select' || f.type === 'checkboxes') && f.optionsSource === 'manual'
-          && (!f.options || f.options.filter((o) => o.value && o.label).length === 0)) {
-        error.textContent = `Tilføj mindst én valgmulighed til "${f.label}".`;
-        return;
-      }
-    }
+    const cleaned = formsValidateAndCleanFields(draftFields);
+    if (cleaned.error) { error.textContent = cleaned.error; return; }
     const productionYear = yearInput.value.trim() ? parseInt(yearInput.value.trim(), 10) : null;
     saveBtn.disabled = true;
     const payload = {
       title, description: descInput.value.trim(), status: statusDd.value,
       deadline: deadlineField.value || null, productionYear,
       fromTemplateId: existingDefinition ? (existingDefinition.fromTemplateId || null) : null,
-      fields: draftFields.map((f) => ({
-        id: f.id, type: f.type, label: f.label.trim(), required: !!f.required,
-        ...(f.optionsSource ? { optionsSource: f.optionsSource } : {}),
-        ...(f.options ? { options: f.options.filter((o) => o.value && o.label) } : {}),
-        ...(f.sourceFilter !== undefined ? { sourceFilter: f.sourceFilter } : {}),
-      })),
+      fields: cleaned.fields,
     };
     if (isEdit) payload.id = existingDefinition.id;
     const result = await formsApi('forms_save', payload);
