@@ -574,8 +574,11 @@ async function renderFormFillIn(root, formId) {
   function renderNav() {
     if (nav) nav.remove();
     if (pageEls.length <= 1) {
-      body.appendChild(submitBtn);
-      nav = null;
+      // No prev/next to center, but Indsend still belongs bottom-right,
+      // same as the multi-page .forms-fillin-submit-slot below.
+      nav = el('div', 'forms-fillin-submit-row');
+      nav.appendChild(submitBtn);
+      body.appendChild(nav);
       return;
     }
     // Grid layout (1fr auto 1fr), same idea as Manus's point-entry modal's

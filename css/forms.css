@@ -641,6 +641,15 @@
   margin-top: 1.25rem;
 }
 
+/* Single-section forms have no prev/next to center — just Indsend,
+   bottom-right, same position it'd sit in via .forms-fillin-submit-slot
+   on a multi-page form. */
+.forms-fillin-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
 .forms-fillin-nav-group {
   grid-column: 2;
   justify-self: center;
