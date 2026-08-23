@@ -433,23 +433,44 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
     root.appendChild(loading);
   }
 
-  const result = await budgetApi('budget_read', { year: budgetViewYear });
+  let result = await budgetApi('budget_read', { year: budgetViewYear });
   root.replaceChildren();
   if (!result.ok) {
     if (result.message) root.appendChild(el('p', 'budget-msg error', result.message));
     return;
   }
-  const data = result.data || {};
+  let data = result.data || {};
+
+  // budget_read's own bootstrap branch (update-data.php) returns
+  // year:null whenever there's no active year and no explicit year was
+  // requested — that's ambiguous client-side: it's either a genuinely
+  // brand-new deploy (data.years is empty) or the previously-active year
+  // was just deleted while other years still exist. In the latter case,
+  // re-resolve explicitly against the most recent remaining year so the
+  // admin still lands on real data instead of the empty bootstrap screen.
+  if (data.year == null && Array.isArray(data.years) && data.years.length > 0) {
+    const fallbackYear = data.years.slice().sort((a, b) => b.year - a.year)[0].year;
+    result = await budgetApi('budget_read', { year: fallbackYear });
+    if (!result.ok) {
+      if (result.message) root.appendChild(el('p', 'budget-msg error', result.message));
+      return;
+    }
+    data = result.data || {};
+  }
+
   budgetSetViewYear(data.year != null ? data.year : budgetViewYear);
-  budgetActiveYear = data.activeYear != null ? data.activeYear : budgetActiveYear;
+  // Always trust the server's activeYear, including null — the old
+  // "keep the previous value" fallback meant a just-deleted active year
+  // stayed shown as active until the next unrelated reload.
+  budgetActiveYear = data.activeYear;
   budgetYearsList = Array.isArray(data.years) ? data.years : budgetYearsList;
   budgetSetPageTitle(budgetViewYear);
 
-  // Bootstrap case: a brand-new deploy has no budget year at all yet (see
-  // budget_read's own bootstrap branch in update-data.php) — the year
-  // toolbar renders full-width, standing in for the whole page, until the
-  // admin creates + activates the first year via it.
-  if (data.activeYear == null) {
+  // True bootstrap: no year could be resolved at all (data.years empty
+  // too — a brand-new deploy). The year toolbar renders full-width,
+  // standing in for the whole page, until the admin creates + activates
+  // the first year via it.
+  if (data.year == null) {
     renderYearToolbar(root);
     root.appendChild(el('p', 'budget-intro', 'Der er endnu ikke oprettet et budget. Opret det første ovenfor.'));
     return;
@@ -515,10 +536,14 @@ function budgetYearLabel(year) {
 function renderYearToolbar(container) {
   const card = el('section', 'card budget-year-toolbar');
 
-  // No year exists yet (brand-new deploy) — nothing to view/switch between;
-  // "Skift" below still works, it just opens straight into "create a year"
-  // since budgetYearsList is empty.
-  if (budgetActiveYear == null) {
+  // No year exists yet at all (brand-new deploy) — nothing to view/switch
+  // between; "Skift" below still works, it just opens straight into
+  // "create a year" since budgetYearsList is empty. Deliberately keyed off
+  // budgetYearsList, not budgetActiveYear — the latter can legitimately be
+  // null while years still exist (the active year was just deleted), in
+  // which case the full toolbar below should render, just showing "Intet
+  // valgt" for Aktivt budget rather than collapsing to this reduced view.
+  if (budgetYearsList.length === 0) {
     const row = el('div', 'budget-year-btn-row');
     const switchBtn = el('button', 'btn-small', 'Skift');
     switchBtn.type = 'button';
@@ -550,7 +575,8 @@ function renderYearToolbar(container) {
 
   const activeWrap = el('div', 'budget-year-field');
   activeWrap.appendChild(el('span', 'budget-year-active-label', 'Aktivt budget:'));
-  activeWrap.appendChild(el('span', 'budget-year-active-value', budgetYearLabel(budgetActiveYear)));
+  const activeLabel = budgetActiveYear != null ? budgetYearLabel(budgetActiveYear) : 'Intet valgt';
+  activeWrap.appendChild(el('span', 'budget-year-active-value', activeLabel));
   row.appendChild(activeWrap);
 
   card.appendChild(row);
@@ -777,7 +803,11 @@ function openDeleteYearConfirm(root, year) {
     const result = await budgetApi('budget_delete_year', { year });
     if (result.ok) {
       close();
-      budgetSetViewYear(null); // let the next load resolve to whatever's active (or the bootstrap state)
+      // Let the next load resolve to whatever's active — or, if the year
+      // just deleted was itself active, loadAndRenderAdmin's own fallback
+      // picks the most recent remaining year (or the bootstrap state, if
+      // that was the last year left).
+      budgetSetViewYear(null);
       loadAndRenderAdmin(root);
     } else {
       confirmBtn.disabled = false;

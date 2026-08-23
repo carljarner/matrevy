@@ -857,16 +857,19 @@ tr.budget-row-filler td {
 }
 
 /* Indtægter rows while editing: name input + read-only amount + delete —
-   reuses .budget-income-list's flex-column spacing from the normal view.
-   Each row gets the same per-row bottom rule as an expense table row
-   (.budget-table td's border-bottom), so the last row leaves a horizontal
-   line above the "+" here too, matching the expense list's own table-row
-   separators instead of the "+" floating with nothing above it. */
+   reuses .budget-income-list's flex-column spacing from the normal view;
+   no per-row separator (the normal view has none between income rows
+   either). One line closes off the list as a whole, right above the "+",
+   matching the expense table's own trailing row border in that spot — see
+   the :has() rule below rather than a border on every .budget-manage-row. */
 .budget-manage-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding-bottom: 0.45rem;
+}
+
+.budget-income-list:has(.budget-manage-row) {
+  padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border);
 }
 
