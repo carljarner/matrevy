@@ -263,7 +263,14 @@ function renderRevystForm(root) {
   card.appendChild(siteEditField('Kategori', categorySelect));
   budgetApi('budget_active_categories', {}).then((result) => {
     categoryOptions.length = 0;
-    if (result.ok && result.data && Array.isArray(result.data.expense)) {
+    if (result.ok && result.data && result.data.year == null) {
+      // A real, expected state (see budget_set_active_year's "Intet valgt"
+      // option) — not a fetch failure, so it gets its own honest message
+      // instead of "kunne ikke hente kategorier".
+      categoryOptions.push({ value: '', label: 'Intet aktivt budgetår' });
+      setMsg('Der er i øjeblikket intet aktivt budgetår — der kan ikke indsendes udlæg lige nu.', 'error');
+      submitBtn.disabled = true;
+    } else if (result.ok && result.data && Array.isArray(result.data.expense)) {
       categoryOptions.push(
         { value: '', label: 'Vælg kategori …' },
         ...result.data.expense.map((c) => ({ value: c.key, label: c.label }))
@@ -597,16 +604,22 @@ function renderYearToolbar(container) {
 }
 
 // Changes which year is active (where new revyst uploads/receipts land) —
-// either by picking an existing year (budget_set_active_year) or by
-// creating and immediately activating a brand new one (budget_create_year
-// then budget_set_active_year, the same two-call sequence the old standalone
-// "Start nyt budgetår" modal used). The confirm button reads "Vælg" or
-// "Opret" depending on which path is currently shown; the dropdown's own
-// "+ Tilføj" option (listed first) switches the modal into the create path,
-// and when no year exists yet at all the create fields are the only thing shown.
+// either by picking an existing year (budget_set_active_year), creating and
+// immediately activating a brand new one (budget_create_year then
+// budget_set_active_year, the same two-call sequence the old standalone
+// "Start nyt budgetår" modal used), or deliberately clearing it (also
+// budget_set_active_year, with year:null) via the dropdown's own trailing
+// "Intet valgt" option — blocks revyst submissions without deleting or
+// hiding anything; every year, including whichever was just cleared, stays
+// fully browsable via the "Viser budget for" dropdown. The confirm button
+// reads "Vælg" or "Opret" depending on which path is currently shown; the
+// dropdown's own "+ Tilføj" option (listed first) switches the modal into
+// the create path, and when no year exists yet at all the create fields
+// are the only thing shown (there's nothing to clear either, in that case).
 function openSwitchActiveYearModal(root) {
   const hasYears = budgetYearsList.length > 0;
   const NEW_YEAR_VALUE = '__new__';
+  const NONE_YEAR_VALUE = '__none__';
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Skift aktivt budget');
   modal.classList.add('budget-approve-modal');
 
@@ -646,7 +659,8 @@ function openSwitchActiveYearModal(root) {
       .slice()
       .sort((a, b) => b.year - a.year)
       .map((y) => ({ value: String(y.year), label: y.label })));
-    const defaultValue = budgetActiveYear != null ? String(budgetActiveYear) : yearOptions[0].value;
+    yearOptions.push({ value: NONE_YEAR_VALUE, label: 'Intet valgt' });
+    const defaultValue = budgetActiveYear != null ? String(budgetActiveYear) : NONE_YEAR_VALUE;
     yearSelect = siteCreateDropdownField(yearOptions, defaultValue);
     yearSelect.addEventListener('change', updateNewYearFieldsVisibility);
     form.appendChild(siteEditField('Aktivt budget', yearSelect));
@@ -684,6 +698,22 @@ function openSwitchActiveYearModal(root) {
       budgetSetViewYear(year);
       close();
       loadAndRenderAdmin(root);
+      return;
+    }
+
+    if (yearSelect.value === NONE_YEAR_VALUE) {
+      confirmBtn.disabled = true;
+      const result = await budgetApi('budget_set_active_year', { year: null });
+      if (result.ok) {
+        // budgetViewYear is left as-is — the year being viewed still fully
+        // exists, so there's no need to jump away from it just because
+        // it's no longer the active one.
+        close();
+        loadAndRenderAdmin(root);
+      } else {
+        confirmBtn.disabled = false;
+        if (result.message) error.textContent = result.message;
+      }
       return;
     }
 

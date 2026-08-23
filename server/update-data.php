@@ -680,7 +680,13 @@ function budget_next_n($year, $category) {
 // become an approved expense until an admin assigns it a real one. Rejecting
 // it here instead would just lose the submitter's work entirely.
 function budget_submit($body) {
-  $year = budget_active_year();
+  $years = budget_load_years();
+  $year = $years['activeYear'] ?? null;
+  // A real, expected state (see budget_set_active_year's null-year path)
+  // rather than a server fault — respond 409, not budget_active_year()'s
+  // generic 500, so the submit form can show a clear "not accepting
+  // requests right now" message instead of a scary error.
+  if (!is_int($year)) respond(409, ['error' => 'no_active_year']);
   $category = $body['category'] ?? '';
   $amount   = $body['amount'] ?? null;
   $name     = $body['name'] ?? '';
@@ -729,12 +735,19 @@ function budget_submit($body) {
 // budget/requests/expenses to return; defaults to the active year.
 function budget_read($body) {
   $years = budget_load_years();
-  // Bootstrap case: a brand-new deploy has no years.json yet (no year has
-  // ever been created), so there's nothing to resolve/read — respond with
-  // an explicit "nothing yet" shape instead of budget_resolve_year's normal
-  // 500 (via budget_active_year), so the client can render just the
-  // "Start nyt budgetår" control instead of an unrecoverable error page.
-  if (!is_int($years['activeYear'] ?? null)) {
+  $requestedYear = (array_key_exists('year', $body) && $body['year'] !== null) ? $body['year'] : null;
+  // Nothing to resolve/read: either a brand-new deploy (no years.json yet,
+  // no year has ever been created) or there's deliberately no active year
+  // right now (see budget_set_active_year's null-year path) and the caller
+  // didn't ask for a specific year either — respond with an explicit
+  // "nothing yet" shape instead of budget_resolve_year's normal 500 (via
+  // budget_active_year), so the client can render just the "Start nyt
+  // budgetår" control. A caller that DOES pass an explicit year (e.g. the
+  // admin browsing a past year, or re-resolving after the active year was
+  // deleted) still resolves normally below even with no active year — only
+  // budget_submit (which always needs a real active year, never a
+  // client-chosen one) is blocked outright by having no active year.
+  if (!is_int($years['activeYear'] ?? null) && $requestedYear === null) {
     respond(200, [
       'ok' => true, 'year' => null, 'activeYear' => null, 'years' => $years['years'] ?? [],
       'budget' => null, 'requests' => null, 'expenses' => null,
@@ -756,9 +769,14 @@ function budget_read($body) {
 // Revyst: the active year's expense categories only (no income, no
 // personal data) — for the submit form's category dropdown. Mirrors
 // budget_active_year_info: always the active year, never a client-supplied
-// one, since a revyst caller must never read an arbitrary past year.
+// one, since a revyst caller must never read an arbitrary past year. Also
+// mirrors its graceful no-active-year handling (year:null, empty list)
+// rather than budget_active_year()'s 500, so the submit form can render a
+// clear "not accepting requests right now" state instead of an error.
 function budget_active_categories($body) {
-  $year = budget_active_year();
+  $years = budget_load_years();
+  $year = $years['activeYear'] ?? null;
+  if (!is_int($year)) respond(200, ['ok' => true, 'year' => null, 'expense' => []]);
   $categories = budget_load_categories($year);
   respond(200, ['ok' => true, 'year' => $year, 'expense' => $categories['expense'] ?? []]);
 }
@@ -1297,12 +1315,20 @@ function budget_create_year($body) {
 // Admin: flip which year new revyst submissions/receipts land in. Works
 // equally for a brand-new year (right after budget_create_year) or for
 // re-activating an already-existing past year (e.g. correcting a mistaken
-// switch) — it never creates anything itself.
+// switch) — it never creates anything itself. `year: null` is also
+// accepted, deliberately (the "Intet valgt" option in the Skift-modal's
+// dropdown) — it blocks revyst submissions (budget_submit/
+// budget_active_categories both require a real active year) without
+// deleting anything; every year, including whichever was last active,
+// stays fully browsable via budget_read's explicit-year path.
 function budget_set_active_year($body) {
-  $year = $body['year'] ?? null;
-  if (!is_int($year)) respond(400, ['error' => 'invalid_shape']);
-  $years = budget_load_years();
-  if (!budget_valid_year($year, $years)) respond(400, ['error' => 'unknown_year']);
+  if (!array_key_exists('year', $body)) respond(400, ['error' => 'invalid_shape']);
+  $year = $body['year'];
+  if ($year !== null) {
+    if (!is_int($year)) respond(400, ['error' => 'invalid_shape']);
+    $years = budget_load_years();
+    if (!budget_valid_year($year, $years)) respond(400, ['error' => 'unknown_year']);
+  }
   budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []], function ($json) use ($year) {
     $json['activeYear'] = $year;
     return $json;
