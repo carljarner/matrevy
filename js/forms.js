@@ -454,7 +454,7 @@ function formsFillInHasAnyAnswer(inputs) {
 function formsOpenLeaveWarning(onLeave) {
   const { modal, form, actions, close } = siteOpenModalWithClose('Forlad siden?');
   modal.classList.add('forms-center-modal', 'forms-leave-modal');
-  form.appendChild(el('p', 'forms-intro', 'Dine ændringer glemmes.'));
+  form.appendChild(el('p', 'forms-intro', 'Dine ændringer gemmes ikke.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const leaveBtn = formsPillBtn('Forlad', 'site-pill-warm');
