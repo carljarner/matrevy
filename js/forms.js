@@ -45,7 +45,7 @@ const FORMS_FIELD_TYPES = [
   { value: 'grid_multi',  label: 'Gitter (vælg flere)' },
 ];
 
-// ── Production year helpers (Produktionsår field, Oversigt year filter) ──
+// ── Revy helpers (the form's Revy field, Oversigt year filter) ──────
 // CONFIG_DATA (config-data.js, the same embed manus.js/koordinator.js read
 // currentProductionFolder from) names the year currently in production,
 // e.g. "MatRevy_2026" → 2026 — that's the earliest year a form can ever
@@ -56,18 +56,27 @@ function formsCurrentProductionYear() {
   return m ? parseInt(m[0], 10) : new Date().getFullYear();
 }
 
-// A handful of years starting at the current production year, so a form
-// can be planned ahead for a future year too. `existingYear` (an already-
-// saved form's productionYear) is folded in even if it falls outside that
-// window, so opening an old form for editing never shows a value the
-// dropdown can't actually display.
-const FORMS_PRODUCTION_YEAR_SPAN = 5;
-function formsProductionYearOptions(existingYear) {
+// A form's Revy field picks from ARCHIVE_DATA (archive-data.js's embed of
+// data/archive.json) — Arkiv already lists the current, not-yet-closed
+// production ("MatRevy 2026" exists there today), so this is genuinely
+// live: once Koordinator adds a new Arkiv entry for the next production,
+// it shows up here too, with no code change. Only years before the one
+// currently in production are excluded, since a form can never target an
+// already-closed year. `existingYear` (an already-saved form's
+// productionYear) is folded in even if Arkiv doesn't list it, so opening
+// an old form for editing never shows a value the dropdown can't display.
+function formsRevyOptions(existingYear) {
   const start = formsCurrentProductionYear();
-  const years = new Set();
-  for (let y = start; y < start + FORMS_PRODUCTION_YEAR_SPAN; y++) years.add(y);
-  if (existingYear != null) years.add(existingYear);
-  return Array.from(years).sort((a, b) => a - b).map((y) => ({ value: String(y), label: String(y) }));
+  const entries = (typeof ARCHIVE_DATA !== 'undefined' && Array.isArray(ARCHIVE_DATA)) ? ARCHIVE_DATA : [];
+  const opts = entries
+    .filter((e) => typeof e.year === 'number' && e.year >= start)
+    .sort((a, b) => a.year - b.year)
+    .map((e) => ({ value: String(e.year), label: e.name || String(e.year) }));
+  if (existingYear != null && !opts.some((o) => o.value === String(existingYear))) {
+    opts.push({ value: String(existingYear), label: String(existingYear) });
+    opts.sort((a, b) => parseInt(a.value, 10) - parseInt(b.value, 10));
+  }
+  return opts;
 }
 
 // ── Small DOM helper (mirrors budget.js's el()) ──────────────
@@ -633,6 +642,58 @@ function renderAdminView(root, screen) {
   }
 }
 
+// Icon-only row actions (Oversigt's "Rediger"/"Se svar") — same SVG pencil
+// convention as calendar.js's calPencilIcon/budget.js's budgetPencilIcon,
+// duplicated here since forms.html doesn't load either of those scripts
+// (the established per-feature duplication convention). formsPaperIcon has
+// no existing sibling elsewhere on the site (budget's own "Se" icon is a
+// photo, since it views a receipt image, not a document).
+function formsPencilIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const body = document.createElementNS(svgNS, 'path');
+  body.setAttribute('d', 'M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z');
+  svg.appendChild(body);
+  const tip = document.createElementNS(svgNS, 'path');
+  tip.setAttribute('d', 'M9 4l3 3');
+  svg.appendChild(tip);
+  return svg;
+}
+
+function formsPaperIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const outline = document.createElementNS(svgNS, 'path');
+  outline.setAttribute('d', 'M4.2 1.7h4.6l2.5 2.5v9.1a1 1 0 0 1-1 1h-6.1a1 1 0 0 1-1-1v-10.6a1 1 0 0 1 1-1z');
+  svg.appendChild(outline);
+  const fold = document.createElementNS(svgNS, 'path');
+  fold.setAttribute('d', 'M8.8 1.7v2.5h2.5');
+  svg.appendChild(fold);
+  const line1 = document.createElementNS(svgNS, 'path');
+  line1.setAttribute('d', 'M5.5 8h5');
+  svg.appendChild(line1);
+  const line2 = document.createElementNS(svgNS, 'path');
+  line2.setAttribute('d', 'M5.5 10.4h5');
+  svg.appendChild(line2);
+  return svg;
+}
+
 async function formsRenderOverviewScreen(root) {
   const card = el('section', 'card forms-overview-card');
   const head = el('div', 'forms-builder-head');
@@ -713,19 +774,22 @@ async function formsRenderOverviewScreen(root) {
         ? (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline) : '—'));
       row.appendChild(el('td', null, String(f.responseCount)));
 
-      // Only two row actions now: "Se svar" (paper) and "Rediger" (pencil),
+      // Only two row actions now: "Se svar" (paper) and "Rediger" (pencil,
+      // same icon convention as calendar.js/budget.js's own edit buttons),
       // far right, edit last. Deleting a form moved into its own edit view
       // (top-right X) — see formsRenderBuilderScreen.
       const actionsCell = el('td', 'forms-row-actions');
-      const respBtn = el('button', 'forms-row-icon-btn', '📄');
+      const respBtn = el('button', 'forms-row-icon-btn');
       respBtn.type = 'button';
-      respBtn.title = 'Se svar';
       respBtn.setAttribute('aria-label', 'Se svar');
+      respBtn.setAttribute('data-tooltip', 'Se svar');
+      respBtn.appendChild(formsPaperIcon());
       respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
-      const editBtn = el('button', 'forms-row-icon-btn', '✏️');
+      const editBtn = el('button', 'forms-row-icon-btn');
       editBtn.type = 'button';
-      editBtn.title = 'Rediger';
       editBtn.setAttribute('aria-label', 'Rediger');
+      editBtn.setAttribute('data-tooltip', 'Rediger');
+      editBtn.appendChild(formsPencilIcon());
       editBtn.addEventListener('click', async () => {
         const full = await formsApi('forms_admin_read', { formId: f.id });
         if (full.ok) {
@@ -1154,7 +1218,7 @@ function formsValidateAndCleanSections(draftSections) {
 // Renders directly into `root` — no modal — so the whole create/edit flow
 // lives in the page. Folds in what used to be two separate modals (start
 // from / manage templates) into one dropdown menu. Titel/Status/Frist/
-// Produktionsår are the form's only settings; every question lives in one
+// Revy are the form's only settings; every question lives in one
 // or more uniform sections (title, description, fields) below, added via
 // "+ Tilføj sektion" and always at least one.
 function formsRenderBuilderScreen(root, existingDefinition) {
@@ -1169,7 +1233,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   // Every section (including the first) is a uniform {id, title,
   // description, fields} block, rendered by the same formsRenderSectionBlock
   // — there's no separate "the form's own fields" list any more. Title/
-  // Status/Frist/Produktionsår below are the form's only remaining
+  // Status/Frist/Revy below are the form's only remaining
   // settings, since the fill-in view no longer shows a form-level
   // description (see renderFormFillIn) and it never had one after this).
   const draftSections = formsSectionsFromDefinition(existingDefinition);
@@ -1197,7 +1261,11 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   if (!existingDefinition) {
     head.appendChild(formsRenderTemplateMenu((template) => {
-      draftSections.splice(0, draftSections.length, ...formsSectionsFromDefinition(template));
+      // Same as opening an existing form for editing — start every
+      // section collapsed rather than dumping the whole template open.
+      const templateSections = formsSectionsFromDefinition(template);
+      templateSections.forEach((s) => { s.collapsed = true; });
+      draftSections.splice(0, draftSections.length, ...templateSections);
       renderSectionsList();
       error.textContent = '';
     }));
@@ -1218,8 +1286,8 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   titleInput.value = existingDefinition ? existingDefinition.title : '';
   card.appendChild(siteEditField('Titel', titleInput));
 
-  // Status/Frist/Produktionsår are form-level metadata, shown once
-  // regardless of how many sections the form has.
+  // Status/Frist/Revy are form-level metadata, shown once regardless of
+  // how many sections the form has.
   const metaRow = el('div', 'edit-field-row');
   const statusDd = siteCreateDropdownField(
     [{ value: 'closed', label: 'Lukket' }, { value: 'open', label: 'Åben' }],
@@ -1231,9 +1299,9 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   const existingYear = existingDefinition && existingDefinition.productionYear != null
     ? existingDefinition.productionYear : null;
-  const yearDd = siteCreateDropdownField(formsProductionYearOptions(existingYear),
+  const revyDd = siteCreateDropdownField(formsRevyOptions(existingYear),
     String(existingYear != null ? existingYear : formsCurrentProductionYear()));
-  metaRow.appendChild(siteEditField('Produktionsår', yearDd));
+  metaRow.appendChild(siteEditField('Revy', revyDd));
   card.appendChild(metaRow);
 
   sectionsListEl = el('div', 'forms-sections-list');
@@ -1261,11 +1329,16 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   const saveAsTemplateBtn = el('button', 'site-btn-success', 'Skabelon');
   saveAsTemplateBtn.type = 'button';
-  saveAsTemplateBtn.addEventListener('click', () => {
+  saveAsTemplateBtn.addEventListener('click', async () => {
     error.textContent = '';
     const cleanedSections = formsValidateAndCleanSections(draftSections);
     if (cleanedSections.error) { error.textContent = cleanedSections.error; return; }
-    formsOpenSaveAsTemplateModal(titleInput.value, '', cleanedSections.sections);
+    saveAsTemplateBtn.disabled = true;
+    const result = await formsApi('templates_list', {});
+    saveAsTemplateBtn.disabled = false;
+    if (!result.ok) { error.textContent = result.message || 'Kunne ikke hente skabeloner.'; return; }
+    const templates = Array.isArray(result.data.templates) ? result.data.templates : [];
+    formsOpenSaveAsTemplateModal(templates, titleInput.value, cleanedSections.sections);
   });
 
   const cancelBtn = el('button', 'site-btn-warm forms-builder-cancel', 'Annuller');
@@ -1280,7 +1353,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     if (!title) { error.textContent = 'Skriv en titel.'; return; }
     const cleanedSections = formsValidateAndCleanSections(draftSections);
     if (cleanedSections.error) { error.textContent = cleanedSections.error; return; }
-    const productionYear = parseInt(yearDd.value, 10);
+    const productionYear = parseInt(revyDd.value, 10);
     saveBtn.disabled = true;
     const payload = {
       title, status: statusDd.value,
@@ -1500,38 +1573,63 @@ function formsOpenDeleteTemplateConfirm(t) {
   actions.appendChild(confirmBtn);
 }
 
-// Small modal just for naming (and now describing) a new template —
-// replaces a bare window.prompt() (previously the only non-password
-// prompt() on the site) with the same styled edit-field/pill-button chrome
-// every other confirm dialog uses.
-function formsOpenSaveAsTemplateModal(suggestedTitle, suggestedDescription, sections) {
+// "Skabelon" button modal — a dropdown picks either an existing template
+// (to overwrite with the current draft's sections, keeping that template's
+// own title/description untouched) or "+ Tilføj ny skabelon", which is the
+// only case that still asks for a title (no description field any more —
+// nothing on this page ever showed a template's description besides the
+// old "Skabelon ▾" menu, and typing one here was one more thing to fill in
+// for a field that mostly stayed blank).
+const FORMS_NEW_TEMPLATE_VALUE = '__new__';
+function formsOpenSaveAsTemplateModal(templates, suggestedTitle, sections) {
   const { form, error, actions, close } = siteOpenModalWithClose('Gem som skabelon');
+
+  const pickerOptions = [
+    { value: FORMS_NEW_TEMPLATE_VALUE, label: '+ Tilføj ny skabelon' },
+    ...templates.map((t) => ({ value: t.id, label: t.title })),
+  ];
+  const pickerDd = siteCreateDropdownField(pickerOptions, FORMS_NEW_TEMPLATE_VALUE);
+  form.appendChild(siteEditField('Skabelon', pickerDd));
+
   const nameInput = el('input');
   nameInput.type = 'text';
   nameInput.value = suggestedTitle || '';
-  form.appendChild(siteEditField('Navn på skabelon', nameInput));
-
-  const descInput = el('textarea');
-  descInput.rows = 2;
-  descInput.value = suggestedDescription || '';
-  form.appendChild(siteEditField('Beskrivelse', descInput));
+  const nameField = siteEditField('Navn på skabelon', nameInput);
+  form.appendChild(nameField);
 
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Gem', 'site-pill-primary');
+  const confirmBtn = formsPillBtn('Opret', 'site-pill-primary');
+
+  function syncForSelection() {
+    const isNew = pickerDd.value === FORMS_NEW_TEMPLATE_VALUE;
+    nameField.style.display = isNew ? '' : 'none';
+    confirmBtn.textContent = isNew ? 'Opret' : 'Opdater';
+  }
+  syncForSelection();
+  pickerDd.addEventListener('change', syncForSelection);
+
   confirmBtn.addEventListener('click', async () => {
-    const title = nameInput.value.trim();
-    if (!title) { error.textContent = 'Skriv et navn.'; return; }
+    error.textContent = '';
+    const isNew = pickerDd.value === FORMS_NEW_TEMPLATE_VALUE;
+    let payload;
+    if (isNew) {
+      const title = nameInput.value.trim();
+      if (!title) { error.textContent = 'Skriv et navn.'; return; }
+      payload = { title, description: '', fields: [], sections };
+    } else {
+      const existing = templates.find((t) => t.id === pickerDd.value);
+      payload = { id: existing.id, title: existing.title, description: existing.description || '', fields: [], sections };
+    }
     confirmBtn.disabled = true;
-    const result = await formsApi('templates_save',
-      { title, description: descInput.value.trim(), fields: [], sections });
+    const result = await formsApi('templates_save', payload);
     confirmBtn.disabled = false;
-    if (result.ok) { close(); siteShowToast('Skabelon gemt.'); }
+    if (result.ok) { close(); siteShowToast(isNew ? 'Skabelon gemt.' : 'Skabelon opdateret.'); }
     else if (result.message) error.textContent = result.message;
   });
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
-  nameInput.focus();
+  if (pickerDd.value === FORMS_NEW_TEMPLATE_VALUE) nameInput.focus();
 }
 
 // ── Responses screen ("Se svar" row action) + CSV export ─────

@@ -160,26 +160,63 @@
 
 .forms-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.15rem; }
 
-/* "Se svar"/"Rediger" row icons — same idle/hover/focus treatment as
-   .boss-edit-remove (style.css), just without its danger-tinted hover
-   since these aren't destructive actions. */
+/* "Se svar"/"Rediger" row icons — same 1.8rem square/warm-hover chrome as
+   calendar.js's .cal-list-edit-btn and budget.js's .budget-icon-btn (this
+   page loads neither of those stylesheets, hence the duplicate rule). */
 .forms-row-icon-btn {
+  position: relative;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
   background: none;
   border: none;
-  padding: 0.35rem;
-  line-height: 1;
-  font-size: 1rem;
+  border-radius: 6px;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 @media (hover: hover) {
-  .forms-row-icon-btn:hover { background: var(--surface-2); color: var(--text); }
+  .forms-row-icon-btn:hover {
+    background: var(--accent-warm-fill);
+    color: var(--accent-warm-text);
+  }
 }
 .forms-row-icon-btn:focus-visible {
-  outline: 2px solid var(--accent-warm);
-  outline-offset: 2px;
+  outline: none;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+}
+
+/* Small hover label — this page's one tooltip convention, since a native
+   `title` attribute renders inconsistently and only after a delay.
+   Informational only (the button's aria-label already names it for
+   screen readers), so it doesn't need a touch fallback, same as a native
+   title tooltip wouldn't show on touch either. */
+@media (hover: hover) {
+  .forms-row-icon-btn::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    background: var(--header);
+    color: var(--surface);
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    z-index: 5;
+  }
+  .forms-row-icon-btn:hover::after,
+  .forms-row-icon-btn:focus-visible::after {
+    opacity: 1;
+  }
 }
 
 .forms-status-chip {
@@ -262,8 +299,16 @@
 .forms-builder-head h2 { margin-bottom: 0; }
 
 .forms-template-menu-btn,
-.forms-builder-delete,
-.forms-year-filter { flex-shrink: 0; }
+.forms-builder-delete { flex-shrink: 0; }
+
+/* .site-field-btn (style.css) defaults to width:100% to fill an .edit-field
+   wrapper — override back down to a small top-right button, since this one
+   sits directly in the flex head row instead. */
+.forms-year-filter {
+  flex-shrink: 0;
+  width: auto;
+  min-width: 4.5rem;
+}
 
 /* Dropdown panel opened by the "Skabelon ▾" button — built on the shared
    siteOpenFieldPopup()/.site-field-pop chrome so it behaves (outside-click/
