@@ -171,8 +171,8 @@
    growing to fit its longest answer — the max-width has to sit on this
    inner inline-block wrapper (formsResponseCell()'s span), not the <td>
    itself, since a table cell's own max-width isn't reliably respected
-   under the table's default auto layout. The wrapper's `title` (also set
-   by formsResponseCell()) surfaces the full text on hover. */
+   under the table's default auto layout. formsShowResponseTooltip()
+   surfaces the full text on hover, only when actually truncated. */
 .forms-response-cell-text {
   display: inline-block;
   max-width: 200px;
@@ -180,6 +180,29 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   vertical-align: top;
+  cursor: default;
+}
+
+/* formsShowResponseTooltip()'s popup — position:fixed on <body>, clamped
+   on-screen in JS, so .forms-responses-wrap's own overflow-x:auto (which
+   per the CSS overflow spec forces overflow-y to 'auto' too) never clips
+   it, unlike a plain CSS ::after anchored inside that wrapper would be.
+   Wraps onto multiple lines (unlike .forms-row-icon-btn's one-line
+   tooltip) since a response's full text can run to a whole sentence. */
+.forms-response-tooltip {
+  position: fixed;
+  z-index: 250;
+  max-width: 320px;
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .forms-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.15rem; }

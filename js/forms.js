@@ -1658,15 +1658,48 @@ function formsFormatSubmittedAt(iso) {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Full-text hover tooltip for a truncated response cell. A plain CSS
+// ::after (the .forms-row-icon-btn convention) doesn't work here: it'd be
+// clipped by .forms-responses-wrap's own overflow-x:auto, which per the
+// CSS overflow spec forces overflow-y to 'auto' too, cutting the tooltip
+// off for any row near the table's top/bottom edge. A native `title`
+// attribute avoids the clipping but is sluggish and inconsistent, and
+// (worse) pops up over every cell, even ones that already show their
+// full text unclipped. This instead builds a single position:fixed
+// element on <body> — outside any clipping ancestor, like the shared
+// field-popup chrome in site-utils.js — shown only while genuinely
+// truncated (scrollWidth > clientWidth).
+let formsResponseTooltipEl = null;
+function formsShowResponseTooltip(anchor, text) {
+  formsHideResponseTooltip();
+  const tip = el('div', 'forms-response-tooltip', text);
+  document.body.appendChild(tip);
+  const anchorRect = anchor.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let top = anchorRect.top - tipRect.height - 6;
+  if (top < 4) top = anchorRect.bottom + 6;
+  let left = anchorRect.left;
+  if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - tipRect.width - 4;
+  if (left < 4) left = 4;
+  tip.style.top = `${top}px`;
+  tip.style.left = `${left}px`;
+  formsResponseTooltipEl = tip;
+}
+function formsHideResponseTooltip() {
+  if (formsResponseTooltipEl) { formsResponseTooltipEl.remove(); formsResponseTooltipEl = null; }
+}
+
 // A responses-table cell whose text is wrapped in an inner span capped to
 // 200px with an ellipsis (see .forms-response-cell-text in forms.css —
 // the cap has to live on this inner wrapper, not the <td>/<th> itself, to
-// actually be respected under the table's auto layout). The span's
-// `title` surfaces the full text on hover without widening the column.
+// actually be respected under the table's auto layout).
 function formsResponseCell(tag, text) {
   const cell = el(tag);
   const inner = el('span', 'forms-response-cell-text', text);
-  inner.title = text;
+  inner.addEventListener('mouseenter', () => {
+    if (inner.scrollWidth > inner.clientWidth) formsShowResponseTooltip(inner, text);
+  });
+  inner.addEventListener('mouseleave', formsHideResponseTooltip);
   cell.appendChild(inner);
   return cell;
 }
@@ -1702,6 +1735,10 @@ async function formsRenderResponsesScreen(root, formId) {
 
   const columns = formsAnswerColumns(definition);
   const wrap = el('div', 'forms-responses-wrap');
+  // A stray mouseenter can leave the fixed tooltip anchored to a cell that
+  // has since scrolled out from under it (the horizontal scrollbar moves
+  // cells without necessarily firing mouseleave) — drop it on any scroll.
+  wrap.addEventListener('scroll', formsHideResponseTooltip);
   const table = el('table', 'forms-responses-table');
   const thead = el('thead');
   const headRow = el('tr');
