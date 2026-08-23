@@ -927,6 +927,7 @@ a.manus-pdf-title:focus-visible {
 }
 
 .manus-akt-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -934,10 +935,32 @@ a.manus-pdf-title:focus-visible {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.4rem 0.5rem;
-  transition: border-color 0.15s;
 }
 
-.manus-akt-row.manus-drop-target { border-color: var(--accent-warm); }
+/* Drop-target highlight is a line drawn in the gap *above* the card, not a
+   border-color change on the card itself — a border on a card that already
+   has its own border reads as invisible (same color/weight either way), so
+   instead an absolutely-positioned pseudo-element sits centered in
+   .manus-kanban-col-list's 0.4rem inter-card gap, transparent at rest and
+   animating to accent-warm on drag-over. Same insertion-point idea as
+   budget.css's .budget-manage-tr (a line showing exactly where the dragged
+   card lands), adapted from a reserved border (works for a borderless table
+   row) to an overlaid pseudo-element (needed once the element already has
+   a border of its own). */
+.manus-akt-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -0.37rem;
+  height: 3px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 0.15s;
+  pointer-events: none;
+}
+
+.manus-akt-row.manus-drop-target::before { background: var(--accent-warm); }
 
 .manus-akt-drag-handle {
   cursor: grab;
