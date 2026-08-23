@@ -44,11 +44,14 @@ const FORMS_CAL_CATEGORIES = {
 
 // ── Field type palette ───────────────────────────────────────
 const FORMS_FIELD_TYPES = [
-  { value: 'text',       label: 'Kort tekst' },
-  { value: 'textarea',   label: 'Lang tekst' },
-  { value: 'select',     label: 'Vælg én' },
-  { value: 'checkboxes', label: 'Vælg flere' },
-  { value: 'yesno',      label: 'Ja/nej' },
+  { value: 'text',        label: 'Kort svar' },
+  { value: 'textarea',    label: 'Langt svar' },
+  { value: 'select',      label: 'Vælg én' },
+  { value: 'checkboxes',  label: 'Vælg flere' },
+  { value: 'yesno',       label: 'Ja/nej' },
+  { value: 'scale',       label: 'Skala' },
+  { value: 'grid_single', label: 'Gitter (vælg én)' },
+  { value: 'grid_multi',  label: 'Gitter (vælg flere)' },
 ];
 
 // ── Small DOM helper (mirrors budget.js's el()) ──────────────
@@ -178,12 +181,38 @@ function formsSectionsFromDefinition(def) {
   return sections;
 }
 
+// Horizontal row of native radio circles, one per option — shared by
+// "Vælg én" (select) and Skala, whose only real difference is where the
+// option list comes from (live-resolved options vs. a synthesized numeric
+// range). `name` scopes the radios into one exclusive group.
+function formsRenderRadioRow(options, name) {
+  const wrap = el('div', 'forms-radio-row');
+  const radios = [];
+  for (const opt of options) {
+    const optEl = el('label', 'forms-radio-option');
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = name;
+    radio.value = opt.value;
+    optEl.appendChild(radio);
+    optEl.appendChild(el('span', 'forms-radio-caption', opt.label));
+    wrap.appendChild(optEl);
+    radios.push(radio);
+  }
+  wrap.formsValue = () => {
+    const r = radios.find((r) => r.checked);
+    return r ? r.value : '';
+  };
+  return wrap;
+}
+
 // ── Shared field-answer renderer ─────────────────────────────
 // Builds the input control for one FieldSpec — used both by the revyst
 // fill-in view and (read-only-ish, for a live options preview) nowhere
 // else; the admin builder edits FieldSpecs directly, not answers.
 // Returns an element with a `.formsValue` getter matching the shape
-// forms_submit expects (string / string[] / boolean).
+// forms_submit expects (string / string[] / boolean / number / a
+// {rowId: value} map for the grid types).
 function formsRenderAnswerInput(field) {
   if (field.type === 'textarea') {
     const input = el('textarea');
@@ -192,10 +221,9 @@ function formsRenderAnswerInput(field) {
     return input;
   }
   if (field.type === 'select') {
-    const options = [{ value: '', label: 'Vælg …' }, ...formsResolveOptions(field)];
-    const dd = siteCreateDropdownField(options, '');
-    dd.formsValue = () => dd.value || '';
-    return dd;
+    // A row of clickable circles, not a dropdown — same idea as Skala,
+    // just fed live-resolved options instead of a numeric range.
+    return formsRenderRadioRow(formsResolveOptions(field), 'sel_' + field.id);
   }
   if (field.type === 'checkboxes') {
     const wrap = el('div', 'forms-checkbox-list');
@@ -218,6 +246,74 @@ function formsRenderAnswerInput(field) {
     const dd = siteCreateDropdownField([{ value: true, label: 'Ja' }, { value: false, label: 'Nej' }], '');
     dd.formsValue = () => (dd.value === true || dd.value === false ? dd.value : null);
     return dd;
+  }
+  if (field.type === 'scale') {
+    const min = typeof field.scaleMin === 'number' ? field.scaleMin : 1;
+    const max = typeof field.scaleMax === 'number' ? field.scaleMax : 5;
+    const options = [];
+    for (let n = min; n <= max; n++) options.push({ value: String(n), label: String(n) });
+    const wrap = el('div');
+    if (field.scaleMinLabel || field.scaleMaxLabel) {
+      const capRow = el('div', 'forms-scale-captions');
+      capRow.appendChild(el('span', null, field.scaleMinLabel || ''));
+      capRow.appendChild(el('span', null, field.scaleMaxLabel || ''));
+      wrap.appendChild(capRow);
+    }
+    const radioRow = formsRenderRadioRow(options, 'scale_' + field.id);
+    wrap.appendChild(radioRow);
+    wrap.formsValue = () => {
+      const v = radioRow.formsValue();
+      return v === '' ? null : parseInt(v, 10);
+    };
+    return wrap;
+  }
+  if (field.type === 'grid_single' || field.type === 'grid_multi') {
+    const rows = Array.isArray(field.rows) ? field.rows : [];
+    const cols = formsResolveOptions(field);
+    const wrap = el('div', 'forms-grid-wrap');
+    const table = el('table', 'forms-grid-table');
+    const thead = el('thead');
+    const headRow = el('tr');
+    headRow.appendChild(el('th'));
+    for (const c of cols) headRow.appendChild(el('th', null, c.label));
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    const tbody = el('tbody');
+    const controlsByRow = {};
+    for (const r of rows) {
+      const tr = el('tr');
+      tr.appendChild(el('td', 'forms-grid-row-label', r.label));
+      const controls = [];
+      for (const c of cols) {
+        const td = el('td', 'forms-grid-cell');
+        const input = document.createElement('input');
+        input.type = field.type === 'grid_single' ? 'radio' : 'checkbox';
+        if (field.type === 'grid_single') input.name = 'grid_' + field.id + '_' + r.id;
+        input.value = c.value;
+        td.appendChild(input);
+        tr.appendChild(td);
+        controls.push(input);
+      }
+      controlsByRow[r.id] = controls;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    wrap.formsValue = () => {
+      const out = {};
+      for (const r of rows) {
+        const controls = controlsByRow[r.id];
+        if (field.type === 'grid_single') {
+          const chosen = controls.find((c) => c.checked);
+          if (chosen) out[r.id] = chosen.value;
+        } else {
+          const chosen = controls.filter((c) => c.checked).map((c) => c.value);
+          if (chosen.length) out[r.id] = chosen;
+        }
+      }
+      return out;
+    };
+    return wrap;
   }
   // text (default)
   const input = el('input');
@@ -265,8 +361,10 @@ async function renderFormsList(root) {
 async function renderFormFillIn(root, formId) {
   root.replaceChildren();
   const card = el('section', 'card forms-form');
-  const backBtn = el('button', 'btn-small', '← Tilbage til formularer');
+  const backBtn = el('button', 'forms-back-btn', '←');
   backBtn.type = 'button';
+  backBtn.title = 'Tilbage til formularer';
+  backBtn.setAttribute('aria-label', 'Tilbage til formularer');
   backBtn.addEventListener('click', () => renderFormsList(root));
   card.appendChild(backBtn);
 
@@ -323,7 +421,14 @@ async function renderFormFillIn(root, formId) {
     for (const { field, input, page } of inputs) {
       const value = input.formsValue();
       if (field.required) {
-        const empty = value == null || value === '' || (Array.isArray(value) && value.length === 0);
+        // Grid types answer with a {rowId: value} map — required means
+        // every row needs an answer, mirroring forms_submit's own check.
+        const empty = (field.type === 'grid_single' || field.type === 'grid_multi')
+          ? (Array.isArray(field.rows) ? field.rows : []).some((r) => {
+              const v = value ? value[r.id] : undefined;
+              return v === undefined || (Array.isArray(v) && v.length === 0);
+            })
+          : value == null || value === '' || (Array.isArray(value) && value.length === 0);
         if (empty) {
           showPage(page);
           return setMsg(`Udfyld "${field.label}".`, 'error');
@@ -340,9 +445,9 @@ async function renderFormFillIn(root, formId) {
       for (const { input } of inputs) {
         if (input.tagName === 'TEXTAREA' || input.tagName === 'INPUT') input.value = '';
         else if ('value' in input) input.value = '';
-        else if (input.classList && input.classList.contains('forms-checkbox-list')) {
-          input.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = false; });
-        }
+        // Everything else is a custom widget built on native checkboxes/
+        // radios (checkbox lists, select/skala's radio rows, grids).
+        else input.querySelectorAll('input[type=checkbox], input[type=radio]').forEach((cb) => { cb.checked = false; });
       }
       submitBtn.disabled = true;
       showPage(0);
@@ -546,55 +651,50 @@ function formsRenderFieldEditor(listEl, draftFields, onChange) {
   listEl.appendChild(addBtn);
 }
 
+// Clears any previous type's extra props and seeds sensible defaults for
+// the new one — called whenever a field's type dropdown changes.
+function formsResetFieldTypeExtras(field) {
+  delete field.optionsSource; delete field.options; delete field.sourceFilter;
+  delete field.rows; delete field.scaleMin; delete field.scaleMax;
+  delete field.scaleMinLabel; delete field.scaleMaxLabel;
+  if (field.type === 'select' || field.type === 'checkboxes') {
+    field.optionsSource = 'manual';
+    field.options = [];
+  } else if (field.type === 'scale') {
+    field.scaleMin = 1;
+    field.scaleMax = 5;
+    field.scaleMinLabel = '';
+    field.scaleMaxLabel = '';
+  } else if (field.type === 'grid_single' || field.type === 'grid_multi') {
+    field.rows = [{ id: formsNewFieldId(), label: '' }];
+    field.options = [];
+  }
+}
+
 function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
   const row = el('div', 'forms-field-row');
 
+  // Spørgsmål (~75%) + type dropdown + ✕, all on one row — no up/down
+  // reordering (removed; drag-and-drop would be the next step, not this).
   const topRow = el('div', 'forms-field-row-top');
-  const typeDd = siteCreateDropdownField(FORMS_FIELD_TYPES, field.type);
-  typeDd.addEventListener('change', () => {
-    field.type = typeDd.value;
-    if (field.type !== 'select' && field.type !== 'checkboxes') {
-      delete field.optionsSource; delete field.options; delete field.sourceFilter;
-    } else if (!field.optionsSource) {
-      field.optionsSource = 'manual'; field.options = [];
-    }
-    formsRenderFieldEditor(listEl, draftFields, onChange);
-    onChange();
-  });
-  topRow.appendChild(typeDd);
 
-  const labelInput = el('input');
+  const labelInput = el('input', 'forms-field-label-input');
   labelInput.type = 'text';
   labelInput.placeholder = 'Spørgsmål';
   labelInput.value = field.label || '';
   labelInput.addEventListener('input', () => { field.label = labelInput.value; onChange(); });
   topRow.appendChild(labelInput);
 
-  const reqLabel = el('label', 'forms-required-label');
-  const reqBox = document.createElement('input');
-  reqBox.type = 'checkbox';
-  reqBox.checked = !!field.required;
-  reqBox.addEventListener('change', () => { field.required = reqBox.checked; onChange(); });
-  reqLabel.appendChild(reqBox);
-  reqLabel.appendChild(document.createTextNode('Påkrævet'));
-  topRow.appendChild(reqLabel);
+  const typeDd = siteCreateDropdownField(FORMS_FIELD_TYPES, field.type);
+  typeDd.classList.add('forms-field-type-dd');
+  typeDd.addEventListener('change', () => {
+    field.type = typeDd.value;
+    formsResetFieldTypeExtras(field);
+    formsRenderFieldEditor(listEl, draftFields, onChange);
+    onChange();
+  });
+  topRow.appendChild(typeDd);
 
-  const upBtn = el('button', 'btn-small', '↑');
-  upBtn.type = 'button';
-  upBtn.disabled = idx === 0;
-  upBtn.addEventListener('click', () => {
-    [draftFields[idx - 1], draftFields[idx]] = [draftFields[idx], draftFields[idx - 1]];
-    formsRenderFieldEditor(listEl, draftFields, onChange);
-    onChange();
-  });
-  const downBtn = el('button', 'btn-small', '↓');
-  downBtn.type = 'button';
-  downBtn.disabled = idx === draftFields.length - 1;
-  downBtn.addEventListener('click', () => {
-    [draftFields[idx + 1], draftFields[idx]] = [draftFields[idx], draftFields[idx + 1]];
-    formsRenderFieldEditor(listEl, draftFields, onChange);
-    onChange();
-  });
   const removeBtn = el('button', 'btn-small btn-small-danger', '✕');
   removeBtn.type = 'button';
   removeBtn.addEventListener('click', () => {
@@ -602,16 +702,178 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
     formsRenderFieldEditor(listEl, draftFields, onChange);
     onChange();
   });
-  topRow.appendChild(upBtn);
-  topRow.appendChild(downBtn);
   topRow.appendChild(removeBtn);
   row.appendChild(topRow);
 
-  if (field.type === 'select' || field.type === 'checkboxes') {
-    row.appendChild(formsRenderOptionsEditor(field, onChange));
-  }
+  const configEl = formsRenderFieldTypeConfig(field, onChange);
+  if (configEl) row.appendChild(configEl);
+
+  // Påkrævet moves to its own bottom-right row, under whatever type-
+  // specific config rendered above.
+  const bottomRow = el('div', 'forms-field-row-bottom');
+  const reqLabel = el('label', 'forms-required-label');
+  const reqBox = document.createElement('input');
+  reqBox.type = 'checkbox';
+  reqBox.checked = !!field.required;
+  reqBox.addEventListener('change', () => { field.required = reqBox.checked; onChange(); });
+  reqLabel.appendChild(reqBox);
+  reqLabel.appendChild(document.createTextNode('Påkrævet'));
+  bottomRow.appendChild(reqLabel);
+  row.appendChild(bottomRow);
 
   return row;
+}
+
+function formsRenderFieldTypeConfig(field, onChange) {
+  if (field.type === 'select' || field.type === 'checkboxes') return formsRenderOptionsEditor(field, onChange);
+  if (field.type === 'scale') return formsRenderScaleConfig(field, onChange);
+  if (field.type === 'grid_single' || field.type === 'grid_multi') return formsRenderGridConfig(field, onChange);
+  return null;
+}
+
+// Flat "one input per option + remove" editor operating on `options` in
+// place — shared by select/checkboxes' manual source and grid columns
+// (always manual). Each option is a single line of text: its value and
+// label are kept identical, since nothing downstream (fill-in view,
+// responses table, CSV export) ever showed a separate machine value to
+// anyone — the second input just asked the admin to fill in an internal
+// detail nobody could see the point of.
+function formsRenderManualOptionsList(options, onChange, rerender) {
+  const wrap = el('div');
+  const optList = el('div', 'forms-option-list');
+  options.forEach((opt, i) => {
+    const optRow = el('div', 'forms-option-row');
+    const textInput = el('input');
+    textInput.type = 'text';
+    textInput.placeholder = 'Valgmulighed';
+    textInput.value = opt.label || opt.value || '';
+    textInput.addEventListener('input', () => {
+      opt.label = textInput.value;
+      opt.value = textInput.value;
+      onChange();
+    });
+    const rm = el('button', 'btn-small btn-small-danger', '✕');
+    rm.type = 'button';
+    rm.addEventListener('click', () => { options.splice(i, 1); rerender(); onChange(); });
+    optRow.appendChild(textInput);
+    optRow.appendChild(rm);
+    optList.appendChild(optRow);
+  });
+  wrap.appendChild(optList);
+  const addOpt = el('button', 'btn-small', '+ Tilføj valgmulighed');
+  addOpt.type = 'button';
+  addOpt.addEventListener('click', () => {
+    options.push({ value: '', label: '' });
+    rerender();
+    onChange();
+  });
+  wrap.appendChild(addOpt);
+  return wrap;
+}
+
+// Skala's config: an integer range (0-10) plus optional end labels (e.g.
+// "Lavt"/"Højt"), rendered on the fill-in side as a horizontal row of
+// numbered radio circles (formsRenderRadioRow).
+function formsRenderScaleConfig(field, onChange) {
+  const wrap = el('div', 'forms-options-editor');
+  if (typeof field.scaleMin !== 'number') field.scaleMin = 1;
+  if (typeof field.scaleMax !== 'number') field.scaleMax = 5;
+
+  const rangeRow = el('div', 'edit-field-row');
+  const minInput = el('input');
+  minInput.type = 'number';
+  minInput.min = '0'; minInput.max = '10';
+  minInput.value = String(field.scaleMin);
+  minInput.addEventListener('input', () => {
+    const v = parseInt(minInput.value, 10);
+    field.scaleMin = Number.isFinite(v) ? v : 0;
+    onChange();
+  });
+  rangeRow.appendChild(siteEditField('Fra', minInput));
+
+  const maxInput = el('input');
+  maxInput.type = 'number';
+  maxInput.min = '1'; maxInput.max = '10';
+  maxInput.value = String(field.scaleMax);
+  maxInput.addEventListener('input', () => {
+    const v = parseInt(maxInput.value, 10);
+    field.scaleMax = Number.isFinite(v) ? v : 5;
+    onChange();
+  });
+  rangeRow.appendChild(siteEditField('Til', maxInput));
+  wrap.appendChild(rangeRow);
+
+  const labelsRow = el('div', 'edit-field-row');
+  const minLabelInput = el('input');
+  minLabelInput.type = 'text';
+  minLabelInput.placeholder = 'fx Lavt';
+  minLabelInput.value = field.scaleMinLabel || '';
+  minLabelInput.addEventListener('input', () => { field.scaleMinLabel = minLabelInput.value; onChange(); });
+  labelsRow.appendChild(siteEditField('Label ved start (valgfri)', minLabelInput));
+
+  const maxLabelInput = el('input');
+  maxLabelInput.type = 'text';
+  maxLabelInput.placeholder = 'fx Højt';
+  maxLabelInput.value = field.scaleMaxLabel || '';
+  maxLabelInput.addEventListener('input', () => { field.scaleMaxLabel = maxLabelInput.value; onChange(); });
+  labelsRow.appendChild(siteEditField('Label ved slut (valgfri)', maxLabelInput));
+  wrap.appendChild(labelsRow);
+
+  return wrap;
+}
+
+// Grid's config: a list of Rækker (rows, each just a label — {id, label}
+// so a later rename doesn't disturb already-submitted answers keyed by
+// id) and a list of Kolonner (columns), the latter built on the same
+// manual-options editor as select/checkboxes since grid columns are
+// always manual (no live-sourced scenes/rehearsals option here).
+function formsRenderGridConfig(field, onChange) {
+  const wrap = el('div', 'forms-options-editor');
+  if (!Array.isArray(field.rows) || field.rows.length === 0) field.rows = [{ id: formsNewFieldId(), label: '' }];
+  if (!Array.isArray(field.options)) field.options = [];
+
+  wrap.appendChild(el('div', 'forms-felter-label', 'Rækker'));
+  const rowsWrap = el('div');
+  wrap.appendChild(rowsWrap);
+  function renderRows() {
+    rowsWrap.replaceChildren();
+    const list = el('div', 'forms-option-list');
+    field.rows.forEach((r, i) => {
+      const rRow = el('div', 'forms-option-row');
+      const input = el('input');
+      input.type = 'text';
+      input.placeholder = 'Række';
+      input.value = r.label || '';
+      input.addEventListener('input', () => { r.label = input.value; onChange(); });
+      const rm = el('button', 'btn-small btn-small-danger', '✕');
+      rm.type = 'button';
+      rm.addEventListener('click', () => { field.rows.splice(i, 1); renderRows(); onChange(); });
+      rRow.appendChild(input);
+      rRow.appendChild(rm);
+      list.appendChild(rRow);
+    });
+    rowsWrap.appendChild(list);
+    const addBtn = el('button', 'btn-small', '+ Tilføj række');
+    addBtn.type = 'button';
+    addBtn.addEventListener('click', () => {
+      field.rows.push({ id: formsNewFieldId(), label: '' });
+      renderRows();
+      onChange();
+    });
+    rowsWrap.appendChild(addBtn);
+  }
+  renderRows();
+
+  wrap.appendChild(el('div', 'forms-felter-label', 'Kolonner'));
+  const colsWrap = el('div');
+  wrap.appendChild(colsWrap);
+  function renderCols() {
+    colsWrap.replaceChildren();
+    colsWrap.appendChild(formsRenderManualOptionsList(field.options, onChange, renderCols));
+  }
+  renderCols();
+
+  return wrap;
 }
 
 function formsRenderOptionsEditor(field, onChange) {
@@ -629,37 +891,8 @@ function formsRenderOptionsEditor(field, onChange) {
   function renderBody() {
     bodyWrap.replaceChildren();
     if (field.optionsSource === 'manual') {
-      const options = Array.isArray(field.options) ? field.options : (field.options = []);
-      const optList = el('div', 'forms-option-list');
-      options.forEach((opt, i) => {
-        const optRow = el('div', 'forms-option-row');
-        const valInput = el('input');
-        valInput.type = 'text';
-        valInput.placeholder = 'Værdi';
-        valInput.value = opt.value || '';
-        valInput.addEventListener('input', () => { opt.value = valInput.value; onChange(); });
-        const labelInput = el('input');
-        labelInput.type = 'text';
-        labelInput.placeholder = 'Vist tekst';
-        labelInput.value = opt.label || '';
-        labelInput.addEventListener('input', () => { opt.label = labelInput.value; onChange(); });
-        const rm = el('button', 'btn-small btn-small-danger', '✕');
-        rm.type = 'button';
-        rm.addEventListener('click', () => { options.splice(i, 1); renderBody(); onChange(); });
-        optRow.appendChild(valInput);
-        optRow.appendChild(labelInput);
-        optRow.appendChild(rm);
-        optList.appendChild(optRow);
-      });
-      bodyWrap.appendChild(optList);
-      const addOpt = el('button', 'btn-small', '+ Tilføj valgmulighed');
-      addOpt.type = 'button';
-      addOpt.addEventListener('click', () => {
-        options.push({ value: '', label: '' });
-        renderBody();
-        onChange();
-      });
-      bodyWrap.appendChild(addOpt);
+      if (!Array.isArray(field.options)) field.options = [];
+      bodyWrap.appendChild(formsRenderManualOptionsList(field.options, onChange, renderBody));
     } else {
       // Live-sourced — show a read-only preview of what will be offered.
       if (field.optionsSource === 'scenes') {
@@ -722,14 +955,39 @@ function formsValidateAndCleanFields(draftFields) {
         && (!f.options || f.options.filter((o) => o.value && o.label).length === 0)) {
       return { error: `Tilføj mindst én valgmulighed til "${f.label}".` };
     }
+    if (f.type === 'scale') {
+      const min = Number(f.scaleMin), max = Number(f.scaleMax);
+      if (!Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max > 10 || min >= max) {
+        return { error: `Angiv et gyldigt interval (0-10) for "${f.label}".` };
+      }
+    }
+    if (f.type === 'grid_single' || f.type === 'grid_multi') {
+      const rows = Array.isArray(f.rows) ? f.rows.filter((r) => r.label && r.label.trim()) : [];
+      if (rows.length === 0) return { error: `Tilføj mindst én række til "${f.label}".` };
+      const cols = Array.isArray(f.options) ? f.options.filter((o) => o.value && o.label) : [];
+      if (cols.length === 0) return { error: `Tilføj mindst én kolonne til "${f.label}".` };
+    }
   }
   return {
-    fields: draftFields.map((f) => ({
-      id: f.id, type: f.type, label: f.label.trim(), required: !!f.required,
-      ...(f.optionsSource ? { optionsSource: f.optionsSource } : {}),
-      ...(f.options ? { options: f.options.filter((o) => o.value && o.label) } : {}),
-      ...(f.sourceFilter !== undefined ? { sourceFilter: f.sourceFilter } : {}),
-    })),
+    fields: draftFields.map((f) => {
+      const clean = { id: f.id, type: f.type, label: f.label.trim(), required: !!f.required };
+      if (f.optionsSource) clean.optionsSource = f.optionsSource;
+      if (f.sourceFilter !== undefined) clean.sourceFilter = f.sourceFilter;
+      if (f.type === 'select' || f.type === 'checkboxes') {
+        if (f.options) clean.options = f.options.filter((o) => o.value && o.label);
+      } else if (f.type === 'scale') {
+        clean.scaleMin = Number(f.scaleMin);
+        clean.scaleMax = Number(f.scaleMax);
+        clean.scaleMinLabel = (f.scaleMinLabel || '').trim();
+        clean.scaleMaxLabel = (f.scaleMaxLabel || '').trim();
+      } else if (f.type === 'grid_single' || f.type === 'grid_multi') {
+        clean.rows = (Array.isArray(f.rows) ? f.rows : [])
+          .filter((r) => r.label && r.label.trim())
+          .map((r) => ({ id: r.id, label: r.label.trim() }));
+        clean.options = (Array.isArray(f.options) ? f.options : []).filter((o) => o.value && o.label);
+      }
+      return clean;
+    }),
   };
 }
 
@@ -896,8 +1154,20 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 function formsRenderSectionBlock(section, idx, draftSections, onChange, rerenderAll) {
   const block = el('div', 'forms-section-block');
 
+  // Collapsible, open by default — a disclosure button (chevron + "Sektion
+  // N") toggles a body wrapper holding everything else. Collapse state is
+  // local to this render, not persisted on `section` itself, since the
+  // only things that tear down and rebuild every section block wholesale
+  // (add/remove a section, apply a template) are coarse actions where
+  // resetting back to "all open" is a reasonable side effect.
   const head = el('div', 'forms-section-head');
-  head.appendChild(el('h4', null, 'Sektion ' + (idx + 1)));
+  const toggleBtn = el('button', 'forms-section-toggle');
+  toggleBtn.type = 'button';
+  const chevron = el('span', 'forms-section-chevron', '▾');
+  toggleBtn.appendChild(chevron);
+  toggleBtn.appendChild(el('span', null, 'Sektion ' + (idx + 1)));
+  head.appendChild(toggleBtn);
+
   const removeBtn = el('button', 'btn-small btn-small-danger', 'Slet sektion');
   removeBtn.type = 'button';
   // A form always needs at least one section — can't delete the last one.
@@ -910,22 +1180,32 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   head.appendChild(removeBtn);
   block.appendChild(head);
 
+  const bodyEl = el('div', 'forms-section-body');
+  block.appendChild(bodyEl);
+
+  let collapsed = false;
+  toggleBtn.addEventListener('click', () => {
+    collapsed = !collapsed;
+    bodyEl.style.display = collapsed ? 'none' : '';
+    chevron.textContent = collapsed ? '▸' : '▾';
+  });
+
   const titleInput = el('input');
   titleInput.type = 'text';
   titleInput.placeholder = 'Sektionstitel';
   titleInput.value = section.title || '';
   titleInput.addEventListener('input', () => { section.title = titleInput.value; onChange(); });
-  block.appendChild(siteEditField('Titel', titleInput));
+  bodyEl.appendChild(siteEditField('Titel', titleInput));
 
   const descInput = el('textarea');
   descInput.rows = 2;
   descInput.value = section.description || '';
   descInput.addEventListener('input', () => { section.description = descInput.value; onChange(); });
-  block.appendChild(siteEditField('Beskrivelse', descInput));
+  bodyEl.appendChild(siteEditField('Beskrivelse', descInput));
 
-  block.appendChild(el('div', 'forms-felter-label', 'Felter'));
+  bodyEl.appendChild(el('div', 'forms-felter-label', 'Felter'));
   const fieldListEl = el('div', 'forms-field-list');
-  block.appendChild(fieldListEl);
+  bodyEl.appendChild(fieldListEl);
   if (!Array.isArray(section.fields)) section.fields = [];
   formsRenderFieldEditor(fieldListEl, section.fields, onChange);
 
@@ -1059,13 +1339,13 @@ async function formsRenderResponsesScreen(root, formId) {
     return;
   }
 
-  const fields = formsAllFields(definition);
+  const columns = formsAnswerColumns(definition);
   const wrap = el('div', 'forms-responses-wrap');
   const table = el('table', 'forms-responses-table');
   const thead = el('thead');
   const headRow = el('tr');
   headRow.appendChild(el('th', null, 'Sendt'));
-  fields.forEach((f) => headRow.appendChild(el('th', null, f.label)));
+  columns.forEach((c) => headRow.appendChild(el('th', null, c.label)));
   thead.appendChild(headRow);
   table.appendChild(thead);
   const tbody = el('tbody');
@@ -1073,9 +1353,8 @@ async function formsRenderResponsesScreen(root, formId) {
     const row = el('tr');
     row.appendChild(el('td', null,
       typeof formatDaDateTime === 'function' ? formatDaDateTime(r.submittedAt) : r.submittedAt));
-    for (const f of fields) {
-      const v = r.answers ? r.answers[f.id] : undefined;
-      row.appendChild(el('td', null, formsFormatAnswerForDisplay(v)));
+    for (const c of columns) {
+      row.appendChild(el('td', null, c.get(r.answers)));
     }
     tbody.appendChild(row);
   }
@@ -1101,6 +1380,34 @@ function formsAllFields(definition) {
   return fields;
 }
 
+// Same ordering as formsAllFields, but a grid question expands into one
+// column per row (its answer is a {rowId: value} map, not a single value)
+// — everything else still maps to exactly one column. Used by both the
+// responses table and CSV export so they always agree on shape.
+function formsAnswerColumns(definition) {
+  const columns = [];
+  for (const field of formsAllFields(definition)) {
+    if (field.type === 'grid_single' || field.type === 'grid_multi') {
+      for (const row of (Array.isArray(field.rows) ? field.rows : [])) {
+        columns.push({
+          label: `${field.label} — ${row.label}`,
+          get: (answers) => {
+            const cell = answers ? answers[field.id] : undefined;
+            const v = cell && typeof cell === 'object' ? cell[row.id] : undefined;
+            return formsFormatAnswerForDisplay(v);
+          },
+        });
+      }
+    } else {
+      columns.push({
+        label: field.label,
+        get: (answers) => formsFormatAnswerForDisplay(answers ? answers[field.id] : undefined),
+      });
+    }
+  }
+  return columns;
+}
+
 function formsFormatAnswerForDisplay(v) {
   if (v === undefined || v === null) return '—';
   if (Array.isArray(v)) return v.join(', ');
@@ -1115,11 +1422,11 @@ function formsCsvEscape(v) {
 }
 
 function formsExportCsv(definition, responses) {
-  const fields = formsAllFields(definition);
-  const headers = ['Sendt', ...fields.map((f) => f.label)];
+  const columns = formsAnswerColumns(definition);
+  const headers = ['Sendt', ...columns.map((c) => c.label)];
   const lines = [headers.map(formsCsvEscape).join(',')];
   for (const r of responses) {
-    const row = [r.submittedAt, ...fields.map((f) => formsFormatAnswerForDisplay(r.answers ? r.answers[f.id] : undefined))];
+    const row = [r.submittedAt, ...columns.map((c) => c.get(r.answers))];
     lines.push(row.map(formsCsvEscape).join(','));
   }
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });

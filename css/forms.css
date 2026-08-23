@@ -5,6 +5,27 @@
 .forms-form { max-width: 560px; margin: 0 auto; }
 .forms-form h2 { text-align: center; }
 
+/* Icon-only back arrow (fill-in view) — mirrors .boss-edit-remove's muted/
+   warm-hover treatment rather than a full labelled .btn-small. */
+.forms-back-btn {
+  background: none;
+  border: none;
+  padding: 0.2rem 0.4rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+@media (hover: hover) {
+  .forms-back-btn:hover { background: var(--accent-warm-fill); color: var(--accent-warm-text); }
+}
+.forms-back-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
 .forms-intro {
   font-size: 0.9rem;
   color: var(--text-muted);
@@ -230,7 +251,38 @@
   gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
-.forms-section-head h4 { margin-bottom: 0; }
+
+/* Collapsible disclosure trigger (chevron + "Sektion N") — a single button
+   rather than a separate <h4> + toggle icon, so the whole label area is
+   one click target. Open by default; formsRenderSectionBlock toggles
+   .forms-section-body's display and this chevron's glyph together. */
+.forms-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  padding: 0.2rem 0.3rem;
+  margin: -0.2rem 0 -0.2rem -0.3rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+}
+@media (hover: hover) {
+  .forms-section-toggle:hover { background: var(--accent-warm-fill); color: var(--accent-warm-text); }
+}
+.forms-section-toggle:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+.forms-section-chevron {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
 
 /* Matches .edit-field label (style.css) exactly — small, muted, not bold —
    so "Felter" reads as one more field label under Titel/Beskrivelse rather
@@ -254,16 +306,15 @@
   padding: 0.6rem;
 }
 
+/* Spørgsmål (~75%) + type dropdown + ✕, one row, no up/down reordering. */
 .forms-field-row-top {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
 
 .forms-field-row-top input[type="text"],
 .forms-option-row input[type="text"] {
-  flex: 1 1 160px;
   min-width: 0;
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--border);
@@ -273,6 +324,9 @@
   background: var(--input-bg);
   color: var(--header);
 }
+.forms-field-label-input { flex: 3 1 0; }
+.forms-field-type-dd { flex: 1 1 0; min-width: 7.5rem; }
+.forms-option-row input[type="text"] { flex: 1 1 auto; }
 
 .forms-field-row-top input[type="text"]:focus,
 .forms-option-row input[type="text"]:focus {
@@ -286,6 +340,14 @@
   .forms-option-row input[type="text"]:hover {
     border-color: var(--accent-warm);
   }
+}
+
+/* Påkrævet sits alone on its own row, right-aligned, under whatever type-
+   specific config rendered above it. */
+.forms-field-row-bottom {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
 }
 
 .forms-required-label {
@@ -318,7 +380,6 @@
   display: flex;
   gap: 0.4rem;
 }
-.forms-option-row input[type="text"] { flex: 1 1 auto; min-width: 0; }
 
 .forms-options-preview {
   font-size: 0.8rem;
@@ -342,6 +403,8 @@
    .btn-small here instead of that modal's .site-pill-btn since this lives
    inline on the page, not in a modal (see the site-wide button-tier rule). */
 .forms-fillin-section-title {
+  text-align: center;
+  font-size: 1.3rem;
   margin-bottom: 0.4rem;
 }
 
@@ -363,6 +426,77 @@
   text-align: center;
 }
 
+/* ── Fill-in form: "Vælg én"/Skala's row of radio circles ────
+   Native radios, laid out horizontally with the caption under each circle
+   (rather than a vertical list) — same warm/amber accent-color treatment
+   as .forms-checkbox-row's boxes. */
+.forms-radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+/* Same ".edit-field label" specificity bleed as .forms-checkbox-row
+   (display:block, muted 0.8rem text) — ".forms-radio-row .forms-radio-
+   option" (0,2,0) is needed to outrank it, a bare ".forms-radio-option"
+   (0,1,0) alone is not. */
+.forms-radio-row .forms-radio-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 0;
+}
+
+.forms-radio-option input[type="radio"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0;
+  accent-color: var(--accent-warm-text);
+}
+
+.forms-scale-captions {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+/* ── Fill-in form: Gitter (grid_single/grid_multi) ────────────
+   A plain table — row labels down the left, columns across the top, one
+   radio/checkbox per cell. Wrapped for horizontal scroll on narrow
+   screens, same as the admin responses table. */
+.forms-grid-wrap { overflow-x: auto; }
+
+.forms-grid-table {
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.forms-grid-table th,
+.forms-grid-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+
+.forms-grid-row-label {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.forms-grid-cell input[type="radio"],
+.forms-grid-cell input[type="checkbox"] {
+  width: 1.1rem;
+  height: 1.1rem;
+  margin: 0;
+  accent-color: var(--accent-warm-text);
+}
+
 @media (max-width: 719px) {
   .forms-open-row { flex-direction: column; align-items: flex-start; }
   .forms-field-row-top { flex-direction: column; align-items: stretch; }
@@ -370,8 +504,9 @@
      set a minimum WIDTH in the desktop row layout — once the container
      above switches to flex-direction:column, flex-basis instead sets a
      minimum HEIGHT along the new (vertical) main axis, ballooning the text
-     input to 160px tall. */
-  .forms-field-row-top input[type="text"] { flex: 1 1 auto; }
+     input to 160px tall. Same story for the type dropdown's flex-basis:0. */
+  .forms-field-row-top input[type="text"],
+  .forms-field-type-dd { flex: 1 1 auto; }
   .forms-builder-head { flex-wrap: wrap; row-gap: 0.5rem; }
   /* Status/Frist/Produktionsår's shared 3-column .edit-field-row (see
      style.css) is too cramped at this width — stack it like every other

@@ -1628,7 +1628,27 @@ function forms_all_form_ids() {
 }
 
 function forms_valid_field_type($type) {
-  return in_array($type, ['text', 'textarea', 'select', 'checkboxes', 'yesno'], true);
+  return in_array($type, ['text', 'textarea', 'select', 'checkboxes', 'yesno',
+    'scale', 'grid_single', 'grid_multi'], true);
+}
+
+// Validates a manual {value,label} option list (select/checkboxes' manual
+// source, and grid columns which are always manual) — returns the clean
+// list, or null if empty/malformed. The client always keeps value===label
+// (there's no separate machine-value input any more), but this only
+// enforces shape, not that equality, since nothing downstream depends on it.
+function forms_validate_options($optionsIn) {
+  $options = is_array($optionsIn) ? $optionsIn : [];
+  $clean = [];
+  foreach ($options as $o) {
+    if (!is_array($o)) return null;
+    $value = $o['value'] ?? '';
+    $label = $o['label'] ?? '';
+    if (!is_string($value) || $value === '' || mb_strlen($value) > 200) return null;
+    if (!is_string($label) || $label === '' || mb_strlen($label) > 200) return null;
+    $clean[] = ['value' => $value, 'label' => $label];
+  }
+  return count($clean) > 0 ? $clean : null;
 }
 
 // Validates + returns a clean FieldSpec, or null on any violation. $seenIds
@@ -1657,17 +1677,8 @@ function forms_validate_field_spec($f, &$seenIds) {
     if (!in_array($source, ['manual', 'scenes', 'rehearsals'], true)) return null;
     $clean['optionsSource'] = $source;
     if ($source === 'manual') {
-      $options = is_array($f['options'] ?? null) ? $f['options'] : [];
-      $cleanOptions = [];
-      foreach ($options as $o) {
-        if (!is_array($o)) return null;
-        $value = $o['value'] ?? '';
-        $optLabel = $o['label'] ?? '';
-        if (!is_string($value) || $value === '' || mb_strlen($value) > 200) return null;
-        if (!is_string($optLabel) || $optLabel === '' || mb_strlen($optLabel) > 200) return null;
-        $cleanOptions[] = ['value' => $value, 'label' => $optLabel];
-      }
-      if (count($cleanOptions) === 0) return null;
+      $cleanOptions = forms_validate_options($f['options'] ?? []);
+      if ($cleanOptions === null) return null;
       $clean['options'] = $cleanOptions;
     } else {
       // scenes/rehearsals — resolved client-side from live SCENES_DATA/
@@ -1676,6 +1687,36 @@ function forms_validate_field_spec($f, &$seenIds) {
       $filter = $f['sourceFilter'] ?? null;
       $clean['sourceFilter'] = is_array($filter) ? $filter : null;
     }
+  } else if ($type === 'scale') {
+    $min = $f['scaleMin'] ?? null;
+    $max = $f['scaleMax'] ?? null;
+    if (!is_int($min) || !is_int($max) || $min < 0 || $max > 10 || $min >= $max) return null;
+    $minLabel = $f['scaleMinLabel'] ?? '';
+    $maxLabel = $f['scaleMaxLabel'] ?? '';
+    if (!is_string($minLabel) || mb_strlen($minLabel) > 60) return null;
+    if (!is_string($maxLabel) || mb_strlen($maxLabel) > 60) return null;
+    $clean['scaleMin'] = $min;
+    $clean['scaleMax'] = $max;
+    $clean['scaleMinLabel'] = $minLabel;
+    $clean['scaleMaxLabel'] = $maxLabel;
+  } else if ($type === 'grid_single' || $type === 'grid_multi') {
+    $rowsIn = is_array($f['rows'] ?? null) ? $f['rows'] : [];
+    if (count($rowsIn) === 0) return null;
+    $seenRowIds = [];
+    $rows = [];
+    foreach ($rowsIn as $r) {
+      if (!is_array($r)) return null;
+      $rid = $r['id'] ?? '';
+      $rlabel = $r['label'] ?? '';
+      if (!is_string($rid) || $rid === '' || mb_strlen($rid) > 60 || isset($seenRowIds[$rid])) return null;
+      if (!is_string($rlabel) || trim($rlabel) === '' || mb_strlen($rlabel) > 200) return null;
+      $seenRowIds[$rid] = true;
+      $rows[] = ['id' => $rid, 'label' => trim($rlabel)];
+    }
+    $clean['rows'] = $rows;
+    $cleanOptions = forms_validate_options($f['options'] ?? []);
+    if ($cleanOptions === null) return null;
+    $clean['options'] = $cleanOptions;
   }
 
   return $clean;
@@ -1745,6 +1786,51 @@ function forms_validate_answer($field, $raw) {
     $maxLen = $type === 'textarea' ? 5000 : 300;
     if (mb_strlen($value) > $maxLen) return ['ok' => false];
     if ($value === '') return ['ok' => true, 'present' => false];
+    return ['ok' => true, 'present' => true, 'value' => $value];
+  }
+
+  if ($type === 'scale') {
+    if ($raw === null) {
+      return $required ? ['ok' => false] : ['ok' => true, 'present' => false];
+    }
+    if (!is_int($raw)) return ['ok' => false];
+    $min = is_int($field['scaleMin'] ?? null) ? $field['scaleMin'] : 1;
+    $max = is_int($field['scaleMax'] ?? null) ? $field['scaleMax'] : 5;
+    if ($raw < $min || $raw > $max) return ['ok' => false];
+    return ['ok' => true, 'present' => true, 'value' => $raw];
+  }
+
+  if ($type === 'grid_single' || $type === 'grid_multi') {
+    $rows = is_array($field['rows'] ?? null) ? $field['rows'] : [];
+    $rawMap = is_array($raw) ? $raw : [];
+    $value = [];
+    $anyPresent = false;
+    foreach ($rows as $row) {
+      $rid = $row['id'] ?? null;
+      if (!is_string($rid) || $rid === '') continue;
+      $cell = array_key_exists($rid, $rawMap) ? $rawMap[$rid] : null;
+      if ($type === 'grid_single') {
+        if ($cell === null || $cell === '') {
+          if ($required) return ['ok' => false];
+          continue;
+        }
+        if (!is_string($cell) || mb_strlen($cell) > 300) return ['ok' => false];
+        $value[$rid] = $cell;
+        $anyPresent = true;
+      } else {
+        $cellArr = is_array($cell) ? array_values($cell) : [];
+        foreach ($cellArr as $v) {
+          if (!is_string($v) || mb_strlen($v) > 300) return ['ok' => false];
+        }
+        if (count($cellArr) === 0) {
+          if ($required) return ['ok' => false];
+          continue;
+        }
+        $value[$rid] = $cellArr;
+        $anyPresent = true;
+      }
+    }
+    if (!$anyPresent) return ['ok' => true, 'present' => false];
     return ['ok' => true, 'present' => true, 'value' => $value];
   }
 
