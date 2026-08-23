@@ -45,6 +45,31 @@ const FORMS_FIELD_TYPES = [
   { value: 'grid_multi',  label: 'Gitter (vælg flere)' },
 ];
 
+// ── Production year helpers (Produktionsår field, Oversigt year filter) ──
+// CONFIG_DATA (config-data.js, the same embed manus.js/koordinator.js read
+// currentProductionFolder from) names the year currently in production,
+// e.g. "MatRevy_2026" → 2026 — that's the earliest year a form can ever
+// target, since anything before it is already closed out via Koordinator.
+function formsCurrentProductionYear() {
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  const m = folder.match(/\d{4}/);
+  return m ? parseInt(m[0], 10) : new Date().getFullYear();
+}
+
+// A handful of years starting at the current production year, so a form
+// can be planned ahead for a future year too. `existingYear` (an already-
+// saved form's productionYear) is folded in even if it falls outside that
+// window, so opening an old form for editing never shows a value the
+// dropdown can't actually display.
+const FORMS_PRODUCTION_YEAR_SPAN = 5;
+function formsProductionYearOptions(existingYear) {
+  const start = formsCurrentProductionYear();
+  const years = new Set();
+  for (let y = start; y < start + FORMS_PRODUCTION_YEAR_SPAN; y++) years.add(y);
+  if (existingYear != null) years.add(existingYear);
+  return Array.from(years).sort((a, b) => a - b).map((y) => ({ value: String(y), label: String(y) }));
+}
+
 // ── Small DOM helper (mirrors budget.js's el()) ──────────────
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -609,8 +634,10 @@ function renderAdminView(root, screen) {
 }
 
 async function formsRenderOverviewScreen(root) {
-  const card = el('section', 'card');
-  card.appendChild(el('h2', null, 'Formularer'));
+  const card = el('section', 'card forms-overview-card');
+  const head = el('div', 'forms-builder-head');
+  head.appendChild(el('h2', null, 'Formularer'));
+  card.appendChild(head);
   const tableWrap = el('div', null, 'Henter formularer …');
   card.appendChild(tableWrap);
   root.appendChild(card);
@@ -627,69 +654,107 @@ async function formsRenderOverviewScreen(root) {
     return;
   }
 
-  const table = el('table', 'forms-dashboard-table');
-  const thead = el('thead');
-  const headRow = el('tr');
-  ['Titel', 'Status', 'Frist', 'Svar', ''].forEach((h) => headRow.appendChild(el('th', null, h)));
-  thead.appendChild(headRow);
-  table.appendChild(thead);
-  const tbody = el('tbody');
-  for (const f of forms) {
-    const row = el('tr');
-    row.appendChild(el('td', null, f.title));
+  // Year filter, top-right of the heading — ties each form to a specific
+  // MatRevy year. Options are every year some form actually carries, plus
+  // the current production year (so there's always at least one option,
+  // e.g. just "2026" today). A form saved before productionYear existed
+  // has none at all; treat it as belonging to the current year rather
+  // than hiding it under every other filter.
+  const currentYear = formsCurrentProductionYear();
+  const formYear = (f) => (f.productionYear != null ? f.productionYear : currentYear);
+  const years = Array.from(new Set([currentYear, ...forms.map(formYear)])).sort((a, b) => a - b);
+  const yearDd = siteCreateDropdownField(years.map((y) => ({ value: String(y), label: String(y) })), String(currentYear));
+  yearDd.classList.add('forms-year-filter');
+  head.appendChild(yearDd);
 
-    const statusCell = el('td');
-    const statusChip = el('button', 'forms-status-chip forms-status-' + f.status,
-      f.status === 'open' ? 'Åben' : 'Lukket');
-    statusChip.type = 'button';
-    statusChip.title = 'Klik for at ' + (f.status === 'open' ? 'lukke' : 'åbne') + ' formularen';
-    statusChip.addEventListener('click', async () => {
-      statusChip.disabled = true;
-      const full = await formsApi('forms_admin_read', { formId: f.id });
-      if (full.ok) {
-        const def = full.data.definition;
-        await formsApi('forms_save', {
-          id: f.id, title: def.title, description: def.description,
-          status: f.status === 'open' ? 'closed' : 'open', deadline: def.deadline,
-          productionYear: def.productionYear, fromTemplateId: def.fromTemplateId,
-          fields: def.fields, sections: def.sections || [],
-        });
-      }
-      renderAdminView(root, { name: 'overview' });
-    });
-    statusCell.appendChild(statusChip);
-    row.appendChild(statusCell);
+  function renderTable() {
+    const filterYear = parseInt(yearDd.value, 10);
+    const filtered = forms.filter((f) => formYear(f) === filterYear);
+    tableWrap.replaceChildren();
+    if (filtered.length === 0) {
+      tableWrap.appendChild(el('p', 'forms-intro', 'Ingen formularer for dette år.'));
+      return;
+    }
 
-    row.appendChild(el('td', null, f.deadline
-      ? (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline) : '—'));
-    row.appendChild(el('td', null, String(f.responseCount)));
+    const table = el('table', 'forms-dashboard-table');
+    const thead = el('thead');
+    const headRow = el('tr');
+    ['Titel', 'Status', 'Frist', 'Svar', ''].forEach((h) => headRow.appendChild(el('th', null, h)));
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    const tbody = el('tbody');
+    for (const f of filtered) {
+      const row = el('tr');
+      row.appendChild(el('td', null, f.title));
 
-    const actionsCell = el('td', 'forms-row-actions');
-    const editBtn = el('button', 'btn-small', 'Rediger');
-    editBtn.type = 'button';
-    editBtn.addEventListener('click', async () => {
-      const full = await formsApi('forms_admin_read', { formId: f.id });
-      if (full.ok) renderAdminView(root, { name: 'builder', existingDefinition: full.data.definition });
-    });
-    const respBtn = el('button', 'btn-small', 'Se svar');
-    respBtn.type = 'button';
-    respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
-    const delBtn = el('button', 'btn-small btn-small-danger', 'Slet');
-    delBtn.type = 'button';
-    delBtn.addEventListener('click', () => formsOpenDeleteConfirm(root, f));
-    actionsCell.appendChild(editBtn);
-    actionsCell.appendChild(respBtn);
-    actionsCell.appendChild(delBtn);
-    row.appendChild(actionsCell);
+      const statusCell = el('td');
+      const statusChip = el('button', 'forms-status-chip forms-status-' + f.status,
+        f.status === 'open' ? 'Åben' : 'Lukket');
+      statusChip.type = 'button';
+      statusChip.title = 'Klik for at ' + (f.status === 'open' ? 'lukke' : 'åbne') + ' formularen';
+      statusChip.addEventListener('click', async () => {
+        statusChip.disabled = true;
+        const full = await formsApi('forms_admin_read', { formId: f.id });
+        if (full.ok) {
+          const def = full.data.definition;
+          await formsApi('forms_save', {
+            id: f.id, title: def.title, description: def.description,
+            status: f.status === 'open' ? 'closed' : 'open', deadline: def.deadline,
+            productionYear: def.productionYear, fromTemplateId: def.fromTemplateId,
+            fields: def.fields, sections: def.sections || [],
+          });
+        }
+        renderAdminView(root, { name: 'overview' });
+      });
+      statusCell.appendChild(statusChip);
+      row.appendChild(statusCell);
 
-    tbody.appendChild(row);
+      row.appendChild(el('td', null, f.deadline
+        ? (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline) : '—'));
+      row.appendChild(el('td', null, String(f.responseCount)));
+
+      // Only two row actions now: "Se svar" (paper) and "Rediger" (pencil),
+      // far right, edit last. Deleting a form moved into its own edit view
+      // (top-right X) — see formsRenderBuilderScreen.
+      const actionsCell = el('td', 'forms-row-actions');
+      const respBtn = el('button', 'forms-row-icon-btn', '📄');
+      respBtn.type = 'button';
+      respBtn.title = 'Se svar';
+      respBtn.setAttribute('aria-label', 'Se svar');
+      respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
+      const editBtn = el('button', 'forms-row-icon-btn', '✏️');
+      editBtn.type = 'button';
+      editBtn.title = 'Rediger';
+      editBtn.setAttribute('aria-label', 'Rediger');
+      editBtn.addEventListener('click', async () => {
+        const full = await formsApi('forms_admin_read', { formId: f.id });
+        if (full.ok) {
+          // responseCount isn't part of a definition — fold in the summary
+          // row's own count so the edit view's delete confirm can still
+          // warn how many responses would be lost.
+          renderAdminView(root, {
+            name: 'builder',
+            existingDefinition: Object.assign({}, full.data.definition, { responseCount: f.responseCount }),
+          });
+        }
+      });
+      actionsCell.appendChild(respBtn);
+      actionsCell.appendChild(editBtn);
+      row.appendChild(actionsCell);
+
+      tbody.appendChild(row);
+    }
+    table.appendChild(tbody);
+    tableWrap.appendChild(table);
   }
-  table.appendChild(tbody);
-  tableWrap.appendChild(table);
+
+  yearDd.addEventListener('change', renderTable);
+  renderTable();
 }
 
 function formsOpenDeleteConfirm(root, f) {
-  const { form, error, actions, close } = siteOpenModalWithClose('Slet formular');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet formular');
+  modal.classList.add('forms-center-modal');
   form.appendChild(el('p', 'forms-intro',
     `Slet "${f.title}" permanent, inklusive alle ${f.responseCount} indsendte svar? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
@@ -718,6 +783,7 @@ function formsOpenDeleteConfirm(root, f) {
 function formsRenderFieldEditor(listEl, draftFields, onChange) {
   listEl.replaceChildren();
   draftFields.forEach((field, idx) => {
+    if (idx > 0) listEl.appendChild(formsRenderFieldInsertBtn(idx, draftFields, listEl, onChange));
     listEl.appendChild(formsRenderFieldRow(field, idx, draftFields, listEl, onChange));
   });
   const addBtn = el('button', 'btn-small', '+ Tilføj felt');
@@ -728,6 +794,23 @@ function formsRenderFieldEditor(listEl, draftFields, onChange) {
     onChange();
   });
   listEl.appendChild(addBtn);
+}
+
+// A small "+" divider between two existing field rows, inserting a fresh
+// blank field at that exact position (splice at `idx`, i.e. before the
+// field currently at `idx`) rather than only ever appending at the end.
+function formsRenderFieldInsertBtn(idx, draftFields, listEl, onChange) {
+  const wrap = el('div', 'forms-field-insert');
+  const btn = el('button', 'forms-field-insert-btn', '+');
+  btn.type = 'button';
+  btn.title = 'Indsæt spørgsmål her';
+  btn.addEventListener('click', () => {
+    draftFields.splice(idx, 0, { id: formsNewFieldId(), type: 'text', label: '', required: false });
+    formsRenderFieldEditor(listEl, draftFields, onChange);
+    onChange();
+  });
+  wrap.appendChild(btn);
+  return wrap;
 }
 
 // Clears any previous type's extra props and seeds sensible defaults for
@@ -778,10 +861,18 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
 
   const removeBtn = el('button', 'boss-edit-remove', '✕');
   removeBtn.type = 'button';
+  removeBtn.title = 'Slet spørgsmål';
+  removeBtn.setAttribute('aria-label', 'Slet spørgsmål');
   removeBtn.addEventListener('click', () => {
-    draftFields.splice(idx, 1);
-    formsRenderFieldEditor(listEl, draftFields, onChange);
-    onChange();
+    const doRemove = () => {
+      draftFields.splice(idx, 1);
+      formsRenderFieldEditor(listEl, draftFields, onChange);
+      onChange();
+    };
+    // A blank, never-filled-in field deletes instantly — anything with an
+    // actual question typed in confirms first, same as a section/form.
+    if (formsFieldIsEmpty(field)) doRemove();
+    else formsOpenDeleteFieldConfirm(field.label, doRemove);
   });
   topRow.appendChild(removeBtn);
   row.appendChild(topRow);
@@ -1088,6 +1179,10 @@ function formsRenderBuilderScreen(root, existingDefinition) {
       fields: [{ id: formsNewFieldId(), type: 'text', label: 'Navn', required: true }],
     });
   }
+  // Editing an existing form starts with every section collapsed (there's
+  // already content to skim via the "Sektion N: <title>" header) — a brand
+  // new form's sections stay open, since there's nothing yet to hide.
+  if (isEdit) draftSections.forEach((s) => { s.collapsed = true; });
 
   let sectionsListEl; // assigned below
   const error = el('p', 'forms-msg error');
@@ -1106,6 +1201,16 @@ function formsRenderBuilderScreen(root, existingDefinition) {
       renderSectionsList();
       error.textContent = '';
     }));
+  } else {
+    // Deleting the whole form now lives here (top-right of its own edit
+    // view) rather than as a row action in Oversigt — an X in the same
+    // style as every other remove control on the page.
+    const deleteBtn = el('button', 'boss-edit-remove forms-builder-delete', '✕');
+    deleteBtn.type = 'button';
+    deleteBtn.title = 'Slet formular';
+    deleteBtn.setAttribute('aria-label', 'Slet formular');
+    deleteBtn.addEventListener('click', () => formsOpenDeleteConfirm(root, existingDefinition));
+    head.appendChild(deleteBtn);
   }
 
   const titleInput = el('input');
@@ -1124,13 +1229,11 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   const deadlineField = siteCreateDateField(existingDefinition ? existingDefinition.deadline : '');
   metaRow.appendChild(siteEditField('Frist (valgfri)', deadlineField));
 
-  const yearInput = el('input');
-  yearInput.type = 'text';
-  yearInput.inputMode = 'numeric';
-  yearInput.placeholder = 'fx 2026';
-  yearInput.value = existingDefinition && existingDefinition.productionYear != null
-    ? String(existingDefinition.productionYear) : '';
-  metaRow.appendChild(siteEditField('Produktionsår (valgfri)', yearInput));
+  const existingYear = existingDefinition && existingDefinition.productionYear != null
+    ? existingDefinition.productionYear : null;
+  const yearDd = siteCreateDropdownField(formsProductionYearOptions(existingYear),
+    String(existingYear != null ? existingYear : formsCurrentProductionYear()));
+  metaRow.appendChild(siteEditField('Produktionsår', yearDd));
   card.appendChild(metaRow);
 
   sectionsListEl = el('div', 'forms-sections-list');
@@ -1177,7 +1280,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     if (!title) { error.textContent = 'Skriv en titel.'; return; }
     const cleanedSections = formsValidateAndCleanSections(draftSections);
     if (cleanedSections.error) { error.textContent = cleanedSections.error; return; }
-    const productionYear = yearInput.value.trim() ? parseInt(yearInput.value.trim(), 10) : null;
+    const productionYear = parseInt(yearDd.value, 10);
     saveBtn.disabled = true;
     const payload = {
       title, status: statusDd.value,
@@ -1207,6 +1310,13 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 // array it's handed), and a "Slet sektion" that removes it and re-renders
 // the whole sections list (so later sections re-number correctly; disabled
 // when it's the only section left, since a form always needs at least one).
+// "Sektion N" once a title is typed in becomes "Sektion N: <title>", so the
+// collapsed header is actually identifying rather than just numbering.
+function formsSectionHeaderLabel(section, idx) {
+  const title = (section.title || '').trim();
+  return 'Sektion ' + (idx + 1) + (title ? ': ' + title : '');
+}
+
 function formsRenderSectionBlock(section, idx, draftSections, onChange, rerenderAll) {
   const block = el('div', 'forms-section-block');
 
@@ -1221,11 +1331,14 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   toggleBtn.type = 'button';
   const chevron = el('span', 'forms-section-chevron', '▾');
   toggleBtn.appendChild(chevron);
-  toggleBtn.appendChild(el('span', null, 'Sektion ' + (idx + 1)));
+  const labelSpan = el('span', null, formsSectionHeaderLabel(section, idx));
+  toggleBtn.appendChild(labelSpan);
   head.appendChild(toggleBtn);
 
-  const removeBtn = el('button', 'btn-small forms-section-remove', 'Slet');
+  const removeBtn = el('button', 'boss-edit-remove', '✕');
   removeBtn.type = 'button';
+  removeBtn.title = 'Slet sektion';
+  removeBtn.setAttribute('aria-label', 'Slet sektion');
   // A form always needs at least one section — can't delete the last one.
   removeBtn.disabled = draftSections.length <= 1;
   removeBtn.addEventListener('click', () => {
@@ -1259,7 +1372,11 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   titleInput.type = 'text';
   titleInput.placeholder = 'Sektionstitel';
   titleInput.value = section.title || '';
-  titleInput.addEventListener('input', () => { section.title = titleInput.value; onChange(); });
+  titleInput.addEventListener('input', () => {
+    section.title = titleInput.value;
+    labelSpan.textContent = formsSectionHeaderLabel(section, idx);
+    onChange();
+  });
   bodyEl.appendChild(siteEditField('Titel', titleInput));
 
   const descInput = el('textarea');
@@ -1288,8 +1405,30 @@ function formsSectionIsEmpty(section) {
 }
 
 function formsOpenDeleteSectionConfirm(sectionNumber, onConfirm) {
-  const { form, actions, close } = siteOpenModalWithClose('Slet sektion');
+  const { modal, form, actions, close } = siteOpenModalWithClose('Slet sektion');
+  modal.classList.add('forms-center-modal');
   form.appendChild(el('p', 'forms-intro', `Slet Sektion ${sectionNumber}? Dette kan ikke fortrydes.`));
+  const cancelBtn = formsPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// A never-filled-in field (blank question text — the only thing that
+// actually distinguishes "nothing to lose" here, same idea as
+// formsSectionIsEmpty) deletes instantly; anything else confirms first.
+function formsFieldIsEmpty(field) {
+  return !((field.label || '').trim());
+}
+
+function formsOpenDeleteFieldConfirm(fieldLabel, onConfirm) {
+  const { modal, form, actions, close } = siteOpenModalWithClose('Slet spørgsmål');
+  modal.classList.add('forms-center-modal');
+  const label = (fieldLabel || '').trim();
+  form.appendChild(el('p', 'forms-intro',
+    (label ? `Slet spørgsmålet "${label}"` : 'Slet dette spørgsmål') + '? Dette kan ikke fortrydes.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
@@ -1345,7 +1484,8 @@ function formsOpenTemplateMenuPopup(anchor, templates, result, onUse) {
 }
 
 function formsOpenDeleteTemplateConfirm(t) {
-  const { form, error, actions, close } = siteOpenModalWithClose('Slet skabelon');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet skabelon');
+  modal.classList.add('forms-center-modal');
   form.appendChild(el('p', 'forms-intro', `Slet skabelonen "${t.title}" permanent? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);

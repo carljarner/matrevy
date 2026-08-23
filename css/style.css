@@ -657,6 +657,11 @@ body.site-menu-open {
   outline-offset: 2px;
 }
 
+.boss-edit-remove:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* --- Edit modal (site-utils.js siteOpenEditModal) --------- */
 .edit-modal {
   width: min(480px, 92vw);

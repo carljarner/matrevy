@@ -46,6 +46,14 @@
   margin-bottom: 0.75rem;
 }
 
+/* Delete-confirm modals (section/field/form/template) — title + message
+   centered, unlike the site's other edit modals which stay left-aligned
+   since they hold real form fields rather than one short question. */
+.forms-center-modal h2,
+.forms-center-modal .forms-intro {
+  text-align: center;
+}
+
 .forms-msg {
   font-size: 0.85rem;
   min-height: 1.2rem;
@@ -150,7 +158,29 @@
 
 .forms-responses-wrap { overflow-x: auto; }
 
-.forms-row-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.forms-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.15rem; }
+
+/* "Se svar"/"Rediger" row icons — same idle/hover/focus treatment as
+   .boss-edit-remove (style.css), just without its danger-tinted hover
+   since these aren't destructive actions. */
+.forms-row-icon-btn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0.35rem;
+  line-height: 1;
+  font-size: 1rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+@media (hover: hover) {
+  .forms-row-icon-btn:hover { background: var(--surface-2); color: var(--text); }
+}
+.forms-row-icon-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
 
 .forms-status-chip {
   border: 1px solid var(--border);
@@ -213,8 +243,11 @@
   border-radius: 4px;
 }
 
-/* ── Builder section (Ny formular / Rediger formular tab) ────── */
-.forms-builder-card {
+/* ── Builder section (Ny formular / Rediger formular tab) ──────
+   .forms-overview-card shares the exact same max-width so Oversigt reads
+   as the same column width as the create/edit view, not a wider page. */
+.forms-builder-card,
+.forms-overview-card {
   max-width: 720px;
   margin: 0 auto;
 }
@@ -228,7 +261,9 @@
 }
 .forms-builder-head h2 { margin-bottom: 0; }
 
-.forms-template-menu-btn { flex-shrink: 0; }
+.forms-template-menu-btn,
+.forms-builder-delete,
+.forms-year-filter { flex-shrink: 0; }
 
 /* Dropdown panel opened by the "Skabelon ▾" button — built on the shared
    siteOpenFieldPopup()/.site-field-pop chrome so it behaves (outside-click/
@@ -325,18 +360,6 @@
   color: var(--text-muted);
 }
 
-/* "Slet" (section delete) reads as a plain .btn-small until hovered, same
-   animation as Budget's own reject action (.budget-act-reject in
-   budget.css) — idle text stays neutral, only the hover tints toward
-   danger, instead of being red the whole time like .btn-small-danger. */
-@media (hover: hover) {
-  .forms-section-remove:hover {
-    background: #f6e3df;
-    border-color: #d8a59c;
-    color: var(--danger);
-  }
-}
-
 /* Matches .edit-field label (style.css) exactly — small, muted, not bold —
    so "Felter" reads as one more field label under Titel/Beskrivelse rather
    than a bolder sub-heading. */
@@ -357,6 +380,41 @@
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.6rem;
+}
+
+/* Insert-a-field-here divider between two existing rows — negative margin
+   eats into .forms-field-list's own gap so it doesn't add extra vertical
+   space beyond a normal small button. */
+.forms-field-insert {
+  display: flex;
+  justify-content: center;
+  margin: -0.375rem 0;
+}
+.forms-field-insert-btn {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .forms-field-insert-btn:hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+.forms-field-insert-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
 }
 
 /* Spørgsmål (~75%) + type dropdown + ✕, one row, no up/down reordering. */
