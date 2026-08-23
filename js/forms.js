@@ -371,20 +371,22 @@ async function renderFormsList(root) {
     return;
   }
   for (const f of forms) {
-    const row = el('div', 'forms-open-row');
+    // The whole row opens the form now, not just the arrow — a <button>
+    // (not a styled <div>) so it's natively keyboard/focus accessible
+    // without extra ARIA wiring. The arrow stays as a purely decorative
+    // affordance (aria-hidden — the row itself already carries the
+    // accessible name via its own text content).
+    const row = el('button', 'forms-open-row');
+    row.type = 'button';
     const info = el('div', 'forms-open-info');
     info.appendChild(el('div', 'forms-open-title', f.title));
     if (f.deadline) info.appendChild(el('div', 'forms-open-deadline',
       'Frist: ' + (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline)));
     row.appendChild(info);
-    // Same icon-only treatment as the fill-in view's own back arrow, just
-    // pointing the other way — entering a form instead of leaving one.
-    const fillBtn = el('button', 'forms-back-btn', '→');
-    fillBtn.type = 'button';
-    fillBtn.title = 'Udfyld';
-    fillBtn.setAttribute('aria-label', 'Udfyld ' + f.title);
-    fillBtn.addEventListener('click', () => renderFormFillIn(root, f.id));
-    row.appendChild(fillBtn);
+    const arrow = el('span', 'forms-open-arrow', '→');
+    arrow.setAttribute('aria-hidden', 'true');
+    row.appendChild(arrow);
+    row.addEventListener('click', () => renderFormFillIn(root, f.id));
     listWrap.appendChild(row);
   }
 }

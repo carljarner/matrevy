@@ -55,19 +55,44 @@
 .forms-msg.ok { color: var(--success); }
 
 /* ── Revyst: open-forms list ─────────────────────────────── */
+/* A <button>, not a styled <div> — the whole row opens the form, with
+   the arrow as a decorative affordance rather than the sole target. */
 .forms-open-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.75rem 0;
+  width: 100%;
+  padding: 0.75rem 0.5rem;
+  margin: 0 -0.5rem;
+  border: none;
   border-bottom: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 .forms-open-row:last-child { border-bottom: none; }
+
+@media (hover: hover) {
+  .forms-open-row:hover { background: var(--accent-warm-fill); }
+}
+.forms-open-row:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
+}
 
 .forms-open-info { min-width: 0; }
 .forms-open-title { font-weight: 600; }
 .forms-open-deadline { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+.forms-open-arrow {
+  flex-shrink: 0;
+  font-size: 1.3rem;
+  color: var(--text-muted);
+}
 
 /* ── Fill-in form: checkbox lists ────────────────────────── */
 /* One "tab" (2rem) of empty space left/right so the options read as
