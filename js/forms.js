@@ -377,23 +377,61 @@ async function renderFormsList(root) {
     if (f.deadline) info.appendChild(el('div', 'forms-open-deadline',
       'Frist: ' + (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline)));
     row.appendChild(info);
-    const fillBtn = el('button', 'site-btn-primary', 'Udfyld');
+    // Same icon-only treatment as the fill-in view's own back arrow, just
+    // pointing the other way — entering a form instead of leaving one.
+    const fillBtn = el('button', 'forms-back-btn', '→');
     fillBtn.type = 'button';
+    fillBtn.title = 'Udfyld';
+    fillBtn.setAttribute('aria-label', 'Udfyld ' + f.title);
     fillBtn.addEventListener('click', () => renderFormFillIn(root, f.id));
     row.appendChild(fillBtn);
     listWrap.appendChild(row);
   }
 }
 
+// True once the visitor has typed/checked/selected anything anywhere on
+// the form — gates the back arrow's "Forlad siden?" warning below so it
+// only interrupts when there's actually something of theirs to lose.
+function formsFillInHasAnyAnswer(inputs) {
+  return inputs.some(({ field, input }) => {
+    const v = input.formsValue();
+    if (field.type === 'grid_single' || field.type === 'grid_multi') {
+      return v && Object.keys(v).length > 0;
+    }
+    return v != null && v !== '' && !(Array.isArray(v) && v.length === 0);
+  });
+}
+
+// Warm/amber styled — not danger-red, since leaving mid-form only costs
+// the visitor their own unsaved answers, nothing destructive elsewhere —
+// same modal chrome as every other confirm dialog on the site.
+function formsOpenLeaveWarning(onLeave) {
+  const { form, actions, close } = siteOpenModalWithClose('Forlad siden?');
+  form.appendChild(el('p', 'forms-intro', 'Det du har indtastet slettes.'));
+  const cancelBtn = formsPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const leaveBtn = formsPillBtn('Forlad', 'site-pill-warm');
+  leaveBtn.addEventListener('click', () => { close(); onLeave(); });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(leaveBtn);
+}
+
 // ── Revyst: fill in + submit one form ────────────────────────
 async function renderFormFillIn(root, formId) {
   root.replaceChildren();
+  // Declared up front (empty) rather than after the fetch below, so the
+  // back button's dirty-check is always safe to read even while the form
+  // is still loading — it just reads as "nothing entered yet" then.
+  const inputs = []; // { field, input, page }
   const card = el('section', 'card forms-form forms-fillin-wide');
   const backBtn = el('button', 'forms-back-btn', '←');
   backBtn.type = 'button';
   backBtn.title = 'Tilbage til formularer';
   backBtn.setAttribute('aria-label', 'Tilbage til formularer');
-  backBtn.addEventListener('click', () => renderFormsList(root));
+  backBtn.addEventListener('click', () => {
+    if (formsFillInHasAnyAnswer(inputs)) formsOpenLeaveWarning(() => renderFormsList(root));
+    else renderFormsList(root);
+  });
   card.appendChild(backBtn);
 
   const body = el('div', null, 'Henter formular …');
@@ -420,7 +458,6 @@ async function renderFormFillIn(root, formId) {
   const pageDefs = formsSectionsFromDefinition(form);
   if (pageDefs.length === 0) pageDefs.push({ id: null, title: form.title, description: '', fields: [] });
 
-  const inputs = []; // { field, input, page }
   const pageEls = pageDefs.map((pageDef, pageIdx) => {
     const pageEl = el('div', 'forms-fillin-page');
     if (pageDef.title) pageEl.appendChild(el('h3', 'forms-fillin-section-title', pageDef.title));
