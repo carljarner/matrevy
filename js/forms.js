@@ -45,6 +45,22 @@ const FORMS_FIELD_TYPES = [
   { value: 'grid_multi',  label: 'Gitter (vælg flere)' },
 ];
 
+// ── Dynamic templates ────────────────────────────────────────
+// Unlike a real (stored) template, a "dynamic" one isn't a frozen field
+// snapshot — clicking it runs `generate()` fresh against the site's own
+// current public data and hands the result straight into the same
+// apply-a-template path a stored template goes through (see
+// formsOpenTemplateMenuPopup below). This is what keeps e.g. Rolleønsker
+// from going stale when scenes.json changes production to production.
+const FORMS_DYNAMIC_TEMPLATES = [
+  {
+    id: 'rolleonsker',
+    title: 'Rolleønsker',
+    description: 'Genereres fra de nuværende scener i scenes.json',
+    generate: formsGenerateRolleonskerSections,
+  },
+];
+
 // ── Revy helpers (the form's Revy field, Oversigt year filter) ──────
 // CONFIG_DATA (config-data.js, the same embed manus.js/koordinator.js read
 // currentProductionFolder from) names the year currently in production,
@@ -185,6 +201,41 @@ function formsOptionsFromRehearsals(sourceFilter) {
     value: ev.id,
     label: `${ev.title} — ${typeof formatDaDateShort === 'function' ? formatDaDateShort(ev.date) : ev.date}`,
   }));
+}
+
+// ── "Rolleønsker" dynamic template ────────────────────────────
+// Builds one section per act (in SCENES_DATA's own order, i.e.
+// actLabel-grouped the same way js/schedule.js regroups this flat embed)
+// and one "Skala 1-5" question per scene, two for a sang-typed scene
+// (Sanger/rapper + Danser). schedulable:false scenes (videos, bandsang —
+// no rehearsable cast) are skipped entirely, and an act left with no
+// fields after filtering is dropped rather than rendered empty.
+function formsGenerateRolleonskerSections() {
+  if (typeof SCENES_DATA === 'undefined' || !Array.isArray(SCENES_DATA)) return [];
+  const byAct = {};
+  const actOrder = [];
+  for (const scene of SCENES_DATA) {
+    if (scene.schedulable === false) continue;
+    const label = scene.actLabel || '';
+    if (!byAct[label]) { byAct[label] = []; actOrder.push(label); }
+    const isSong = Array.isArray(scene.types) && scene.types.includes('sang');
+    if (isSong) {
+      byAct[label].push(formsRolleonskerField(`${scene.name} — Sanger/rapper`));
+      byAct[label].push(formsRolleonskerField(`${scene.name} — Danser`));
+    } else {
+      byAct[label].push(formsRolleonskerField(scene.name));
+    }
+  }
+  return actOrder
+    .filter((label) => byAct[label].length > 0)
+    .map((label) => ({ id: formsNewFieldId(), title: label, description: '', fields: byAct[label] }));
+}
+
+function formsRolleonskerField(label) {
+  return {
+    id: formsNewFieldId(), type: 'scale', label, required: false,
+    scaleMin: 1, scaleMax: 5, scaleMinLabel: 'Virkelig ikke', scaleMaxLabel: 'Virkelig gerne',
+  };
 }
 
 function formsResolveOptions(field) {
@@ -1607,6 +1658,20 @@ function formsRenderTemplateMenu(onUse) {
 
 function formsOpenTemplateMenuPopup(anchor, templates, result, onUse) {
   const pop = el('div', 'site-field-pop forms-template-menu-pop');
+  // Dynamic templates (FORMS_DYNAMIC_TEMPLATES) are always shown, above any
+  // stored templates and independent of whether templates_list succeeded —
+  // they need no network call, just SCENES_DATA/CALENDAR_DATA already
+  // loaded on this page. No delete button: there's nothing stored to delete.
+  for (const t of FORMS_DYNAMIC_TEMPLATES) {
+    const row = el('div', 'forms-template-menu-row');
+    const useBtn = el('button', 'site-list-row forms-template-menu-use');
+    useBtn.type = 'button';
+    useBtn.appendChild(el('div', 'forms-template-menu-title', t.title));
+    useBtn.appendChild(el('div', 'forms-template-menu-desc', t.description));
+    useBtn.addEventListener('click', () => { close(); onUse({ sections: t.generate() }); });
+    row.appendChild(useBtn);
+    pop.appendChild(row);
+  }
   if (!result.ok) {
     pop.appendChild(el('p', 'forms-msg error', result.message || 'Kunne ikke hente skabeloner.'));
   } else if (templates.length === 0) {
