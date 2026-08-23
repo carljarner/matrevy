@@ -4,93 +4,6 @@ const SCENES_DATA = [
   {
     "id": "1-1",
     "number": 1,
-    "name": "Matrevy Sound",
-    "types": [
-      "sang"
-    ],
-    "schedulable": true,
-    "cast": [
-      {
-        "name": "Nadja",
-        "role": "Instruktør",
-        "roleCode": "I",
-        "description": "Instruktør",
-        "tags": [
-          "Instruktør"
-        ]
-      },
-      {
-        "name": "Thais",
-        "role": "Sang/Rap",
-        "roleCode": "S",
-        "description": "Rapper",
-        "tags": [
-          "Sang/Rap"
-        ]
-      },
-      {
-        "name": "Johan",
-        "role": "Sang/Rap",
-        "roleCode": "B",
-        "description": "Rapper",
-        "tags": [
-          "Sang/Rap"
-        ]
-      },
-      {
-        "name": "Lea",
-        "role": "Koreograf",
-        "roleCode": "YD",
-        "description": "Koreograf og danser",
-        "tags": [
-          "Koreograf",
-          "Dans"
-        ]
-      },
-      {
-        "name": "Emma",
-        "role": "Dans",
-        "roleCode": "D1",
-        "description": "Danser",
-        "tags": [
-          "Dans"
-        ]
-      },
-      {
-        "name": "Sara",
-        "role": "Dans",
-        "roleCode": "D2",
-        "description": "Danser",
-        "tags": [
-          "Dans"
-        ]
-      },
-      {
-        "name": "Nadja",
-        "role": "Dans",
-        "roleCode": "D3",
-        "description": "Danser",
-        "tags": [
-          "Dans"
-        ]
-      }
-    ],
-    "sourcePdf": "archive/MatRevy_2026/songs/Matrevy_Sound.pdf",
-    "sourceTex": "archive/MatRevy_2026/songs/Matrevy_Sound.tex",
-    "priority": 0,
-    "repeat": false,
-    "scriptBody": "\\sings{S}[Omkvæd] Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n  \\sings{B}[Vers 1] Året det er gået, men nu er matrevy tilbage\nVi ved hvad der skal gøres, giver dem alt hvad de vil have\nHar skrevet hele dagen, ingen skriftlig eksamen\nManuskript fyldt med rap, det her track er lige sagen\nDet her track er lige sagen\nDer er ikke så mange jokes, det er bare træ, træ, træ\nOg banger efter banger fra det band, band, band\nGi-giv den lige op for mit matrevy gang\n\n   \\sings{S}[Omkvæd]  Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n \\sings{S}[Vers 2] Jeg er tre bajere inde, men - giv mig lige en til\nFjern den der pilsner, jeg skal have GT\nMatrevy er bedst, og hele SCIENCE ved det\nIkke tid til at læse, jeg skal på scenen\nSt-stilen den er lagt, ordet i min magt\nHele salen råber stadig: \"Fuck campusvagt!\"\nOg beatet er banger allerede i første akt\nVores fest kan ikke lukke, luk munden blev der sagt\n(brr-brr, ey)\nSe, vi flækker beats og giver verbale tæsk i teksten\nI flækker af grin når I ser de bedste sketches\nSå flækker vi floor, når vi rammer efterfesten\n\n\\sings{S}[Omkvæd] Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n  \\sings{B}[C-stykke] Hele holdet omme backstaaaaage\nHar drip i deres rekvisitkasse\n300 i det publikuuuuum\nDet betyder, vi skal give den gas (gang-gang-gang)\nBare bund tre bajer i første akt\nDu ved at vi har bars lige fra første takt\nRevyen går i gang, ja vi gør det straks\nBare bund tre bajer i hver fucking akt\n\n \\sings{S}[Outro] Matrevy sound",
-    "dansPriority": 2,
-    "duration": 2.5,
-    "melody": "MellemFingaMuzik: “AMG”",
-    "writtenBy": "Johan '19",
-    "sourceProduction": "Matematikrevyen",
-    "sourceYear": "2024",
-    "actLabel": "Akt 1"
-  },
-  {
-    "id": "1-2",
-    "number": 2,
     "name": "Video: Test",
     "types": [
       "video"
@@ -107,8 +20,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-3",
-    "number": 3,
+    "id": "1-2",
+    "number": 2,
     "name": "Forskønnelsen",
     "types": [
       "sketch"
@@ -182,8 +95,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-4",
-    "number": 4,
+    "id": "1-3",
+    "number": 3,
     "name": "Bandsang: Bandtest",
     "types": [
       "bandsang"
@@ -201,8 +114,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-5",
-    "number": 5,
+    "id": "1-4",
+    "number": 4,
     "name": "Forklar For Mig",
     "types": [
       "sang"
@@ -315,8 +228,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-6",
-    "number": 6,
+    "id": "1-5",
+    "number": 5,
     "name": "En Instruktor Siger Op",
     "types": [
       "sketch"
@@ -363,8 +276,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-7",
-    "number": 7,
+    "id": "1-6",
+    "number": 6,
     "name": "Hos Numerologen",
     "types": [
       "sketch"
@@ -420,8 +333,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-8",
-    "number": 8,
+    "id": "1-7",
+    "number": 7,
     "name": "1612",
     "types": [
       "sang"
@@ -487,8 +400,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-9",
-    "number": 9,
+    "id": "1-8",
+    "number": 8,
     "name": "Kaffebarista",
     "types": [
       "sketch"
@@ -562,8 +475,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-10",
-    "number": 10,
+    "id": "1-9",
+    "number": 9,
     "name": "Dygtig Vejleder",
     "types": [
       "sketch"
@@ -610,8 +523,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-11",
-    "number": 11,
+    "id": "1-10",
+    "number": 10,
     "name": "Whist",
     "types": [
       "sang"
@@ -715,8 +628,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-12",
-    "number": 12,
+    "id": "1-11",
+    "number": 11,
     "name": "Hvorfor Er Der To Af Dem",
     "types": [
       "sketch"
@@ -772,8 +685,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-13",
-    "number": 13,
+    "id": "1-12",
+    "number": 12,
     "name": "IT Konsulent Baby",
     "types": [
       "sang"
