@@ -216,9 +216,9 @@ async function budgetApi(action, body) {
 }
 
 // Fetches a receipt image (private, password-gated) as an object URL. Reads
-// the module-level budgetViewYear directly (rather than taking a year
+// the module-level budgetViewId directly (rather than taking an id
 // parameter) since every call site is already inside the admin view, where
-// that's always the right year to target.
+// that's always the right budget to target.
 async function budgetFetchReceipt(file) {
   const password = budgetResolvePassword();
   if (!password) return null;
@@ -226,7 +226,7 @@ async function budgetFetchReceipt(file) {
     const res = await fetch(SITE_API_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'budget_receipt', password, file, year: budgetViewYear }),
+      body: JSON.stringify({ action: 'budget_receipt', password, file, budgetId: budgetViewId }),
     });
     if (!res.ok) return null;
     const blob = await res.blob();
@@ -394,41 +394,45 @@ let budgetPaidFilter = 'alle';
 let budgetPaidExpanded = false;
 const BUDGET_PAID_PAGE_SIZE = 10;
 
-// Which year the admin view is currently displaying/editing — decoupled
-// from which year is "active" (where new revyst submissions/receipts
-// land, see budgetActiveYear below): viewing a past year for corrections
-// (e.g. via "Tilføj udgift") must never change where new uploads go.
-// Persisted in localStorage so a page refresh keeps showing whatever year
-// the admin last picked in the "Viser budget for" toggle, instead of always
-// resetting to the active year — budgetSetViewYear() is the only thing
-// that should ever assign budgetViewYear, so every change stays persisted.
-// Both start from whatever's persisted (null if nothing/invalid — the
-// server resolves budgetViewYear=null to "the active year", see
-// budget_resolve_year in update-data.php — so a first-ever visit still
-// shows the active year without this client needing to already know it).
-const BUDGET_VIEW_YEAR_KEY = 'matrevy-budget-view-year';
+// Which budget the admin view is currently displaying/editing — decoupled
+// from which budget is "active" (where new revyst submissions/receipts
+// land, see budgetActiveId below): viewing a past budget for corrections
+// (e.g. via "Tilføj udgift") must never change where new uploads go. Keyed
+// by budgetId (a stable string, e.g. "2026" for a legacy budget or
+// "2026_jubilaeum" for one created after multiple budgets per year became
+// possible — see server/update-data.php's budget_slugify_budget_id), NOT
+// by the plain year number, which is no longer unique. Persisted in
+// localStorage so a page refresh keeps showing whatever budget the admin
+// last picked in the "Viser budget for" toggle, instead of always
+// resetting to the active one — budgetSetViewId() is the only thing that
+// should ever assign budgetViewId, so every change stays persisted. Both
+// start from whatever's persisted (null if nothing/invalid — the server
+// resolves budgetViewId=null to "the active budget", see
+// budget_resolve_budget_id in update-data.php — so a first-ever visit
+// still shows the active budget without this client needing to already
+// know it).
+const BUDGET_VIEW_ID_KEY = 'matrevy-budget-view-id';
 
-function budgetLoadPersistedViewYear() {
+function budgetLoadPersistedViewId() {
   try {
-    const raw = localStorage.getItem(BUDGET_VIEW_YEAR_KEY);
-    const year = raw != null ? Number(raw) : NaN;
-    return Number.isInteger(year) ? year : null;
+    const raw = localStorage.getItem(BUDGET_VIEW_ID_KEY);
+    return raw ? raw : null;
   } catch (e) {
     return null;
   }
 }
 
-function budgetSetViewYear(year) {
-  budgetViewYear = year;
+function budgetSetViewId(id) {
+  budgetViewId = id;
   try {
-    if (year == null) localStorage.removeItem(BUDGET_VIEW_YEAR_KEY);
-    else localStorage.setItem(BUDGET_VIEW_YEAR_KEY, String(year));
+    if (id == null) localStorage.removeItem(BUDGET_VIEW_ID_KEY);
+    else localStorage.setItem(BUDGET_VIEW_ID_KEY, id);
   } catch (e) { /* ignore (private browsing, storage disabled, ...) */ }
 }
 
-let budgetViewYear = budgetLoadPersistedViewYear();
-let budgetActiveYear = null;
-let budgetYearsList = []; // [{year, label, createdAt}], from years.json
+let budgetViewId = budgetLoadPersistedViewId();
+let budgetActiveId = null;
+let budgetYearsList = []; // [{budgetId, year, label, createdAt}], from years.json
 
 async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   // A full reload (year switch, post-save refresh, ...) always lands back
@@ -440,7 +444,7 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
     root.appendChild(loading);
   }
 
-  let result = await budgetApi('budget_read', { year: budgetViewYear });
+  let result = await budgetApi('budget_read', { budgetId: budgetViewId });
   root.replaceChildren();
   if (!result.ok) {
     if (result.message) root.appendChild(el('p', 'budget-msg error', result.message));
@@ -449,15 +453,16 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   let data = result.data || {};
 
   // budget_read's own bootstrap branch (update-data.php) returns
-  // year:null whenever there's no active year and no explicit year was
-  // requested — that's ambiguous client-side: it's either a genuinely
-  // brand-new deploy (data.years is empty) or the previously-active year
-  // was just deleted while other years still exist. In the latter case,
-  // re-resolve explicitly against the most recent remaining year so the
+  // budgetId:null whenever there's no active budget and no explicit one
+  // was requested — that's ambiguous client-side: it's either a genuinely
+  // brand-new deploy (data.years is empty) or the previously-active budget
+  // was just deleted while other budgets still exist. In the latter case,
+  // re-resolve explicitly against the most recent remaining budget so the
   // admin still lands on real data instead of the empty bootstrap screen.
-  if (data.year == null && Array.isArray(data.years) && data.years.length > 0) {
-    const fallbackYear = data.years.slice().sort((a, b) => b.year - a.year)[0].year;
-    result = await budgetApi('budget_read', { year: fallbackYear });
+  if (data.budgetId == null && Array.isArray(data.years) && data.years.length > 0) {
+    const fallback = data.years.slice()
+      .sort((a, b) => b.year - a.year || String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+    result = await budgetApi('budget_read', { budgetId: fallback.budgetId });
     if (!result.ok) {
       if (result.message) root.appendChild(el('p', 'budget-msg error', result.message));
       return;
@@ -465,19 +470,19 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
     data = result.data || {};
   }
 
-  budgetSetViewYear(data.year != null ? data.year : budgetViewYear);
-  // Always trust the server's activeYear, including null — the old
-  // "keep the previous value" fallback meant a just-deleted active year
+  budgetSetViewId(data.budgetId != null ? data.budgetId : budgetViewId);
+  // Always trust the server's activeBudgetId, including null — the old
+  // "keep the previous value" fallback meant a just-deleted active budget
   // stayed shown as active until the next unrelated reload.
-  budgetActiveYear = data.activeYear;
+  budgetActiveId = data.activeBudgetId;
   budgetYearsList = Array.isArray(data.years) ? data.years : budgetYearsList;
-  budgetSetPageTitle(budgetViewYear);
+  budgetSetPageTitle(data.year);
 
-  // True bootstrap: no year could be resolved at all (data.years empty
+  // True bootstrap: no budget could be resolved at all (data.years empty
   // too — a brand-new deploy). The year toolbar renders full-width,
   // standing in for the whole page, until the admin creates + activates
-  // the first year via it.
-  if (data.year == null) {
+  // the first budget via it.
+  if (data.budgetId == null) {
     renderYearToolbar(root);
     root.appendChild(el('p', 'budget-intro', 'Der er endnu ikke oprettet et budget. Opret det første ovenfor.'));
     return;
@@ -535,19 +540,19 @@ function budgetSyncPendingColumnHeight() {
 window.addEventListener('resize', budgetSyncPendingColumnHeight);
 
 // ── Admin: year toolbar (switch/rename which budget is shown) ──
-function budgetYearLabel(year) {
-  const entry = budgetYearsList.find((y) => y.year === year);
-  return entry ? entry.label : String(year);
+function budgetYearLabel(budgetId) {
+  const entry = budgetYearsList.find((y) => y.budgetId === budgetId);
+  return entry ? entry.label : String(budgetId);
 }
 
 function renderYearToolbar(container) {
   const card = el('section', 'card budget-year-toolbar');
 
-  // No year exists yet at all (brand-new deploy) — nothing to view/switch
+  // No budget exists yet at all (brand-new deploy) — nothing to view/switch
   // between; "Skift" below still works, it just opens straight into
-  // "create a year" since budgetYearsList is empty. Deliberately keyed off
-  // budgetYearsList, not budgetActiveYear — the latter can legitimately be
-  // null while years still exist (the active year was just deleted), in
+  // "create a budget" since budgetYearsList is empty. Deliberately keyed off
+  // budgetYearsList, not budgetActiveId — the latter can legitimately be
+  // null while budgets still exist (the active one was just deleted), in
   // which case the full toolbar below should render, just showing "Intet
   // valgt" for Aktivt budget rather than collapsing to this reduced view.
   if (budgetYearsList.length === 0) {
@@ -567,13 +572,13 @@ function renderYearToolbar(container) {
   viewWrap.appendChild(el('label', null, 'Viser budget for:'));
   const yearOptions = budgetYearsList
     .slice()
-    .sort((a, b) => b.year - a.year)
-    .map((y) => ({ value: String(y.year), label: y.label }));
-  const yearSelect = siteCreateDropdownField(yearOptions, String(budgetViewYear));
+    .sort((a, b) => b.year - a.year || String(b.createdAt).localeCompare(String(a.createdAt)))
+    .map((y) => ({ value: y.budgetId, label: y.label }));
+  const yearSelect = siteCreateDropdownField(yearOptions, budgetViewId);
   yearSelect.addEventListener('change', () => {
-    const year = Number(yearSelect.value);
-    if (Number.isInteger(year) && year !== budgetViewYear) {
-      budgetSetViewYear(year);
+    const id = yearSelect.value;
+    if (id && id !== budgetViewId) {
+      budgetSetViewId(id);
       loadAndRenderAdmin(document.getElementById('budget-root'));
     }
   });
@@ -582,7 +587,7 @@ function renderYearToolbar(container) {
 
   const activeWrap = el('div', 'budget-year-field');
   activeWrap.appendChild(el('span', 'budget-year-active-label', 'Aktivt budget:'));
-  const activeLabel = budgetActiveYear != null ? budgetYearLabel(budgetActiveYear) : 'Intet valgt';
+  const activeLabel = budgetActiveId != null ? budgetYearLabel(budgetActiveId) : 'Intet valgt';
   activeWrap.appendChild(el('span', 'budget-year-active-value', activeLabel));
   row.appendChild(activeWrap);
 
@@ -603,19 +608,20 @@ function renderYearToolbar(container) {
   container.appendChild(card);
 }
 
-// Changes which year is active (where new revyst uploads/receipts land) —
-// either by picking an existing year (budget_set_active_year), creating and
-// immediately activating a brand new one (budget_create_year then
+// Changes which budget is active (where new revyst uploads/receipts land) —
+// either by picking an existing budget (budget_set_active_year), creating
+// and immediately activating a brand new one (budget_create_year then
 // budget_set_active_year, the same two-call sequence the old standalone
 // "Start nyt budgetår" modal used), or deliberately clearing it (also
-// budget_set_active_year, with year:null) via the dropdown's own trailing
-// "Intet valgt" option — blocks revyst submissions without deleting or
-// hiding anything; every year, including whichever was just cleared, stays
-// fully browsable via the "Viser budget for" dropdown. The confirm button
-// reads "Vælg" or "Opret" depending on which path is currently shown; the
-// dropdown's own "+ Tilføj" option (listed first) switches the modal into
-// the create path, and when no year exists yet at all the create fields
-// are the only thing shown (there's nothing to clear either, in that case).
+// budget_set_active_year, with budgetId:null) via the dropdown's own
+// trailing "Intet valgt" option — blocks revyst submissions without
+// deleting or hiding anything; every budget, including whichever was just
+// cleared, stays fully browsable via the "Viser budget for" dropdown. The
+// confirm button reads "Vælg" or "Opret" depending on which path is
+// currently shown; the dropdown's own "+ Tilføj" option (listed first)
+// switches the modal into the create path, and when no budget exists yet
+// at all the create fields are the only thing shown (there's nothing to
+// clear either, in that case).
 function openSwitchActiveYearModal(root) {
   const hasYears = budgetYearsList.length > 0;
   const NEW_YEAR_VALUE = '__new__';
@@ -629,7 +635,8 @@ function openSwitchActiveYearModal(root) {
   yearInput.type = 'number';
   yearInput.min = '2000';
   yearInput.max = '2100';
-  yearInput.value = String(budgetActiveYear != null ? budgetActiveYear + 1 : new Date().getFullYear());
+  const activeEntry = budgetActiveId != null ? budgetYearsList.find((y) => y.budgetId === budgetActiveId) : null;
+  yearInput.value = String(activeEntry ? activeEntry.year + 1 : new Date().getFullYear());
 
   const labelInput = el('input');
   labelInput.type = 'text';
@@ -657,10 +664,10 @@ function openSwitchActiveYearModal(root) {
     const yearOptions = [{ value: NEW_YEAR_VALUE, label: '+ Tilføj' }];
     yearOptions.push(...budgetYearsList
       .slice()
-      .sort((a, b) => b.year - a.year)
-      .map((y) => ({ value: String(y.year), label: y.label })));
+      .sort((a, b) => b.year - a.year || String(b.createdAt).localeCompare(String(a.createdAt)))
+      .map((y) => ({ value: y.budgetId, label: y.label })));
     yearOptions.push({ value: NONE_YEAR_VALUE, label: 'Intet valgt' });
-    const defaultValue = budgetActiveYear != null ? String(budgetActiveYear) : NONE_YEAR_VALUE;
+    const defaultValue = budgetActiveId != null ? budgetActiveId : NONE_YEAR_VALUE;
     yearSelect = siteCreateDropdownField(yearOptions, defaultValue);
     yearSelect.addEventListener('change', updateNewYearFieldsVisibility);
     form.appendChild(siteEditField('Aktivt budget', yearSelect));
@@ -689,13 +696,14 @@ function openSwitchActiveYearModal(root) {
         if (createResult.message) error.textContent = createResult.message;
         return;
       }
-      const activateResult = await budgetApi('budget_set_active_year', { year });
+      const newBudgetId = createResult.data.budgetId;
+      const activateResult = await budgetApi('budget_set_active_year', { budgetId: newBudgetId });
       if (!activateResult.ok) {
         confirmBtn.disabled = false;
         if (activateResult.message) error.textContent = activateResult.message;
         return;
       }
-      budgetSetViewYear(year);
+      budgetSetViewId(newBudgetId);
       close();
       loadAndRenderAdmin(root);
       return;
@@ -703,9 +711,9 @@ function openSwitchActiveYearModal(root) {
 
     if (yearSelect.value === NONE_YEAR_VALUE) {
       confirmBtn.disabled = true;
-      const result = await budgetApi('budget_set_active_year', { year: null });
+      const result = await budgetApi('budget_set_active_year', { budgetId: null });
       if (result.ok) {
-        // budgetViewYear is left as-is — the year being viewed still fully
+        // budgetViewId is left as-is — the budget being viewed still fully
         // exists, so there's no need to jump away from it just because
         // it's no longer the active one.
         close();
@@ -717,12 +725,12 @@ function openSwitchActiveYearModal(root) {
       return;
     }
 
-    const year = Number(yearSelect.value);
-    if (!Number.isInteger(year)) { error.textContent = 'Vælg et budget.'; return; }
+    const id = yearSelect.value;
+    if (!id) { error.textContent = 'Vælg et budget.'; return; }
     confirmBtn.disabled = true;
-    const result = await budgetApi('budget_set_active_year', { year });
+    const result = await budgetApi('budget_set_active_year', { budgetId: id });
     if (result.ok) {
-      budgetSetViewYear(year);
+      budgetSetViewId(id);
       close();
       loadAndRenderAdmin(root);
     } else {
@@ -733,15 +741,18 @@ function openSwitchActiveYearModal(root) {
   actions.appendChild(confirmBtn);
 }
 
-// Renames/relabels the currently-*viewed* year (budgetViewYear) — a plain
-// directory rename server-side (budget_rename_year), so every existing
-// request/expense/receipt for that year carries over unchanged. Useful for
-// correcting a mistaken year number/label without losing real data (e.g.
-// test data accidentally created under the wrong year).
+// Renames/relabels the currently-*viewed* budget (budgetViewId) — every
+// existing request/expense/receipt for that budget carries over unchanged,
+// since renaming is now a pure metadata edit (budgetId is the stable
+// storage key, fully decoupled from year/label), not a directory move.
+// Useful for correcting a mistaken year number/label without losing real
+// data (e.g. test data accidentally created under the wrong year).
 function openRenameYearModal(root) {
-  const oldYear = budgetViewYear;
+  const id = budgetViewId;
+  const entry = budgetYearsList.find((y) => y.budgetId === id);
+  const currentYear = entry ? entry.year : null;
   const { modal, form, error, actions, close } = siteOpenModalWithClose(
-    `Omdøb det viste budget ("${budgetYearLabel(oldYear)}", ${oldYear})`);
+    `Omdøb det viste budget ("${budgetYearLabel(id)}", ${currentYear})`);
   modal.classList.add('budget-approve-modal');
 
   form.appendChild(el('p', 'budget-intro',
@@ -751,11 +762,11 @@ function openRenameYearModal(root) {
   yearInput.type = 'number';
   yearInput.min = '2000';
   yearInput.max = '2100';
-  yearInput.value = String(oldYear);
+  yearInput.value = String(currentYear);
 
   const labelInput = el('input');
   labelInput.type = 'text';
-  labelInput.value = budgetYearLabel(oldYear);
+  labelInput.value = budgetYearLabel(id);
 
   const fieldRow = el('div');
   fieldRow.className = 'edit-field-row';
@@ -771,9 +782,10 @@ function openRenameYearModal(root) {
     if (!newLabel) { error.textContent = 'Angiv en label.'; return; }
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await budgetApi('budget_rename_year', { oldYear, newYear, newLabel });
+    const result = await budgetApi('budget_rename_year', { budgetId: id, year: newYear, label: newLabel });
     if (result.ok) {
-      budgetSetViewYear(newYear);
+      // budgetId never changes on rename, so budgetViewId is already
+      // correct — no need to reassign it.
       close();
       loadAndRenderAdmin(root);
     } else {
@@ -784,21 +796,23 @@ function openRenameYearModal(root) {
   actions.appendChild(confirmBtn);
 }
 
-// ── Admin: delete an entire budget year (irreversible) ────────
+// ── Admin: delete an entire budget (irreversible) ────────
 // Two-step confirmation per explicit request: step 1 spells out exactly
 // what's about to be lost (and flags it more strongly if it's the active
-// year), step 2 is a plain final "are you sure?" — mirrors the shared
+// budget), step 2 is a plain final "are you sure?" — mirrors the shared
 // narrow-confirm style already used for openExpenseDeleteConfirm/
 // openExpenseRemoveConfirm, just chained twice.
 function openDeleteYearWarning(root) {
-  const year = budgetViewYear;
+  const id = budgetViewId;
+  const entry = budgetYearsList.find((y) => y.budgetId === id);
+  const year = entry ? entry.year : null;
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet budget');
   modal.classList.add('budget-confirm-modal');
 
-  let text = `Dette sletter budgettet "${budgetYearLabel(year)}" (${year}) permanent: alle planlagte beløb, ` +
-    'afventende udlæg, betalte udgifter og kvitteringsbilleder for dette år går tabt og kan ikke gendannes.';
-  if (year === budgetActiveYear) {
-    text += ' Dette er det AKTIVE år; slettes det, kan revyster ikke indsende udlæg, før et nyt år oprettes og aktiveres.';
+  let text = `Dette sletter budgettet "${budgetYearLabel(id)}" (${year}) permanent: alle planlagte beløb, ` +
+    'afventende udlæg, betalte udgifter og kvitteringsbilleder for dette budget går tabt og kan ikke gendannes.';
+  if (id === budgetActiveId) {
+    text += ' Dette er det AKTIVE budget; slettes det, kan revyster ikke indsende udlæg, før et nyt budget oprettes og aktiveres.';
   }
   form.appendChild(el('p', 'budget-intro', text));
 
@@ -808,14 +822,14 @@ function openDeleteYearWarning(root) {
   const continueBtn = budgetPillBtn('Fortsæt', 'site-pill-danger');
   continueBtn.addEventListener('click', () => {
     close();
-    openDeleteYearConfirm(root, year);
+    openDeleteYearConfirm(root, id);
   });
 
   actions.appendChild(cancelBtn);
   actions.appendChild(continueBtn);
 }
 
-function openDeleteYearConfirm(root, year) {
+function openDeleteYearConfirm(root, id) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
   modal.classList.add('budget-confirm-narrow');
   const heading = modal.querySelector('h2');
@@ -830,14 +844,14 @@ function openDeleteYearConfirm(root, year) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await budgetApi('budget_delete_year', { year });
+    const result = await budgetApi('budget_delete_year', { budgetId: id });
     if (result.ok) {
       close();
-      // Let the next load resolve to whatever's active — or, if the year
+      // Let the next load resolve to whatever's active — or, if the budget
       // just deleted was itself active, loadAndRenderAdmin's own fallback
-      // picks the most recent remaining year (or the bootstrap state, if
-      // that was the last year left).
-      budgetSetViewYear(null);
+      // picks the most recent remaining budget (or the bootstrap state, if
+      // that was the last one left).
+      budgetSetViewId(null);
       loadAndRenderAdmin(root);
     } else {
       confirmBtn.disabled = false;
@@ -1132,7 +1146,7 @@ function collectSheetPayload() {
     const amount = parseAmount(r.amountInput.value);
     return { key: r.key, amount: Number.isFinite(amount) && amount >= 0 ? amount : 0 };
   });
-  return { planned, income, year: budgetViewYear };
+  return { planned, income, budgetId: budgetViewId };
 }
 
 async function saveBudgetSheet() {
@@ -1471,7 +1485,7 @@ async function saveCategoryEdits(saveBtn, status, categoryDrafts) {
   status.textContent = 'Gemmer …';
   status.className = 'budget-save-status';
   const result = await budgetApi('budget_categories_save', {
-    year: budgetViewYear,
+    budgetId: budgetViewId,
     expense: draftExpense.map((c) => ({ key: c.key || undefined, label: c.label.trim(), abbrev: c.abbrev.trim() })),
     income: draftIncome.map((c) => ({ key: c.key || undefined, label: c.label.trim() })),
   });
@@ -1657,7 +1671,7 @@ function openApproveModal(root, req) {
       paidBy: req.name,
       settled: true,
       date: String(req.createdAt || '').slice(0, 10) || todayIso(),
-      year: budgetViewYear,
+      budgetId: budgetViewId,
     });
     if (result.ok) {
       close();
@@ -1707,7 +1721,7 @@ function openApproveAllModal(root, members) {
         paidBy: req.name,
         settled: true,
         date: String(req.createdAt || '').slice(0, 10) || todayIso(),
-        year: budgetViewYear,
+        budgetId: budgetViewId,
       });
       if (!result.ok) {
         confirmBtn.disabled = false;
@@ -1775,7 +1789,7 @@ function openRequestEditModal(root, req) {
       name: nameInput.value.trim(),
       phone: phoneInput.value.trim(),
       comment: commentInput.value.trim(),
-      year: budgetViewYear,
+      budgetId: budgetViewId,
     });
     if (result.ok) {
       close();
@@ -1799,7 +1813,7 @@ function rejectRequest(root, req) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await budgetApi('budget_request_reject', { id: req.id, year: budgetViewYear });
+    const result = await budgetApi('budget_request_reject', { id: req.id, budgetId: budgetViewId });
     if (result.ok) {
       close();
       reloadAdmin(root);
@@ -2082,7 +2096,7 @@ function openExpenseAddModal(root) {
       comment: commentInput.value.trim(),
       receiptBase64,
       receiptExt,
-      year: budgetViewYear,
+      budgetId: budgetViewId,
     });
     if (result.ok) {
       close();
@@ -2128,7 +2142,7 @@ function openExpenseEditModal(root, exp) {
         name: exp.name || '',
         phone: exp.phone || '',
         deleted: false,
-        year: budgetViewYear,
+        budgetId: budgetViewId,
       });
       if (result.ok) {
         close();
@@ -2179,7 +2193,7 @@ function openExpenseEditModal(root, exp) {
       name: exp.name || '',
       phone: exp.phone || '',
       deleted,
-      year: budgetViewYear,
+      budgetId: budgetViewId,
     };
   }
 
@@ -2266,7 +2280,7 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await budgetApi('budget_expense_remove', { id: exp.id, year: budgetViewYear });
+    const result = await budgetApi('budget_expense_remove', { id: exp.id, budgetId: budgetViewId });
     if (result.ok) {
       close();
       closeParent();

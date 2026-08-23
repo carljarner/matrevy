@@ -435,13 +435,13 @@ function budget_default_categories() {
 // structurally invalid. Every handler that needs a year's categories calls
 // THIS — never inline json_decode elsewhere — so the seed behavior is
 // conservative and defined in exactly one place.
-function budget_load_categories($year) {
-  $path = budget_year_dir($year) . '/categories.json';
+function budget_load_categories($budgetId) {
+  $path = budget_year_dir($budgetId) . '/categories.json';
   if (is_file($path)) {
     $json = json_decode((string) file_get_contents($path), true);
     if (is_array($json) && isset($json['expense']) && isset($json['income'])) return $json;
   }
-  return budget_mutate($year, 'categories.json', null, function ($json) {
+  return budget_mutate($budgetId, 'categories.json', null, function ($json) {
     if (is_array($json) && isset($json['expense']) && isset($json['income'])) return $json;
     return budget_default_categories();
   });
@@ -462,6 +462,29 @@ function budget_slugify_key($label, &$knownKeys) {
   while (isset($knownKeys[$s])) { $s = $base . '_' . $n; $n++; }
   $knownKeys[$s] = true;
   return $s;
+}
+
+// Generates a stable, unique storage key (budgetId) for a NEW budget —
+// mirrors budget_slugify_key()'s slug+dedupe approach, seeded with the year
+// number so a fresh id can never collide with a legacy budget's own id
+// (before multiple budgets per year were possible, a budget's id WAS simply
+// its bare year number as a string, e.g. "2026" — every id generated here
+// always contains an underscore right after the year, so it's safe against
+// that by construction; no migration of existing directories is needed).
+// $knownIds is passed by reference so a batch can't collide with itself
+// either, same convention as budget_slugify_key.
+function budget_slugify_budget_id($year, $label, &$knownIds) {
+  $map = ['æ' => 'ae', 'ø' => 'oe', 'å' => 'aa', 'Æ' => 'ae', 'Ø' => 'oe', 'Å' => 'aa'];
+  $s = strtolower(strtr($label, $map));
+  $s = preg_replace('/[^a-z0-9]+/', '_', $s);
+  $s = trim($s, '_');
+  if ($s === '') $s = 'budget';
+  $base = $year . '_' . $s;
+  $budgetId = $base;
+  $n = 2;
+  while (isset($knownIds[$budgetId])) { $budgetId = $base . '_' . $n; $n++; }
+  $knownIds[$budgetId] = true;
+  return $budgetId;
 }
 
 // Receipt-filename component for a category key: its current abbrev, or the
@@ -515,29 +538,31 @@ function budget_ensure_dir($dir) {
   }
 }
 
-// Every production year gets its own subdirectory under BUDGET_DATA_DIR
-// (budget.json/requests.json/expenses.json/receipts/ per year) — see
-// years.json below for the cross-year manifest. $year is always an already
-// server-validated int (see budget_resolve_year) by the time it reaches here.
-function budget_year_dir($year) {
-  return budget_dir() . '/' . $year;
+// Every budget gets its own subdirectory under BUDGET_DATA_DIR
+// (budget.json/requests.json/expenses.json/receipts/ per budget) — see
+// years.json below for the cross-budget manifest. $budgetId is the stable
+// storage key (see years.json's own comment below) — always an
+// already-validated string (see budget_resolve_budget_id) by the time it
+// reaches here, never taken raw from a client request.
+function budget_year_dir($budgetId) {
+  return budget_dir() . '/' . $budgetId;
 }
 
 // Read-only load of one of the JSON files; returns $default if missing/empty.
-// $year is null for the one file that lives at BUDGET_DATA_DIR root
-// (years.json, see budget_load_years) and an int for every per-year file.
-function budget_load($year, $name, $default) {
-  $path = ($year === null ? budget_dir() : budget_year_dir($year)) . '/' . $name;
+// $budgetId is null for the one file that lives at BUDGET_DATA_DIR root
+// (years.json, see budget_load_years) and a string for every per-budget file.
+function budget_load($budgetId, $name, $default) {
+  $path = ($budgetId === null ? budget_dir() : budget_year_dir($budgetId)) . '/' . $name;
   if (!is_file($path)) return $default;
   $json = json_decode((string) file_get_contents($path), true);
   return is_array($json) ? $json : $default;
 }
 
 // Locked read-modify-write of one JSON file. $mutate receives the decoded
-// array (or $default) and returns the array to persist. $year: see
+// array (or $default) and returns the array to persist. $budgetId: see
 // budget_load() above.
-function budget_mutate($year, $name, $default, $mutate) {
-  $dir = $year === null ? budget_dir() : budget_year_dir($year);
+function budget_mutate($budgetId, $name, $default, $mutate) {
+  $dir = $budgetId === null ? budget_dir() : budget_year_dir($budgetId);
   budget_ensure_dir($dir);
   $path = $dir . '/' . $name;
   $fh = @fopen($path, 'c+');
@@ -556,67 +581,110 @@ function budget_mutate($year, $name, $default, $mutate) {
   return $json;
 }
 
-function budget_receipts_dir($year) {
-  $dir = budget_year_dir($year) . '/receipts';
+function budget_receipts_dir($budgetId) {
+  $dir = budget_year_dir($budgetId) . '/receipts';
   budget_ensure_dir($dir);
   budget_ensure_dir($dir . '/pending');
   return $dir;
 }
 
-// The cross-year manifest — {activeYear, years: [{year, label, createdAt}]}
-// — lives at BUDGET_DATA_DIR root (year=null), sibling to the per-year
-// subdirectories, never inside one of them.
+// The cross-budget manifest — {activeBudgetId, years: [{budgetId, year,
+// label, createdAt}]} — lives at BUDGET_DATA_DIR root (budgetId=null),
+// sibling to the per-budget subdirectories, never inside one of them.
+// `budgetId` is the stable storage key/directory name (mirrors Arkiv's own
+// `folder`, per CLAUDE.md); `year` is a plain display/grouping field and,
+// unlike before this feature, is NOT unique — multiple budgets can share a
+// calendar year (e.g. a regular run and a jubilee edition), distinguished
+// by `label` instead (which IS kept unique — see budget_create_year/
+// budget_rename_year). budget_normalize_years_shape() upgrades a
+// pre-existing (pre-multi-budget) years.json on the fly — see its own
+// comment — so every read/write here always sees the current shape
+// regardless of what's actually on disk.
 function budget_load_years() {
-  return budget_load(null, 'years.json', ['activeYear' => null, 'years' => []]);
+  return budget_normalize_years_shape(budget_load(null, 'years.json', ['activeBudgetId' => null, 'years' => []]));
 }
 
-// The year revyst submissions/uploads land in — always server-resolved,
-// never trusted from a client request (see budget_submit).
-function budget_active_year($years = null) {
-  if ($years === null) $years = budget_load_years();
-  $year = $years['activeYear'] ?? null;
-  if (!is_int($year)) respond(500, ['error' => 'no_active_year']);
-  return $year;
+// Upgrades a possibly-legacy years.json shape: data from before this
+// multi-budgets-per-year feature has {activeYear, years:[{year, label,
+// createdAt}]} with no budgetId anywhere — the year number WAS the id (and
+// the on-disk directory name), so every legacy entry's budgetId defaults to
+// its own year, stringified, which is byte-identical to its existing
+// directory name — no directory renames or data migration needed. Called
+// both from budget_load_years() (every read) and at the top of every
+// years.json budget_mutate() callback (which reads the raw file straight
+// off disk, bypassing budget_load_years' own normalization), so a write
+// against old-shape data can never silently drop or misinterpret it.
+function budget_normalize_years_shape($json) {
+  if (!is_array($json)) $json = [];
+  $years = is_array($json['years'] ?? null) ? $json['years'] : [];
+  foreach ($years as &$y) {
+    if (!isset($y['budgetId']) || !is_string($y['budgetId']) || $y['budgetId'] === '') {
+      $y['budgetId'] = (string) ($y['year'] ?? '');
+    }
+  }
+  unset($y);
+  $json['years'] = $years;
+  if (!isset($json['activeBudgetId']) || !is_string($json['activeBudgetId']) || $json['activeBudgetId'] === '') {
+    $legacyActiveYear = $json['activeYear'] ?? null;
+    $json['activeBudgetId'] = is_int($legacyActiveYear) ? (string) $legacyActiveYear : null;
+  }
+  return $json;
 }
 
-function budget_valid_year($year, $years) {
-  if (!is_int($year)) return false;
+// Finds one budget's full years.json entry ({budgetId, year, label,
+// createdAt}) by its budgetId — used wherever a caller has an id and needs
+// the display year/label that go with it (budget_read, budget_active_year_info).
+function budget_find_year_entry($budgetId, $years) {
   foreach (($years['years'] ?? []) as $y) {
-    if (($y['year'] ?? null) === $year) return true;
+    if (($y['budgetId'] ?? null) === $budgetId) return $y;
+  }
+  return null;
+}
+
+// The budget revyst submissions/uploads land in — always server-resolved,
+// never trusted from a client request (see budget_submit).
+function budget_active_budget_id($years = null) {
+  if ($years === null) $years = budget_load_years();
+  $budgetId = $years['activeBudgetId'] ?? null;
+  if (!is_string($budgetId) || $budgetId === '') respond(500, ['error' => 'no_active_year']);
+  return $budgetId;
+}
+
+function budget_valid_budget_id($budgetId, $years) {
+  if (!is_string($budgetId) || $budgetId === '') return false;
+  foreach (($years['years'] ?? []) as $y) {
+    if (($y['budgetId'] ?? null) === $budgetId) return true;
   }
   return false;
 }
 
-// Revyst: exposes only the active year number + label from years.json — no
-// personal data — so the submit-form page title can read "Budget for
-// MatRevy <year>" without needing admin-level budget_read access.
+// Revyst: exposes only the active budget's year number + label from
+// years.json — no personal data — so the submit-form page title can read
+// "Budget for MatRevy <year>" without needing admin-level budget_read access.
 function budget_active_year_info($body) {
   $years = budget_load_years();
-  $year = $years['activeYear'] ?? null;
-  if (!is_int($year)) respond(200, ['ok' => true, 'year' => null, 'label' => null]);
-  $label = null;
-  foreach (($years['years'] ?? []) as $y) {
-    if (($y['year'] ?? null) === $year) { $label = $y['label'] ?? null; break; }
-  }
-  respond(200, ['ok' => true, 'year' => $year, 'label' => $label]);
+  $budgetId = $years['activeBudgetId'] ?? null;
+  if (!is_string($budgetId) || $budgetId === '') respond(200, ['ok' => true, 'year' => null, 'label' => null]);
+  $entry = budget_find_year_entry($budgetId, $years);
+  respond(200, ['ok' => true, 'year' => $entry ? ($entry['year'] ?? null) : null, 'label' => $entry ? ($entry['label'] ?? null) : null]);
 }
 
-// Every admin-level budget action accepts an optional {year} to target a
-// year other than the active one (e.g. correcting a past year's ledger via
-// "Tilføj udgift" without touching where new revyst submissions land) —
-// validated against years.json's real list, defaulting to the active year
-// when omitted. budget_submit is the one caller that must NEVER use this;
-// it always calls budget_active_year() directly instead.
-function budget_resolve_year($body, $years = null) {
+// Every admin-level budget action accepts an optional {budgetId} to target
+// a budget other than the active one (e.g. correcting a past year's ledger
+// via "Tilføj udgift" without touching where new revyst submissions land)
+// — validated against years.json's real list, defaulting to the active
+// budget when omitted. budget_submit is the one caller that must NEVER use
+// this; it always resolves the active budget directly instead.
+function budget_resolve_budget_id($body, $years = null) {
   if ($years === null) $years = budget_load_years();
-  if (array_key_exists('year', $body) && $body['year'] !== null) {
-    $year = $body['year'];
-    if (!is_int($year) || !budget_valid_year($year, $years)) {
+  if (array_key_exists('budgetId', $body) && $body['budgetId'] !== null) {
+    $budgetId = $body['budgetId'];
+    if (!is_string($budgetId) || !budget_valid_budget_id($budgetId, $years)) {
       respond(400, ['error' => 'invalid_year']);
     }
-    return $year;
+    return $budgetId;
   }
-  return budget_active_year($years);
+  return budget_active_budget_id($years);
 }
 
 // Decode + size-check a base64 receipt, returning the raw bytes.
@@ -655,8 +723,8 @@ function handle_budget($action, $body) {
 
 // Next bilag number for a category = max existing n + 1 (so deletions never
 // reuse a number). Shared by budget_approve and budget_expense_add.
-function budget_next_n($year, $category) {
-  $existing = budget_load($year, 'expenses.json', ['expenses' => []])['expenses'] ?? [];
+function budget_next_n($budgetId, $category) {
+  $existing = budget_load($budgetId, 'expenses.json', ['expenses' => []])['expenses'] ?? [];
   $maxN = 0;
   foreach ($existing as $e) {
     if (($e['category'] ?? null) === $category && isset($e['n']) && (int) $e['n'] > $maxN) {
@@ -668,9 +736,9 @@ function budget_next_n($year, $category) {
 
 // Revyst appends ONE reimbursement request (+ its receipt). The client never
 // sends the whole list, so revyster can't read or overwrite others' requests.
-// Always resolves the active year server-side — a client-supplied year is
-// never accepted here, unlike every admin-level handler below (a revyst
-// caller must never be able to write into an arbitrary past year).
+// Always resolves the active budget server-side — a client-supplied budgetId
+// is never accepted here, unlike every admin-level handler below (a revyst
+// caller must never be able to write into an arbitrary past budget).
 //
 // Category is deliberately NOT validated against this year's current list:
 // the submit form loads categories once on open, and an admin can delete a
@@ -681,12 +749,12 @@ function budget_next_n($year, $category) {
 // it here instead would just lose the submitter's work entirely.
 function budget_submit($body) {
   $years = budget_load_years();
-  $year = $years['activeYear'] ?? null;
-  // A real, expected state (see budget_set_active_year's null-year path)
-  // rather than a server fault — respond 409, not budget_active_year()'s
-  // generic 500, so the submit form can show a clear "not accepting
-  // requests right now" message instead of a scary error.
-  if (!is_int($year)) respond(409, ['error' => 'no_active_year']);
+  $budgetId = $years['activeBudgetId'] ?? null;
+  // A real, expected state (see budget_set_active_year's null-budgetId
+  // path) rather than a server fault — respond 409, not
+  // budget_active_budget_id()'s generic 500, so the submit form can show a
+  // clear "not accepting requests right now" message instead of a scary error.
+  if (!is_string($budgetId) || $budgetId === '') respond(409, ['error' => 'no_active_year']);
   $category = $body['category'] ?? '';
   $amount   = $body['amount'] ?? null;
   $name     = $body['name'] ?? '';
@@ -705,7 +773,7 @@ function budget_submit($body) {
   $ext = budget_receipt_ext($body);
 
   $id = dechex(time()) . bin2hex(random_bytes(4));
-  $receiptsDir = budget_receipts_dir($year);
+  $receiptsDir = budget_receipts_dir($budgetId);
   if (@file_put_contents($receiptsDir . '/pending/' . $id . '.' . $ext, $raw) === false) {
     respond(500, ['error' => 'budget_storage_unavailable']);
   }
@@ -720,7 +788,7 @@ function budget_submit($body) {
     'receiptFile' => 'pending/' . $id . '.' . $ext,
     'createdAt'   => date('c'),
   ];
-  budget_mutate($year, 'requests.json', ['requests' => []], function ($json) use ($request) {
+  budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($request) {
     if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
     $json['requests'][] = $request;
     return $json;
@@ -728,68 +796,74 @@ function budget_submit($body) {
   respond(200, ['ok' => true, 'id' => $id]);
 }
 
-// Admin: return everything needed to render the management view for one year
-// (no binaries) — plus the cross-year manifest itself (activeYear/years), so
-// the client can build its year-switcher from this same call without a
-// separate round trip. $body['year'] (optional) picks which year's
-// budget/requests/expenses to return; defaults to the active year.
+// Admin: return everything needed to render the management view for one
+// budget (no binaries) — plus the cross-budget manifest itself
+// (activeBudgetId/years), so the client can build its year-switcher from
+// this same call without a separate round trip. $body['budgetId']
+// (optional) picks which budget's budget/requests/expenses to return;
+// defaults to the active budget.
 function budget_read($body) {
   $years = budget_load_years();
-  $requestedYear = (array_key_exists('year', $body) && $body['year'] !== null) ? $body['year'] : null;
+  $requestedBudgetId = (array_key_exists('budgetId', $body) && $body['budgetId'] !== null) ? $body['budgetId'] : null;
   // Nothing to resolve/read: either a brand-new deploy (no years.json yet,
-  // no year has ever been created) or there's deliberately no active year
-  // right now (see budget_set_active_year's null-year path) and the caller
-  // didn't ask for a specific year either — respond with an explicit
-  // "nothing yet" shape instead of budget_resolve_year's normal 500 (via
-  // budget_active_year), so the client can render just the "Start nyt
-  // budgetår" control. A caller that DOES pass an explicit year (e.g. the
-  // admin browsing a past year, or re-resolving after the active year was
-  // deleted) still resolves normally below even with no active year — only
-  // budget_submit (which always needs a real active year, never a
-  // client-chosen one) is blocked outright by having no active year.
-  if (!is_int($years['activeYear'] ?? null) && $requestedYear === null) {
+  // no budget has ever been created) or there's deliberately no active
+  // budget right now (see budget_set_active_year's null-budgetId path) and
+  // the caller didn't ask for a specific one either — respond with an
+  // explicit "nothing yet" shape instead of budget_resolve_budget_id's
+  // normal 500 (via budget_active_budget_id), so the client can render
+  // just the "Start nyt budgetår" control. A caller that DOES pass an
+  // explicit budgetId (e.g. the admin browsing a past budget, or
+  // re-resolving after the active one was deleted) still resolves
+  // normally below even with no active budget — only budget_submit (which
+  // always needs a real active budget, never a client-chosen one) is
+  // blocked outright by having no active budget.
+  if (!is_string($years['activeBudgetId'] ?? null) && $requestedBudgetId === null) {
     respond(200, [
-      'ok' => true, 'year' => null, 'activeYear' => null, 'years' => $years['years'] ?? [],
+      'ok' => true, 'budgetId' => null, 'year' => null, 'activeBudgetId' => null, 'years' => $years['years'] ?? [],
       'budget' => null, 'requests' => null, 'expenses' => null,
     ]);
   }
-  $year = budget_resolve_year($body, $years);
+  $budgetId = budget_resolve_budget_id($body, $years);
+  $entry = budget_find_year_entry($budgetId, $years);
   respond(200, [
-    'ok'         => true,
-    'year'       => $year,
-    'activeYear' => $years['activeYear'] ?? null,
-    'years'      => $years['years'] ?? [],
-    'budget'     => budget_load($year, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null]),
-    'requests'   => budget_load($year, 'requests.json', ['requests' => []]),
-    'expenses'   => budget_load($year, 'expenses.json', ['expenses' => []]),
-    'categories' => budget_load_categories($year),
+    'ok'             => true,
+    'budgetId'       => $budgetId,
+    'year'           => $entry ? ($entry['year'] ?? null) : null,
+    'activeBudgetId' => $years['activeBudgetId'] ?? null,
+    'years'          => $years['years'] ?? [],
+    'budget'         => budget_load($budgetId, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null]),
+    'requests'       => budget_load($budgetId, 'requests.json', ['requests' => []]),
+    'expenses'       => budget_load($budgetId, 'expenses.json', ['expenses' => []]),
+    'categories'     => budget_load_categories($budgetId),
   ]);
 }
 
-// Revyst: the active year's expense categories only (no income, no
+// Revyst: the active budget's expense categories only (no income, no
 // personal data) — for the submit form's category dropdown. Mirrors
-// budget_active_year_info: always the active year, never a client-supplied
-// one, since a revyst caller must never read an arbitrary past year. Also
-// mirrors its graceful no-active-year handling (year:null, empty list)
-// rather than budget_active_year()'s 500, so the submit form can render a
-// clear "not accepting requests right now" state instead of an error.
+// budget_active_year_info: always the active budget, never a
+// client-supplied one, since a revyst caller must never read an arbitrary
+// past budget. Also mirrors its graceful no-active-budget handling
+// (year:null, empty list) rather than budget_active_budget_id()'s 500, so
+// the submit form can render a clear "not accepting requests right now"
+// state instead of an error.
 function budget_active_categories($body) {
   $years = budget_load_years();
-  $year = $years['activeYear'] ?? null;
-  if (!is_int($year)) respond(200, ['ok' => true, 'year' => null, 'expense' => []]);
-  $categories = budget_load_categories($year);
-  respond(200, ['ok' => true, 'year' => $year, 'expense' => $categories['expense'] ?? []]);
+  $budgetId = $years['activeBudgetId'] ?? null;
+  if (!is_string($budgetId) || $budgetId === '') respond(200, ['ok' => true, 'year' => null, 'expense' => []]);
+  $entry = budget_find_year_entry($budgetId, $years);
+  $categories = budget_load_categories($budgetId);
+  respond(200, ['ok' => true, 'year' => $entry ? ($entry['year'] ?? null) : null, 'expense' => $categories['expense'] ?? []]);
 }
 
 // Admin: stream a receipt image (fetched with the password, so receipts are
 // never exposed at a public URL). Overrides the JSON content-type header.
 function budget_receipt($body) {
-  $year = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $file = $body['file'] ?? '';
   if (!is_string($file) || !preg_match(budget_receipt_re(), $file)) {
     respond(400, ['error' => 'bad_path']);
   }
-  $path = budget_year_dir($year) . '/receipts/' . $file;
+  $path = budget_year_dir($budgetId) . '/receipts/' . $file;
   if (!is_file($path)) respond(404, ['error' => 'not_found']);
   $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
   header('Content-Type: ' . ($ext === 'pdf' ? 'application/pdf' : 'image/jpeg'));
@@ -800,12 +874,13 @@ function budget_receipt($body) {
 
 // Admin: approve a pending request → assign the next bilag number for its
 // category, rename the receipt to "<abbrev>_<n>.<ext>", move it into the
-// ledger. $body['year'] (optional) picks which year's pending requests to
-// approve into; defaults to the active year. Re-validates the request's
-// category against this year's current list (see budget_submit) and, if
-// it's no longer valid, puts the request back and refuses to approve.
+// ledger. $body['budgetId'] (optional) picks which budget's pending
+// requests to approve into; defaults to the active budget. Re-validates
+// the request's category against this budget's current list (see
+// budget_submit) and, if it's no longer valid, puts the request back and
+// refuses to approve.
 function budget_approve($body) {
-  $year     = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $id       = $body['id'] ?? '';
   $paidBy   = $body['paidBy'] ?? '';
   $transfer = $body['transfer'] ?? 0;
@@ -821,7 +896,7 @@ function budget_approve($body) {
 
   // Pull the request out of requests.json.
   $found = null;
-  budget_mutate($year, 'requests.json', ['requests' => []], function ($json) use ($id, &$found) {
+  budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($id, &$found) {
     $keep = [];
     foreach (($json['requests'] ?? []) as $r) {
       if (($r['id'] ?? null) === $id) { $found = $r; continue; }
@@ -833,27 +908,27 @@ function budget_approve($body) {
   if ($found === null) respond(404, ['error' => 'not_found']);
 
   $category = $found['category'];
-  $categories = budget_load_categories($year);
+  $categories = budget_load_categories($budgetId);
   $validExpenseKeys = array_column($categories['expense'] ?? [], 'key');
   if (!in_array($category, $validExpenseKeys, true)) {
     // Category no longer exists (deleted after the request was submitted,
     // or was never valid — see budget_submit) — put the pulled request back
     // rather than silently losing it, and refuse to approve it. The admin
     // must reassign a real category via budget_request_update first.
-    budget_mutate($year, 'requests.json', ['requests' => []], function ($json) use ($found) {
+    budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($found) {
       if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
       $json['requests'][] = $found;
       return $json;
     });
     respond(409, ['error' => 'invalid_category']);
   }
-  $n = budget_next_n($year, $category);
+  $n = budget_next_n($budgetId, $category);
   $abbrev = budget_category_abbrev($categories, $category);
 
   // Rename the receipt pending/<id>.<ext> → <abbrev>_<n>.<ext> (best-effort)
   // — ext follows whatever the pending file actually is (jpg or pdf), never
   // hardcoded, so a PDF receipt doesn't get silently renamed to .jpg.
-  $receiptsDir = budget_receipts_dir($year);
+  $receiptsDir = budget_receipts_dir($budgetId);
   $oldPath = $receiptsDir . '/' . ($found['receiptFile'] ?? '');
   $newRel = '';
   if (preg_match(budget_receipt_re(), $found['receiptFile'] ?? '') && is_file($oldPath)) {
@@ -878,7 +953,7 @@ function budget_approve($body) {
     'receiptFile' => $newRel,
     'approvedAt'  => date('c'),
   ];
-  budget_mutate($year, 'expenses.json', ['expenses' => []], function ($json) use ($expense) {
+  budget_mutate($budgetId, 'expenses.json', ['expenses' => []], function ($json) use ($expense) {
     if (!isset($json['expenses']) || !is_array($json['expenses'])) $json['expenses'] = [];
     $json['expenses'][] = $expense;
     return $json;
@@ -886,14 +961,14 @@ function budget_approve($body) {
   respond(200, ['ok' => true, 'expense' => $expense]);
 }
 
-// Admin: reject/delete a pending request and its receipt. $body['year']
-// (optional) picks which year; defaults to the active year.
+// Admin: reject/delete a pending request and its receipt. $body['budgetId']
+// (optional) picks which budget; defaults to the active budget.
 function budget_request_reject($body) {
-  $year = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $id = $body['id'] ?? '';
   if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
   $removed = null;
-  budget_mutate($year, 'requests.json', ['requests' => []], function ($json) use ($id, &$removed) {
+  budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($id, &$removed) {
     $keep = [];
     foreach (($json['requests'] ?? []) as $r) {
       if (($r['id'] ?? null) === $id) { $removed = $r; continue; }
@@ -903,23 +978,23 @@ function budget_request_reject($body) {
     return $json;
   });
   if ($removed !== null && preg_match(budget_receipt_re(), $removed['receiptFile'] ?? '')) {
-    @unlink(budget_year_dir($year) . '/receipts/' . $removed['receiptFile']);
+    @unlink(budget_year_dir($budgetId) . '/receipts/' . $removed['receiptFile']);
   }
   respond(200, ['ok' => true]);
 }
 
 // Admin: overwrite the editable budget sheet — the planned amount per category
 // plus the income/revenue list. Spent/balance are derived client-side from the
-// ledger, never stored here. $body['year'] (optional) picks which year;
-// defaults to the active year.
+// ledger, never stored here. $body['budgetId'] (optional) picks which
+// budget; defaults to the active budget.
 function budget_save_sheet($body) {
-  $year = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $planned = $body['planned'] ?? null;
   $income  = $body['income'] ?? null;
   if (!is_array($planned) || !is_array($income)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  $categories = budget_load_categories($year);
+  $categories = budget_load_categories($budgetId);
   $expenseKeys = array_column($categories['expense'] ?? [], 'key');
   $incomeKeys  = array_column($categories['income']  ?? [], 'key');
   $cleanPlanned = [];
@@ -950,7 +1025,7 @@ function budget_save_sheet($body) {
     $cleanIncome[] = $entry;
   }
 
-  budget_mutate($year, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
+  budget_mutate($budgetId, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
     function ($json) use ($cleanPlanned, $cleanIncome) {
       // Encode planned as an object even when empty (json_encode turns [] into
       // an array, but the schema — and the client — expect an object).
@@ -964,11 +1039,11 @@ function budget_save_sheet($body) {
 
 // Admin: add an expense directly to the ledger (no revyst request), optionally
 // with a receipt photo. Assigns the next bilag number for the category, exactly
-// like budget_approve. $body['year'] (optional) picks which year to add into
-// — this is what lets "Tilføj udgift" target a past year while it's being
-// viewed, independent of which year is currently active.
+// like budget_approve. $body['budgetId'] (optional) picks which budget to
+// add into — this is what lets "Tilføj udgift" target a past budget while
+// it's being viewed, independent of which one is currently active.
 function budget_expense_add($body) {
-  $year = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $category = $body['category'] ?? '';
   $amount   = $body['amount'] ?? null;
   $date     = $body['date'] ?? date('Y-m-d');
@@ -979,7 +1054,7 @@ function budget_expense_add($body) {
   $name     = $body['name'] ?? '';
   $phone    = $body['phone'] ?? '';
   $receipt  = $body['receiptBase64'] ?? '';
-  $categories = budget_load_categories($year);
+  $categories = budget_load_categories($budgetId);
   $validExpenseKeys = array_column($categories['expense'] ?? [], 'key');
   if (!in_array($category, $validExpenseKeys, true)
       || !is_numeric($amount) || (float) $amount <= 0
@@ -993,14 +1068,14 @@ function budget_expense_add($body) {
   }
 
   $id = dechex(time()) . bin2hex(random_bytes(4));
-  $n = budget_next_n($year, $category);
+  $n = budget_next_n($budgetId, $category);
   $abbrev = budget_category_abbrev($categories, $category);
 
   $receiptRel = '';
   if ($receipt !== '') {
     $raw = budget_decode_receipt($receipt);
     $ext = budget_receipt_ext($body);
-    $receiptsDir = budget_receipts_dir($year);
+    $receiptsDir = budget_receipts_dir($budgetId);
     $receiptRel = $abbrev . '_' . $n . '.' . $ext;
     if (@file_put_contents($receiptsDir . '/' . $receiptRel, $raw) === false) {
       respond(500, ['error' => 'budget_storage_unavailable']);
@@ -1023,7 +1098,7 @@ function budget_expense_add($body) {
     'receiptFile' => $receiptRel,
     'approvedAt'  => date('c'),
   ];
-  budget_mutate($year, 'expenses.json', ['expenses' => []], function ($json) use ($expense) {
+  budget_mutate($budgetId, 'expenses.json', ['expenses' => []], function ($json) use ($expense) {
     if (!isset($json['expenses']) || !is_array($json['expenses'])) $json['expenses'] = [];
     $json['expenses'][] = $expense;
     return $json;
@@ -1033,10 +1108,10 @@ function budget_expense_add($body) {
 
 // Admin: edit an existing paid expense. Category/n/bilag/receiptFile stay locked
 // (changing category would need a bilag renumber + receipt rename — do reject/re-add).
-// $body['year'] (optional) picks which year's ledger to edit; defaults to
-// the active year.
+// $body['budgetId'] (optional) picks which budget's ledger to edit;
+// defaults to the active budget.
 function budget_expense_update($body) {
-  $year     = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $id       = $body['id'] ?? '';
   $amount   = $body['amount'] ?? null;
   $date     = $body['date'] ?? '';
@@ -1061,7 +1136,7 @@ function budget_expense_update($body) {
     respond(400, ['error' => 'invalid_shape']);
   }
   $found = false;
-  budget_mutate($year, 'expenses.json', ['expenses' => []],
+  budget_mutate($budgetId, 'expenses.json', ['expenses' => []],
     function ($json) use ($id, $amount, $date, $paidBy, $transfer, $settled, $comment, $name, $phone, $deleted, &$found) {
       // Bind &$e to a real variable, not the ($json['expenses'] ?? []) expression
       // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
@@ -1099,14 +1174,15 @@ function budget_expense_update($body) {
 // path that actually erases the ledger record and its receipt file. Never
 // renumbers other receipts in the category: budget_next_n() already picks
 // max-existing-n + 1 specifically so deletions never reuse a bilag number,
-// so a gap left behind here is expected, not a bug to fix up. $body['year']
-// (optional) picks which year; defaults to the active year.
+// so a gap left behind here is expected, not a bug to fix up.
+// $body['budgetId'] (optional) picks which budget; defaults to the active
+// budget.
 function budget_expense_remove($body) {
-  $year = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $id = $body['id'] ?? '';
   if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
   $removed = null;
-  budget_mutate($year, 'expenses.json', ['expenses' => []], function ($json) use ($id, &$removed) {
+  budget_mutate($budgetId, 'expenses.json', ['expenses' => []], function ($json) use ($id, &$removed) {
     $keep = [];
     foreach (($json['expenses'] ?? []) as $e) {
       if (($e['id'] ?? null) === $id) { $removed = $e; continue; }
@@ -1117,25 +1193,25 @@ function budget_expense_remove($body) {
   });
   if ($removed === null) respond(404, ['error' => 'not_found']);
   if (preg_match(budget_receipt_re(), $removed['receiptFile'] ?? '')) {
-    @unlink(budget_year_dir($year) . '/receipts/' . $removed['receiptFile']);
+    @unlink(budget_year_dir($budgetId) . '/receipts/' . $removed['receiptFile']);
   }
   respond(200, ['ok' => true]);
 }
 
 // Admin: edit a pending request. Category may change (no bilag assigned yet; the
-// receipt stays pending/<id>.<ext> regardless). $body['year'] (optional) picks
-// which year; defaults to the active year. Since budget_submit no longer
-// validates category, this is the one place that enforces it — the actual
-// reassignment step that clears an "orphaned" (deleted-category) request.
+// receipt stays pending/<id>.<ext> regardless). $body['budgetId'] (optional)
+// picks which budget; defaults to the active budget. Since budget_submit no
+// longer validates category, this is the one place that enforces it — the
+// actual reassignment step that clears an "orphaned" (deleted-category) request.
 function budget_request_update($body) {
-  $year     = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $id       = $body['id'] ?? '';
   $category = $body['category'] ?? '';
   $amount   = $body['amount'] ?? null;
   $name     = $body['name'] ?? '';
   $phone    = $body['phone'] ?? '';
   $comment  = $body['comment'] ?? '';
-  $validExpenseKeys = array_column(budget_load_categories($year)['expense'] ?? [], 'key');
+  $validExpenseKeys = array_column(budget_load_categories($budgetId)['expense'] ?? [], 'key');
   if (!is_string($id) || $id === ''
       || !in_array($category, $validExpenseKeys, true)
       || !is_numeric($amount) || (float) $amount <= 0
@@ -1145,7 +1221,7 @@ function budget_request_update($body) {
     respond(400, ['error' => 'invalid_shape']);
   }
   $found = false;
-  budget_mutate($year, 'requests.json', ['requests' => []],
+  budget_mutate($budgetId, 'requests.json', ['requests' => []],
     function ($json) use ($id, $category, $amount, $name, $phone, $comment, &$found) {
       // Bind &$r to a real variable, not the ($json['requests'] ?? []) expression
       // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
@@ -1170,23 +1246,23 @@ function budget_request_update($body) {
   respond(200, ['ok' => true]);
 }
 
-// Admin: replace a year's expense + income category lists in one atomic
+// Admin: replace a budget's expense + income category lists in one atomic
 // write — the save handler behind the "Rediger kategorier" modal. Deleting a
 // category is simply omitting it from the payload; no server-side block on
-// deleting an in-use one (the client warns first). $body['year'] (optional)
-// picks which year to edit; defaults to the active year.
+// deleting an in-use one (the client warns first). $body['budgetId']
+// (optional) picks which budget to edit; defaults to the active budget.
 function budget_categories_save($body) {
-  $year = budget_resolve_year($body);
+  $budgetId = budget_resolve_budget_id($body);
   $expenseIn = $body['expense'] ?? null;
   $incomeIn  = $body['income'] ?? null;
   if (!is_array($expenseIn) || !is_array($incomeIn) || count($expenseIn) === 0 || count($incomeIn) === 0) {
     respond(400, ['error' => 'invalid_shape']);
   }
 
-  $current = budget_load_categories($year);
+  $current = budget_load_categories($budgetId);
   $currentExpenseByKey = [];
   foreach (($current['expense'] ?? []) as $c) { $currentExpenseByKey[$c['key']] = $c; }
-  $expensesLedger = budget_load($year, 'expenses.json', ['expenses' => []])['expenses'] ?? [];
+  $expensesLedger = budget_load($budgetId, 'expenses.json', ['expenses' => []])['expenses'] ?? [];
 
   $knownExpenseKeys = array_fill_keys(array_keys($currentExpenseByKey), true);
   $usedExpenseKeys = [];
@@ -1257,22 +1333,27 @@ function budget_categories_save($body) {
     $cleanIncome[] = ['key' => $key, 'label' => $label];
   }
 
-  $result = budget_mutate($year, 'categories.json', budget_default_categories(),
+  $result = budget_mutate($budgetId, 'categories.json', budget_default_categories(),
     function ($json) use ($cleanExpense, $cleanIncome) {
       return ['expense' => $cleanExpense, 'income' => $cleanIncome];
     });
   respond(200, ['ok' => true, 'categories' => $result]);
 }
 
-// Admin: create a new, empty budget year — seeds its `planned` amounts and
-// its categories.json as a copy of the *currently active* year's (a
+// Admin: create a new, empty budget — seeds its `planned` amounts and its
+// categories.json as a copy of the *currently active* budget's (a
 // deliberate starting point so the admin doesn't retype every category from
 // scratch; falls back to budget_default_categories() if there's no active
-// year yet, i.e. true first-ever bootstrap), leaves income/expenses/requests
-// empty, and appends it to years.json. Does NOT change which year is active
-// — call budget_set_active_year separately to actually route new revyst
+// budget yet, i.e. true first-ever bootstrap), leaves income/expenses/
+// requests empty, and appends it to years.json under a freshly-generated
+// budgetId. Does NOT change which budget is active — call
+// budget_set_active_year separately to actually route new revyst
 // submissions into it (so "Start nyt budgetår" in the client is just these
-// two calls in sequence).
+// two calls in sequence). `year` no longer needs to be unique — multiple
+// budgets can share a calendar year (e.g. a regular run and a jubilee
+// edition), each in its own budgetId-keyed directory — but `label` does,
+// so the two stay distinguishable everywhere they're shown by label alone
+// (the year switcher, "Aktivt budget", the page title).
 function budget_create_year($body) {
   $year = $body['year'] ?? null;
   $label = $body['label'] ?? '';
@@ -1280,66 +1361,74 @@ function budget_create_year($body) {
       || !is_string($label) || trim($label) === '') {
     respond(400, ['error' => 'invalid_shape']);
   }
+  $label = trim($label);
   $years = budget_load_years();
-  if (budget_valid_year($year, $years)) {
-    respond(409, ['error' => 'year_exists']);
+  foreach (($years['years'] ?? []) as $y) {
+    if (mb_strtolower($y['label'] ?? '') === mb_strtolower($label)) {
+      respond(409, ['error' => 'label_exists']);
+    }
   }
+  $knownIds = [];
+  foreach (($years['years'] ?? []) as $y) { $knownIds[$y['budgetId'] ?? ''] = true; }
+  $budgetId = budget_slugify_budget_id($year, $label, $knownIds);
 
-  $activeYear = $years['activeYear'] ?? null;
-  $seedPlanned = is_int($activeYear)
-    ? (budget_load($activeYear, 'budget.json', ['planned' => []])['planned'] ?? [])
+  $activeBudgetId = $years['activeBudgetId'] ?? null;
+  $hasActive = is_string($activeBudgetId) && $activeBudgetId !== '';
+  $seedPlanned = $hasActive
+    ? (budget_load($activeBudgetId, 'budget.json', ['planned' => []])['planned'] ?? [])
     : [];
   if (empty($seedPlanned)) $seedPlanned = new stdClass();
-  $seedCategories = is_int($activeYear) ? budget_load_categories($activeYear) : budget_default_categories();
+  $seedCategories = $hasActive ? budget_load_categories($activeBudgetId) : budget_default_categories();
 
-  budget_mutate($year, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
+  budget_mutate($budgetId, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
     function ($json) use ($seedPlanned) {
       $json['planned'] = $seedPlanned;
       $json['income'] = [];
       $json['updatedAt'] = date('c');
       return $json;
     });
-  budget_mutate($year, 'requests.json', ['requests' => []], function ($json) { return ['requests' => []]; });
-  budget_mutate($year, 'expenses.json', ['expenses' => []], function ($json) { return ['expenses' => []]; });
-  budget_mutate($year, 'categories.json', budget_default_categories(), function ($json) use ($seedCategories) {
+  budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) { return ['requests' => []]; });
+  budget_mutate($budgetId, 'expenses.json', ['expenses' => []], function ($json) { return ['expenses' => []]; });
+  budget_mutate($budgetId, 'categories.json', budget_default_categories(), function ($json) use ($seedCategories) {
     return $seedCategories;
   });
-  budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []], function ($json) use ($year, $label) {
-    if (!isset($json['years']) || !is_array($json['years'])) $json['years'] = [];
-    $json['years'][] = ['year' => $year, 'label' => trim($label), 'createdAt' => date('c')];
+  budget_mutate(null, 'years.json', ['activeBudgetId' => null, 'years' => []], function ($json) use ($budgetId, $year, $label) {
+    $json = budget_normalize_years_shape($json);
+    $json['years'][] = ['budgetId' => $budgetId, 'year' => $year, 'label' => $label, 'createdAt' => date('c')];
     return $json;
   });
-  respond(200, ['ok' => true, 'year' => $year]);
+  respond(200, ['ok' => true, 'budgetId' => $budgetId, 'year' => $year]);
 }
 
-// Admin: flip which year new revyst submissions/receipts land in. Works
-// equally for a brand-new year (right after budget_create_year) or for
-// re-activating an already-existing past year (e.g. correcting a mistaken
-// switch) — it never creates anything itself. `year: null` is also
+// Admin: flip which budget new revyst submissions/receipts land in. Works
+// equally for a brand-new budget (right after budget_create_year) or for
+// re-activating an already-existing past one (e.g. correcting a mistaken
+// switch) — it never creates anything itself. `budgetId: null` is also
 // accepted, deliberately (the "Intet valgt" option in the Skift-modal's
 // dropdown) — it blocks revyst submissions (budget_submit/
-// budget_active_categories both require a real active year) without
-// deleting anything; every year, including whichever was last active,
-// stays fully browsable via budget_read's explicit-year path.
+// budget_active_categories both require a real active budget) without
+// deleting anything; every budget, including whichever was last active,
+// stays fully browsable via budget_read's explicit-budgetId path.
 function budget_set_active_year($body) {
-  if (!array_key_exists('year', $body)) respond(400, ['error' => 'invalid_shape']);
-  $year = $body['year'];
-  if ($year !== null) {
-    if (!is_int($year)) respond(400, ['error' => 'invalid_shape']);
+  if (!array_key_exists('budgetId', $body)) respond(400, ['error' => 'invalid_shape']);
+  $budgetId = $body['budgetId'];
+  if ($budgetId !== null) {
+    if (!is_string($budgetId)) respond(400, ['error' => 'invalid_shape']);
     $years = budget_load_years();
-    if (!budget_valid_year($year, $years)) respond(400, ['error' => 'unknown_year']);
+    if (!budget_valid_budget_id($budgetId, $years)) respond(400, ['error' => 'unknown_year']);
   }
-  budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []], function ($json) use ($year) {
-    $json['activeYear'] = $year;
+  budget_mutate(null, 'years.json', ['activeBudgetId' => null, 'years' => []], function ($json) use ($budgetId) {
+    $json = budget_normalize_years_shape($json);
+    $json['activeBudgetId'] = $budgetId;
     return $json;
   });
-  respond(200, ['ok' => true, 'activeYear' => $year]);
+  respond(200, ['ok' => true, 'activeBudgetId' => $budgetId]);
 }
 
 // Recursively removes a directory and everything in it. No built-in PHP
 // equivalent of `rm -rf` — used only by budget_delete_year, and only ever on
-// a path built from budget_year_dir($year) with an already-validated int
-// $year (never a client-supplied path), same "server builds the path"
+// a path built from budget_year_dir($budgetId) with an already-validated
+// $budgetId (never a client-supplied path), same "server builds the path"
 // posture as the rest of this file's filesystem writes.
 function budget_rrmdir($dir) {
   if (!is_dir($dir)) return;
@@ -1352,73 +1441,76 @@ function budget_rrmdir($dir) {
   @rmdir($dir);
 }
 
-// Admin: permanently deletes an entire budget year — its directory
+// Admin: permanently deletes an entire budget — its directory
 // (budget.json/requests.json/expenses.json/receipts/, including every
 // receipt photo) and its years.json entry. Cannot be undone; the client is
 // expected to have already confirmed this explicitly (twice, per the UI) —
-// nothing here asks again. If the deleted year was active, activeYear is
-// cleared (never left pointing at a directory that no longer exists) —
-// which puts the page back in its "no active year" bootstrap state until a
-// new or existing year is activated.
+// nothing here asks again. If the deleted budget was active, activeBudgetId
+// is cleared (never left pointing at a directory that no longer exists) —
+// which puts the page back in its "no active budget" state until a new or
+// existing budget is activated (though every other budget, if any remain,
+// stays fully browsable regardless — see budget_read).
 function budget_delete_year($body) {
-  $year = $body['year'] ?? null;
-  if (!is_int($year)) respond(400, ['error' => 'invalid_shape']);
+  $budgetId = $body['budgetId'] ?? null;
+  if (!is_string($budgetId) || $budgetId === '') respond(400, ['error' => 'invalid_shape']);
   $years = budget_load_years();
-  if (!budget_valid_year($year, $years)) respond(404, ['error' => 'not_found']);
+  if (!budget_valid_budget_id($budgetId, $years)) respond(404, ['error' => 'not_found']);
 
-  budget_rrmdir(budget_year_dir($year));
+  budget_rrmdir(budget_year_dir($budgetId));
 
-  $wasActive = ($years['activeYear'] ?? null) === $year;
-  budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []], function ($json) use ($year, $wasActive) {
-    $json['years'] = array_values(array_filter($json['years'] ?? [], function ($y) use ($year) {
-      return ($y['year'] ?? null) !== $year;
+  $wasActive = ($years['activeBudgetId'] ?? null) === $budgetId;
+  budget_mutate(null, 'years.json', ['activeBudgetId' => null, 'years' => []], function ($json) use ($budgetId, $wasActive) {
+    $json = budget_normalize_years_shape($json);
+    $json['years'] = array_values(array_filter($json['years'] ?? [], function ($y) use ($budgetId) {
+      return ($y['budgetId'] ?? null) !== $budgetId;
     }));
-    if ($wasActive) $json['activeYear'] = null;
+    if ($wasActive) $json['activeBudgetId'] = null;
     return $json;
   });
   respond(200, ['ok' => true]);
 }
 
-// Admin: renames/relabels an existing budget year — a plain directory
-// rename on disk (atomic on the same filesystem) plus updating its
-// years.json entry, so every existing request/expense/receipt carries over
-// unchanged. $newYear may equal $oldYear (a pure label change, no directory
-// rename needed). If the renamed year was active, activeYear follows it to
-// $newYear so revyst uploads keep landing in the right place.
+// Admin: renames/relabels an existing budget — a pure years.json metadata
+// update now: budgetId is the stable storage key, fully decoupled from
+// year/label (see budget_slugify_budget_id), so unlike before this
+// multi-budgets-per-year feature, changing the year number or label never
+// needs a directory rename — every existing request/expense/receipt is
+// completely unaffected. `label` must still be unique across every budget
+// (year no longer needs to be — see budget_create_year), checked against
+// every OTHER entry.
 function budget_rename_year($body) {
-  $oldYear = $body['oldYear'] ?? null;
-  $newYear = $body['newYear'] ?? null;
-  $newLabel = $body['newLabel'] ?? '';
-  if (!is_int($oldYear) || !is_int($newYear) || $newYear < 2000 || $newYear > 2100
-      || !is_string($newLabel) || trim($newLabel) === '') {
+  $budgetId = $body['budgetId'] ?? null;
+  $year = $body['year'] ?? null;
+  $label = $body['label'] ?? '';
+  if (!is_string($budgetId) || $budgetId === ''
+      || !is_int($year) || $year < 2000 || $year > 2100
+      || !is_string($label) || trim($label) === '') {
     respond(400, ['error' => 'invalid_shape']);
   }
+  $label = trim($label);
   $years = budget_load_years();
-  if (!budget_valid_year($oldYear, $years)) respond(404, ['error' => 'not_found']);
-  if ($newYear !== $oldYear && budget_valid_year($newYear, $years)) respond(409, ['error' => 'year_exists']);
-
-  if ($newYear !== $oldYear && is_dir(budget_year_dir($oldYear))) {
-    if (!@rename(budget_year_dir($oldYear), budget_year_dir($newYear))) {
-      respond(500, ['error' => 'budget_storage_unavailable']);
+  if (!budget_valid_budget_id($budgetId, $years)) respond(404, ['error' => 'not_found']);
+  foreach (($years['years'] ?? []) as $y) {
+    if (($y['budgetId'] ?? null) !== $budgetId && mb_strtolower($y['label'] ?? '') === mb_strtolower($label)) {
+      respond(409, ['error' => 'label_exists']);
     }
   }
 
-  $wasActive = ($years['activeYear'] ?? null) === $oldYear;
-  budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []],
-    function ($json) use ($oldYear, $newYear, $newLabel, $wasActive) {
-      $list = $json['years'] ?? [];
+  budget_mutate(null, 'years.json', ['activeBudgetId' => null, 'years' => []],
+    function ($json) use ($budgetId, $year, $label) {
+      $json = budget_normalize_years_shape($json);
+      $list = $json['years'];
       foreach ($list as &$y) {
-        if (($y['year'] ?? null) === $oldYear) {
-          $y['year'] = $newYear;
-          $y['label'] = trim($newLabel);
+        if (($y['budgetId'] ?? null) === $budgetId) {
+          $y['year'] = $year;
+          $y['label'] = $label;
         }
       }
       unset($y);
       $json['years'] = $list;
-      if ($wasActive) $json['activeYear'] = $newYear;
       return $json;
     });
-  respond(200, ['ok' => true, 'year' => $newYear]);
+  respond(200, ['ok' => true, 'budgetId' => $budgetId, 'year' => $year]);
 }
 
 // ── Resource savers ──────────────────────────────────────────
