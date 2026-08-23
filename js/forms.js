@@ -419,7 +419,7 @@ async function formsRenderOverviewScreen(root) {
     const respBtn = el('button', 'btn-small', 'Se svar');
     respBtn.type = 'button';
     respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
-    const delBtn = el('button', 'btn-small-danger', 'Slet');
+    const delBtn = el('button', 'btn-small btn-small-danger', 'Slet');
     delBtn.type = 'button';
     delBtn.addEventListener('click', () => formsOpenDeleteConfirm(root, f));
     actionsCell.appendChild(editBtn);
@@ -524,7 +524,7 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
     formsRenderFieldEditor(listEl, draftFields, onChange);
     onChange();
   });
-  const removeBtn = el('button', 'btn-small-danger', '✕');
+  const removeBtn = el('button', 'btn-small btn-small-danger', '✕');
   removeBtn.type = 'button';
   removeBtn.addEventListener('click', () => {
     draftFields.splice(idx, 1);
@@ -572,7 +572,7 @@ function formsRenderOptionsEditor(field, onChange) {
         labelInput.placeholder = 'Vist tekst';
         labelInput.value = opt.label || '';
         labelInput.addEventListener('input', () => { opt.label = labelInput.value; onChange(); });
-        const rm = el('button', 'btn-small-danger', '✕');
+        const rm = el('button', 'btn-small btn-small-danger', '✕');
         rm.type = 'button';
         rm.addEventListener('click', () => { options.splice(i, 1); renderBody(); onChange(); });
         optRow.appendChild(valInput);
@@ -801,7 +801,7 @@ function formsRenderTemplateStrip(onUse) {
       const useBtn = el('button', 'btn-small', 'Brug');
       useBtn.type = 'button';
       useBtn.addEventListener('click', () => onUse(t.fields));
-      const delBtn = el('button', 'btn-small-danger', 'Slet');
+      const delBtn = el('button', 'btn-small btn-small-danger', 'Slet');
       delBtn.type = 'button';
       delBtn.addEventListener('click', async () => {
         delBtn.disabled = true;
