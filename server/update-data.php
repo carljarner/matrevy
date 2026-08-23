@@ -190,6 +190,31 @@ if (isset($BUDGET_ACTIONS[$action])) {
   handle_budget($action, $body);
 }
 
+// ── Forms actions (private Simply.com datastore, "Formularer" page) ──
+// Self-hosted sign-up forms — same privacy posture as Budget above (never
+// the public repo). Management (forms_admin_*/forms_save/forms_delete/
+// templates_*) is boss-level, not admin-level: this is production-
+// coordination tooling like Manus/Kalender/Wiki, not financial control —
+// see the forms feature plan for the full reasoning.
+$FORMS_ACTIONS = [
+  'forms_list_open'  => 'revyst', // open forms, summary only (no fields)
+  'forms_get'        => 'revyst', // one OPEN form's schema, for fill-in
+  'forms_submit'     => 'revyst', // append-only response
+  'forms_admin_list' => 'boss',   // all forms (any status), summary + response count
+  'forms_admin_read' => 'boss',   // one form's full definition + all responses
+  'forms_save'       => 'boss',   // create (no id) or update (id given) a form
+  'forms_delete'     => 'boss',
+  'templates_list'   => 'boss',
+  'templates_save'   => 'boss',   // create (no id) or update (id given) a template
+  'templates_delete' => 'boss',
+];
+if (isset($FORMS_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FORMS_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  handle_forms($action, $body);
+}
+
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
 // posts_create is revyst-level append-only (mirrors budget_submit's shape,
 // against the public data/posts.json instead of the private budget store)
@@ -1511,6 +1536,476 @@ function budget_rename_year($body) {
       return $json;
     });
   respond(200, ['ok' => true, 'budgetId' => $budgetId, 'year' => $year]);
+}
+
+// ── Forms datastore (private Simply.com store, same posture as Budget) ──
+// Self-hosted replacement for the Google Forms coordinators build every
+// year (cast/crew sign-up, rehearsal availability, ...). Definitions,
+// reusable templates, and submitted responses all live under
+// FORMS_DATA_DIR — never the public repo, since responses may carry names/
+// phone numbers. Unlike Budget, there is no "active year" to resolve: any
+// number of forms can be open at once, and every call targets one specific
+// formId the client already has, so there's no per-year directory/manifest
+// here — each form is just its own subdirectory keyed by a stable formId.
+// See CLAUDE.md's Budget section / the forms feature plan for the full
+// rationale (co-located private store, boss-level management, flat
+// per-form layout).
+
+function forms_dir() {
+  if (!defined('FORMS_DATA_DIR') || !is_string(FORMS_DATA_DIR) || FORMS_DATA_DIR === '') {
+    respond(500, ['error' => 'forms_not_configured']);
+  }
+  return rtrim(FORMS_DATA_DIR, '/');
+}
+
+function forms_ensure_dir($dir) {
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'forms_storage_unavailable']);
+  }
+}
+
+// formId/templateId are always server-generated hex strings (see
+// forms_id()) and are used directly to build filesystem paths — validated
+// strictly here (never trusted raw from a client) to rule out path
+// traversal. Unlike Budget's budgetId, forms has no years.json-style
+// manifest to cross-check an id against, so this regex is the only guard.
+function forms_valid_id($id) {
+  return is_string($id) && $id !== '' && preg_match('/^[0-9a-f]+$/', $id) === 1;
+}
+
+function forms_form_dir($formId) {
+  return forms_dir() . '/forms/' . $formId;
+}
+
+function forms_templates_path() {
+  return forms_dir() . '/templates.json';
+}
+
+// Read-only load of one JSON file; returns $default if missing/empty.
+function forms_load($path, $default) {
+  if (!is_file($path)) return $default;
+  $json = json_decode((string) file_get_contents($path), true);
+  return is_array($json) ? $json : $default;
+}
+
+// Locked read-modify-write of one JSON file, structurally identical to
+// budget_mutate() minus the per-budget directory indirection.
+function forms_mutate($path, $default, $mutate) {
+  forms_ensure_dir(dirname($path));
+  $fh = @fopen($path, 'c+');
+  if ($fh === false) respond(500, ['error' => 'forms_storage_unavailable']);
+  if (!flock($fh, LOCK_EX)) { fclose($fh); respond(500, ['error' => 'forms_lock_failed']); }
+  $raw = stream_get_contents($fh);
+  $json = ($raw === '' || $raw === false) ? $default : json_decode($raw, true);
+  if (!is_array($json)) $json = $default;
+  $json = $mutate($json);
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode($json, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  return $json;
+}
+
+function forms_id() {
+  return dechex(time()) . bin2hex(random_bytes(4));
+}
+
+// Every form directory under forms_dir()/forms — filters out anything that
+// doesn't look like a real, server-generated form (defensive against stray
+// files on the host), same spirit as forms_valid_id().
+function forms_all_form_ids() {
+  $dir = forms_dir() . '/forms';
+  if (!is_dir($dir)) return [];
+  $ids = [];
+  foreach (scandir($dir) as $item) {
+    if ($item === '.' || $item === '..') continue;
+    if (!forms_valid_id($item)) continue;
+    if (is_file($dir . '/' . $item . '/definition.json')) $ids[] = $item;
+  }
+  return $ids;
+}
+
+function forms_valid_field_type($type) {
+  return in_array($type, ['text', 'textarea', 'select', 'checkboxes', 'yesno'], true);
+}
+
+// Validates + returns a clean FieldSpec, or null on any violation. $seenIds
+// (by reference) rejects a duplicate field id within the same form/template
+// — response answers are keyed by field id, so a collision would silently
+// merge two questions' answers together.
+function forms_validate_field_spec($f, &$seenIds) {
+  if (!is_array($f)) return null;
+  $id = $f['id'] ?? '';
+  $type = $f['type'] ?? '';
+  $label = $f['label'] ?? '';
+  if (!is_string($id) || $id === '' || mb_strlen($id) > 60 || isset($seenIds[$id])) return null;
+  if (!forms_valid_field_type($type)) return null;
+  if (!is_string($label) || trim($label) === '' || mb_strlen($label) > 200) return null;
+  $seenIds[$id] = true;
+
+  $clean = [
+    'id' => $id,
+    'type' => $type,
+    'label' => trim($label),
+    'required' => !empty($f['required']),
+  ];
+
+  if ($type === 'select' || $type === 'checkboxes') {
+    $source = $f['optionsSource'] ?? 'manual';
+    if (!in_array($source, ['manual', 'scenes', 'rehearsals'], true)) return null;
+    $clean['optionsSource'] = $source;
+    if ($source === 'manual') {
+      $options = is_array($f['options'] ?? null) ? $f['options'] : [];
+      $cleanOptions = [];
+      foreach ($options as $o) {
+        if (!is_array($o)) return null;
+        $value = $o['value'] ?? '';
+        $optLabel = $o['label'] ?? '';
+        if (!is_string($value) || $value === '' || mb_strlen($value) > 200) return null;
+        if (!is_string($optLabel) || $optLabel === '' || mb_strlen($optLabel) > 200) return null;
+        $cleanOptions[] = ['value' => $value, 'label' => $optLabel];
+      }
+      if (count($cleanOptions) === 0) return null;
+      $clean['options'] = $cleanOptions;
+    } else {
+      // scenes/rehearsals — resolved client-side from live SCENES_DATA/
+      // CALENDAR_DATA at render time, never stored here (see the forms
+      // feature plan). sourceFilter is opaque server-side, just shape-capped.
+      $filter = $f['sourceFilter'] ?? null;
+      $clean['sourceFilter'] = is_array($filter) ? $filter : null;
+    }
+  }
+
+  return $clean;
+}
+
+// Validates one submitted answer for $field. Returns ['ok'=>true,
+// 'present'=>bool, 'value'=>...] on success — 'present' is false only for
+// an omitted OPTIONAL answer (nothing to store, not an error) — or
+// ['ok'=>false] on any violation (required-but-missing, wrong shape, too
+// long). A plain null/empty return can't distinguish those two cases for
+// yesno (a real answer there IS a bool, including false), hence the
+// explicit shape rather than reusing null as a sentinel.
+// Deliberately does NOT cross-check select/checkboxes values against the
+// field's live scenes/rehearsals options — same posture as budget_submit's
+// category validation (see its comment above): rejecting here risks losing
+// a submitter's work over a race between page-load and submit; malformed
+// answers just land in the response for an admin to notice.
+function forms_validate_answer($field, $raw) {
+  $type = (string) ($field['type'] ?? '');
+  $required = !empty($field['required']);
+
+  if ($type === 'checkboxes') {
+    $value = is_array($raw) ? array_values($raw) : [];
+    foreach ($value as $v) {
+      if (!is_string($v) || mb_strlen($v) > 300) return ['ok' => false];
+    }
+    if (count($value) === 0) return ['ok' => true, 'present' => false];
+    return ['ok' => true, 'present' => true, 'value' => $value];
+  }
+
+  if ($type === 'yesno') {
+    if ($raw === null) {
+      return $required ? ['ok' => false] : ['ok' => true, 'present' => false];
+    }
+    if (!is_bool($raw)) return ['ok' => false];
+    return ['ok' => true, 'present' => true, 'value' => $raw];
+  }
+
+  if ($type === 'text' || $type === 'textarea' || $type === 'select') {
+    if ($raw !== null && !is_string($raw)) return ['ok' => false];
+    $value = is_string($raw) ? trim($raw) : '';
+    $maxLen = $type === 'textarea' ? 5000 : 300;
+    if (mb_strlen($value) > $maxLen) return ['ok' => false];
+    if ($value === '') return ['ok' => true, 'present' => false];
+    return ['ok' => true, 'present' => true, 'value' => $value];
+  }
+
+  return ['ok' => false]; // unknown field type in a stored definition — reject defensively
+}
+
+function forms_list_open($body) {
+  $out = [];
+  foreach (forms_all_form_ids() as $id) {
+    $def = forms_load(forms_form_dir($id) . '/definition.json', null);
+    if (!is_array($def) || ($def['status'] ?? null) !== 'open') continue;
+    $out[] = [
+      'id' => $id,
+      'title' => $def['title'] ?? '',
+      'description' => $def['description'] ?? '',
+      'deadline' => $def['deadline'] ?? null,
+      'productionYear' => $def['productionYear'] ?? null,
+    ];
+  }
+  respond(200, ['ok' => true, 'forms' => $out]);
+}
+
+// Revyst: fetch one OPEN form's schema to render the fill-in view. A closed
+// or unknown formId is refused outright — a revyst caller must never be
+// able to preview a draft/closed form by guessing its id (that's what
+// forms_admin_read is for, boss-level, status-independent).
+function forms_get($body) {
+  $id = $body['formId'] ?? '';
+  if (!forms_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  $def = forms_load(forms_form_dir($id) . '/definition.json', null);
+  if (!is_array($def)) respond(404, ['error' => 'not_found']);
+  if (($def['status'] ?? null) !== 'open') respond(403, ['error' => 'form_closed']);
+  respond(200, [
+    'ok' => true, 'id' => $id,
+    'title' => $def['title'] ?? '', 'description' => $def['description'] ?? '',
+    'deadline' => $def['deadline'] ?? null, 'fields' => $def['fields'] ?? [],
+  ]);
+}
+
+// Revyst appends ONE response — the client never sends/sees the full
+// responses list, mirrors budget_submit's append-only shape exactly.
+function forms_submit($body) {
+  $formId = $body['formId'] ?? '';
+  if (!forms_valid_id($formId)) respond(400, ['error' => 'invalid_shape']);
+  $def = forms_load(forms_form_dir($formId) . '/definition.json', null);
+  if (!is_array($def)) respond(404, ['error' => 'not_found']);
+  if (($def['status'] ?? null) !== 'open') respond(409, ['error' => 'form_closed']);
+
+  $answersIn = $body['answers'] ?? null;
+  if (!is_array($answersIn)) respond(400, ['error' => 'invalid_shape']);
+
+  $fields = is_array($def['fields'] ?? null) ? $def['fields'] : [];
+  $clean = [];
+  foreach ($fields as $field) {
+    $fid = $field['id'] ?? null;
+    if (!is_string($fid) || $fid === '') continue;
+    $raw = array_key_exists($fid, $answersIn) ? $answersIn[$fid] : null;
+    $result = forms_validate_answer($field, $raw);
+    if (!$result['ok']) respond(400, ['error' => 'invalid_shape']);
+    if (!$result['present']) {
+      if (!empty($field['required'])) respond(400, ['error' => 'invalid_shape']);
+      continue; // optional & empty/absent — nothing to store
+    }
+    $clean[$fid] = $result['value'];
+  }
+
+  $id = forms_id();
+  forms_mutate(forms_form_dir($formId) . '/responses.json', ['responses' => []], function ($json) use ($id, $clean) {
+    if (!isset($json['responses']) || !is_array($json['responses'])) $json['responses'] = [];
+    $json['responses'][] = ['id' => $id, 'submittedAt' => date('c'), 'answers' => $clean];
+    return $json;
+  });
+  respond(200, ['ok' => true, 'id' => $id]);
+}
+
+// Boss: every form (any status), summary only — response counts are cheap
+// to compute at this scale (a handful of forms), keeps the dashboard table
+// light without a second round trip per form.
+function forms_admin_list($body) {
+  $out = [];
+  foreach (forms_all_form_ids() as $id) {
+    $def = forms_load(forms_form_dir($id) . '/definition.json', null);
+    if (!is_array($def)) continue;
+    $responses = forms_load(forms_form_dir($id) . '/responses.json', ['responses' => []]);
+    $out[] = [
+      'id' => $id,
+      'title' => $def['title'] ?? '',
+      'status' => $def['status'] ?? 'closed',
+      'deadline' => $def['deadline'] ?? null,
+      'productionYear' => $def['productionYear'] ?? null,
+      'fieldCount' => count($def['fields'] ?? []),
+      'responseCount' => count($responses['responses'] ?? []),
+      'updatedAt' => $def['updatedAt'] ?? null,
+    ];
+  }
+  respond(200, ['ok' => true, 'forms' => $out]);
+}
+
+// Boss: everything needed to render the management view for one form (full
+// definition + every response) in one round trip, mirrors budget_read.
+function forms_admin_read($body) {
+  $id = $body['formId'] ?? '';
+  if (!forms_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  $def = forms_load(forms_form_dir($id) . '/definition.json', null);
+  if (!is_array($def)) respond(404, ['error' => 'not_found']);
+  $responses = forms_load(forms_form_dir($id) . '/responses.json', ['responses' => []]);
+  respond(200, [
+    'ok' => true,
+    'definition' => array_merge(['id' => $id], $def),
+    'responses' => $responses['responses'] ?? [],
+  ]);
+}
+
+// Boss: create (no id) or update (id given) a form definition — a full
+// replace either way, same "resend the whole record" convention as Manus/
+// Kalender/Budget categories. Also used to close/reopen a form (client
+// resends the current definition with status flipped) and to create a form
+// from a template (client clones the template's fields into a fresh draft
+// and calls this with no id).
+function forms_save($body) {
+  $title = $body['title'] ?? '';
+  $description = $body['description'] ?? '';
+  $status = $body['status'] ?? 'closed';
+  $deadline = array_key_exists('deadline', $body) ? $body['deadline'] : null;
+  $productionYear = array_key_exists('productionYear', $body) ? $body['productionYear'] : null;
+  $fromTemplateId = array_key_exists('fromTemplateId', $body) ? $body['fromTemplateId'] : null;
+  $fieldsIn = $body['fields'] ?? [];
+
+  if (!is_string($title) || trim($title) === '' || mb_strlen($title) > 120
+      || !is_string($description) || mb_strlen($description) > 2000
+      || !in_array($status, ['open', 'closed'], true)
+      || ($deadline !== null && (!is_string($deadline) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $deadline)))
+      || ($productionYear !== null && !is_int($productionYear))
+      || ($fromTemplateId !== null && !forms_valid_id($fromTemplateId))
+      || !is_array($fieldsIn)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  $seenIds = [];
+  $fields = [];
+  foreach ($fieldsIn as $f) {
+    $clean = forms_validate_field_spec($f, $seenIds);
+    if ($clean === null) respond(400, ['error' => 'invalid_field']);
+    $fields[] = $clean;
+  }
+
+  $id = $body['id'] ?? null;
+  $now = date('c');
+  if ($id !== null) {
+    if (!is_string($id) || !forms_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+    $existing = forms_load(forms_form_dir($id) . '/definition.json', null);
+    if (!is_array($existing)) respond(404, ['error' => 'not_found']);
+    $createdAt = $existing['createdAt'] ?? $now;
+  } else {
+    $id = forms_id();
+    $createdAt = $now;
+  }
+
+  $definition = [
+    'title' => trim($title),
+    'description' => $description,
+    'status' => $status,
+    'deadline' => $deadline,
+    'productionYear' => $productionYear,
+    'fromTemplateId' => $fromTemplateId,
+    'fields' => $fields,
+    'createdAt' => $createdAt,
+    'updatedAt' => $now,
+  ];
+
+  $formDir = forms_form_dir($id);
+  forms_ensure_dir($formDir);
+  if (@file_put_contents($formDir . '/definition.json',
+      json_encode($definition, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n") === false) {
+    respond(500, ['error' => 'forms_storage_unavailable']);
+  }
+  if (!is_file($formDir . '/responses.json')) {
+    @file_put_contents($formDir . '/responses.json', json_encode(['responses' => []], JSON_PRETTY_PRINT) . "\n");
+  }
+
+  respond(200, ['ok' => true, 'id' => $id, 'definition' => array_merge(['id' => $id], $definition)]);
+}
+
+// Boss: permanently deletes a form — its definition AND every response.
+// Cannot be undone; no server-side confirmation, same posture as
+// budget_delete_year (client's job).
+function forms_delete($body) {
+  $id = $body['formId'] ?? '';
+  if (!forms_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  $dir = forms_form_dir($id);
+  if (!is_dir($dir)) respond(404, ['error' => 'not_found']);
+  budget_rrmdir($dir); // generic recursive delete, not budget-specific despite the name
+  respond(200, ['ok' => true]);
+}
+
+function templates_list($body) {
+  $json = forms_load(forms_templates_path(), ['templates' => []]);
+  respond(200, ['ok' => true, 'templates' => $json['templates'] ?? []]);
+}
+
+// Boss: create (no id) or update (id given) a reusable template — same
+// full-replace convention as forms_save.
+function templates_save($body) {
+  $title = $body['title'] ?? '';
+  $description = $body['description'] ?? '';
+  $fieldsIn = $body['fields'] ?? [];
+  if (!is_string($title) || trim($title) === '' || mb_strlen($title) > 120
+      || !is_string($description) || mb_strlen($description) > 2000
+      || !is_array($fieldsIn)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $seenIds = [];
+  $fields = [];
+  foreach ($fieldsIn as $f) {
+    $clean = forms_validate_field_spec($f, $seenIds);
+    if ($clean === null) respond(400, ['error' => 'invalid_field']);
+    $fields[] = $clean;
+  }
+
+  $id = $body['id'] ?? null;
+  if ($id !== null && (!is_string($id) || !forms_valid_id($id))) respond(400, ['error' => 'invalid_shape']);
+
+  $now = date('c');
+  $newId = $id;
+  $notFound = false;
+  forms_mutate(forms_templates_path(), ['templates' => []],
+    function ($json) use ($id, $title, $description, $fields, $now, &$newId, &$notFound) {
+      if (!isset($json['templates']) || !is_array($json['templates'])) $json['templates'] = [];
+      if ($id !== null) {
+        $found = false;
+        foreach ($json['templates'] as &$t) {
+          if (($t['id'] ?? null) === $id) {
+            $t['title'] = trim($title);
+            $t['description'] = $description;
+            $t['fields'] = $fields;
+            $t['updatedAt'] = $now;
+            $found = true;
+            break;
+          }
+        }
+        unset($t);
+        if (!$found) $notFound = true;
+      } else {
+        $newId = forms_id();
+        $json['templates'][] = [
+          'id' => $newId, 'title' => trim($title), 'description' => $description,
+          'fields' => $fields, 'createdAt' => $now, 'updatedAt' => $now,
+        ];
+      }
+      return $json;
+    });
+  if ($notFound) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true, 'id' => $newId]);
+}
+
+function templates_delete($body) {
+  $id = $body['id'] ?? '';
+  if (!forms_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  $found = false;
+  forms_mutate(forms_templates_path(), ['templates' => []], function ($json) use ($id, &$found) {
+    $keep = [];
+    foreach (($json['templates'] ?? []) as $t) {
+      if (($t['id'] ?? null) === $id) { $found = true; continue; }
+      $keep[] = $t;
+    }
+    $json['templates'] = $keep;
+    return $json;
+  });
+  if (!$found) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true]);
+}
+
+function handle_forms($action, $body) {
+  switch ($action) {
+    case 'forms_list_open':  return forms_list_open($body);
+    case 'forms_get':        return forms_get($body);
+    case 'forms_submit':     return forms_submit($body);
+    case 'forms_admin_list': return forms_admin_list($body);
+    case 'forms_admin_read': return forms_admin_read($body);
+    case 'forms_save':       return forms_save($body);
+    case 'forms_delete':     return forms_delete($body);
+    case 'templates_list':   return templates_list($body);
+    case 'templates_save':   return templates_save($body);
+    case 'templates_delete': return templates_delete($body);
+  }
+  respond(400, ['error' => 'unknown_action']);
 }
 
 // ── Resource savers ──────────────────────────────────────────

@@ -1,0 +1,169 @@
+/* =========================================================
+   Matematikrevyen – Formularer (forms.html)
+   ========================================================= */
+
+.forms-form { max-width: 560px; margin: 0 auto; }
+.forms-form h2 { text-align: center; }
+
+.forms-intro {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.forms-msg {
+  font-size: 0.85rem;
+  min-height: 1.2rem;
+  margin: 0.5rem 0;
+}
+.forms-msg.error { color: var(--danger); }
+.forms-msg.ok { color: var(--success); }
+
+/* ── Revyst: open-forms list ─────────────────────────────── */
+.forms-open-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.forms-open-row:last-child { border-bottom: none; }
+
+.forms-open-info { min-width: 0; }
+.forms-open-title { font-weight: 600; }
+.forms-open-desc { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.15rem; }
+.forms-open-deadline { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
+
+/* ── Fill-in form: checkbox lists ────────────────────────── */
+.forms-checkbox-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.forms-checkbox-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+.forms-checkbox-row input[type="checkbox"] { width: auto; margin: 0; }
+
+/* ── Boss/admin: dashboard ────────────────────────────────── */
+.forms-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.forms-dashboard-table,
+.forms-responses-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.forms-dashboard-table th,
+.forms-dashboard-table td,
+.forms-responses-table th,
+.forms-responses-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.forms-responses-wrap { overflow-x: auto; }
+
+.forms-row-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+.forms-status-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  font-size: 0.78rem;
+  background: var(--surface);
+  cursor: pointer;
+}
+.forms-status-chip.forms-status-open { color: var(--success); border-color: var(--success); }
+.forms-status-chip.forms-status-closed { color: var(--text-muted); }
+
+@media (hover: hover) {
+  .forms-status-chip:hover { background: var(--surface-2); }
+}
+.forms-status-chip:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 1px;
+}
+
+/* ── Template picker/manager rows ────────────────────────── */
+.forms-template-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.forms-template-row:last-child { border-bottom: none; }
+
+/* ── Builder modal ────────────────────────────────────────── */
+.forms-builder-modal {
+  width: min(720px, 95vw);
+}
+
+.forms-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.forms-field-row {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem;
+}
+
+.forms-field-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.forms-field-row-top input[type="text"] {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.forms-required-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.forms-required-label input[type="checkbox"] { width: auto; margin: 0; }
+
+.forms-options-editor {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--border);
+}
+
+.forms-option-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.forms-option-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.forms-option-row input[type="text"] { flex: 1 1 auto; min-width: 0; }
+
+.forms-options-preview {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+}
+
+@media (max-width: 719px) {
+  .forms-open-row { flex-direction: column; align-items: flex-start; }
+  .forms-field-row-top { flex-direction: column; align-items: stretch; }
+}

@@ -27,6 +27,7 @@ const SITE_PAGES = [
   { href: 'wiki.html',        label: 'Wiki',        level: 'revyst' },
   { href: 'manus.html',       label: 'Manus',       level: 'revyst' },
   { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
+  { href: 'forms.html',       label: 'Formularer',  level: 'revyst' },
   { href: 'schedule.html',    label: 'Øveplan',     level: 'revyst' },
   { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
 ];

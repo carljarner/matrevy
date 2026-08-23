@@ -40,3 +40,15 @@ define('ADMIN_PASSWORD', 'skift-mig-admin');
 // (e.g. from Budget's own "Start nyt budgetår" button) before anything else
 // here will work; budget_submit responds 409 with "no_active_year" until then.
 define('BUDGET_DATA_DIR', '/absolute/path/to/matrevy-budget-data');
+
+// Absolute path on the Simply.com host for the PRIVATE forms datastore
+// ("Formularer" page — self-hosted sign-up forms replacing the Google
+// Forms coordinators built each year). Holds form/template definitions
+// and every submitted response, which may contain names, phone numbers,
+// and other personal answers — kept OUT of the public GitHub repo, same
+// posture as BUDGET_DATA_DIR above. Must exist and be PHP-writable,
+// ideally outside the public web root (or behind an .htaccess deny).
+// Layout: templates.json at this root, plus forms/<formId>/{definition,
+// responses}.json per form, created on first use — no bootstrap step
+// needed (unlike Budget, there's no "active year" to seed first).
+define('FORMS_DATA_DIR', '/absolute/path/to/matrevy-forms-data');

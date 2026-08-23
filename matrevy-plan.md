@@ -717,6 +717,46 @@ namespace):
 
 ---
 
+### Phase 14 — Formularer (self-hosted sign-up forms)
+
+**Intent**: replace the ~5 long Google Forms coordinators rebuild every year (cast/crew
+sign-up, rehearsal availability, ...) with a self-hosted generic form-builder, so forms can
+be created, filled in, and reviewed without leaving the site — reusable as templates since
+the yearly forms are "mostly the same 5, slightly changed," not rebuilt from scratch.
+
+**Expected outcomes**: a new `forms.html`/`js/forms.js`/`css/forms.css` page ("Formularer"),
+boss-level to build/manage, revyst-level to fill in. Admin defines a form's fields (text/
+textarea/select/checkboxes/yesno); closed-ended fields can source their options live from
+`SCENES_DATA`/`CALENDAR_DATA` instead of the admin hand-typing them, so a form always
+reflects the current scene/rehearsal list. Submitted answers are private (may contain names/
+phone numbers) — same architecture as Budget, a new `FORMS_DATA_DIR` on the Simply.com host,
+never the public repo.
+
+**What was built**: `server/update-data.php` gained a `$FORMS_ACTIONS` dispatch block
+(mirroring `$BUDGET_ACTIONS`) and a full `forms_*`/`templates_*` handler section (all hoisted
+functions, per the file's const-ordering rule) — `forms_list_open`/`forms_get`/`forms_submit`
+at revyst level, `forms_admin_list`/`forms_admin_read`/`forms_save`/`forms_delete`/
+`templates_list`/`templates_save`/`templates_delete` at **boss** level (not admin, unlike
+Budget — this is production-coordination tooling like Manus/Kalender/Wiki, not financial
+control). Storage is flat per-form (`FORMS_DATA_DIR/forms/<formId>/{definition,
+responses}.json`), not a per-year directory like Budget — forms have no "active year" to
+resolve, since several can be open at once and every call already targets one specific
+`formId`. Reusable templates live in one `templates.json` at the store root. `forms.html`
+loads `scenes-data.js`/`calendar-data.js` (public, already-embedded data) alongside
+`site-utils.js` so the live-options field types can read them client-side; registered in
+`site.js`'s `SITE_PAGES` at revyst level like Budget. No auto-routing of submitted answers
+into other tools' data (schedule absentees, cast.json, ...) — the site has no per-user
+accounts, so a response can never be linked to a specific roster entry; that's explicitly
+out of scope. No file-upload response fields either (deferred — Budget's
+`receiptToBase64`/`compressReceiptImage` pattern is proven and reusable verbatim if a future
+form needs one).
+
+**Status**: [x] built (2026-08-23) — needs a manual `update-data.php`/`config.php` re-upload
+to Simply.com plus a real `FORMS_DATA_DIR` created on the host (same bootstrap step as
+`BUDGET_DATA_DIR`) before it's live; not yet exercised end-to-end against the live endpoint.
+
+---
+
 ### Later / parked
 
 - **Auto-place algorithm (schedule tool)** — implemented once, then deliberately removed
