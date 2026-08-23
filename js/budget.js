@@ -928,6 +928,11 @@ function buildBudgetSheetCard() {
     budgetCategoriesEditMode = !budgetCategoriesEditMode;
     const newCard = buildBudgetSheetCard();
     card.replaceWith(newCard);
+    // The card's own height just changed (Rediger mode's row count/shape
+    // differs from the normal sheet's) — resync Afventende udlæg's capped
+    // height (see budgetSyncPendingColumnHeight) so it doesn't keep
+    // whatever height matched the pre-toggle card.
+    budgetSyncPendingColumnHeight();
   });
   saveBar.appendChild(editBudgetBtn);
 
@@ -1272,6 +1277,7 @@ function buildCategoryEditSection(card, status) {
         if (dragItem && dragItem !== item) {
           budgetMoveDraftItem(draftExpense, dragItem, item, renderExpenseRows);
           refreshCategoryDirtyStatus();
+          budgetSyncPendingColumnHeight();
         }
       });
 
@@ -1328,6 +1334,7 @@ function buildCategoryEditSection(card, status) {
         if (idx !== -1) draftExpense.splice(idx, 1);
         renderExpenseRows();
         refreshCategoryDirtyStatus();
+        budgetSyncPendingColumnHeight();
       });
       removeTd.appendChild(removeBtn);
       tr.appendChild(removeTd);
@@ -1344,6 +1351,7 @@ function buildCategoryEditSection(card, status) {
     draftExpense.push({ key: null, label: 'name', abbrev: sanitizeAbbrev('bilag') });
     renderExpenseRows();
     refreshCategoryDirtyStatus();
+    budgetSyncPendingColumnHeight();
     focusLastRowInput(tbody, '.budget-manage-text-input');
   });
   card.appendChild(expenseAddBtn);
@@ -1382,6 +1390,7 @@ function buildCategoryEditSection(card, status) {
         if (idx !== -1) draftIncome.splice(idx, 1);
         renderIncomeRows();
         refreshCategoryDirtyStatus();
+        budgetSyncPendingColumnHeight();
       });
       row.appendChild(removeBtn);
 
@@ -1397,6 +1406,7 @@ function buildCategoryEditSection(card, status) {
     draftIncome.push({ key: null, label: 'name' });
     renderIncomeRows();
     refreshCategoryDirtyStatus();
+    budgetSyncPendingColumnHeight();
     focusLastRowInput(incomeList, '.budget-manage-text-input');
   });
   card.appendChild(incomeAddBtn);
