@@ -824,11 +824,15 @@ a.manus-pdf-title:focus-visible {
    .manus-kanban-pool-section is Aktfordeling-only: "Ikke placeret" as a
    full-width row below the acts, its own grid using the same column
    template so widths line up, filled row-wise (CSS grid's default
-   auto-placement — no extra JS needed for that part). Dropping anywhere in
-   a column (not just precisely on the card list) still works — see
-   wireLaneDropZone()/wireDropHighlight() in manus.js — but deliberately has
-   no visible box/outline around the column while hovering; it reads fine
-   without one and a box there felt like visual noise. Same card DnD
+   auto-placement — no extra JS needed for that part). The whole column
+   (header + body) still accepts a drop as a fallback — see
+   wireLaneDropZone()/wireDropHighlight() in manus.js — but the space below
+   the last real card (a shorter column stretches to match its tallest CSS
+   grid row sibling, see .manus-kanban-col-list's flex:1) is actually a
+   phantom trailing card, .manus-akt-drop-tail (renderDropTailCard() in
+   manus.js), sharing .manus-akt-row's own insertion-line hover treatment —
+   so "drop after the last card" looks and behaves like dropping between two
+   real ones, instead of a same fallback with no visual cue. Same card DnD
    (.manus-akt-row and friends, below) as the old single-modal Aktfordeling
    builder. */
 .manus-kanban {
@@ -842,23 +846,25 @@ a.manus-pdf-title:focus-visible {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 0.4rem 0.4rem 1.65rem;
+  padding: 0.4rem;
 }
 
 /* Wraps multiple acts sharing one grid column (Stjerneark's 3-column
    override — see renderActColumnsGrid() in manus.js) so they stack flush
    against each other, sized to their own content rather than matching a
    CSS grid row's height (which would track the tallest sibling column).
-   The padding that normally surrounds a .manus-kanban-col (top, and its
-   tall drop-zone-height bottom — see above) and its list's own bottom
-   breathing room are stripped from whichever side faces another act in the
-   same stack; the stack's own `gap` (matching .manus-kanban-col-list's
-   own inter-card gap) then supplies the *only* spacing at that seam, so the
-   next act's header reads as just the next entry in one continuous list —
-   same rhythm as any other pair of adjacent scenes, not a bigger break.
-   Only the stack's outer edges (the first column's top, the last column's
-   bottom) keep the normal padding, so the stack's overall top/bottom still
-   match its non-stacked sibling columns. */
+   The padding that normally surrounds a .manus-kanban-col (top and bottom)
+   and its list's own bottom breathing room are stripped from whichever side
+   faces another act in the same stack; the stack's own `gap` (matching
+   .manus-kanban-col-list's own inter-card gap) then supplies the *only*
+   spacing at that seam, so the next act's header reads as just the next
+   entry in one continuous list — same rhythm as any other pair of adjacent
+   scenes, not a bigger break. Only the stack's outer edges (the first
+   column's top, the last column's bottom) keep the normal padding, so the
+   stack's overall top/bottom still match its non-stacked sibling columns.
+   The Aktfordeling-only drop-tail card (see below) is zeroed out the same
+   way for a non-last stacked act, so a shorter Akt3 doesn't open a gap
+   before Ekstranumre's header sitting flush beneath it. */
 .manus-kanban-col-stack {
   display: flex;
   flex-direction: column;
@@ -870,6 +876,10 @@ a.manus-pdf-title:focus-visible {
 }
 .manus-kanban-col-stack .manus-kanban-col:not(:last-child) .manus-kanban-col-list {
   padding-bottom: 0;
+}
+.manus-kanban-col-stack .manus-kanban-col:not(:last-child) .manus-akt-drop-tail {
+  flex: 0 0 0;
+  min-height: 0;
 }
 .manus-kanban-col-stack .manus-kanban-col:not(:first-child) {
   padding-top: 0;
@@ -947,7 +957,8 @@ a.manus-pdf-title:focus-visible {
    card lands), adapted from a reserved border (works for a borderless table
    row) to an overlaid pseudo-element (needed once the element already has
    a border of its own). */
-.manus-akt-row::before {
+.manus-akt-row::before,
+.manus-akt-drop-tail::before {
   content: '';
   position: absolute;
   left: 0;
@@ -960,7 +971,22 @@ a.manus-pdf-title:focus-visible {
   pointer-events: none;
 }
 
-.manus-akt-row.manus-drop-target::before { background: var(--accent-warm); }
+.manus-akt-row.manus-drop-target::before,
+.manus-akt-drop-tail.manus-drop-target::before { background: var(--accent-warm); }
+
+/* Phantom trailing "card" (renderDropTailCard() in manus.js) filling the
+   column's remaining height below the last real one — .manus-kanban-col-list
+   is flex:1, so a column shorter than its tallest CSS-grid-row sibling
+   already opens this space up; without this element that gap silently
+   accepted a drop (appending to the lane's end) with no visual feedback at
+   all, reading as if you simply couldn't drop there. No visible box of its
+   own — just hosts the shared ::before insertion line above, exactly like a
+   real card. */
+.manus-akt-drop-tail {
+  position: relative;
+  flex: 1;
+  min-height: 1.75rem;
+}
 
 .manus-akt-drag-handle {
   cursor: grab;

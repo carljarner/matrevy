@@ -1922,6 +1922,24 @@ function renderDraftRowCard(row) {
   return el;
 }
 
+// A phantom trailing "card" filling the rest of an act column's own height
+// (the list is flex:1 inside the column, so a column shorter than its
+// tallest CSS-grid-row sibling already has this space open) — without it,
+// dropping below the last real card silently appended to the lane via
+// wireLaneDropZone's column-wide fallback with no visual cue at all, which
+// read as "you can't drop there." Reuses the exact same
+// .manus-akt-row::before insertion-line treatment (see manus.css) so the
+// end-of-lane drop target looks and behaves exactly like dropping between
+// two real cards.
+function renderDropTailCard(laneCode) {
+  const el = document.createElement('div');
+  el.className = 'manus-akt-drop-tail';
+  wireDropHighlight(el, () => {
+    if (manusDragKey) manusMoveRow(manusDragKey, laneCode, null);
+  }, { stop: true });
+  return el;
+}
+
 // ── Tab 1: Vælg scener ─────────────────────────────────────────
 function renderSelectColumn(type) {
   const section = document.createElement('section');
@@ -2556,10 +2574,13 @@ function renderAktfordelingTab() {
 
   const kanban = renderActColumnsGrid((body, act, rowsInAct, col) => {
     for (const row of rowsInAct) body.appendChild(renderDraftRowCard(row));
-    // The whole column (header + body, including any empty space below the
-    // last card) accepts a drop, not just the body strip — dropping on a
-    // specific card still inserts before it (renderDraftRowCard's own
-    // dragover/drop, which stopPropagation()s so it wins over this).
+    // Trailing phantom card so "drop after the last card" gets the same
+    // insertion-line feedback as dropping between two real ones — see
+    // renderDropTailCard(). The whole column (header + body) still also
+    // accepts a drop as a fallback (dropping on a specific card still
+    // inserts before it — renderDraftRowCard's own dragover/drop, which
+    // stopPropagation()s so it wins over this).
+    body.appendChild(renderDropTailCard(act.code));
     wireLaneDropZone(col, act.code);
   });
   mount.appendChild(kanban);
