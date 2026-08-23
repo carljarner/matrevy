@@ -1154,16 +1154,22 @@ function budgetMoveDraftItem(draft, item, beforeItem, rerender) {
 }
 
 // ── Admin: category structure editing (Rediger toggle on the sheet) ──────
-// Turns the Budget card into an editable form in place — Kategori becomes
-// name-editable, Planlagt is replaced by an editable Bilagskode (receipt-
-// shortening) column locked once a paid expense exists under that key,
-// rows are draggable to reorder (mirrors Aktfordeling's drag-and-drop in
-// manus.js), and a trailing "✕" deletes a row — blocked (via the same
-// bottom banner used site-wide, siteShowToast) under the identical
-// "already in use" condition as the Bilagskode lock. Indtægter rows get
-// the same name-editable + delete treatment, with amount shown read-only
-// (structure editing only — amounts stay editable in the normal view) and
-// deletion blocked whenever an amount is already on record.
+// Turns the Budget card into an editable form in place, deliberately kept as
+// close to the normal-mode layout as possible (same four table columns, same
+// column widths, text edited in place rather than via a separate form) —
+// Kategori becomes name-editable, Planlagt is replaced by an editable
+// Bilagslabel (receipt-shortening) column locked once a paid expense exists
+// under that key, and the Rest column's slot is reused for a trailing "✕"
+// that deletes a row — blocked (via the same bottom banner used site-wide,
+// siteShowToast) under the identical "already in use" condition as the
+// Bilagslabel lock. Rows are draggable to reorder (mirrors Aktfordeling's
+// drag-and-drop in manus.js) via the row itself, not a dedicated handle
+// column. Indtægter rows get the same name-editable + delete treatment, with
+// amount shown read-only (structure editing only — amounts stay editable in
+// the normal view) and deletion blocked whenever an amount is already on
+// record. Both lists grow via a small "+" below the last row rather than a
+// separate add-row form, seeding a fresh row with placeholder-ish default
+// text ("name"/"bilag") ready to be typed over.
 function buildCategoryEditSection(card) {
   const draftExpense = budgetState.categories.expense.map((c) => ({ ...c }));
   const draftIncome = budgetState.categories.income.map((c) => ({ ...c }));
@@ -1171,20 +1177,29 @@ function buildCategoryEditSection(card) {
   const storedIncome = budgetState.budget.income || [];
 
   // Keys with ≥1 non-deleted paid expense in this year — the single
-  // condition shared by both the Bilagskode lock and the delete block.
+  // condition shared by both the Bilagslabel lock and the delete block.
   const paidCategoryKeys = new Set(
     budgetState.expenses.filter((e) => !e.deleted).map((e) => e.category)
   );
 
+  // Lowercase, not uppercase — this is what actually ends up written on a
+  // receipt, per explicit design feedback.
   function sanitizeAbbrev(raw) {
-    return String(raw || '').toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20);
+    return String(raw || '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20);
+  }
+
+  // Focuses and selects the name field of the just-added last row, so typing
+  // immediately overwrites the "name"/"bilag" default text.
+  function focusLastRowInput(container, selector) {
+    const input = container.lastElementChild && container.lastElementChild.querySelector(selector);
+    if (input) { input.focus(); input.select(); }
   }
 
   const tableWrap = el('div', 'budget-table-wrap');
   const table = el('table', 'budget-table budget-sheet-table-editing');
   const thead = el('thead');
   const htr = el('tr');
-  ['', 'Kategori', 'Bilagskode', 'Brugt', ''].forEach((h) => htr.appendChild(el('th', null, h)));
+  ['Kategori', 'Bilagslabel', 'Brugt', ''].forEach((h) => htr.appendChild(el('th', null, h)));
   thead.appendChild(htr);
   table.appendChild(thead);
   const tbody = el('tbody');
@@ -1208,18 +1223,16 @@ function buildCategoryEditSection(card) {
         if (dragItem && dragItem !== item) budgetMoveDraftItem(draftExpense, dragItem, item, renderExpenseRows);
       });
 
-      tr.appendChild(el('td', 'budget-drag-handle-cell', '⠿'));
-
       const nameTd = el('td');
-      const nameInput = el('input', 'budget-manage-name-input');
+      const nameInput = el('input', 'budget-manage-text-input');
       nameInput.type = 'text';
       nameInput.value = item.label;
       nameInput.addEventListener('input', () => { item.label = nameInput.value; });
       nameTd.appendChild(nameInput);
       tr.appendChild(nameTd);
 
-      const bilagTd = el('td');
-      const bilagInput = el('input', 'budget-manage-bilag-input');
+      const bilagTd = el('td', 'budget-td-num');
+      const bilagInput = el('input', 'budget-manage-text-input budget-manage-bilag-input');
       bilagInput.type = 'text';
       bilagInput.maxLength = 20;
       bilagInput.value = item.abbrev;
@@ -1229,7 +1242,7 @@ function buildCategoryEditSection(card) {
         bilagInput.classList.add('budget-manage-input-locked');
         bilagInput.title = 'Låst — der findes allerede en betalt udgift i denne kategori';
         bilagInput.addEventListener('click', () => {
-          siteShowToast('Kan ikke ændre bilagskode — der findes allerede en betalt udgift i denne kategori.');
+          siteShowToast('Kan ikke ændre bilagslabel — der findes allerede en betalt udgift i denne kategori.');
         });
       } else {
         bilagInput.addEventListener('input', () => {
@@ -1242,7 +1255,7 @@ function buildCategoryEditSection(card) {
 
       tr.appendChild(el('td', 'budget-td-num budget-brugt-cell', formatKr((item.key && spent[item.key]) || 0)));
 
-      const removeTd = el('td', 'budget-td-remove');
+      const removeTd = el('td', 'budget-td-num');
       const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
       removeBtn.type = 'button';
       removeBtn.title = 'Fjern kategori';
@@ -1263,33 +1276,15 @@ function buildCategoryEditSection(card) {
   }
   renderExpenseRows();
 
-  const expenseAddRow = el('div', 'budget-manage-add-row');
-  const expenseNameInput = el('input');
-  expenseNameInput.type = 'text';
-  expenseNameInput.placeholder = 'F.eks. Efterfest';
-  const expenseBilagInput = el('input', 'budget-manage-bilag-input');
-  expenseBilagInput.type = 'text';
-  expenseBilagInput.maxLength = 20;
-  expenseBilagInput.placeholder = 'Fest';
-  expenseBilagInput.addEventListener('input', () => {
-    expenseBilagInput.value = sanitizeAbbrev(expenseBilagInput.value);
-  });
-  const expenseAddBtn = el('button', 'btn-small budget-manage-add-btn', '+');
+  const expenseAddBtn = el('button', 'budget-manage-add-plus', '+');
   expenseAddBtn.type = 'button';
   expenseAddBtn.title = 'Tilføj kategori';
   expenseAddBtn.addEventListener('click', () => {
-    const label = expenseNameInput.value.trim();
-    const abbrev = sanitizeAbbrev(expenseBilagInput.value) || sanitizeAbbrev(label);
-    if (!label || !abbrev) return;
-    draftExpense.push({ key: null, label, abbrev });
-    expenseNameInput.value = '';
-    expenseBilagInput.value = '';
+    draftExpense.push({ key: null, label: 'name', abbrev: sanitizeAbbrev('bilag') });
     renderExpenseRows();
+    focusLastRowInput(tbody, '.budget-manage-text-input');
   });
-  expenseAddRow.appendChild(siteEditField('Ny kategori', expenseNameInput));
-  expenseAddRow.appendChild(siteEditField('Bilagskode', expenseBilagInput));
-  expenseAddRow.appendChild(expenseAddBtn);
-  card.appendChild(expenseAddRow);
+  card.appendChild(expenseAddBtn);
 
   const incomeHead = el('div', 'budget-subhead');
   incomeHead.appendChild(el('h3', null, 'Indtægter'));
@@ -1303,7 +1298,7 @@ function buildCategoryEditSection(card) {
     draftIncome.forEach((item) => {
       const row = el('div', 'budget-manage-row');
 
-      const nameInput = el('input', 'budget-manage-name-input');
+      const nameInput = el('input', 'budget-manage-text-input');
       nameInput.type = 'text';
       nameInput.value = item.label;
       nameInput.addEventListener('input', () => { item.label = nameInput.value; });
@@ -1332,23 +1327,15 @@ function buildCategoryEditSection(card) {
   }
   renderIncomeRows();
 
-  const incomeAddRow = el('div', 'budget-manage-add-row');
-  const incomeNameInput = el('input');
-  incomeNameInput.type = 'text';
-  incomeNameInput.placeholder = 'F.eks. Sponsorat';
-  const incomeAddBtn = el('button', 'btn-small budget-manage-add-btn', '+');
+  const incomeAddBtn = el('button', 'budget-manage-add-plus', '+');
   incomeAddBtn.type = 'button';
   incomeAddBtn.title = 'Tilføj indtægt';
   incomeAddBtn.addEventListener('click', () => {
-    const label = incomeNameInput.value.trim();
-    if (!label) return;
-    draftIncome.push({ key: null, label });
-    incomeNameInput.value = '';
+    draftIncome.push({ key: null, label: 'name' });
     renderIncomeRows();
+    focusLastRowInput(incomeList, '.budget-manage-text-input');
   });
-  incomeAddRow.appendChild(siteEditField('Ny indtægt', incomeNameInput));
-  incomeAddRow.appendChild(incomeAddBtn);
-  card.appendChild(incomeAddRow);
+  card.appendChild(incomeAddBtn);
 
   return { draftExpense, draftIncome };
 }

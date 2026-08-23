@@ -603,13 +603,19 @@ tr.budget-row-filler td {
 .budget-save-status.dirty { color: var(--accent-warm-text); }
 .budget-save-status.error { color: var(--danger); }
 
-.budget-sheet-table { min-width: 460px; }
+.budget-sheet-table, .budget-sheet-table-editing { min-width: 460px; }
 
-/* Planlagt/Brugt/Rest headers centered over their (right-aligned) number
-   columns; Kategori (1st) stays left-aligned as a row label. */
+/* Planlagt(/Bilagslabel)/Brugt/Rest headers centered over their (right-
+   aligned) number columns; Kategori (1st) stays left-aligned as a row
+   label. Shared with .budget-sheet-table-editing (the Rediger-mode
+   version) so both tables' columns line up pixel-for-pixel and toggling
+   Rediger doesn't visibly reflow the table. */
 .budget-sheet-table th:nth-child(2),
 .budget-sheet-table th:nth-child(3),
-.budget-sheet-table th:nth-child(4) {
+.budget-sheet-table th:nth-child(4),
+.budget-sheet-table-editing th:nth-child(2),
+.budget-sheet-table-editing th:nth-child(3),
+.budget-sheet-table-editing th:nth-child(4) {
   text-align: center;
 }
 
@@ -617,11 +623,17 @@ tr.budget-row-filler td {
    (e.g. "0,00 kr" vs "-12.345,67 kr") — a fixed floor sized for the largest
    realistic amount (xx.xxx,xx kr) keeps these two columns from reflowing
    the whole table as numbers change. Also covers the header cells and the
-   "I alt" footer row, since they share the same column positions. */
+   "I alt" footer row, since they share the same column positions. Also
+   shared with .budget-sheet-table-editing, whose 4th column holds the
+   delete "✕" instead of Rest but keeps the same width. */
 .budget-sheet-table th:nth-child(3),
 .budget-sheet-table td:nth-child(3),
 .budget-sheet-table th:nth-child(4),
-.budget-sheet-table td:nth-child(4) {
+.budget-sheet-table td:nth-child(4),
+.budget-sheet-table-editing th:nth-child(3),
+.budget-sheet-table-editing td:nth-child(3),
+.budget-sheet-table-editing th:nth-child(4),
+.budget-sheet-table-editing td:nth-child(4) {
   min-width: 8rem;
 }
 
@@ -718,116 +730,115 @@ tr.budget-row-filler td {
 }
 
 /* --- Category structure editing (buildCategoryEditSection, the sheet's
-   own Rediger/Annuller toggle) ------------------------------------------ */
+   own Rediger/Annuller toggle) --------------------------------------------
+   Deliberately kept as close to the normal-mode sheet's own look as
+   possible: same four columns (see the shared header/width rules above),
+   text edited in place — transparent fields that read as plain text until
+   focused (.budget-manage-text-input, matching schedule.js's
+   .sched-grid-title contenteditable title) rather than boxed form inputs.
+   Rows are draggable via the row itself (no dedicated handle column) and
+   deletion is a plain unboxed "✕" (.budget-manage-remove-btn, matching
+   manus.css's .manus-pdf-remove) sitting in the Rest column's slot. */
 
-.budget-sheet-table-editing { min-width: 460px; }
+.budget-manage-tr { cursor: grab; }
+.budget-manage-tr:active { cursor: grabbing; }
 
-.budget-sheet-table-editing th:nth-child(3),
-.budget-sheet-table-editing th:nth-child(4) {
-  text-align: center;
+/* Drop-target highlight shows only the row's top edge (the insertion
+   point), not a full box around it — a transparent 2px top border at rest
+   (reserving the space so nothing shifts) that animates to accent-warm on
+   drag-over, mirroring manus.css's/wiki.css's border-color transition on
+   .manus-akt-row/.wiki-manage-row but limited to one side. */
+.budget-manage-tr td {
+  border-top: 2px solid transparent;
+  transition: border-top-color 0.15s;
 }
 
-/* The expense table gains a leading drag-handle column and a trailing
-   delete column when editing — narrow, icon-only, unlike the data columns. */
-.budget-sheet-table-editing th:first-child,
-.budget-sheet-table-editing td:first-child,
-.budget-sheet-table-editing th:last-child,
-.budget-sheet-table-editing td:last-child {
-  width: 2rem;
-  min-width: 2rem;
+.budget-manage-tr.budget-drop-target td {
+  border-top-color: var(--accent-warm);
 }
 
-.budget-drag-handle-cell {
-  cursor: grab;
-  color: var(--text-muted);
-  text-align: center;
-}
-
-.budget-manage-tr.budget-drop-target {
-  outline: 2px solid var(--accent-warm);
-  outline-offset: -2px;
-}
-
-.budget-manage-name-input {
+.budget-manage-text-input {
   width: 100%;
-  padding: 0.3rem 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  padding: 0.15rem 0.3rem;
+  margin: -0.15rem -0.3rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
   font-size: 0.85rem;
   font-family: inherit;
-  background: var(--input-bg);
   color: var(--text);
-}
-
-.budget-manage-bilag-input {
-  width: 100%;
-  max-width: 7rem;
-  padding: 0.3rem 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  background: var(--input-bg);
-  color: var(--text);
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.budget-manage-name-input:focus,
-.budget-manage-bilag-input:focus {
   outline: none;
-  border-color: var(--accent-warm);
+}
+
+.budget-manage-text-input:focus {
+  outline: none;
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
+.budget-manage-bilag-input {
+  max-width: 7rem;
+  text-align: center;
+}
+
 .budget-manage-input-locked {
-  background: var(--surface-2);
   color: var(--text-muted);
   cursor: not-allowed;
 }
 
-.budget-td-remove {
-  text-align: center;
-}
-
 .budget-manage-remove-btn {
-  flex-shrink: 0;
-  border: 1px solid var(--border);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.2rem;
   border-radius: 6px;
-  background: var(--surface);
   color: var(--text-muted);
   width: 1.8rem;
   height: 1.8rem;
   line-height: 1;
   cursor: pointer;
+  transition: color 0.15s;
 }
 
 @media (hover: hover) {
-  .budget-manage-remove-btn:hover {
-    border-color: var(--danger);
-    color: var(--danger);
-    background: var(--danger-bg);
-  }
+  .budget-manage-remove-btn:hover { color: var(--danger); }
 }
 
-.budget-manage-add-row {
+.budget-manage-remove-btn:focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
+}
+
+/* The "+" that grows either list — a small plain glyph sitting right below
+   the last row/entry rather than a separate add-row form. */
+.budget-manage-add-plus {
   display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  margin: 0.6rem 0;
-}
-
-.budget-manage-add-row .edit-field {
-  flex: 1;
-  min-width: 8rem;
-  margin-bottom: 0;
-}
-
-.budget-manage-add-btn {
-  padding: 0.6rem 0.75rem;
-  font-size: 1rem;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin: 0.3rem auto 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
   line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+@media (hover: hover) {
+  .budget-manage-add-plus:hover { color: var(--accent-warm-text); }
+}
+
+.budget-manage-add-plus:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 /* Indtægter rows while editing: name input + read-only amount + delete —
@@ -838,7 +849,7 @@ tr.budget-row-filler td {
   gap: 0.6rem;
 }
 
-.budget-manage-row .budget-manage-name-input {
+.budget-manage-row .budget-manage-text-input {
   flex: 1;
   min-width: 0;
 }
@@ -960,12 +971,11 @@ tr.budget-row-filler td {
      ".budget-table tr { display: block }" rule above. */
   .budget-table tr.budget-row-filler { display: none; }
 
-  /* The Rediger-mode expense table's columns (drag handle / Kategori /
-     Bilagskode / Brugt / delete) don't line up with the generic
-     first-cell-as-heading + labelled-value-rows pattern above (the drag
-     handle isn't a heading, and Kategori/Bilagskode are inputs, not plain
-     text) — skip both, let every cell just stack plainly in order; the
-     inputs' own content already carries the meaning. */
+  /* The Rediger-mode expense table's columns (Kategori / Bilagslabel /
+     Brugt / delete) don't line up with the generic first-cell-as-heading +
+     labelled-value-rows pattern above (every cell is an input or an icon
+     button, not plain text) — skip both, let every cell just stack plainly
+     in order; the inputs' own content already carries the meaning. */
   .budget-sheet-table-editing td:first-child {
     font-weight: normal;
   }
@@ -976,11 +986,11 @@ tr.budget-row-filler td {
   .budget-sheet-table-editing td:not(:first-child)::before {
     content: none;
   }
-  .budget-manage-bilag-input { max-width: none; }
+  .budget-manage-bilag-input { max-width: none; text-align: left; }
 
   /* Indtægter rows (both normal and Rediger mode) already stack fine via
      .budget-income-row's own flex — just let the name/amount shrink to fit
      a phone's width instead of overflowing. */
   .budget-income-name,
-  .budget-manage-row .budget-manage-name-input { min-width: 0; }
+  .budget-manage-row .budget-manage-text-input { min-width: 0; }
 }
