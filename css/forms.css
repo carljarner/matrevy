@@ -9,7 +9,7 @@
    shared .forms-form default (also used by the plain open-forms list,
    which stays narrow), and its question labels read as full-color text
    rather than every other page's muted .edit-field label grey. */
-.forms-fillin-wide { max-width: 590px; }
+.forms-fillin-wide { max-width: 640px; }
 .forms-fillin-wide .edit-field label { color: var(--text); }
 
 /* A light divider between consecutive fields on one page — not before the
@@ -70,7 +70,9 @@
 .forms-open-deadline { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
 
 /* ── Fill-in form: checkbox lists ────────────────────────── */
-.forms-checkbox-list { display: flex; flex-direction: column; gap: 0.35rem; }
+/* One "tab" (2rem) of empty space left/right so the options read as
+   indented under the question, not flush with its left edge. */
+.forms-checkbox-list { display: flex; flex-direction: column; gap: 0.35rem; padding: 0 2rem; }
 /* .forms-checkbox-list sits inside a shared .edit-field wrapper (see
    siteEditField), whose ".edit-field label" rule (display:block, muted
    0.8rem text, margin-bottom) is written for the one outer field label and
@@ -486,11 +488,15 @@
 /* ── Fill-in form: "Vælg én"/Skala's row of radio circles ────
    Native radios, laid out horizontally with the caption under each circle
    (rather than a vertical list) — same warm/amber accent-color treatment
-   as .forms-checkbox-row's boxes. */
+   as .forms-checkbox-row's boxes. One "tab" (2rem) of empty space left/
+   right so the row reads as indented under the question, not flush with
+   its left edge — Skala's own row doubles this (see .forms-radio-row-
+   scale below). */
 .forms-radio-row {
   display: flex;
   flex-wrap: wrap;
   gap: 1.25rem;
+  padding: 0 2rem;
 }
 
 /* Same ".edit-field label" specificity bleed as .forms-checkbox-row
@@ -519,10 +525,17 @@
 
 /* Skala's circles spread edge-to-edge across the field's full width
    instead of clustering at a fixed gap — nowrap so evenly-spaced holds at
-   any width up to the 0-10 range's worth of circles. */
+   any width up to the 0-10 range's worth of circles. Two "tabs" (4rem) of
+   indent each side — twice .forms-scale-captions' one tab below — so the
+   circles sit a little further in than their own min/max labels.
+   overflow-x:auto is a safety net for a wide range (up towards 10) on a
+   narrow phone, where nowrap would otherwise push the row past the
+   card's edge instead of scrolling within it. */
 .forms-radio-row-scale {
   flex-wrap: nowrap;
   justify-content: space-between;
+  padding: 0 4rem;
+  overflow-x: auto;
 }
 
 .forms-radio-option input[type="radio"] {
@@ -538,18 +551,25 @@
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-bottom: 0.5rem;
+  padding: 0 2rem;
 }
 
 /* ── Fill-in form: Gitter (grid_single/grid_multi) ────────────
    A plain table — row labels down the left, columns across the top, one
    radio/checkbox per cell. Wrapped for horizontal scroll on narrow
-   screens, same as the admin responses table. */
-.forms-grid-wrap { overflow-x: auto; }
+   screens, same as the admin responses table; one "tab" (2rem) of indent
+   left/right, same as the other answer widgets above. */
+.forms-grid-wrap { overflow-x: auto; padding: 0 2rem; }
 
-/* width:100% + table-layout:fixed spreads the value columns evenly across
-   the full width (fixed layout splits any column with no explicit width
-   equally) — only the row-label column gets one, via :first-child below,
-   so it doesn't shrink to match. */
+/* table-layout:fixed is what reliably splits the value columns evenly
+   (any column with no explicit width shares the leftover space equally) —
+   auto-layout's own shrink-to-fit hints turned out unreliable in practice
+   for the row-label column (Chrome gave it almost the whole table instead
+   of shrinking to content even with a 1px/1% hint split). So instead the
+   row-label column gets an explicit pixel width computed in JS from the
+   actual longest row label (formsGridLabelColumnWidth, set as inline
+   style on the header's corner <th> — fixed layout only reads the FIRST
+   row's cell widths, so nothing needs setting on the body cells). */
 .forms-grid-table {
   width: 100%;
   table-layout: fixed;
@@ -564,14 +584,17 @@
   text-align: center;
 }
 
-.forms-grid-table th:first-child,
-.forms-grid-table td:first-child {
-  width: 30%;
+/* Smaller than the table's own base font-size so a longer column name
+   still fits on one line inside its evenly-split column. */
+.forms-grid-table th {
+  font-size: 0.75rem;
 }
 
 .forms-grid-row-label {
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .forms-grid-cell input[type="radio"],
@@ -597,4 +620,19 @@
      style.css) is too cramped at this width — stack it like every other
      field on the page instead. */
   .forms-builder-card .edit-field-row { flex-direction: column; }
+  /* Half the desktop indent for the fill-in view's answer widgets — a
+     full "tab" (or two, for Skala) eats too much of a phone's width,
+     and .forms-radio-row-scale's own overflow-x:auto is still there as a
+     backstop if a wide range needs more room than that leaves. */
+  .forms-radio-row,
+  .forms-checkbox-list,
+  .forms-scale-captions,
+  .forms-grid-wrap {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .forms-radio-row-scale {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
 }

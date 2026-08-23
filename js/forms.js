@@ -172,6 +172,28 @@ function formsSectionsFromDefinition(def) {
   return sections;
 }
 
+// Measures the widest row label (via a detached, invisible probe matching
+// the grid table's own font) so a Gitter's row-label column can be given
+// exactly the pixel width it needs — see the cornerTh.style.width call
+// below, and forms.css's .forms-grid-table comment for why this can't
+// just be a CSS-only shrink-to-fit trick.
+function formsGridLabelColumnWidth(rows) {
+  const probe = document.createElement('span');
+  probe.style.position = 'absolute';
+  probe.style.visibility = 'hidden';
+  probe.style.whiteSpace = 'nowrap';
+  probe.style.fontSize = '0.85rem';
+  probe.style.fontFamily = 'inherit';
+  document.body.appendChild(probe);
+  let max = 0;
+  for (const r of rows) {
+    probe.textContent = r.label || '';
+    max = Math.max(max, probe.getBoundingClientRect().width);
+  }
+  probe.remove();
+  return Math.ceil(max) + 24; // + the cell's own left/right padding
+}
+
 // Horizontal row of native radio circles, one per option — shared by
 // "Vælg én" (select) and Skala, whose only real difference is where the
 // option list comes from (live-resolved options vs. a synthesized numeric
@@ -270,7 +292,16 @@ function formsRenderAnswerInput(field) {
     const table = el('table', 'forms-grid-table');
     const thead = el('thead');
     const headRow = el('tr');
-    headRow.appendChild(el('th'));
+    // table-layout:fixed (forms.css) reliably splits the value columns
+    // evenly, but can't shrink-to-fit the row-label column on its own —
+    // an explicit pixel width computed from the actual longest row label
+    // does that instead. Auto-layout's own shrink-to-fit hints (a small
+    // width on this column) turned out unreliable in practice: with no
+    // matching hint on this empty corner cell too, the browser gave the
+    // WHOLE column all the table's leftover space instead of shrinking it.
+    const cornerTh = el('th');
+    cornerTh.style.width = formsGridLabelColumnWidth(rows) + 'px';
+    headRow.appendChild(cornerTh);
     for (const c of cols) headRow.appendChild(el('th', null, c.label));
     thead.appendChild(headRow);
     table.appendChild(thead);
@@ -411,7 +442,7 @@ async function renderFormFillIn(root, formId) {
     msg.className = 'forms-msg' + (kind ? ' ' + kind : '');
   }
 
-  const submitBtn = el('button', 'site-btn-primary', 'Send svar');
+  const submitBtn = el('button', 'site-btn-primary', 'Indsend');
   submitBtn.type = 'button';
   submitBtn.addEventListener('click', async () => {
     const answers = {};
@@ -467,7 +498,7 @@ async function renderFormFillIn(root, formId) {
     // Grid layout (1fr auto 1fr), same idea as Manus's point-entry modal's
     // .manus-points-grid-row: prev/label/next always sits truly centered
     // regardless of what's in the right-hand slot, rather than shifting
-    // left once Send svar appears there on the last page.
+    // left once Indsend appears there on the last page.
     nav = el('div', 'forms-fillin-nav-row');
     const navGroup = el('div', 'forms-fillin-nav-group');
     const isLast = currentPage === pageEls.length - 1;
@@ -481,7 +512,7 @@ async function renderFormFillIn(root, formId) {
     navGroup.appendChild(el('span', 'forms-fillin-page-label', `${currentPage + 1}/${pageEls.length}`));
 
     // Næste stays visible on the last page too, just disabled — it never
-    // gets replaced by Send svar, which has its own slot to the right.
+    // gets replaced by Indsend, which has its own slot to the right.
     const nextBtn = el('button', 'btn-small', 'Næste ›');
     nextBtn.type = 'button';
     nextBtn.disabled = isLast;
