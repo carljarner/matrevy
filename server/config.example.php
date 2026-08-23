@@ -52,3 +52,15 @@ define('BUDGET_DATA_DIR', '/absolute/path/to/matrevy-budget-data');
 // responses}.json per form, created on first use — no bootstrap step
 // needed (unlike Budget, there's no "active year" to seed first).
 define('FORMS_DATA_DIR', '/absolute/path/to/matrevy-forms-data');
+
+// Absolute path on the Simply.com host for the PRIVATE sheets datastore
+// ("Ark" page — self-hosted spreadsheet replacing Google Sheets). Holds
+// one JSON document per sheet (grid dimensions, cell values, formatting),
+// which may contain names or other personal content typed into cells —
+// kept OUT of the public GitHub repo, same posture as BUDGET_DATA_DIR/
+// FORMS_DATA_DIR above. Must exist and be PHP-writable, ideally outside
+// the public web root (or behind an .htaccess deny).
+// Layout: sheets/<sheetId>/sheet.json per sheet, created on first use —
+// no bootstrap step needed and no manifest file (mirrors FORMS_DATA_DIR:
+// every sheet is its own subdirectory keyed by a server-generated hex id).
+define('SHEETS_DATA_DIR', '/absolute/path/to/matrevy-sheets-data');

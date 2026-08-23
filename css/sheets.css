@@ -1,0 +1,290 @@
+/* =========================================================
+   Matematikrevyen – Ark (sheets.html)
+   ========================================================= */
+
+.sheets-msg {
+  font-size: 0.85rem;
+  min-height: 1.2rem;
+  margin: 0.5rem 0;
+}
+.sheets-msg.error { color: var(--danger); }
+
+.sheets-intro {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* Delete-confirm modal — centered, same convention as forms.css's
+   .forms-center-modal (a short question, not a real field form). */
+.sheets-center-modal h2,
+.sheets-center-modal .sheets-intro {
+  text-align: center;
+}
+
+/* ── Sheet list ─────────────────────────────────────────── */
+.sheets-list-card { max-width: 720px; margin: 0 auto; }
+
+.sheets-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+.sheets-list-head h2 { margin-bottom: 0; }
+
+.sheets-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.sheets-row:last-child { border-bottom: none; }
+
+.sheets-row-open {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  margin: 0 -0.4rem;
+  border-radius: 6px;
+}
+@media (hover: hover) {
+  .sheets-row-open:hover { background: var(--accent-warm-fill); }
+}
+.sheets-row-open:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
+}
+.sheets-row-name { font-weight: 600; }
+.sheets-row-updated { font-size: 0.8rem; color: var(--text-muted); }
+
+.sheets-row-actions { display: flex; flex-shrink: 0; gap: 0.15rem; }
+
+/* Same 1.8rem square/warm-hover icon-button chrome as forms.css's
+   .forms-row-icon-btn — duplicated here since sheets.html loads neither
+   forms.js nor forms.css (the established per-feature convention). */
+.sheets-row-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.95rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+@media (hover: hover) {
+  .sheets-row-icon-btn:hover { background: var(--accent-warm-fill); color: var(--accent-warm-text); }
+  .sheets-row-icon-danger:hover { background: var(--danger-bg); color: var(--danger); }
+}
+.sheets-row-icon-btn:focus-visible {
+  outline: none;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+}
+
+/* ── Grid editor ────────────────────────────────────────── */
+.sheets-app { max-width: none; }
+
+.sheets-back-btn {
+  background: none;
+  border: none;
+  padding: 0.2rem 0.4rem;
+  margin-bottom: 0.25rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+@media (hover: hover) {
+  .sheets-back-btn:hover { background: var(--accent-warm-fill); color: var(--accent-warm-text); }
+}
+.sheets-back-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
+.sheets-title { margin-bottom: 0.75rem; }
+
+.sheets-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+.sheets-toolbar-group {
+  display: flex;
+  gap: 0.2rem;
+}
+.sheets-toolbar-spacer { flex: 1 1 auto; }
+
+.sheets-toolbar-btn {
+  min-width: 2rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .sheets-toolbar-btn:hover:not(:disabled) { border-color: var(--accent-warm); background: var(--accent-warm-fill); }
+}
+.sheets-toolbar-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 1px;
+}
+.sheets-toolbar-btn.active {
+  border-color: var(--accent-warm);
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+}
+.sheets-toolbar-btn:disabled { opacity: 0.45; cursor: default; }
+
+.sheets-glyph-bold { font-weight: 700; }
+.sheets-glyph-italic { font-style: italic; }
+.sheets-glyph-underline { text-decoration: underline; }
+
+.sheets-color-field-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+.sheets-color-field-swatch {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+}
+
+.sheets-toolbar-reshape { font-size: 0.85rem; }
+
+.sheets-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  min-height: 1.1rem;
+}
+.sheets-status.error { color: var(--danger); }
+
+/* Wide content (up to 50 columns) scrolls inside its own container —
+   the page body itself must never scroll horizontally. */
+.sheets-grid-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.sheets-table {
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.sheets-corner,
+.sheets-col-head,
+.sheets-row-head {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: center;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  position: sticky;
+  z-index: 1;
+}
+.sheets-corner, .sheets-col-head { top: 0; }
+.sheets-corner, .sheets-row-head { left: 0; }
+.sheets-corner { z-index: 2; }
+
+.sheets-cell {
+  min-width: 6rem;
+  height: 1.9rem;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: cell;
+  vertical-align: middle;
+}
+.sheets-cell.sheets-bold { font-weight: 700; }
+.sheets-cell.sheets-italic { font-style: italic; }
+.sheets-cell.sheets-underline { text-decoration: underline; }
+
+.sheets-cell.sheets-selected {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.sheets-cell.sheets-editing { padding: 0; cursor: text; }
+
+.sheets-cell-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  padding: 0.15rem 0.4rem;
+  font: inherit;
+  color: inherit;
+  background: var(--input-bg);
+}
+
+/* ── Colour swatch popup (mirrors calendar.js's category picker,
+   built on the same site-field-pop primitive) ───────────────── */
+.sheets-color-pop {
+  display: grid;
+  grid-template-columns: repeat(5, 1.6rem);
+  gap: 0.35rem;
+  padding: 0.5rem;
+}
+.sheets-color-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+}
+.sheets-color-swatch.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sheets-color-none {
+  background: var(--input-bg);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+@media (max-width: 719px) {
+  .sheets-list-head { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .sheets-row { flex-direction: column; align-items: stretch; }
+  .sheets-row-actions { align-self: flex-end; }
+  .sheets-toolbar { gap: 0.4rem; }
+}

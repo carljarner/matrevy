@@ -215,6 +215,26 @@ if (isset($FORMS_ACTIONS[$action])) {
   handle_forms($action, $body);
 }
 
+// ── Sheets actions (private Simply.com datastore, "Ark" page) ──
+// Self-hosted spreadsheet replacement for Google Sheets — same privacy
+// posture as Budget/Forms above (never the public repo, since cell
+// contents may carry names/contact info). Unlike Forms, there is no
+// higher-gated management tier at all: every action here only ever needs
+// Forms' fill-in tier's access (revyst), since any logged-in cast/crew
+// member can create/edit/delete their own sheets.
+$SHEETS_ACTIONS = [
+  'sheets_list'   => 'revyst', // summary list: {id, name, updatedAt}[]
+  'sheets_get'    => 'revyst', // one full sheet document
+  'sheets_save'   => 'revyst', // create (no id) or update (id given) — full replace, also used to rename
+  'sheets_delete' => 'revyst',
+];
+if (isset($SHEETS_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$SHEETS_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  handle_sheets($action, $body);
+}
+
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
 // posts_create is revyst-level append-only (mirrors budget_submit's shape,
 // against the public data/posts.json instead of the private budget store)
@@ -2139,6 +2159,202 @@ function handle_forms($action, $body) {
     case 'templates_list':   return templates_list($body);
     case 'templates_save':   return templates_save($body);
     case 'templates_delete': return templates_delete($body);
+  }
+  respond(400, ['error' => 'unknown_action']);
+}
+
+// ── Sheets datastore (private Simply.com store, same posture as Budget/Forms) ──
+// Self-hosted spreadsheet replacement for Google Sheets. Definitions (a
+// sheet's whole grid, formatting included) live under SHEETS_DATA_DIR —
+// never the public repo, since cell contents may carry names/phone
+// numbers. Like Forms there is no "active" concept — any number of sheets
+// can exist at once, every call targets one specific sheetId the client
+// already has — so, mirroring forms_all_form_ids(), there is no manifest
+// file here either: the list view is built by enumerating the sheets/
+// directory directly.
+
+function sheets_dir() {
+  if (!defined('SHEETS_DATA_DIR') || !is_string(SHEETS_DATA_DIR) || SHEETS_DATA_DIR === '') {
+    respond(500, ['error' => 'sheets_not_configured']);
+  }
+  return rtrim(SHEETS_DATA_DIR, '/');
+}
+
+function sheets_ensure_dir($dir) {
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'sheets_storage_unavailable']);
+  }
+}
+
+// sheetId is always a server-generated hex string (see sheets_id()) and is
+// used directly to build filesystem paths — validated strictly here (never
+// trusted raw from a client) to rule out path traversal, same posture as
+// forms_valid_id().
+function sheets_valid_id($id) {
+  return is_string($id) && $id !== '' && preg_match('/^[0-9a-f]+$/', $id) === 1;
+}
+
+function sheets_doc_path($id) {
+  return sheets_dir() . '/sheets/' . $id . '/sheet.json';
+}
+
+// Read-only load of one JSON file; returns $default if missing/empty.
+function sheets_load($path, $default) {
+  if (!is_file($path)) return $default;
+  $json = json_decode((string) file_get_contents($path), true);
+  return is_array($json) ? $json : $default;
+}
+
+function sheets_id() {
+  return dechex(time()) . bin2hex(random_bytes(4));
+}
+
+// Every sheet directory under sheets_dir()/sheets — filters out anything
+// that doesn't look like a real, server-generated sheet (defensive against
+// stray files on the host), same spirit as forms_all_form_ids().
+function sheets_all_ids() {
+  $dir = sheets_dir() . '/sheets';
+  if (!is_dir($dir)) return [];
+  $ids = [];
+  foreach (scandir($dir) as $item) {
+    if ($item === '.' || $item === '..') continue;
+    if (!sheets_valid_id($item)) continue;
+    if (is_file($dir . '/' . $item . '/sheet.json')) $ids[] = $item;
+  }
+  return $ids;
+}
+
+// Cell background/text colours are a fixed swatch palette (not arbitrary
+// hex), same "fixed palette, not a free-form picker" convention as
+// Kalender's CAL_CATEGORIES — lets this just be an in_array allow-list
+// instead of validating arbitrary colour strings. Keep in sync with
+// SHEETS_COLORS in js/sheets.js.
+function sheets_valid_color($c) {
+  return $c === null || in_array($c, [
+    'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'purple', 'pink', 'gray', 'brown',
+  ], true);
+}
+
+// Validates + returns a clean CellData, or null on any violation.
+function sheets_validate_cell($c) {
+  if (!is_array($c)) return null;
+  $value = $c['value'] ?? '';
+  if (!is_string($value) || mb_strlen($value) > 2000) return null;
+  $align = $c['align'] ?? null;
+  if ($align !== null && !in_array($align, ['left', 'center', 'right'], true)) return null;
+  $bg = $c['bg'] ?? null;
+  $color = $c['color'] ?? null;
+  if (!sheets_valid_color($bg) || !sheets_valid_color($color)) return null;
+  return [
+    'value' => $value,
+    'bold' => !empty($c['bold']),
+    'italic' => !empty($c['italic']),
+    'underline' => !empty($c['underline']),
+    'align' => $align,
+    'bg' => $bg,
+    'color' => $color,
+  ];
+}
+
+// Validates + returns a clean SheetDoc's editable fields ({name, rows,
+// cols, cells}) — createdAt/updatedAt/id are stamped by sheets_save
+// itself, never trusted from the client.
+function sheets_validate_doc($body) {
+  $name = $body['name'] ?? '';
+  $rows = $body['rows'] ?? null;
+  $cols = $body['cols'] ?? null;
+  $cellsIn = $body['cells'] ?? [];
+  if (!is_string($name) || trim($name) === '' || mb_strlen($name) > 120) return null;
+  if (!is_int($rows) || $rows < 1 || $rows > 200) return null;
+  if (!is_int($cols) || $cols < 1 || $cols > 50) return null;
+  if (!is_array($cellsIn)) return null;
+
+  $cells = [];
+  foreach ($cellsIn as $key => $cellIn) {
+    if (!is_string($key) || preg_match('/^(\d+)_(\d+)$/', $key, $m) !== 1) return null;
+    $r = (int) $m[1];
+    $c = (int) $m[2];
+    if ($r >= $rows || $c >= $cols) return null;
+    $clean = sheets_validate_cell($cellIn);
+    if ($clean === null) return null;
+    $cells[$key] = $clean;
+  }
+
+  return ['name' => trim($name), 'rows' => $rows, 'cols' => $cols, 'cells' => $cells];
+}
+
+// Revyst: every sheet, summary only (no cell data) — keeps the list view
+// light regardless of how large individual sheets get.
+function sheets_list($body) {
+  $out = [];
+  foreach (sheets_all_ids() as $id) {
+    $doc = sheets_load(sheets_doc_path($id), null);
+    if (!is_array($doc)) continue;
+    $out[] = ['id' => $id, 'name' => $doc['name'] ?? '', 'updatedAt' => $doc['updatedAt'] ?? null];
+  }
+  respond(200, ['ok' => true, 'sheets' => $out]);
+}
+
+// Revyst: one sheet's full document (including cells), for the grid editor.
+function sheets_get($body) {
+  $id = $body['id'] ?? '';
+  if (!sheets_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  $doc = sheets_load(sheets_doc_path($id), null);
+  if (!is_array($doc)) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true, 'sheet' => array_merge(['id' => $id], $doc)]);
+}
+
+// Revyst: create (no id) or update (id given) a sheet — a full replace
+// either way, same "resend the whole record" convention as Forms/Manus/
+// Kalender. Also used to rename a sheet (client resends the full document
+// with just `name` changed) — no separate rename action, matching Forms'
+// own fold-status-toggle-into-save convention.
+function sheets_save($body) {
+  $clean = sheets_validate_doc($body);
+  if ($clean === null) respond(400, ['error' => 'invalid_shape']);
+
+  $id = $body['id'] ?? null;
+  $now = date('c');
+  if ($id !== null) {
+    if (!is_string($id) || !sheets_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+    $existing = sheets_load(sheets_doc_path($id), null);
+    if (!is_array($existing)) respond(404, ['error' => 'not_found']);
+    $createdAt = $existing['createdAt'] ?? $now;
+  } else {
+    $id = sheets_id();
+    $createdAt = $now;
+  }
+
+  $doc = array_merge($clean, ['createdAt' => $createdAt, 'updatedAt' => $now]);
+
+  $path = sheets_doc_path($id);
+  sheets_ensure_dir(dirname($path));
+  if (@file_put_contents($path,
+      json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n") === false) {
+    respond(500, ['error' => 'sheets_storage_unavailable']);
+  }
+
+  respond(200, ['ok' => true, 'id' => $id, 'sheet' => array_merge(['id' => $id], $doc)]);
+}
+
+// Revyst: permanently deletes a sheet. Cannot be undone; no server-side
+// confirmation, same posture as forms_delete/budget_delete_year (client's
+// job).
+function sheets_delete($body) {
+  $id = $body['id'] ?? '';
+  if (!sheets_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  $dir = dirname(sheets_doc_path($id));
+  if (!is_dir($dir)) respond(404, ['error' => 'not_found']);
+  budget_rrmdir($dir); // generic recursive delete, not budget-specific despite the name
+  respond(200, ['ok' => true]);
+}
+
+function handle_sheets($action, $body) {
+  switch ($action) {
+    case 'sheets_list':   return sheets_list($body);
+    case 'sheets_get':    return sheets_get($body);
+    case 'sheets_save':   return sheets_save($body);
+    case 'sheets_delete': return sheets_delete($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
