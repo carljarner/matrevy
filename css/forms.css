@@ -32,7 +32,6 @@
 
 .forms-open-info { min-width: 0; }
 .forms-open-title { font-weight: 600; }
-.forms-open-desc { font-size: 0.85rem; color: var(--text-muted); margin-top: 0.15rem; }
 .forms-open-deadline { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
 
 /* ── Fill-in form: checkbox lists ────────────────────────── */
@@ -232,6 +231,15 @@
   margin-bottom: 0.5rem;
 }
 .forms-section-head h4 { margin-bottom: 0; }
+
+/* Matches .edit-field label (style.css) exactly — small, muted, not bold —
+   so "Felter" reads as one more field label under Titel/Beskrivelse rather
+   than a bolder sub-heading. */
+.forms-felter-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
 
 .forms-field-list {
   display: flex;

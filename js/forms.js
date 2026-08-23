@@ -162,6 +162,22 @@ function formsNewFieldId() {
   return 'f' + Date.now().toString(36) + formsFieldIdCounter.toString(36);
 }
 
+// Every section (including the first) is now a real {id, title,
+// description, fields} object — there's no longer a separate "the form's
+// own fields" concept. A form saved before sections existed only has a
+// top-level `fields` array and no `sections` at all; reading it through
+// here migrates that array into a single implicit Section 1 (blank title/
+// description) purely for display, so nothing already saved goes missing.
+// Used by both the builder (editing an existing form or template) and the
+// revyst fill-in view.
+function formsSectionsFromDefinition(def) {
+  const sections = Array.isArray(def && def.sections) ? JSON.parse(JSON.stringify(def.sections)) : [];
+  if (sections.length === 0 && Array.isArray(def && def.fields) && def.fields.length > 0) {
+    sections.push({ id: formsNewFieldId(), title: '', description: '', fields: JSON.parse(JSON.stringify(def.fields)) });
+  }
+  return sections;
+}
+
 // ── Shared field-answer renderer ─────────────────────────────
 // Builds the input control for one FieldSpec — used both by the revyst
 // fill-in view and (read-only-ish, for a live options preview) nowhere
@@ -234,7 +250,6 @@ async function renderFormsList(root) {
     const row = el('div', 'forms-open-row');
     const info = el('div', 'forms-open-info');
     info.appendChild(el('div', 'forms-open-title', f.title));
-    if (f.description) info.appendChild(el('div', 'forms-open-desc', f.description));
     if (f.deadline) info.appendChild(el('div', 'forms-open-deadline',
       'Frist: ' + (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline)));
     row.appendChild(info);
@@ -266,26 +281,18 @@ async function renderFormFillIn(root, formId) {
     return;
   }
   const form = result.data;
-  body.appendChild(el('h2', null, form.title));
-  if (form.description) body.appendChild(el('p', 'forms-intro', form.description));
-
-  // One "page" per section — the form's own top-level fields count as page
-  // 1 (its Titel/Beskrivelse are already the fixed header above, so it
-  // carries no extra heading of its own); each further section is its own
-  // page with the same shape (title, description, fields). Multi-page forms
-  // are paged with prev/next arrows at the bottom, same idea as Manus's
-  // point-entry modal (openPointEntryModal) paging between sheets — except
-  // this lives inline on the page, not in a modal, so it uses .btn-small
-  // rather than that modal's .site-pill-btn (see the site-wide button-tier
-  // convention). All pages render up front and are just hidden/shown, so
-  // native input values survive navigating back and forth for free.
-  const pageDefs = [{ title: null, description: null, fields: Array.isArray(form.fields) ? form.fields : [] }];
-  for (const section of (Array.isArray(form.sections) ? form.sections : [])) {
-    pageDefs.push({
-      title: section.title || null, description: section.description || null,
-      fields: Array.isArray(section.fields) ? section.fields : [],
-    });
-  }
+  // The form's own title only identifies it in the "choose a form" list
+  // (renderFormsList) — filling it in opens straight onto Section 1's own
+  // title/description, exactly like every later section, with no separate
+  // form-level heading here. Multi-page forms are paged with prev/next
+  // arrows at the bottom, same idea as Manus's point-entry modal
+  // (openPointEntryModal) paging between sheets — except this lives inline
+  // on the page, not in a modal, so it uses .btn-small rather than that
+  // modal's .site-pill-btn (see the site-wide button-tier convention). All
+  // pages render up front and are just hidden/shown, so native input values
+  // survive navigating back and forth for free.
+  const pageDefs = formsSectionsFromDefinition(form);
+  if (pageDefs.length === 0) pageDefs.push({ id: null, title: form.title, description: '', fields: [] });
 
   const inputs = []; // { field, input, page }
   const pageEls = pageDefs.map((pageDef, pageIdx) => {
@@ -726,10 +733,9 @@ function formsValidateAndCleanFields(draftFields) {
   };
 }
 
-// Same idea as formsValidateAndCleanFields, one level up: each extra
-// section (beyond the form's own Titel/Beskrivelse/Felter, which reads as
-// "section 1") needs its own non-empty title before it's worth saving, and
-// its fields go through the exact same cleanup as the top-level list.
+// Same idea as formsValidateAndCleanFields, one level up: every section
+// needs its own non-empty title before it's worth saving, and its fields go
+// through the exact same per-field cleanup.
 function formsValidateAndCleanSections(draftSections) {
   const sections = [];
   for (const s of draftSections) {
@@ -745,9 +751,10 @@ function formsValidateAndCleanSections(draftSections) {
 // ── Builder screen (Ny formular / Rediger formular tab) ──────
 // Renders directly into `root` — no modal — so the whole create/edit flow
 // lives in the page. Folds in what used to be two separate modals (start
-// from / manage templates) into one dropdown menu, and supports extra
-// "sections" beyond the form's own Titel/Beskrivelse/Felter (which reads as
-// section 1) — each with its own title/description/fields.
+// from / manage templates) into one dropdown menu. Titel/Status/Frist/
+// Produktionsår are the form's only settings; every question lives in one
+// or more uniform sections (title, description, fields) below, added via
+// "+ Tilføj sektion" and always at least one.
 function formsRenderBuilderScreen(root, existingDefinition) {
   const isEdit = !!(existingDefinition && existingDefinition.id);
   const card = el('section', 'card forms-builder-card');
@@ -757,19 +764,21 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   head.appendChild(el('h2', null, isEdit ? 'Rediger formular' : 'Ny formular'));
   card.appendChild(head);
 
-  const draftFields = existingDefinition
-    ? JSON.parse(JSON.stringify(existingDefinition.fields || []))
-    : [];
-  const draftSections = existingDefinition
-    ? JSON.parse(JSON.stringify(existingDefinition.sections || []))
-    : [];
-  // A from-scratch form gets one starting field so the editor isn't empty.
-  if (draftFields.length === 0 && draftSections.length === 0 && !existingDefinition) {
-    draftFields.push({ id: formsNewFieldId(), type: 'text', label: 'Navn', required: true });
+  // Every section (including the first) is a uniform {id, title,
+  // description, fields} block, rendered by the same formsRenderSectionBlock
+  // — there's no separate "the form's own fields" list any more. Title/
+  // Status/Frist/Produktionsår below are the form's only remaining
+  // settings, since the fill-in view no longer shows a form-level
+  // description (see renderFormFillIn) and it never had one after this).
+  const draftSections = formsSectionsFromDefinition(existingDefinition);
+  if (draftSections.length === 0 && !existingDefinition) {
+    draftSections.push({
+      id: formsNewFieldId(), title: '', description: '',
+      fields: [{ id: formsNewFieldId(), type: 'text', label: 'Navn', required: true }],
+    });
   }
 
-  let fieldListEl; // top-level field editor, assigned below
-  let sectionsListEl; // extra-sections container, assigned below
+  let sectionsListEl; // assigned below
   const error = el('p', 'forms-msg error');
 
   function renderSectionsList() {
@@ -782,10 +791,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   if (!existingDefinition) {
     head.appendChild(formsRenderTemplateMenu((template) => {
-      draftFields.splice(0, draftFields.length, ...JSON.parse(JSON.stringify(template.fields || [])));
-      draftSections.splice(0, draftSections.length, ...JSON.parse(JSON.stringify(template.sections || [])));
-      if (template.description) descInput.value = template.description;
-      formsRenderFieldEditor(fieldListEl, draftFields, () => { error.textContent = ''; });
+      draftSections.splice(0, draftSections.length, ...formsSectionsFromDefinition(template));
       renderSectionsList();
       error.textContent = '';
     }));
@@ -796,14 +802,8 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   titleInput.value = existingDefinition ? existingDefinition.title : '';
   card.appendChild(siteEditField('Titel', titleInput));
 
-  const descInput = el('textarea');
-  descInput.rows = 2;
-  descInput.value = existingDefinition ? existingDefinition.description || '' : '';
-  card.appendChild(siteEditField('Beskrivelse', descInput));
-
-  // Status/Frist/Produktionsår are form-level metadata, not per-section —
-  // shown once, in one row, alongside the form's own (= "section 1"'s)
-  // Titel/Beskrivelse/Felter.
+  // Status/Frist/Produktionsår are form-level metadata, shown once
+  // regardless of how many sections the form has.
   const metaRow = el('div', 'edit-field-row');
   const statusDd = siteCreateDropdownField(
     [{ value: 'closed', label: 'Lukket' }, { value: 'open', label: 'Åben' }],
@@ -821,11 +821,6 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     ? String(existingDefinition.productionYear) : '';
   metaRow.appendChild(siteEditField('Produktionsår (valgfri)', yearInput));
   card.appendChild(metaRow);
-
-  card.appendChild(el('h3', null, 'Felter'));
-  fieldListEl = el('div', 'forms-field-list');
-  card.appendChild(fieldListEl);
-  formsRenderFieldEditor(fieldListEl, draftFields, () => { error.textContent = ''; });
 
   sectionsListEl = el('div', 'forms-sections-list');
   card.appendChild(sectionsListEl);
@@ -851,11 +846,9 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   saveAsTemplateBtn.type = 'button';
   saveAsTemplateBtn.addEventListener('click', () => {
     error.textContent = '';
-    const cleanedFields = formsValidateAndCleanFields(draftFields);
-    if (cleanedFields.error) { error.textContent = cleanedFields.error; return; }
     const cleanedSections = formsValidateAndCleanSections(draftSections);
     if (cleanedSections.error) { error.textContent = cleanedSections.error; return; }
-    formsOpenSaveAsTemplateModal(titleInput.value, descInput.value, cleanedFields.fields, cleanedSections.sections);
+    formsOpenSaveAsTemplateModal(titleInput.value, '', cleanedSections.sections);
   });
 
   const cancelBtn = el('button', 'btn-small', 'Annuller');
@@ -868,17 +861,15 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     error.textContent = '';
     const title = titleInput.value.trim();
     if (!title) { error.textContent = 'Skriv en titel.'; return; }
-    const cleanedFields = formsValidateAndCleanFields(draftFields);
-    if (cleanedFields.error) { error.textContent = cleanedFields.error; return; }
     const cleanedSections = formsValidateAndCleanSections(draftSections);
     if (cleanedSections.error) { error.textContent = cleanedSections.error; return; }
     const productionYear = yearInput.value.trim() ? parseInt(yearInput.value.trim(), 10) : null;
     saveBtn.disabled = true;
     const payload = {
-      title, description: descInput.value.trim(), status: statusDd.value,
+      title, status: statusDd.value,
       deadline: deadlineField.value || null, productionYear,
       fromTemplateId: existingDefinition ? (existingDefinition.fromTemplateId || null) : null,
-      fields: cleanedFields.fields, sections: cleanedSections.sections,
+      fields: [], sections: cleanedSections.sections,
     };
     if (isEdit) payload.id = existingDefinition.id;
     const result = await formsApi('forms_save', payload);
@@ -896,18 +887,21 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   card.appendChild(actionsRow);
 }
 
-// One extra section's editor block: its own Titel/Beskrivelse, a Felter
-// list built on the exact same formsRenderFieldEditor as the top-level
-// list (it's already generic over whatever array it's handed), and a
-// "Slet sektion" that removes it and re-renders the whole sections list
-// (so later sections re-number correctly).
+// One section's editor block — every section, including the first, is the
+// same shape and uses this same renderer: its own Titel/Beskrivelse, a
+// Felter list built on formsRenderFieldEditor (generic over whatever fields
+// array it's handed), and a "Slet sektion" that removes it and re-renders
+// the whole sections list (so later sections re-number correctly; disabled
+// when it's the only section left, since a form always needs at least one).
 function formsRenderSectionBlock(section, idx, draftSections, onChange, rerenderAll) {
   const block = el('div', 'forms-section-block');
 
   const head = el('div', 'forms-section-head');
-  head.appendChild(el('h4', null, 'Sektion ' + (idx + 2)));
+  head.appendChild(el('h4', null, 'Sektion ' + (idx + 1)));
   const removeBtn = el('button', 'btn-small btn-small-danger', 'Slet sektion');
   removeBtn.type = 'button';
+  // A form always needs at least one section — can't delete the last one.
+  removeBtn.disabled = draftSections.length <= 1;
   removeBtn.addEventListener('click', () => {
     draftSections.splice(idx, 1);
     rerenderAll();
@@ -929,7 +923,7 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   descInput.addEventListener('input', () => { section.description = descInput.value; onChange(); });
   block.appendChild(siteEditField('Beskrivelse', descInput));
 
-  block.appendChild(el('h4', null, 'Felter'));
+  block.appendChild(el('div', 'forms-felter-label', 'Felter'));
   const fieldListEl = el('div', 'forms-field-list');
   block.appendChild(fieldListEl);
   if (!Array.isArray(section.fields)) section.fields = [];
@@ -940,9 +934,10 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
 
 // ── Template menu ("Skabelon" dropdown, top-right of a new form) ─────
 // Replaces the old separate "Opret fra skabelon"/"Skabeloner" modals with
-// one dropdown: each row applies the template (fields + sections +
-// description) to the current draft; a grey ✕ opens a small delete-confirm
-// instead, mirroring formsOpenDeleteConfirm's own pattern for forms.
+// one dropdown: each row applies the template's sections to the current
+// draft (via formsSectionsFromDefinition, so an old fields-only template
+// still migrates cleanly); a grey ✕ opens a small delete-confirm instead,
+// mirroring formsOpenDeleteConfirm's own pattern for forms.
 function formsRenderTemplateMenu(onUse) {
   const btn = el('button', 'btn-small forms-template-menu-btn', 'Skabelon ▾');
   btn.type = 'button';
@@ -1003,7 +998,7 @@ function formsOpenDeleteTemplateConfirm(t) {
 // replaces a bare window.prompt() (previously the only non-password
 // prompt() on the site) with the same styled edit-field/pill-button chrome
 // every other confirm dialog uses.
-function formsOpenSaveAsTemplateModal(suggestedTitle, suggestedDescription, fields, sections) {
+function formsOpenSaveAsTemplateModal(suggestedTitle, suggestedDescription, sections) {
   const { form, error, actions, close } = siteOpenModalWithClose('Gem som skabelon');
   const nameInput = el('input');
   nameInput.type = 'text';
@@ -1023,7 +1018,7 @@ function formsOpenSaveAsTemplateModal(suggestedTitle, suggestedDescription, fiel
     if (!title) { error.textContent = 'Skriv et navn.'; return; }
     confirmBtn.disabled = true;
     const result = await formsApi('templates_save',
-      { title, description: descInput.value.trim(), fields, sections });
+      { title, description: descInput.value.trim(), fields: [], sections });
     confirmBtn.disabled = false;
     if (result.ok) { close(); siteShowToast('Skabelon gemt.'); }
     else if (result.message) error.textContent = result.message;
