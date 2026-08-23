@@ -113,17 +113,6 @@
   outline-offset: 1px;
 }
 
-/* ── Template picker/manager rows ────────────────────────── */
-.forms-template-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.6rem 0;
-  border-bottom: 1px solid var(--border);
-}
-.forms-template-row:last-child { border-bottom: none; }
-
 /* ── Admin tabs (Oversigt / Ny formular) ─────────────────────
    Underline tabs in the warm/amber accent — distinct from Kalender's blue
    segmented month/list toggle, since this page leans on the warm palette
@@ -169,13 +158,80 @@
   margin: 0 auto;
 }
 
-/* "Start fra en skabelon" strip — only shown for a brand-new form. */
-.forms-template-strip {
-  margin-bottom: 1.25rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px dashed var(--border);
+.forms-builder-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
 }
-.forms-template-strip h3 { margin-bottom: 0.4rem; }
+.forms-builder-head h2 { margin-bottom: 0; }
+
+.forms-template-menu-btn { flex-shrink: 0; }
+
+/* Dropdown panel opened by the "Skabelon ▾" button — built on the shared
+   siteOpenFieldPopup()/.site-field-pop chrome so it behaves (outside-click/
+   Escape/reposition) exactly like every other field popup on the site. */
+.forms-template-menu-pop {
+  width: min(20rem, calc(100vw - 1rem));
+  max-height: 20rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.forms-template-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.forms-template-menu-use {
+  flex: 1;
+  min-width: 0;
+}
+
+.forms-template-menu-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forms-template-menu-desc {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Extra sections (+ Tilføj sektion) ───────────────────────
+   Each mirrors the form's own Titel/Beskrivelse/Felter block (which reads
+   as "section 1"), boxed to read as a distinct group. */
+.forms-sections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.forms-section-block {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 0.75rem 0.25rem;
+}
+
+.forms-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.forms-section-head h4 { margin-bottom: 0; }
 
 .forms-field-list {
   display: flex;
@@ -269,6 +325,16 @@
   margin-top: 1rem;
 }
 
+/* ── Fill-in form: section headings ──────────────────────────
+   renderFormFillIn prints one of these before each extra section's own
+   fields — same H3 weight as the page's other headings, no page-specific
+   size override needed. */
+.forms-fillin-section-title {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
 @media (max-width: 719px) {
   .forms-open-row { flex-direction: column; align-items: flex-start; }
   .forms-field-row-top { flex-direction: column; align-items: stretch; }
@@ -278,4 +344,9 @@
      minimum HEIGHT along the new (vertical) main axis, ballooning the text
      input to 160px tall. */
   .forms-field-row-top input[type="text"] { flex: 1 1 auto; }
+  .forms-builder-head { flex-wrap: wrap; row-gap: 0.5rem; }
+  /* Status/Frist/Produktionsår's shared 3-column .edit-field-row (see
+     style.css) is too cramped at this width — stack it like every other
+     field on the page instead. */
+  .forms-builder-card .edit-field-row { flex-direction: column; }
 }

@@ -269,13 +269,21 @@ async function renderFormFillIn(root, formId) {
   body.appendChild(el('h2', null, form.title));
   if (form.description) body.appendChild(el('p', 'forms-intro', form.description));
 
-  const fields = Array.isArray(form.fields) ? form.fields : [];
-  const inputs = fields.map((field) => {
-    const input = formsRenderAnswerInput(field);
-    const labelText = field.label + (field.required ? ' *' : '');
-    body.appendChild(siteEditField(labelText, input));
-    return { field, input };
-  });
+  const inputs = [];
+  function appendFieldInputs(fieldList) {
+    for (const field of fieldList) {
+      const input = formsRenderAnswerInput(field);
+      const labelText = field.label + (field.required ? ' *' : '');
+      body.appendChild(siteEditField(labelText, input));
+      inputs.push({ field, input });
+    }
+  }
+  appendFieldInputs(Array.isArray(form.fields) ? form.fields : []);
+  for (const section of (Array.isArray(form.sections) ? form.sections : [])) {
+    if (section.title) body.appendChild(el('h3', 'forms-fillin-section-title', section.title));
+    if (section.description) body.appendChild(el('p', 'forms-intro', section.description));
+    appendFieldInputs(Array.isArray(section.fields) ? section.fields : []);
+  }
 
   const msg = el('div', 'forms-msg');
   body.appendChild(msg);
@@ -397,7 +405,8 @@ async function formsRenderOverviewScreen(root) {
         await formsApi('forms_save', {
           id: f.id, title: def.title, description: def.description,
           status: f.status === 'open' ? 'closed' : 'open', deadline: def.deadline,
-          productionYear: def.productionYear, fromTemplateId: def.fromTemplateId, fields: def.fields,
+          productionYear: def.productionYear, fromTemplateId: def.fromTemplateId,
+          fields: def.fields, sections: def.sections || [],
         });
       }
       renderAdminView(root, { name: 'overview' });
@@ -662,32 +671,68 @@ function formsValidateAndCleanFields(draftFields) {
   };
 }
 
+// Same idea as formsValidateAndCleanFields, one level up: each extra
+// section (beyond the form's own Titel/Beskrivelse/Felter, which reads as
+// "section 1") needs its own non-empty title before it's worth saving, and
+// its fields go through the exact same cleanup as the top-level list.
+function formsValidateAndCleanSections(draftSections) {
+  const sections = [];
+  for (const s of draftSections) {
+    const title = (s.title || '').trim();
+    if (!title) return { error: 'Alle sektioner skal have en titel.' };
+    const cleanedFields = formsValidateAndCleanFields(Array.isArray(s.fields) ? s.fields : []);
+    if (cleanedFields.error) return { error: cleanedFields.error };
+    sections.push({ id: s.id, title, description: (s.description || '').trim(), fields: cleanedFields.fields });
+  }
+  return { sections };
+}
+
 // ── Builder screen (Ny formular / Rediger formular tab) ──────
 // Renders directly into `root` — no modal — so the whole create/edit flow
-// lives in the page. Folds in what used to be two separate modals: a
-// "start from a template" strip (new forms only) and the ability to save
-// the current draft as a reusable template.
+// lives in the page. Folds in what used to be two separate modals (start
+// from / manage templates) into one dropdown menu, and supports extra
+// "sections" beyond the form's own Titel/Beskrivelse/Felter (which reads as
+// section 1) — each with its own title/description/fields.
 function formsRenderBuilderScreen(root, existingDefinition) {
   const isEdit = !!(existingDefinition && existingDefinition.id);
   const card = el('section', 'card forms-builder-card');
-  card.appendChild(el('h2', null, isEdit ? 'Rediger formular' : 'Ny formular'));
   root.appendChild(card);
+
+  const head = el('div', 'forms-builder-head');
+  head.appendChild(el('h2', null, isEdit ? 'Rediger formular' : 'Ny formular'));
+  card.appendChild(head);
 
   const draftFields = existingDefinition
     ? JSON.parse(JSON.stringify(existingDefinition.fields || []))
     : [];
+  const draftSections = existingDefinition
+    ? JSON.parse(JSON.stringify(existingDefinition.sections || []))
+    : [];
   // A from-scratch form gets one starting field so the editor isn't empty.
-  if (draftFields.length === 0 && !existingDefinition) {
+  if (draftFields.length === 0 && draftSections.length === 0 && !existingDefinition) {
     draftFields.push({ id: formsNewFieldId(), type: 'text', label: 'Navn', required: true });
   }
 
-  let fieldListEl; // assigned below, referenced by the template strip's onUse
+  let fieldListEl; // top-level field editor, assigned below
+  let sectionsListEl; // extra-sections container, assigned below
   const error = el('p', 'forms-msg error');
 
+  function renderSectionsList() {
+    sectionsListEl.replaceChildren();
+    draftSections.forEach((section, idx) => {
+      sectionsListEl.appendChild(formsRenderSectionBlock(section, idx, draftSections,
+        () => { error.textContent = ''; }, renderSectionsList));
+    });
+  }
+
   if (!existingDefinition) {
-    card.appendChild(formsRenderTemplateStrip((fields) => {
-      draftFields.splice(0, draftFields.length, ...JSON.parse(JSON.stringify(fields)));
+    head.appendChild(formsRenderTemplateMenu((template) => {
+      draftFields.splice(0, draftFields.length, ...JSON.parse(JSON.stringify(template.fields || [])));
+      draftSections.splice(0, draftSections.length, ...JSON.parse(JSON.stringify(template.sections || [])));
+      if (template.description) descInput.value = template.description;
       formsRenderFieldEditor(fieldListEl, draftFields, () => { error.textContent = ''; });
+      renderSectionsList();
+      error.textContent = '';
     }));
   }
 
@@ -701,13 +746,17 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   descInput.value = existingDefinition ? existingDefinition.description || '' : '';
   card.appendChild(siteEditField('Beskrivelse', descInput));
 
+  // Status/Frist/Produktionsår are form-level metadata, not per-section —
+  // shown once, in one row, alongside the form's own (= "section 1"'s)
+  // Titel/Beskrivelse/Felter.
+  const metaRow = el('div', 'edit-field-row');
   const statusDd = siteCreateDropdownField(
     [{ value: 'closed', label: 'Lukket' }, { value: 'open', label: 'Åben' }],
     existingDefinition ? existingDefinition.status : 'closed');
-  card.appendChild(siteEditField('Status', statusDd));
+  metaRow.appendChild(siteEditField('Status', statusDd));
 
   const deadlineField = siteCreateDateField(existingDefinition ? existingDefinition.deadline : '');
-  card.appendChild(siteEditField('Frist (valgfri)', deadlineField));
+  metaRow.appendChild(siteEditField('Frist (valgfri)', deadlineField));
 
   const yearInput = el('input');
   yearInput.type = 'text';
@@ -715,12 +764,29 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   yearInput.placeholder = 'fx 2026';
   yearInput.value = existingDefinition && existingDefinition.productionYear != null
     ? String(existingDefinition.productionYear) : '';
-  card.appendChild(siteEditField('Produktionsår (valgfri)', yearInput));
+  metaRow.appendChild(siteEditField('Produktionsår (valgfri)', yearInput));
+  card.appendChild(metaRow);
 
   card.appendChild(el('h3', null, 'Felter'));
   fieldListEl = el('div', 'forms-field-list');
   card.appendChild(fieldListEl);
   formsRenderFieldEditor(fieldListEl, draftFields, () => { error.textContent = ''; });
+
+  sectionsListEl = el('div', 'forms-sections-list');
+  card.appendChild(sectionsListEl);
+  renderSectionsList();
+
+  const addSectionBtn = el('button', 'btn-small', '+ Tilføj sektion');
+  addSectionBtn.type = 'button';
+  addSectionBtn.addEventListener('click', () => {
+    draftSections.push({
+      id: formsNewFieldId(), title: '', description: '',
+      fields: [{ id: formsNewFieldId(), type: 'text', label: '', required: false }],
+    });
+    renderSectionsList();
+    error.textContent = '';
+  });
+  card.appendChild(addSectionBtn);
 
   card.appendChild(error);
 
@@ -730,9 +796,11 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   saveAsTemplateBtn.type = 'button';
   saveAsTemplateBtn.addEventListener('click', () => {
     error.textContent = '';
-    const cleaned = formsValidateAndCleanFields(draftFields);
-    if (cleaned.error) { error.textContent = cleaned.error; return; }
-    formsOpenSaveAsTemplateModal(titleInput.value, cleaned.fields);
+    const cleanedFields = formsValidateAndCleanFields(draftFields);
+    if (cleanedFields.error) { error.textContent = cleanedFields.error; return; }
+    const cleanedSections = formsValidateAndCleanSections(draftSections);
+    if (cleanedSections.error) { error.textContent = cleanedSections.error; return; }
+    formsOpenSaveAsTemplateModal(titleInput.value, descInput.value, cleanedFields.fields, cleanedSections.sections);
   });
 
   const cancelBtn = el('button', 'btn-small', 'Annuller');
@@ -745,15 +813,17 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     error.textContent = '';
     const title = titleInput.value.trim();
     if (!title) { error.textContent = 'Skriv en titel.'; return; }
-    const cleaned = formsValidateAndCleanFields(draftFields);
-    if (cleaned.error) { error.textContent = cleaned.error; return; }
+    const cleanedFields = formsValidateAndCleanFields(draftFields);
+    if (cleanedFields.error) { error.textContent = cleanedFields.error; return; }
+    const cleanedSections = formsValidateAndCleanSections(draftSections);
+    if (cleanedSections.error) { error.textContent = cleanedSections.error; return; }
     const productionYear = yearInput.value.trim() ? parseInt(yearInput.value.trim(), 10) : null;
     saveBtn.disabled = true;
     const payload = {
       title, description: descInput.value.trim(), status: statusDd.value,
       deadline: deadlineField.value || null, productionYear,
       fromTemplateId: existingDefinition ? (existingDefinition.fromTemplateId || null) : null,
-      fields: cleaned.fields,
+      fields: cleanedFields.fields, sections: cleanedSections.sections,
     };
     if (isEdit) payload.id = existingDefinition.id;
     const result = await formsApi('forms_save', payload);
@@ -771,63 +841,124 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   card.appendChild(actionsRow);
 }
 
-// Inline "start from a template" strip shown atop a brand-new (non-edit)
-// builder screen — replaces the old separate "Opret fra skabelon"/
-// "Skabeloner" modals with one embedded list: a template can be loaded
-// into the current draft or deleted outright, right where forms get built.
-function formsRenderTemplateStrip(onUse) {
-  const wrap = el('div', 'forms-template-strip');
-  wrap.appendChild(el('h3', null, 'Start fra en skabelon'));
-  const listWrap = el('div', null, 'Henter skabeloner …');
-  wrap.appendChild(listWrap);
+// One extra section's editor block: its own Titel/Beskrivelse, a Felter
+// list built on the exact same formsRenderFieldEditor as the top-level
+// list (it's already generic over whatever array it's handed), and a
+// "Slet sektion" that removes it and re-renders the whole sections list
+// (so later sections re-number correctly).
+function formsRenderSectionBlock(section, idx, draftSections, onChange, rerenderAll) {
+  const block = el('div', 'forms-section-block');
 
-  async function reload() {
-    const result = await formsApi('templates_list', {});
-    listWrap.replaceChildren();
-    if (!result.ok) {
-      if (result.message) listWrap.appendChild(el('p', 'forms-msg error', result.message));
-      return;
-    }
-    const templates = Array.isArray(result.data.templates) ? result.data.templates : [];
-    if (templates.length === 0) {
-      listWrap.appendChild(el('p', 'forms-intro',
-        'Ingen skabeloner endnu. Gem en formular som skabelon nedenfor for at genbruge den senere.'));
-      return;
-    }
-    for (const t of templates) {
-      const row = el('div', 'forms-template-row');
-      row.appendChild(el('div', 'forms-open-title', t.title));
-      const rowActions = el('div', 'forms-row-actions');
-      const useBtn = el('button', 'btn-small', 'Brug');
-      useBtn.type = 'button';
-      useBtn.addEventListener('click', () => onUse(t.fields));
-      const delBtn = el('button', 'btn-small btn-small-danger', 'Slet');
-      delBtn.type = 'button';
-      delBtn.addEventListener('click', async () => {
-        delBtn.disabled = true;
-        const res = await formsApi('templates_delete', { id: t.id });
-        if (res.ok) reload(); else delBtn.disabled = false;
-      });
-      rowActions.appendChild(useBtn);
-      rowActions.appendChild(delBtn);
-      row.appendChild(rowActions);
-      listWrap.appendChild(row);
-    }
-  }
-  reload();
-  return wrap;
+  const head = el('div', 'forms-section-head');
+  head.appendChild(el('h4', null, 'Sektion ' + (idx + 2)));
+  const removeBtn = el('button', 'btn-small btn-small-danger', 'Slet sektion');
+  removeBtn.type = 'button';
+  removeBtn.addEventListener('click', () => {
+    draftSections.splice(idx, 1);
+    rerenderAll();
+    onChange();
+  });
+  head.appendChild(removeBtn);
+  block.appendChild(head);
+
+  const titleInput = el('input');
+  titleInput.type = 'text';
+  titleInput.placeholder = 'Sektionstitel';
+  titleInput.value = section.title || '';
+  titleInput.addEventListener('input', () => { section.title = titleInput.value; onChange(); });
+  block.appendChild(siteEditField('Titel', titleInput));
+
+  const descInput = el('textarea');
+  descInput.rows = 2;
+  descInput.value = section.description || '';
+  descInput.addEventListener('input', () => { section.description = descInput.value; onChange(); });
+  block.appendChild(siteEditField('Beskrivelse', descInput));
+
+  block.appendChild(el('h4', null, 'Felter'));
+  const fieldListEl = el('div', 'forms-field-list');
+  block.appendChild(fieldListEl);
+  if (!Array.isArray(section.fields)) section.fields = [];
+  formsRenderFieldEditor(fieldListEl, section.fields, onChange);
+
+  return block;
 }
 
-// Small modal just for naming a new template — replaces a bare
-// window.prompt() (previously the only non-password prompt() on the site)
-// with the same styled edit-field/pill-button chrome every other confirm
-// dialog uses.
-function formsOpenSaveAsTemplateModal(suggestedTitle, fields) {
+// ── Template menu ("Skabelon" dropdown, top-right of a new form) ─────
+// Replaces the old separate "Opret fra skabelon"/"Skabeloner" modals with
+// one dropdown: each row applies the template (fields + sections +
+// description) to the current draft; a grey ✕ opens a small delete-confirm
+// instead, mirroring formsOpenDeleteConfirm's own pattern for forms.
+function formsRenderTemplateMenu(onUse) {
+  const btn = el('button', 'btn-small forms-template-menu-btn', 'Skabelon ▾');
+  btn.type = 'button';
+  btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    const result = await formsApi('templates_list', {});
+    btn.disabled = false;
+    const templates = result.ok && Array.isArray(result.data.templates) ? result.data.templates : [];
+    formsOpenTemplateMenuPopup(btn, templates, result, onUse);
+  });
+  return btn;
+}
+
+function formsOpenTemplateMenuPopup(anchor, templates, result, onUse) {
+  const pop = el('div', 'site-field-pop forms-template-menu-pop');
+  if (!result.ok) {
+    pop.appendChild(el('p', 'forms-msg error', result.message || 'Kunne ikke hente skabeloner.'));
+  } else if (templates.length === 0) {
+    pop.appendChild(el('p', 'forms-intro', 'Ingen skabeloner endnu.'));
+  } else {
+    for (const t of templates) {
+      const row = el('div', 'forms-template-menu-row');
+      const useBtn = el('button', 'site-list-row forms-template-menu-use');
+      useBtn.type = 'button';
+      useBtn.appendChild(el('div', 'forms-template-menu-title', t.title));
+      if (t.description) useBtn.appendChild(el('div', 'forms-template-menu-desc', t.description));
+      useBtn.addEventListener('click', () => { close(); onUse(t); });
+      const delBtn = el('button', 'boss-edit-remove', '✕');
+      delBtn.type = 'button';
+      delBtn.title = 'Slet skabelon';
+      delBtn.addEventListener('click', () => { close(); formsOpenDeleteTemplateConfirm(t); });
+      row.appendChild(useBtn);
+      row.appendChild(delBtn);
+      pop.appendChild(row);
+    }
+  }
+  const close = siteOpenFieldPopup(anchor, pop);
+}
+
+function formsOpenDeleteTemplateConfirm(t) {
+  const { form, error, actions, close } = siteOpenModalWithClose('Slet skabelon');
+  form.appendChild(el('p', 'forms-intro', `Slet skabelonen "${t.title}" permanent? Dette kan ikke fortrydes.`));
+  const cancelBtn = formsPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    const result = await formsApi('templates_delete', { id: t.id });
+    if (result.ok) { close(); siteShowToast('Skabelon slettet.'); }
+    else { confirmBtn.disabled = false; if (result.message) error.textContent = result.message; }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// Small modal just for naming (and now describing) a new template —
+// replaces a bare window.prompt() (previously the only non-password
+// prompt() on the site) with the same styled edit-field/pill-button chrome
+// every other confirm dialog uses.
+function formsOpenSaveAsTemplateModal(suggestedTitle, suggestedDescription, fields, sections) {
   const { form, error, actions, close } = siteOpenModalWithClose('Gem som skabelon');
   const nameInput = el('input');
   nameInput.type = 'text';
   nameInput.value = suggestedTitle || '';
   form.appendChild(siteEditField('Navn på skabelon', nameInput));
+
+  const descInput = el('textarea');
+  descInput.rows = 2;
+  descInput.value = suggestedDescription || '';
+  form.appendChild(siteEditField('Beskrivelse', descInput));
 
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -836,7 +967,8 @@ function formsOpenSaveAsTemplateModal(suggestedTitle, fields) {
     const title = nameInput.value.trim();
     if (!title) { error.textContent = 'Skriv et navn.'; return; }
     confirmBtn.disabled = true;
-    const result = await formsApi('templates_save', { title, description: '', fields });
+    const result = await formsApi('templates_save',
+      { title, description: descInput.value.trim(), fields, sections });
     confirmBtn.disabled = false;
     if (result.ok) { close(); siteShowToast('Skabelon gemt.'); }
     else if (result.message) error.textContent = result.message;
@@ -877,7 +1009,7 @@ async function formsRenderResponsesScreen(root, formId) {
     return;
   }
 
-  const fields = Array.isArray(definition.fields) ? definition.fields : [];
+  const fields = formsAllFields(definition);
   const wrap = el('div', 'forms-responses-wrap');
   const table = el('table', 'forms-responses-table');
   const thead = el('thead');
@@ -907,6 +1039,18 @@ async function formsRenderResponsesScreen(root, formId) {
   body.appendChild(exportBtn);
 }
 
+// One flat, ordered field list — top-level fields first, then each
+// section's in turn — for anything that needs a column per question
+// regardless of which section asked it (the responses table, CSV export).
+// A submitted answer is still one flat {fieldId: value} map either way.
+function formsAllFields(definition) {
+  const fields = Array.isArray(definition.fields) ? definition.fields.slice() : [];
+  for (const section of (Array.isArray(definition.sections) ? definition.sections : [])) {
+    if (Array.isArray(section.fields)) fields.push(...section.fields);
+  }
+  return fields;
+}
+
 function formsFormatAnswerForDisplay(v) {
   if (v === undefined || v === null) return '—';
   if (Array.isArray(v)) return v.join(', ');
@@ -921,7 +1065,7 @@ function formsCsvEscape(v) {
 }
 
 function formsExportCsv(definition, responses) {
-  const fields = Array.isArray(definition.fields) ? definition.fields : [];
+  const fields = formsAllFields(definition);
   const headers = ['Sendt', ...fields.map((f) => f.label)];
   const lines = [headers.map(formsCsvEscape).join(',')];
   for (const r of responses) {

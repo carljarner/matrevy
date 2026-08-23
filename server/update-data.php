@@ -1681,6 +1681,31 @@ function forms_validate_field_spec($f, &$seenIds) {
   return $clean;
 }
 
+// Validates + returns a clean Section ({id, title, description, fields}),
+// or null on any violation. $seenIds is the SAME map forms_save/
+// templates_save thread through every field on the whole form — a field id
+// must stay unique across sections too, since a submitted response is still
+// one flat {fieldId: value} map regardless of which section asked it.
+function forms_validate_section($s, &$seenIds) {
+  if (!is_array($s)) return null;
+  $id = $s['id'] ?? '';
+  $title = $s['title'] ?? '';
+  $description = $s['description'] ?? '';
+  $fieldsIn = $s['fields'] ?? [];
+  if (!is_string($id) || $id === '' || mb_strlen($id) > 60) return null;
+  if (!is_string($title) || trim($title) === '' || mb_strlen($title) > 120) return null;
+  if (!is_string($description) || mb_strlen($description) > 2000) return null;
+  if (!is_array($fieldsIn)) return null;
+
+  $fields = [];
+  foreach ($fieldsIn as $f) {
+    $clean = forms_validate_field_spec($f, $seenIds);
+    if ($clean === null) return null;
+    $fields[] = $clean;
+  }
+  return ['id' => $id, 'title' => trim($title), 'description' => $description, 'fields' => $fields];
+}
+
 // Validates one submitted answer for $field. Returns ['ok'=>true,
 // 'present'=>bool, 'value'=>...] on success — 'present' is false only for
 // an omitted OPTIONAL answer (nothing to store, not an error) — or
@@ -1756,6 +1781,7 @@ function forms_get($body) {
     'ok' => true, 'id' => $id,
     'title' => $def['title'] ?? '', 'description' => $def['description'] ?? '',
     'deadline' => $def['deadline'] ?? null, 'fields' => $def['fields'] ?? [],
+    'sections' => $def['sections'] ?? [],
   ]);
 }
 
@@ -1772,6 +1798,9 @@ function forms_submit($body) {
   if (!is_array($answersIn)) respond(400, ['error' => 'invalid_shape']);
 
   $fields = is_array($def['fields'] ?? null) ? $def['fields'] : [];
+  foreach ((is_array($def['sections'] ?? null) ? $def['sections'] : []) as $s) {
+    if (is_array($s['fields'] ?? null)) $fields = array_merge($fields, $s['fields']);
+  }
   $clean = [];
   foreach ($fields as $field) {
     $fid = $field['id'] ?? null;
@@ -1847,6 +1876,7 @@ function forms_save($body) {
   $productionYear = array_key_exists('productionYear', $body) ? $body['productionYear'] : null;
   $fromTemplateId = array_key_exists('fromTemplateId', $body) ? $body['fromTemplateId'] : null;
   $fieldsIn = $body['fields'] ?? [];
+  $sectionsIn = $body['sections'] ?? [];
 
   if (!is_string($title) || trim($title) === '' || mb_strlen($title) > 120
       || !is_string($description) || mb_strlen($description) > 2000
@@ -1854,7 +1884,7 @@ function forms_save($body) {
       || ($deadline !== null && (!is_string($deadline) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $deadline)))
       || ($productionYear !== null && !is_int($productionYear))
       || ($fromTemplateId !== null && !forms_valid_id($fromTemplateId))
-      || !is_array($fieldsIn)) {
+      || !is_array($fieldsIn) || !is_array($sectionsIn)) {
     respond(400, ['error' => 'invalid_shape']);
   }
 
@@ -1864,6 +1894,12 @@ function forms_save($body) {
     $clean = forms_validate_field_spec($f, $seenIds);
     if ($clean === null) respond(400, ['error' => 'invalid_field']);
     $fields[] = $clean;
+  }
+  $sections = [];
+  foreach ($sectionsIn as $s) {
+    $clean = forms_validate_section($s, $seenIds);
+    if ($clean === null) respond(400, ['error' => 'invalid_section']);
+    $sections[] = $clean;
   }
 
   $id = $body['id'] ?? null;
@@ -1886,6 +1922,7 @@ function forms_save($body) {
     'productionYear' => $productionYear,
     'fromTemplateId' => $fromTemplateId,
     'fields' => $fields,
+    'sections' => $sections,
     'createdAt' => $createdAt,
     'updatedAt' => $now,
   ];
@@ -1926,9 +1963,10 @@ function templates_save($body) {
   $title = $body['title'] ?? '';
   $description = $body['description'] ?? '';
   $fieldsIn = $body['fields'] ?? [];
+  $sectionsIn = $body['sections'] ?? [];
   if (!is_string($title) || trim($title) === '' || mb_strlen($title) > 120
       || !is_string($description) || mb_strlen($description) > 2000
-      || !is_array($fieldsIn)) {
+      || !is_array($fieldsIn) || !is_array($sectionsIn)) {
     respond(400, ['error' => 'invalid_shape']);
   }
   $seenIds = [];
@@ -1938,6 +1976,12 @@ function templates_save($body) {
     if ($clean === null) respond(400, ['error' => 'invalid_field']);
     $fields[] = $clean;
   }
+  $sections = [];
+  foreach ($sectionsIn as $s) {
+    $clean = forms_validate_section($s, $seenIds);
+    if ($clean === null) respond(400, ['error' => 'invalid_section']);
+    $sections[] = $clean;
+  }
 
   $id = $body['id'] ?? null;
   if ($id !== null && (!is_string($id) || !forms_valid_id($id))) respond(400, ['error' => 'invalid_shape']);
@@ -1946,7 +1990,7 @@ function templates_save($body) {
   $newId = $id;
   $notFound = false;
   forms_mutate(forms_templates_path(), ['templates' => []],
-    function ($json) use ($id, $title, $description, $fields, $now, &$newId, &$notFound) {
+    function ($json) use ($id, $title, $description, $fields, $sections, $now, &$newId, &$notFound) {
       if (!isset($json['templates']) || !is_array($json['templates'])) $json['templates'] = [];
       if ($id !== null) {
         $found = false;
@@ -1955,6 +1999,7 @@ function templates_save($body) {
             $t['title'] = trim($title);
             $t['description'] = $description;
             $t['fields'] = $fields;
+            $t['sections'] = $sections;
             $t['updatedAt'] = $now;
             $found = true;
             break;
@@ -1966,7 +2011,7 @@ function templates_save($body) {
         $newId = forms_id();
         $json['templates'][] = [
           'id' => $newId, 'title' => trim($title), 'description' => $description,
-          'fields' => $fields, 'createdAt' => $now, 'updatedAt' => $now,
+          'fields' => $fields, 'sections' => $sections, 'createdAt' => $now, 'updatedAt' => $now,
         ];
       }
       return $json;
