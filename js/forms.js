@@ -225,7 +225,7 @@ function formsGenerateRolleonskerSections() {
       description: `Velkommen til Matrevy ${year}. Hvis du vil være på scenen, skal du svare på dette spørgeskema.`,
       fields: [
         { id: formsNewFieldId(), type: 'text', label: 'Fulde navn', required: true,
-          placeholder: 'Du må godt droppe et mellemnavn eller to' },
+          placeholder: 'Der sker ikke noget, hvis du dropper et mellemnavn eller to' },
         { id: formsNewFieldId(), type: 'checkboxes', label: 'Jeg vil gerne', required: true,
           options: [
             { value: 'Danse', label: 'Danse' },
@@ -246,7 +246,7 @@ function formsGenerateRolleonskerSections() {
       ].join('\n'),
       fields: [
         ...formsRolleonskerSceneFields(byAct['Akt 1'] || []),
-        formsRolleonskerTextareaField('Kommentarer til dine ønsker i akt 1?', 'for eksempel roller du vil eller ikke vil have'),
+        formsRolleonskerTextareaField('Kommentarer til dine ønsker i akt 1?', 'For eksempel roller du vil eller ikke vil have'),
       ],
     },
     {
