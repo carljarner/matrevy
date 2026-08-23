@@ -79,6 +79,16 @@ function formsRevyOptions(existingYear) {
   return opts;
 }
 
+// Labels a plain year with its Revy name (e.g. 2026 → "MatRevy 2026") for
+// the Oversigt year filter, which only has a bare year number to work
+// with (a form's productionYear). Falls back to the year itself if Arkiv
+// has no matching entry (a legacy form's year, or Arkiv not loaded).
+function formsRevyNameForYear(year) {
+  const entries = (typeof ARCHIVE_DATA !== 'undefined' && Array.isArray(ARCHIVE_DATA)) ? ARCHIVE_DATA : [];
+  const match = entries.find((e) => e.year === year);
+  return match && match.name ? match.name : String(year);
+}
+
 // ── Small DOM helper (mirrors budget.js's el()) ──────────────
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -617,14 +627,13 @@ async function renderFormFillIn(root, formId) {
 // renderFormFillIn's in-page back pattern.
 function renderAdminView(root, screen) {
   screen = screen || { name: 'overview' };
-  if (screen.name === 'responses') {
-    formsRenderResponsesScreen(root, screen.formId);
-    return;
-  }
-
   root.replaceChildren();
   const tabs = el('div', 'forms-admin-tabs');
-  const overviewTab = el('button', 'forms-admin-tab' + (screen.name === 'overview' ? ' active' : ''), 'Oversigt');
+  // "Se svar" is a view onto one form from within Oversigt, not a separate
+  // tab — the Oversigt tab stays active and visible while viewing it, so
+  // there's always a way back to the list without a dedicated back button.
+  const overviewActive = screen.name === 'overview' || screen.name === 'responses';
+  const overviewTab = el('button', 'forms-admin-tab' + (overviewActive ? ' active' : ''), 'Oversigt');
   overviewTab.type = 'button';
   overviewTab.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
   const builderTab = el('button', 'forms-admin-tab' + (screen.name === 'builder' ? ' active' : ''),
@@ -637,6 +646,8 @@ function renderAdminView(root, screen) {
 
   if (screen.name === 'builder') {
     formsRenderBuilderScreen(root, screen.existingDefinition || null);
+  } else if (screen.name === 'responses') {
+    formsRenderResponsesScreen(root, screen.formId);
   } else {
     formsRenderOverviewScreen(root);
   }
@@ -716,15 +727,18 @@ async function formsRenderOverviewScreen(root) {
   }
 
   // Year filter, top-right of the heading — ties each form to a specific
-  // MatRevy year. Options are every year some form actually carries, plus
-  // the current production year (so there's always at least one option,
-  // e.g. just "2026" today). A form saved before productionYear existed
-  // has none at all; treat it as belonging to the current year rather
-  // than hiding it under every other filter.
+  // Revy. Options are every year some form actually carries, plus the
+  // current production year (so there's always at least one option, e.g.
+  // just "MatRevy 2026" today), labeled with that Revy's own name (same
+  // Arkiv lookup as the builder's Revy field) rather than a bare year. A
+  // form saved before productionYear existed has none at all; treat it as
+  // belonging to the current year rather than hiding it under every
+  // other filter.
   const currentYear = formsCurrentProductionYear();
   const formYear = (f) => (f.productionYear != null ? f.productionYear : currentYear);
   const years = Array.from(new Set([currentYear, ...forms.map(formYear)])).sort((a, b) => a - b);
-  const yearDd = siteCreateDropdownField(years.map((y) => ({ value: String(y), label: String(y) })), String(currentYear));
+  const yearDd = siteCreateDropdownField(
+    years.map((y) => ({ value: String(y), label: formsRevyNameForYear(y) })), String(currentYear));
   yearDd.classList.add('forms-year-filter');
   head.appendChild(yearDd);
 
@@ -1633,17 +1647,15 @@ function formsOpenSaveAsTemplateModal(templates, suggestedTitle, sections) {
 }
 
 // ── Responses screen ("Se svar" row action) + CSV export ─────
-// Rendered directly into `root`, mirroring renderFormFillIn's in-page
-// back-button pattern rather than opening a modal — a response table can
-// get wide/long, which a small modal never suited well.
+// Appended below the tab bar renderAdminView already rendered (Oversigt
+// stays the active tab — this is a view onto one form from within
+// Oversigt, not a separate tab, so there's no dedicated back button; the
+// Oversigt tab itself goes back). Deliberately full-width rather than the
+// 720px Oversigt/builder column — a response table can get wide, and a
+// horizontal scrollbar reads better than every column being squeezed
+// to fit.
 async function formsRenderResponsesScreen(root, formId) {
-  root.replaceChildren();
   const card = el('section', 'card');
-  const backBtn = el('button', 'btn-small', '← Tilbage til oversigt');
-  backBtn.type = 'button';
-  backBtn.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
-  card.appendChild(backBtn);
-
   const body = el('div', null, 'Henter svar …');
   card.appendChild(body);
   root.appendChild(card);
