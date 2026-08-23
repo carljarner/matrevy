@@ -877,7 +877,7 @@ function buildBudgetSheetCard() {
   let categoryDrafts = null;
   if (budgetCategoriesEditMode) {
     budgetSheet = null;
-    categoryDrafts = buildCategoryEditSection(card);
+    categoryDrafts = buildCategoryEditSection(card, status);
   } else {
     const refs = buildNormalSheetSection(card);
     budgetSheet = { ...refs, status };
@@ -901,7 +901,7 @@ function buildBudgetSheetCard() {
   });
   saveBar.appendChild(editBudgetBtn);
 
-  const saveBtn = el('button', 'site-btn-primary', budgetCategoriesEditMode ? 'Gem kategorier' : 'Gem');
+  const saveBtn = el('button', 'site-btn-primary', 'Gem');
   saveBtn.type = 'button';
   if (budgetCategoriesEditMode) {
     saveBtn.addEventListener('click', () => saveCategoryEdits(saveBtn, status, categoryDrafts));
@@ -1155,12 +1155,14 @@ function budgetMoveDraftItem(draft, item, beforeItem, rerender) {
 
 // ── Admin: category structure editing (Rediger toggle on the sheet) ──────
 // Turns the Budget card into an editable form in place, deliberately kept as
-// close to the normal-mode layout as possible (same four table columns, same
-// column widths, text edited in place rather than via a separate form) —
-// Kategori becomes name-editable, Planlagt is replaced by an editable
-// Bilagslabel (receipt-shortening) column locked once a paid expense exists
-// under that key, and the Rest column's slot is reused for a trailing "✕"
-// that deletes a row — blocked (via the same bottom banner used site-wide,
+// close to the normal-mode layout as possible — the same Kategori/
+// Bilagslabel(/Planlagt)/Brugt/Rest columns, at the same widths, text edited
+// in place rather than via a separate form. Kategori becomes name-editable,
+// Planlagt is replaced by an editable Bilagslabel (receipt-shortening)
+// column locked once a paid expense exists under that key, Rest is shown
+// read-only (against the last-saved Planlagt figure, since Planlagt itself
+// isn't editable here), and a trailing 5th column holds a "✕" that deletes
+// a row — blocked (via the same bottom banner used site-wide,
 // siteShowToast) under the identical "already in use" condition as the
 // Bilagslabel lock. Rows are draggable to reorder (mirrors Aktfordeling's
 // drag-and-drop in manus.js) via the row itself, not a dedicated handle
@@ -1170,10 +1172,11 @@ function budgetMoveDraftItem(draft, item, beforeItem, rerender) {
 // record. Both lists grow via a small "+" below the last row rather than a
 // separate add-row form, seeding a fresh row with placeholder-ish default
 // text ("name"/"bilag") ready to be typed over.
-function buildCategoryEditSection(card) {
+function buildCategoryEditSection(card, status) {
   const draftExpense = budgetState.categories.expense.map((c) => ({ ...c }));
   const draftIncome = budgetState.categories.income.map((c) => ({ ...c }));
   const spent = computeSpentByCategory();
+  const planned = budgetState.budget.planned || {};
   const storedIncome = budgetState.budget.income || [];
 
   // Keys with ≥1 non-deleted paid expense in this year — the single
@@ -1195,11 +1198,27 @@ function buildCategoryEditSection(card) {
     if (input) { input.focus(); input.select(); }
   }
 
+  // Snapshot-diff dirty check against the categories as they were when this
+  // section was opened (mirrors budgetIsSheetDirty's approach for the
+  // normal-mode sheet) — called after every draft mutation (typing,
+  // add/remove, drag reorder) so the Gemt/Ikke-gemt flag in the card head
+  // actually tracks category edits instead of just sitting on whatever it
+  // said before Rediger was opened.
+  const categorySnapshot = JSON.stringify({
+    expense: budgetState.categories.expense,
+    income: budgetState.categories.income,
+  });
+  function refreshCategoryDirtyStatus() {
+    const dirty = JSON.stringify({ expense: draftExpense, income: draftIncome }) !== categorySnapshot;
+    status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+    status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
+  }
+
   const tableWrap = el('div', 'budget-table-wrap');
   const table = el('table', 'budget-table budget-sheet-table-editing');
   const thead = el('thead');
   const htr = el('tr');
-  ['Kategori', 'Bilagslabel', 'Brugt', ''].forEach((h) => htr.appendChild(el('th', null, h)));
+  ['Kategori', 'Bilagslabel', 'Brugt', 'Rest', ''].forEach((h) => htr.appendChild(el('th', null, h)));
   thead.appendChild(htr);
   table.appendChild(thead);
   const tbody = el('tbody');
@@ -1220,18 +1239,21 @@ function buildCategoryEditSection(card) {
       });
       tr.addEventListener('dragend', () => tr.classList.remove('budget-drop-target'));
       budgetWireDropHighlight(tr, () => {
-        if (dragItem && dragItem !== item) budgetMoveDraftItem(draftExpense, dragItem, item, renderExpenseRows);
+        if (dragItem && dragItem !== item) {
+          budgetMoveDraftItem(draftExpense, dragItem, item, renderExpenseRows);
+          refreshCategoryDirtyStatus();
+        }
       });
 
       const nameTd = el('td');
       const nameInput = el('input', 'budget-manage-text-input');
       nameInput.type = 'text';
       nameInput.value = item.label;
-      nameInput.addEventListener('input', () => { item.label = nameInput.value; });
+      nameInput.addEventListener('input', () => { item.label = nameInput.value; refreshCategoryDirtyStatus(); });
       nameTd.appendChild(nameInput);
       tr.appendChild(nameTd);
 
-      const bilagTd = el('td', 'budget-td-num');
+      const bilagTd = el('td');
       const bilagInput = el('input', 'budget-manage-text-input budget-manage-bilag-input');
       bilagInput.type = 'text';
       bilagInput.maxLength = 20;
@@ -1248,14 +1270,22 @@ function buildCategoryEditSection(card) {
         bilagInput.addEventListener('input', () => {
           bilagInput.value = sanitizeAbbrev(bilagInput.value);
           item.abbrev = bilagInput.value;
+          refreshCategoryDirtyStatus();
         });
       }
       bilagTd.appendChild(bilagInput);
       tr.appendChild(bilagTd);
 
-      tr.appendChild(el('td', 'budget-td-num budget-brugt-cell', formatKr((item.key && spent[item.key]) || 0)));
+      const brugtVal = (item.key && spent[item.key]) || 0;
+      tr.appendChild(el('td', 'budget-td-num budget-brugt-cell', formatKr(brugtVal)));
 
-      const removeTd = el('td', 'budget-td-num');
+      const plannedVal = (item.key && planned[item.key]) || 0;
+      const restVal = plannedVal - brugtVal;
+      const restTd = el('td', 'budget-td-num', formatKr(restVal));
+      restTd.classList.toggle('budget-negative', restVal < 0);
+      tr.appendChild(restTd);
+
+      const removeTd = el('td', 'budget-td-remove');
       const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
       removeBtn.type = 'button';
       removeBtn.title = 'Fjern kategori';
@@ -1267,6 +1297,7 @@ function buildCategoryEditSection(card) {
         const idx = draftExpense.indexOf(item);
         if (idx !== -1) draftExpense.splice(idx, 1);
         renderExpenseRows();
+        refreshCategoryDirtyStatus();
       });
       removeTd.appendChild(removeBtn);
       tr.appendChild(removeTd);
@@ -1282,6 +1313,7 @@ function buildCategoryEditSection(card) {
   expenseAddBtn.addEventListener('click', () => {
     draftExpense.push({ key: null, label: 'name', abbrev: sanitizeAbbrev('bilag') });
     renderExpenseRows();
+    refreshCategoryDirtyStatus();
     focusLastRowInput(tbody, '.budget-manage-text-input');
   });
   card.appendChild(expenseAddBtn);
@@ -1301,7 +1333,7 @@ function buildCategoryEditSection(card) {
       const nameInput = el('input', 'budget-manage-text-input');
       nameInput.type = 'text';
       nameInput.value = item.label;
-      nameInput.addEventListener('input', () => { item.label = nameInput.value; });
+      nameInput.addEventListener('input', () => { item.label = nameInput.value; refreshCategoryDirtyStatus(); });
       row.appendChild(nameInput);
 
       const stored = item.key ? storedIncome.find((x) => x && (x.key === item.key || x.id === item.key)) : null;
@@ -1319,6 +1351,7 @@ function buildCategoryEditSection(card) {
         const idx = draftIncome.indexOf(item);
         if (idx !== -1) draftIncome.splice(idx, 1);
         renderIncomeRows();
+        refreshCategoryDirtyStatus();
       });
       row.appendChild(removeBtn);
 
@@ -1333,10 +1366,12 @@ function buildCategoryEditSection(card) {
   incomeAddBtn.addEventListener('click', () => {
     draftIncome.push({ key: null, label: 'name' });
     renderIncomeRows();
+    refreshCategoryDirtyStatus();
     focusLastRowInput(incomeList, '.budget-manage-text-input');
   });
   card.appendChild(incomeAddBtn);
 
+  refreshCategoryDirtyStatus();
   return { draftExpense, draftIncome };
 }
 

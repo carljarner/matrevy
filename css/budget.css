@@ -605,18 +605,26 @@ tr.budget-row-filler td {
 
 .budget-sheet-table, .budget-sheet-table-editing { min-width: 460px; }
 
-/* Planlagt(/Bilagslabel)/Brugt/Rest headers centered over their (right-
-   aligned) number columns; Kategori (1st) stays left-aligned as a row
-   label. Shared with .budget-sheet-table-editing (the Rediger-mode
-   version) so both tables' columns line up pixel-for-pixel and toggling
-   Rediger doesn't visibly reflow the table. */
+/* Planlagt/Brugt/Rest headers centered over their (right-aligned) number
+   columns; Kategori (1st) stays left-aligned as a row label. Shared with
+   .budget-sheet-table-editing's own Brugt/Rest (3rd/4th) columns, which
+   sit at the same positions, so both tables' columns line up pixel-for-
+   pixel and toggling Rediger doesn't visibly reflow the table. Bilagslabel
+   (the editing table's own 2nd column) is deliberately left out of this
+   group — see its own left-aligned rule below. */
 .budget-sheet-table th:nth-child(2),
 .budget-sheet-table th:nth-child(3),
 .budget-sheet-table th:nth-child(4),
-.budget-sheet-table-editing th:nth-child(2),
 .budget-sheet-table-editing th:nth-child(3),
 .budget-sheet-table-editing th:nth-child(4) {
   text-align: center;
+}
+
+/* Bilagslabel (editing table only) reads as a short code, not a number —
+   flush left like Kategori rather than centered. */
+.budget-sheet-table-editing th:nth-child(2),
+.budget-sheet-table-editing td:nth-child(2) {
+  text-align: left;
 }
 
 /* Brugt/Rest hold formatted kr amounts that grow/shrink as figures change
@@ -624,8 +632,7 @@ tr.budget-row-filler td {
    realistic amount (xx.xxx,xx kr) keeps these two columns from reflowing
    the whole table as numbers change. Also covers the header cells and the
    "I alt" footer row, since they share the same column positions. Also
-   shared with .budget-sheet-table-editing, whose 4th column holds the
-   delete "✕" instead of Rest but keeps the same width. */
+   shared with .budget-sheet-table-editing's own Brugt/Rest columns. */
 .budget-sheet-table th:nth-child(3),
 .budget-sheet-table td:nth-child(3),
 .budget-sheet-table th:nth-child(4),
@@ -635,6 +642,15 @@ tr.budget-row-filler td {
 .budget-sheet-table-editing th:nth-child(4),
 .budget-sheet-table-editing td:nth-child(4) {
   min-width: 8rem;
+}
+
+/* The editing table's trailing 5th column (delete "✕") has no normal-mode
+   counterpart — narrow and icon-only, unlike the four data columns. */
+.budget-sheet-table-editing th:last-child,
+.budget-sheet-table-editing td:last-child {
+  width: 2rem;
+  min-width: 2rem;
+  text-align: center;
 }
 
 .budget-sheet-table .budget-plan-input,
@@ -777,7 +793,6 @@ tr.budget-row-filler td {
 
 .budget-manage-bilag-input {
   max-width: 7rem;
-  text-align: center;
 }
 
 .budget-manage-input-locked {
@@ -842,11 +857,17 @@ tr.budget-row-filler td {
 }
 
 /* Indtægter rows while editing: name input + read-only amount + delete —
-   reuses .budget-income-list's flex-column spacing from the normal view. */
+   reuses .budget-income-list's flex-column spacing from the normal view.
+   Each row gets the same per-row bottom rule as an expense table row
+   (.budget-table td's border-bottom), so the last row leaves a horizontal
+   line above the "+" here too, matching the expense list's own table-row
+   separators instead of the "+" floating with nothing above it. */
 .budget-manage-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--border);
 }
 
 .budget-manage-row .budget-manage-text-input {
@@ -972,10 +993,11 @@ tr.budget-row-filler td {
   .budget-table tr.budget-row-filler { display: none; }
 
   /* The Rediger-mode expense table's columns (Kategori / Bilagslabel /
-     Brugt / delete) don't line up with the generic first-cell-as-heading +
-     labelled-value-rows pattern above (every cell is an input or an icon
-     button, not plain text) — skip both, let every cell just stack plainly
-     in order; the inputs' own content already carries the meaning. */
+     Brugt / Rest / delete) don't line up with the generic
+     first-cell-as-heading + labelled-value-rows pattern above (every cell
+     is an input or an icon button, not plain text) — skip both, let every
+     cell just stack plainly in order; the inputs' own content already
+     carries the meaning. */
   .budget-sheet-table-editing td:first-child {
     font-weight: normal;
   }
@@ -986,7 +1008,7 @@ tr.budget-row-filler td {
   .budget-sheet-table-editing td:not(:first-child)::before {
     content: none;
   }
-  .budget-manage-bilag-input { max-width: none; text-align: left; }
+  .budget-manage-bilag-input { max-width: none; }
 
   /* Indtægter rows (both normal and Rediger mode) already stack fine via
      .budget-income-row's own flex — just let the name/amount shrink to fit
