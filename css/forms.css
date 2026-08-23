@@ -5,12 +5,19 @@
 .forms-form { max-width: 560px; margin: 0 auto; }
 .forms-form h2 { text-align: center; }
 
-/* The fill-in view specifically (renderFormFillIn) — 50% wider than the
+/* The fill-in view specifically (renderFormFillIn) — wider than the
    shared .forms-form default (also used by the plain open-forms list,
    which stays narrow), and its question labels read as full-color text
    rather than every other page's muted .edit-field label grey. */
-.forms-fillin-wide { max-width: 840px; }
+.forms-fillin-wide { max-width: 590px; }
 .forms-fillin-wide .edit-field label { color: var(--text); }
+
+/* A light divider between consecutive fields on one page — not before the
+   first field or after the last (nothing to separate there). */
+.forms-fillin-page .edit-field:not(:last-child) {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
 
 /* Icon-only back arrow (fill-in view) — mirrors .boss-edit-remove's muted/
    warm-hover treatment rather than a full labelled .btn-small. */
@@ -291,6 +298,18 @@
   color: var(--text-muted);
 }
 
+/* "Slet" (section delete) reads as a plain .btn-small until hovered, same
+   animation as Budget's own reject action (.budget-act-reject in
+   budget.css) — idle text stays neutral, only the hover tints toward
+   danger, instead of being red the whole time like .btn-small-danger. */
+@media (hover: hover) {
+  .forms-section-remove:hover {
+    background: #f6e3df;
+    border-color: #d8a59c;
+    color: var(--danger);
+  }
+}
+
 /* Matches .edit-field label (style.css) exactly — small, muted, not bold —
    so "Felter" reads as one more field label under Titel/Beskrivelse rather
    than a bolder sub-heading. */
@@ -402,11 +421,22 @@
   margin-top: 0.4rem;
 }
 
+/* Far-left/true-centered/far-right, same layout as Budget's own
+   .budget-save-bar/.budget-edit-btn (budget.css) — a space-between row
+   with the middle button pulled out of flow and centered absolutely, so
+   it stays dead-center regardless of the outer two buttons' own widths. */
 .forms-builder-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  position: relative;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-top: 1rem;
+}
+
+.forms-builder-cancel {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 /* ── Fill-in form: paged sections ─────────────────────────────
@@ -487,6 +517,14 @@
   text-align: left;
 }
 
+/* Skala's circles spread edge-to-edge across the field's full width
+   instead of clustering at a fixed gap — nowrap so evenly-spaced holds at
+   any width up to the 0-10 range's worth of circles. */
+.forms-radio-row-scale {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
 .forms-radio-option input[type="radio"] {
   width: 1.15rem;
   height: 1.15rem;
@@ -508,7 +546,13 @@
    screens, same as the admin responses table. */
 .forms-grid-wrap { overflow-x: auto; }
 
+/* width:100% + table-layout:fixed spreads the value columns evenly across
+   the full width (fixed layout splits any column with no explicit width
+   equally) — only the row-label column gets one, via :first-child below,
+   so it doesn't shrink to match. */
 .forms-grid-table {
+  width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.85rem;
 }
@@ -518,6 +562,11 @@
   padding: 0.4rem 0.6rem;
   border-bottom: 1px solid var(--border);
   text-align: center;
+}
+
+.forms-grid-table th:first-child,
+.forms-grid-table td:first-child {
+  width: 30%;
 }
 
 .forms-grid-row-label {

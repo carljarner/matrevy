@@ -175,12 +175,13 @@ function formsSectionsFromDefinition(def) {
 // Horizontal row of native radio circles, one per option — shared by
 // "Vælg én" (select) and Skala, whose only real difference is where the
 // option list comes from (live-resolved options vs. a synthesized numeric
-// range). `name` scopes the radios into one exclusive group.
-// `inline` puts the caption beside its circle (used by "Vælg én") instead
-// of centered below it (Skala's default — a numbered scale reads better
-// with the digit directly under its own circle).
-function formsRenderRadioRow(options, name, inline) {
-  const wrap = el('div', 'forms-radio-row' + (inline ? ' forms-radio-row-inline' : ''));
+// range). `name` scopes the radios into one exclusive group. `variant`:
+// 'inline' puts the caption beside its circle ("Vælg én"); 'scale' keeps
+// the caption centered below (a digit reads better under its own circle)
+// but spreads the circles edge-to-edge across the full width instead of
+// clustering at a fixed gap.
+function formsRenderRadioRow(options, name, variant) {
+  const wrap = el('div', 'forms-radio-row' + (variant ? ' forms-radio-row-' + variant : ''));
   const radios = [];
   for (const opt of options) {
     const optEl = el('label', 'forms-radio-option');
@@ -218,7 +219,7 @@ function formsRenderAnswerInput(field) {
   if (field.type === 'select') {
     // A row of clickable circles, not a dropdown — same idea as Skala,
     // just fed live-resolved options instead of a numeric range.
-    return formsRenderRadioRow(formsResolveOptions(field), 'sel_' + field.id, true);
+    return formsRenderRadioRow(formsResolveOptions(field), 'sel_' + field.id, 'inline');
   }
   if (field.type === 'checkboxes') {
     const wrap = el('div', 'forms-checkbox-list');
@@ -254,7 +255,7 @@ function formsRenderAnswerInput(field) {
       capRow.appendChild(el('span', null, field.scaleMaxLabel || ''));
       wrap.appendChild(capRow);
     }
-    const radioRow = formsRenderRadioRow(options, 'scale_' + field.id);
+    const radioRow = formsRenderRadioRow(options, 'scale_' + field.id, 'scale');
     wrap.appendChild(radioRow);
     wrap.formsValue = () => {
       const v = radioRow.formsValue();
@@ -1080,9 +1081,12 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   card.appendChild(error);
 
+  // Same far-left/true-centered/far-right layout as Budget's own
+  // .budget-save-bar (Slet/Rediger/Gem), just with different colors/
+  // actions: green Skabelon, warm Annuller, blue Gem.
   const actionsRow = el('div', 'forms-builder-actions');
 
-  const saveAsTemplateBtn = el('button', 'btn-small', 'Gem som skabelon');
+  const saveAsTemplateBtn = el('button', 'site-btn-success', 'Skabelon');
   saveAsTemplateBtn.type = 'button';
   saveAsTemplateBtn.addEventListener('click', () => {
     error.textContent = '';
@@ -1091,11 +1095,11 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     formsOpenSaveAsTemplateModal(titleInput.value, '', cleanedSections.sections);
   });
 
-  const cancelBtn = el('button', 'btn-small', 'Annuller');
+  const cancelBtn = el('button', 'site-btn-warm forms-builder-cancel', 'Annuller');
   cancelBtn.type = 'button';
   cancelBtn.addEventListener('click', () => renderAdminView(root, { name: 'overview' }));
 
-  const saveBtn = el('button', 'site-btn-primary', 'Gem formular');
+  const saveBtn = el('button', 'site-btn-primary', 'Gem');
   saveBtn.type = 'button';
   saveBtn.addEventListener('click', async () => {
     error.textContent = '';
@@ -1150,14 +1154,22 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   toggleBtn.appendChild(el('span', null, 'Sektion ' + (idx + 1)));
   head.appendChild(toggleBtn);
 
-  const removeBtn = el('button', 'btn-small btn-small-danger', 'Slet sektion');
+  const removeBtn = el('button', 'btn-small forms-section-remove', 'Slet');
   removeBtn.type = 'button';
   // A form always needs at least one section — can't delete the last one.
   removeBtn.disabled = draftSections.length <= 1;
   removeBtn.addEventListener('click', () => {
-    draftSections.splice(idx, 1);
-    rerenderAll();
-    onChange();
+    if (formsSectionIsEmpty(section)) {
+      draftSections.splice(idx, 1);
+      rerenderAll();
+      onChange();
+    } else {
+      formsOpenDeleteSectionConfirm(idx + 1, () => {
+        draftSections.splice(idx, 1);
+        rerenderAll();
+        onChange();
+      });
+    }
   });
   head.appendChild(removeBtn);
   block.appendChild(head);
@@ -1193,6 +1205,27 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   formsRenderFieldEditor(fieldListEl, section.fields, onChange);
 
   return block;
+}
+
+// A freshly added blank section (no title, no description, no field with
+// an actual question typed in yet) deletes instantly — there's nothing to
+// lose. Anything else confirms first, same as deleting a whole form.
+function formsSectionIsEmpty(section) {
+  if ((section.title || '').trim()) return false;
+  if ((section.description || '').trim()) return false;
+  const fields = Array.isArray(section.fields) ? section.fields : [];
+  return !fields.some((f) => (f.label || '').trim());
+}
+
+function formsOpenDeleteSectionConfirm(sectionNumber, onConfirm) {
+  const { form, actions, close } = siteOpenModalWithClose('Slet sektion');
+  form.appendChild(el('p', 'forms-intro', `Slet Sektion ${sectionNumber}? Dette kan ikke fortrydes.`));
+  const cancelBtn = formsPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Template menu ("Skabelon" dropdown, top-right of a new form) ─────
