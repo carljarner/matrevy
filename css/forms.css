@@ -325,14 +325,34 @@
   margin-top: 1rem;
 }
 
-/* ── Fill-in form: section headings ──────────────────────────
-   renderFormFillIn prints one of these before each extra section's own
-   fields — same H3 weight as the page's other headings, no page-specific
-   size override needed. */
+/* ── Fill-in form: paged sections ─────────────────────────────
+   renderFormFillIn shows one page (the form's own top-level fields, or one
+   extra section) at a time — .forms-fillin-page toggles via inline
+   display:none/'' rather than a class, so no rule is needed for that part.
+   A multi-page form gets prev/label/next nav at the bottom, same idea as
+   Manus's point-entry modal paging between sheets (openPointEntryModal) —
+   .btn-small here instead of that modal's .site-pill-btn since this lives
+   inline on the page, not in a modal (see the site-wide button-tier rule). */
 .forms-fillin-section-title {
-  margin-top: 1.5rem;
-  padding-top: 0.75rem;
-  border-top: 1px dashed var(--border);
+  margin-bottom: 0.4rem;
+}
+
+.forms-fillin-nav-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.forms-fillin-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.forms-fillin-page-label {
+  font-weight: 600;
+  min-width: 6ch;
+  text-align: center;
 }
 
 @media (max-width: 719px) {

@@ -269,21 +269,38 @@ async function renderFormFillIn(root, formId) {
   body.appendChild(el('h2', null, form.title));
   if (form.description) body.appendChild(el('p', 'forms-intro', form.description));
 
-  const inputs = [];
-  function appendFieldInputs(fieldList) {
-    for (const field of fieldList) {
+  // One "page" per section — the form's own top-level fields count as page
+  // 1 (its Titel/Beskrivelse are already the fixed header above, so it
+  // carries no extra heading of its own); each further section is its own
+  // page with the same shape (title, description, fields). Multi-page forms
+  // are paged with prev/next arrows at the bottom, same idea as Manus's
+  // point-entry modal (openPointEntryModal) paging between sheets — except
+  // this lives inline on the page, not in a modal, so it uses .btn-small
+  // rather than that modal's .site-pill-btn (see the site-wide button-tier
+  // convention). All pages render up front and are just hidden/shown, so
+  // native input values survive navigating back and forth for free.
+  const pageDefs = [{ title: null, description: null, fields: Array.isArray(form.fields) ? form.fields : [] }];
+  for (const section of (Array.isArray(form.sections) ? form.sections : [])) {
+    pageDefs.push({
+      title: section.title || null, description: section.description || null,
+      fields: Array.isArray(section.fields) ? section.fields : [],
+    });
+  }
+
+  const inputs = []; // { field, input, page }
+  const pageEls = pageDefs.map((pageDef, pageIdx) => {
+    const pageEl = el('div', 'forms-fillin-page');
+    if (pageDef.title) pageEl.appendChild(el('h3', 'forms-fillin-section-title', pageDef.title));
+    if (pageDef.description) pageEl.appendChild(el('p', 'forms-intro', pageDef.description));
+    for (const field of pageDef.fields) {
       const input = formsRenderAnswerInput(field);
       const labelText = field.label + (field.required ? ' *' : '');
-      body.appendChild(siteEditField(labelText, input));
-      inputs.push({ field, input });
+      pageEl.appendChild(siteEditField(labelText, input));
+      inputs.push({ field, input, page: pageIdx });
     }
-  }
-  appendFieldInputs(Array.isArray(form.fields) ? form.fields : []);
-  for (const section of (Array.isArray(form.sections) ? form.sections : [])) {
-    if (section.title) body.appendChild(el('h3', 'forms-fillin-section-title', section.title));
-    if (section.description) body.appendChild(el('p', 'forms-intro', section.description));
-    appendFieldInputs(Array.isArray(section.fields) ? section.fields : []);
-  }
+    body.appendChild(pageEl);
+    return pageEl;
+  });
 
   const msg = el('div', 'forms-msg');
   body.appendChild(msg);
@@ -296,11 +313,14 @@ async function renderFormFillIn(root, formId) {
   submitBtn.type = 'button';
   submitBtn.addEventListener('click', async () => {
     const answers = {};
-    for (const { field, input } of inputs) {
+    for (const { field, input, page } of inputs) {
       const value = input.formsValue();
       if (field.required) {
         const empty = value == null || value === '' || (Array.isArray(value) && value.length === 0);
-        if (empty) return setMsg(`Udfyld "${field.label}".`, 'error');
+        if (empty) {
+          showPage(page);
+          return setMsg(`Udfyld "${field.label}".`, 'error');
+        }
       }
       answers[field.id] = value;
     }
@@ -318,13 +338,48 @@ async function renderFormFillIn(root, formId) {
         }
       }
       submitBtn.disabled = true;
+      showPage(0);
     } else if (res.message) {
       setMsg(res.message, 'error');
     } else {
       setMsg('', null); // cancelled password prompt
     }
   });
-  body.appendChild(submitBtn);
+
+  let currentPage = 0;
+  let nav = null;
+  function renderNav() {
+    if (nav) nav.remove();
+    if (pageEls.length <= 1) {
+      body.appendChild(submitBtn);
+      nav = null;
+      return;
+    }
+    nav = el('div', 'forms-fillin-nav-row');
+    const navGroup = el('div', 'forms-fillin-nav-group');
+    const prevBtn = el('button', 'btn-small', '‹ Forrige');
+    prevBtn.type = 'button';
+    prevBtn.disabled = currentPage === 0;
+    prevBtn.addEventListener('click', () => showPage(currentPage - 1));
+    navGroup.appendChild(prevBtn);
+    navGroup.appendChild(el('span', 'forms-fillin-page-label', `Sektion ${currentPage + 1}/${pageEls.length}`));
+    if (currentPage === pageEls.length - 1) {
+      navGroup.appendChild(submitBtn);
+    } else {
+      const nextBtn = el('button', 'btn-small', 'Næste ›');
+      nextBtn.type = 'button';
+      nextBtn.addEventListener('click', () => showPage(currentPage + 1));
+      navGroup.appendChild(nextBtn);
+    }
+    nav.appendChild(navGroup);
+    body.appendChild(nav);
+  }
+  function showPage(idx) {
+    currentPage = idx;
+    pageEls.forEach((pageEl, i) => { pageEl.style.display = i === currentPage ? '' : 'none'; });
+    renderNav();
+  }
+  showPage(0);
 }
 
 // ── Boss/admin: management view ──────────────────────────────
