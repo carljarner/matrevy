@@ -23,34 +23,29 @@
 
 'use strict';
 
-// ── Categories (fixed; mirrors BUDGET_CATEGORY_KEYS in update-data.php) ─
-const BUDGET_CATEGORIES = [
-  { key: 'rekvisitter',  label: 'Rekvisitter og kostumer' },
-  { key: 'makeup',       label: 'Makeup' },
-  { key: 'texnik',       label: 'TeXnik' },
-  { key: 'snacks',       label: 'Snacks' },
-  { key: 'kage',         label: 'Kage' },
-  { key: 'mad',          label: 'Mad' },
-  { key: 'sammenholdet', label: 'Sammenholdet' },
-  { key: 'fest',         label: 'Efterfest' },
-  { key: 'diverse',      label: 'Diverse' },
-  { key: 'rengoring',    label: 'Rengøring' },
-  { key: 'tur',          label: 'Revyttetur' },
-  { key: 'manus',        label: 'Manusmøder' },
-  { key: 'tshirts',      label: 'T-shirts' },
-  { key: 'stregnskab',   label: 'Stregnskab' },
-];
+// ── Categories (per-year data, loaded from the server — see budgetState.categories
+// below; no longer a fixed client-side list. update-data.php's
+// budget_default_categories()/budget_load_categories() are the server-side
+// counterpart, one categories.json per budget year.) ─
 
-function budgetCategoryLabel(key) {
-  const c = BUDGET_CATEGORIES.find((x) => x.key === key);
+function budgetCategoryLabel(key, categories) {
+  const c = (categories || []).find((x) => x.key === key);
   return c ? c.label : key;
 }
 
 // Option list for siteCreateDropdownField (site-utils.js), optionally
 // prefixed with an empty "not yet chosen" placeholder row.
-function budgetCategoryOptions(placeholder) {
-  const opts = BUDGET_CATEGORIES.map((c) => ({ value: c.key, label: c.label }));
+function budgetCategoryOptions(categories, placeholder) {
+  const opts = (categories || []).map((c) => ({ value: c.key, label: c.label }));
   return placeholder ? [{ value: '', label: 'Vælg kategori …' }, ...opts] : opts;
+}
+
+// True if `key` matches a category currently in `categories` — used to gate
+// approval and flag "orphaned" pending requests whose category was deleted
+// after submission (see budget_submit's server-side comment for why that's
+// accepted rather than rejected).
+function budgetCategoryIsValid(key, categories) {
+  return (categories || []).some((c) => c.key === key);
 }
 
 // ── Small DOM helper ─────────────────────────────────────────
@@ -257,9 +252,29 @@ function renderRevystForm(root) {
     + 'Oplysningerne gemmes privat og kan kun ses af koordinatorerne.');
   card.appendChild(intro);
 
-  // Category
-  const categorySelect = siteCreateDropdownField(budgetCategoryOptions(true), '');
+  // Category — loaded async from the server (categories are per-year data
+  // now, not a fixed client-side list), same non-blocking pattern as the
+  // budget_active_year_info call above. The options array is mutated in
+  // place and the dropdown's own value re-set to force a re-render against
+  // it, rather than rebuilding the field once the real list arrives.
+  const categoryOptions = [{ value: '', label: 'Henter kategorier …' }];
+  const categorySelect = siteCreateDropdownField(categoryOptions, '');
+  categorySelect.disabled = true;
   card.appendChild(siteEditField('Kategori', categorySelect));
+  budgetApi('budget_active_categories', {}).then((result) => {
+    categoryOptions.length = 0;
+    if (result.ok && result.data && Array.isArray(result.data.expense)) {
+      categoryOptions.push(
+        { value: '', label: 'Vælg kategori …' },
+        ...result.data.expense.map((c) => ({ value: c.key, label: c.label }))
+      );
+      categorySelect.disabled = false;
+    } else {
+      categoryOptions.push({ value: '', label: 'Kunne ikke hente kategorier' });
+      setMsg('Kunne ikke hente kategorier. Genindlæs siden.', 'error');
+    }
+    categorySelect.value = categorySelect.value; // re-render against the now-real list
+  });
 
   // Amount + date row-ish (amount only for now)
   const amountInput = el('input');
@@ -367,7 +382,7 @@ function budgetReceiptIconBtn(file) {
 }
 
 // ── Admin: management view ───────────────────────────────────
-let budgetState = { requests: [], expenses: [], budget: { planned: {}, income: [] } };
+let budgetState = { requests: [], expenses: [], budget: { planned: {}, income: [] }, categories: { expense: [], income: [] } };
 let budgetPaidFilter = 'alle';
 let budgetPaidExpanded = false;
 const BUDGET_PAID_PAGE_SIZE = 10;
@@ -443,6 +458,11 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   budgetState.budget = {
     planned: (b.planned && typeof b.planned === 'object') ? b.planned : {},
     income: Array.isArray(b.income) ? b.income : [],
+  };
+  const cats = data.categories || {};
+  budgetState.categories = {
+    expense: Array.isArray(cats.expense) ? cats.expense : [],
+    income: Array.isArray(cats.income) ? cats.income : [],
   };
 
   // Budget + right column (the year toolbar above Afventende udlæg)
@@ -820,13 +840,6 @@ function nowHhmm() {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Income is a fixed two-row list (labels hardcoded, non-removable) — the only
-// real income is ticket sales; "Andet" is a catch-all.
-const BUDGET_INCOME_ROWS = [
-  { id: 'billetsalg', label: 'Billetsalg (efter kontingent)' },
-  { id: 'andet',      label: 'Andet' },
-];
-
 function renderBudgetSheet(container) {
   const card = el('section', 'card budget-sheet-card');
   const head = el('div', 'card-head');
@@ -848,7 +861,7 @@ function renderBudgetSheet(container) {
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  BUDGET_CATEGORIES.forEach((c) => {
+  budgetState.categories.expense.forEach((c) => {
     const tr = el('tr');
     tr.appendChild(el('td', null, c.label));
 
@@ -901,8 +914,12 @@ function renderBudgetSheet(container) {
 
   const incomeRows = [];
   const storedIncome = budgetState.budget.income || [];
-  BUDGET_INCOME_ROWS.forEach((def) => {
-    const stored = storedIncome.find((x) => x && x.id === def.id) || {};
+  budgetState.categories.income.forEach((def) => {
+    // `x.id` fallback: pre-existing stored rows from before categories
+    // became per-year data used `id` (always 'billetsalg'/'andet') with no
+    // `key` — the lazy-seeded default categories reuse those exact strings
+    // as their keys, so this always resolves correctly with no migration.
+    const stored = storedIncome.find((x) => x && (x.key === def.key || x.id === def.key)) || {};
     incomeList.appendChild(buildIncomeRow(def, stored, incomeRows));
   });
 
@@ -919,9 +936,9 @@ function renderBudgetSheet(container) {
   deleteYearBtn.type = 'button';
   deleteYearBtn.addEventListener('click', () => openDeleteYearWarning(document.getElementById('budget-root')));
   saveBar.appendChild(deleteYearBtn);
-  // Placeholder reminder — not implemented yet, deliberately inert.
-  const editBudgetBtn = el('button', 'site-btn-warm budget-edit-placeholder', 'Rediger');
+  const editBudgetBtn = el('button', 'site-btn-warm budget-edit-btn', 'Rediger');
   editBudgetBtn.type = 'button';
+  editBudgetBtn.addEventListener('click', () => openManageCategoriesModal(document.getElementById('budget-root')));
   saveBar.appendChild(editBudgetBtn);
   const saveBtn = el('button', 'site-btn-primary', 'Gem');
   saveBtn.type = 'button';
@@ -960,18 +977,19 @@ function buildIncomeRow(def, stored, incomeRows) {
   row.appendChild(amountInput);
   wrap.appendChild(row);
 
-  const entry = { id: def.id, label: def.label, amountInput };
+  const entry = { key: def.key, amountInput };
 
-  // "Andet" is a catch-all — let the kasserer describe what it covers.
-  if (def.id === 'andet') {
-    const noteInput = el('input', 'budget-income-note-input');
-    noteInput.type = 'text';
-    noteInput.placeholder = 'Beskriv hvad "Andet" dækker over …';
-    if (stored.note != null) noteInput.value = String(stored.note);
-    noteInput.addEventListener('input', () => { budgetRefreshSheetStatus(); });
-    wrap.appendChild(noteInput);
-    entry.noteInput = noteInput;
-  }
+  // Every income row can carry an optional free-text note (e.g. what a
+  // catch-all like "Andet" covers, or who a sponsorship came from) — not
+  // just the original hardcoded "Andet" row, now that income categories are
+  // freely add/renamable via "Rediger kategorier".
+  const noteInput = el('input', 'budget-income-note-input');
+  noteInput.type = 'text';
+  noteInput.placeholder = `Note om "${def.label}" (valgfrit)`;
+  if (stored.note != null) noteInput.value = String(stored.note);
+  noteInput.addEventListener('input', () => { budgetRefreshSheetStatus(); });
+  wrap.appendChild(noteInput);
+  entry.noteInput = noteInput;
 
   incomeRows.push(entry);
   return wrap;
@@ -981,7 +999,7 @@ function updateSheetTotals() {
   if (!budgetSheet) return;
   let totalPlanned = 0;
   let totalBrugt = 0;
-  BUDGET_CATEGORIES.forEach((c) => {
+  budgetState.categories.expense.forEach((c) => {
     const planned = parseAmount(budgetSheet.plannedInputs[c.key].value) || 0;
     const brugt = budgetSheet.spent[c.key] || 0;
     const rest = planned - brugt;
@@ -1007,7 +1025,7 @@ function updateSheetTotals() {
 // Collect the current sheet values into the payload shape.
 function collectSheetPayload() {
   const planned = {};
-  BUDGET_CATEGORIES.forEach((c) => {
+  budgetState.categories.expense.forEach((c) => {
     const raw = budgetSheet.plannedInputs[c.key].value.trim();
     if (raw !== '') {
       const v = parseAmount(raw);
@@ -1017,8 +1035,7 @@ function collectSheetPayload() {
   const income = budgetSheet.incomeRows.map((r) => {
     const amount = parseAmount(r.amountInput.value);
     const line = {
-      id: r.id,
-      label: r.label,
+      key: r.key,
       amount: Number.isFinite(amount) && amount >= 0 ? amount : 0,
     };
     if (r.noteInput) line.note = r.noteInput.value.trim();
@@ -1067,6 +1084,247 @@ function ensureBudgetSheetTimers(root) {
   setInterval(() => { if (budgetIsSheetDirty()) saveBudgetSheet(); }, 15 * 60 * 1000);
   window.addEventListener('beforeunload', (e) => {
     if (budgetIsSheetDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
+}
+
+// ── Admin: manage categories (add/rename/delete) ──────────────
+// Modeled directly on wiki.js's openManageChaptersModal — same local-draft +
+// re-render-the-whole-list pattern, minus drag-reorder (category order here
+// is cosmetic only). Two sections: Udgiftskategorier (label + abbrev, the
+// abbrev locked once a paid expense exists under that key) and Indtægter
+// (label only). A single "Gem" sends the whole draft via
+// budget_categories_save (one atomic replace, mirroring saveBudgetSheet's
+// "send the full next array" shape) rather than per-row calls.
+function openManageCategoriesModal(root) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger kategorier');
+  modal.classList.add('budget-categories-modal');
+
+  let draftExpense = budgetState.categories.expense.map((c) => ({ ...c }));
+  let draftIncome = budgetState.categories.income.map((c) => ({ ...c }));
+
+  // Keys of categories that already have at least one non-deleted paid
+  // expense — their abbrev (and therefore future receipt filenames) is
+  // locked, mirroring the server-side abbrev_locked check.
+  const paidCategoryKeys = new Set(
+    budgetState.expenses.filter((e) => !e.deleted).map((e) => e.category)
+  );
+
+  function sanitizeAbbrev(raw) {
+    return String(raw || '').toUpperCase().replace(/[^A-Z0-9_]/g, '').slice(0, 20);
+  }
+
+  // Impact summary for the remove-confirmation, computed entirely from
+  // already-loaded state — no network round trip just to show a warning.
+  function expenseImpact(key) {
+    const pending = budgetState.requests.filter((r) => r.category === key).length;
+    const planned = budgetState.budget.planned[key];
+    const paid = budgetState.expenses.filter((e) => e.category === key && !e.deleted).length;
+    const parts = [];
+    if (pending) parts.push(`${pending} afventende anmodning${pending === 1 ? '' : 'er'}`);
+    if (planned) parts.push(`${formatKr(planned)} planlagt`);
+    if (paid) parts.push(`${paid} betalt${paid === 1 ? '' : 'e'} udgift${paid === 1 ? '' : 'er'}`);
+    return parts;
+  }
+
+  function incomeImpact(key) {
+    const stored = (budgetState.budget.income || []).find((r) => r.key === key || r.id === key);
+    return stored && stored.amount ? [`${formatKr(stored.amount)} registreret`] : [];
+  }
+
+  const expenseHead = document.createElement('h3');
+  expenseHead.className = 'budget-manage-subhead';
+  expenseHead.textContent = 'Udgiftskategorier';
+  form.appendChild(expenseHead);
+
+  const expenseList = document.createElement('div');
+  expenseList.className = 'budget-manage-list';
+  form.appendChild(expenseList);
+
+  function renderExpenseList() {
+    expenseList.textContent = '';
+    draftExpense.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'budget-manage-row';
+
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'budget-manage-label-input';
+      labelInput.value = item.label;
+      labelInput.addEventListener('input', () => { item.label = labelInput.value; });
+      row.appendChild(labelInput);
+
+      const abbrevWrap = document.createElement('span');
+      abbrevWrap.className = 'budget-manage-abbrev-wrap';
+      const abbrevInput = document.createElement('input');
+      abbrevInput.type = 'text';
+      abbrevInput.className = 'budget-manage-abbrev-input';
+      abbrevInput.maxLength = 20;
+      abbrevInput.value = item.abbrev;
+      const locked = item.key && paidCategoryKeys.has(item.key);
+      abbrevInput.disabled = locked;
+      if (locked) abbrevInput.title = 'Låst — der findes allerede betalte udgifter i denne kategori';
+      abbrevInput.addEventListener('input', () => {
+        abbrevInput.value = sanitizeAbbrev(abbrevInput.value);
+        item.abbrev = abbrevInput.value;
+      });
+      abbrevWrap.appendChild(abbrevInput);
+      if (locked) {
+        const lockNote = document.createElement('span');
+        lockNote.className = 'budget-manage-lock-note';
+        lockNote.textContent = '🔒';
+        lockNote.title = 'Låst — der findes allerede betalte udgifter i denne kategori';
+        abbrevWrap.appendChild(lockNote);
+      }
+      row.appendChild(abbrevWrap);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'budget-manage-remove-btn';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Fjern kategori';
+      removeBtn.addEventListener('click', () => {
+        const impact = item.key ? expenseImpact(item.key) : [];
+        const warning = impact.length
+          ? `Denne kategori bruges af: ${impact.join(', ')}. Slet alligevel?`
+          : `Fjern kategorien "${item.label}"?`;
+        if (!window.confirm(warning)) return;
+        draftExpense = draftExpense.filter((d) => d !== item);
+        renderExpenseList();
+      });
+      row.appendChild(removeBtn);
+
+      expenseList.appendChild(row);
+    });
+  }
+  renderExpenseList();
+
+  const expenseNameInput = document.createElement('input');
+  expenseNameInput.type = 'text';
+  expenseNameInput.placeholder = 'F.eks. Efterfest';
+  const expenseAbbrevInput = document.createElement('input');
+  expenseAbbrevInput.type = 'text';
+  expenseAbbrevInput.maxLength = 20;
+  expenseAbbrevInput.placeholder = 'Fest';
+  expenseAbbrevInput.className = 'budget-manage-abbrev-input';
+  expenseAbbrevInput.addEventListener('input', () => {
+    expenseAbbrevInput.value = sanitizeAbbrev(expenseAbbrevInput.value);
+  });
+
+  const expenseAddBtn = document.createElement('button');
+  expenseAddBtn.type = 'button';
+  expenseAddBtn.className = 'btn-small budget-manage-add-btn';
+  expenseAddBtn.textContent = '+';
+  expenseAddBtn.title = 'Tilføj kategori';
+  expenseAddBtn.addEventListener('click', () => {
+    const label = expenseNameInput.value.trim();
+    const abbrev = sanitizeAbbrev(expenseAbbrevInput.value) || sanitizeAbbrev(label);
+    if (!label || !abbrev) return;
+    draftExpense.push({ key: null, label, abbrev });
+    expenseNameInput.value = '';
+    expenseAbbrevInput.value = '';
+    renderExpenseList();
+  });
+
+  const expenseAddRow = document.createElement('div');
+  expenseAddRow.className = 'budget-manage-add-row';
+  expenseAddRow.appendChild(siteEditField('Ny kategori', expenseNameInput));
+  expenseAddRow.appendChild(siteEditField('Forkortelse', expenseAbbrevInput));
+  expenseAddRow.appendChild(expenseAddBtn);
+  form.appendChild(expenseAddRow);
+
+  const incomeHead = document.createElement('h3');
+  incomeHead.className = 'budget-manage-subhead';
+  incomeHead.textContent = 'Indtægter';
+  form.appendChild(incomeHead);
+
+  const incomeList = document.createElement('div');
+  incomeList.className = 'budget-manage-list';
+  form.appendChild(incomeList);
+
+  function renderIncomeList() {
+    incomeList.textContent = '';
+    draftIncome.forEach((item) => {
+      const row = document.createElement('div');
+      row.className = 'budget-manage-row';
+
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'budget-manage-label-input';
+      labelInput.value = item.label;
+      labelInput.addEventListener('input', () => { item.label = labelInput.value; });
+      row.appendChild(labelInput);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'budget-manage-remove-btn';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Fjern indtægt';
+      removeBtn.addEventListener('click', () => {
+        const impact = item.key ? incomeImpact(item.key) : [];
+        const warning = impact.length
+          ? `Denne indtægt har: ${impact.join(', ')}. Slet alligevel?`
+          : `Fjern indtægten "${item.label}"?`;
+        if (!window.confirm(warning)) return;
+        draftIncome = draftIncome.filter((d) => d !== item);
+        renderIncomeList();
+      });
+      row.appendChild(removeBtn);
+
+      incomeList.appendChild(row);
+    });
+  }
+  renderIncomeList();
+
+  const incomeNameInput = document.createElement('input');
+  incomeNameInput.type = 'text';
+  incomeNameInput.placeholder = 'F.eks. Sponsorat';
+  const incomeAddBtn = document.createElement('button');
+  incomeAddBtn.type = 'button';
+  incomeAddBtn.className = 'btn-small budget-manage-add-btn';
+  incomeAddBtn.textContent = '+';
+  incomeAddBtn.title = 'Tilføj indtægt';
+  incomeAddBtn.addEventListener('click', () => {
+    const label = incomeNameInput.value.trim();
+    if (!label) return;
+    draftIncome.push({ key: null, label });
+    incomeNameInput.value = '';
+    renderIncomeList();
+  });
+
+  const incomeAddRow = document.createElement('div');
+  incomeAddRow.className = 'budget-manage-add-row';
+  incomeAddRow.appendChild(siteEditField('Ny indtægt', incomeNameInput));
+  incomeAddRow.appendChild(incomeAddBtn);
+  form.appendChild(incomeAddRow);
+
+  const save = budgetPillBtn('Gem', 'site-pill-primary');
+  actions.appendChild(save);
+
+  save.addEventListener('click', async () => {
+    if (draftExpense.length === 0) { error.textContent = 'Der skal være mindst én udgiftskategori.'; return; }
+    if (draftIncome.length === 0) { error.textContent = 'Der skal være mindst én indtægt.'; return; }
+    if (draftExpense.some((c) => !c.label.trim() || !c.abbrev.trim())) {
+      error.textContent = 'Udfyld navn og forkortelse for hver udgiftskategori.';
+      return;
+    }
+    if (draftIncome.some((c) => !c.label.trim())) {
+      error.textContent = 'Udfyld navn for hver indtægt.';
+      return;
+    }
+    save.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_categories_save', {
+      year: budgetViewYear,
+      expense: draftExpense.map((c) => ({ key: c.key || undefined, label: c.label.trim(), abbrev: c.abbrev.trim() })),
+      income: draftIncome.map((c) => ({ key: c.key || undefined, label: c.label.trim() })),
+    });
+    if (result.ok) {
+      close();
+      reloadAdmin(root);
+    } else {
+      save.disabled = false;
+      error.textContent = result.message || 'Kunne ikke gemme kategorierne.';
+    }
   });
 }
 
@@ -1135,19 +1393,26 @@ function renderPendingSection(container) {
 // — the group header above already states them once.
 function buildPendingRowContent(root, req) {
   const wrap = el('div', 'budget-item-content');
+  const isOrphan = !budgetCategoryIsValid(req.category, budgetState.categories.expense);
 
   const top = el('div', 'budget-item-top');
   const topLeft = el('span', 'budget-item-top-left');
-  topLeft.appendChild(el('span', 'budget-badge', budgetCategoryLabel(req.category)));
+  topLeft.appendChild(el('span', 'budget-badge' + (isOrphan ? ' budget-badge-orphan' : ''),
+    isOrphan ? '⚠ Ingen kategori' : budgetCategoryLabel(req.category, budgetState.categories.expense)));
   topLeft.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
   top.appendChild(topLeft);
   if (req.receiptFile) top.appendChild(budgetReceiptIconBtn(req.receiptFile));
   wrap.appendChild(top);
 
   if (req.comment) wrap.appendChild(el('div', 'budget-item-note', req.comment));
+  if (isOrphan) {
+    wrap.appendChild(el('div', 'budget-item-note budget-orphan-note',
+      'Kategorien findes ikke længere. Vælg en ny under "Rediger" før dette udlæg kan godkendes.'));
+  }
 
   const actions = el('div', 'budget-item-actions');
   const approveBtn = el('button', 'btn-small budget-act-approve', 'Godkend');
+  approveBtn.disabled = isOrphan;
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
   const editBtn = el('button', 'btn-small budget-act-edit', 'Rediger');
   editBtn.addEventListener('click', () => openRequestEditModal(root, req));
@@ -1182,6 +1447,12 @@ function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
   header.appendChild(summary);
 
   const approveAllBtn = el('button', 'btn-small budget-act-approve', 'Godkend alle');
+  // Disabled if any member's category has since been deleted — approving
+  // the group would otherwise partially succeed and leave an orphaned
+  // request behind, same as clicking Godkend on it individually would.
+  approveAllBtn.disabled = members.some(
+    (req) => !budgetCategoryIsValid(req.category, budgetState.categories.expense)
+  );
   approveAllBtn.addEventListener('click', () => openApproveAllModal(root, members));
   header.appendChild(approveAllBtn);
   group.appendChild(header);
@@ -1213,7 +1484,7 @@ function openApproveModal(root, req) {
   modal.classList.add('budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
-    `${budgetCategoryLabel(req.category)} · ${formatKr(req.amount)} · ${req.name} · ${req.phone}`));
+    `${budgetCategoryLabel(req.category, budgetState.categories.expense)} · ${formatKr(req.amount)} · ${req.name} · ${req.phone}`));
 
   if (req.comment && req.comment.trim()) {
     form.appendChild(el('p', 'budget-intro', `Kommentar: ${req.comment.trim()}`));
@@ -1261,7 +1532,7 @@ function openApproveAllModal(root, members) {
   const list = el('div', 'budget-approve-all-list');
   members.forEach((req) => {
     list.appendChild(el('div', 'budget-approve-all-line',
-      `${budgetCategoryLabel(req.category)} · ${formatKr(req.amount)}`));
+      `${budgetCategoryLabel(req.category, budgetState.categories.expense)} · ${formatKr(req.amount)}`));
   });
   form.appendChild(list);
 
@@ -1301,7 +1572,13 @@ function openRequestEditModal(root, req) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger udlæg');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
-  const categorySelect = siteCreateDropdownField(budgetCategoryOptions(false), req.category);
+  // placeholder=true: if req.category was deleted since submission, it won't
+  // match any option, so siteCreateDropdownField's own fallback renders it
+  // as unselected ("Vælg") rather than silently matching nothing — forcing
+  // the admin to explicitly pick a real category before Gem is enabled.
+  const categorySelect = siteCreateDropdownField(
+    budgetCategoryOptions(budgetState.categories.expense, true), req.category
+  );
   form.appendChild(siteEditField('Kategori', categorySelect));
 
   const amountInput = el('input');
@@ -1388,7 +1665,7 @@ function renderPaidSection(root) {
   // Category filter ("shuffle through categories").
   const filterWrap = el('div', 'budget-filter');
   const filterSelect = siteCreateDropdownField(
-    [{ value: 'alle', label: 'Alle kategorier' }, ...budgetCategoryOptions(false)],
+    [{ value: 'alle', label: 'Alle kategorier' }, ...budgetCategoryOptions(budgetState.categories.expense, false)],
     budgetPaidFilter
   );
   filterSelect.addEventListener('change', () => {
@@ -1584,7 +1861,9 @@ function openExpenseAddModal(root) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Tilføj udgift');
   modal.classList.add('budget-approve-modal');
 
-  const categorySelect = siteCreateDropdownField(budgetCategoryOptions(true), '');
+  const categorySelect = siteCreateDropdownField(
+    budgetCategoryOptions(budgetState.categories.expense, true), ''
+  );
   form.appendChild(siteEditField('Kategori', categorySelect));
 
   const amountInput = el('input');
@@ -1663,7 +1942,7 @@ function openExpenseEditModal(root, exp) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger udgift');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
-  const summaryParts = [budgetCategoryLabel(exp.category), formatKr(exp.amount), exp.paidBy || '—'];
+  const summaryParts = [budgetCategoryLabel(exp.category, budgetState.categories.expense), formatKr(exp.amount), exp.paidBy || '—'];
   if (exp.phone) summaryParts.push(exp.phone);
   form.appendChild(el('p', 'budget-intro', summaryParts.join(' · ')));
   form.appendChild(el('p', 'budget-intro',

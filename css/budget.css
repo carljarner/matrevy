@@ -733,15 +733,125 @@ tr.budget-row-filler td {
   margin-top: 0.75rem;
 }
 
-/* Placeholder button — true-centers it in the row regardless of the
-   Slet/Gem buttons' own widths, since a 3-child space-between row only
-   centers the middle child when the outer two are equal width. Not
-   greyed out — styled at full strength (.site-btn-warm) so the look can
-   be checked, even though it's not wired to anything yet. */
-.budget-edit-placeholder {
+/* True-centers the Rediger button in the row regardless of the Slet/Gem
+   buttons' own widths, since a 3-child space-between row only centers the
+   middle child when the outer two are equal width. */
+.budget-edit-btn {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
+}
+
+/* --- "Rediger kategorier" modal (openManageCategoriesModal) ------------ */
+.budget-categories-modal {
+  width: min(90vw, 32rem);
+}
+
+.budget-manage-subhead {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.95rem;
+}
+
+.budget-manage-subhead:first-child {
+  margin-top: 0;
+}
+
+.budget-manage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.budget-manage-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.budget-manage-label-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.budget-manage-abbrev-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.budget-manage-abbrev-input {
+  width: 5.5rem;
+  flex-shrink: 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.budget-manage-abbrev-input:disabled {
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.budget-manage-lock-note {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.budget-manage-remove-btn {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+  width: 1.8rem;
+  height: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .budget-manage-remove-btn:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: var(--danger-bg);
+  }
+}
+
+.budget-manage-add-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.budget-manage-add-row .edit-field {
+  flex: 1;
+  min-width: 8rem;
+  margin-bottom: 0;
+}
+
+.budget-manage-add-btn {
+  padding: 0.6rem 0.75rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Warning-tinted variant of .budget-badge for a pending request whose
+   category was deleted after submission — see the race-condition handling
+   in budget_submit/budget_approve (update-data.php) and
+   buildPendingRowContent (budget.js). */
+.budget-badge-orphan {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.budget-orphan-note {
+  color: var(--danger);
 }
 
 /* --- Mobile (site-wide 719px convention) ------------------ */
@@ -837,4 +947,10 @@ tr.budget-row-filler td {
      (not just ".budget-row-filler") to out-specificity the plain
      ".budget-table tr { display: block }" rule above. */
   .budget-table tr.budget-row-filler { display: none; }
+
+  /* "Rediger kategorier": label input can already shrink to fit (flex:1,
+     min-width:0), but the fixed-width abbrev input eats too much of a
+     phone's width alongside it — narrow it further and let rows wrap. */
+  .budget-manage-row { flex-wrap: wrap; }
+  .budget-manage-abbrev-input { width: 4.5rem; }
 }

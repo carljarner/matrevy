@@ -167,6 +167,7 @@ if ($action === 'upload' || $action === 'delete') {
 $BUDGET_ACTIONS = [
   'budget_submit'           => 'revyst', // revyster submit reimbursement requests
   'budget_active_year_info' => 'revyst', // read-only: just the active year number + label, for the submit form's title
+  'budget_active_categories'=> 'revyst', // read-only: active year's expense categories, for the submit form's dropdown
   'budget_read'             => 'admin',
   'budget_receipt'          => 'admin',
   'budget_approve'          => 'admin',
@@ -176,6 +177,7 @@ $BUDGET_ACTIONS = [
   'budget_expense_update'   => 'admin', // edit a paid expense (category locked); also toggles `deleted`
   'budget_expense_remove'   => 'admin', // permanently remove an already soft-deleted expense + its receipt
   'budget_request_update'   => 'admin', // edit a pending request
+  'budget_categories_save'  => 'admin', // replace a year's expense/income category lists (add/rename/delete)
   'budget_create_year'      => 'admin', // create a new (inactive) budget year, seeded from the active year's planned amounts
   'budget_set_active_year'  => 'admin', // flip which year new revyst submissions/uploads land in
   'budget_delete_year'      => 'admin', // permanently delete a whole budget year — irreversible
@@ -396,17 +398,82 @@ function handle_delete($body) {
 // names, phone numbers and receipts must NOT be public. No sha/409
 // dance: concurrency is handled with flock around each read-modify-write.
 
-// The fixed category keys (mirrors BUDGET_CATEGORIES in budget.js).
-// A function, not a `const` array: the budget-action dispatch near the
-// top of this file calls budget_submit() before execution reaches a
-// top-level `const` array declaration (which — unlike a scalar const —
-// is only defined once its line runs), so a const here would be
-// undefined at call time. Functions are hoisted, so this always works.
-function budget_category_keys() {
-  return [
-    'rekvisitter', 'makeup', 'texnik', 'snacks', 'kage', 'mad', 'sammenholdet',
-    'fest', 'diverse', 'rengoring', 'tur', 'manus', 'tshirts', 'stregnskab',
+// Categories are now per-year data (categories.json, see budget_load_categories
+// below) rather than a fixed list — this only supplies the exact original 14
+// expense + 2 income rows, used solely to (a) lazy-seed a year that predates
+// this feature and (b) bootstrap a brand-new year when there's no active year
+// to copy from. A function, not a `const` array: the budget-action dispatch
+// near the top of this file calls budget_submit() before execution reaches a
+// top-level `const` array declaration (which — unlike a scalar const — is
+// only defined once its line runs), so a const here would be undefined at
+// call time. Functions are hoisted, so this always works.
+function budget_default_categories() {
+  $expenseLabels = [
+    'rekvisitter' => 'Rekvisitter og kostumer', 'makeup' => 'Makeup', 'texnik' => 'TeXnik',
+    'snacks' => 'Snacks', 'kage' => 'Kage', 'mad' => 'Mad', 'sammenholdet' => 'Sammenholdet',
+    'fest' => 'Efterfest', 'diverse' => 'Diverse', 'rengoring' => 'Rengøring',
+    'tur' => 'Revyttetur', 'manus' => 'Manusmøder', 'tshirts' => 'T-shirts', 'stregnskab' => 'Stregnskab',
   ];
+  $expense = [];
+  foreach ($expenseLabels as $key => $label) {
+    // abbrev = key initially — reproduces the pre-feature "<key>_<n>" receipt
+    // filenames exactly, so nothing on disk needs migrating.
+    $expense[] = ['key' => $key, 'label' => $label, 'abbrev' => $key];
+  }
+  return [
+    'expense' => $expense,
+    'income'  => [
+      ['key' => 'billetsalg', 'label' => 'Billetsalg (efter kontingent)'],
+      ['key' => 'andet',      'label' => 'Andet'],
+    ],
+  ];
+}
+
+// Reads a year's categories.json, lazily seeding it (via the same flock'd
+// budget_mutate used everywhere else, so a concurrent first-read can't
+// double-seed or clobber a file that appears in between) if it's missing or
+// structurally invalid. Every handler that needs a year's categories calls
+// THIS — never inline json_decode elsewhere — so the seed behavior is
+// conservative and defined in exactly one place.
+function budget_load_categories($year) {
+  $path = budget_year_dir($year) . '/categories.json';
+  if (is_file($path)) {
+    $json = json_decode((string) file_get_contents($path), true);
+    if (is_array($json) && isset($json['expense']) && isset($json['income'])) return $json;
+  }
+  return budget_mutate($year, 'categories.json', null, function ($json) {
+    if (is_array($json) && isset($json['expense']) && isset($json['income'])) return $json;
+    return budget_default_categories();
+  });
+}
+
+// ASCII-folds æøå, lowercases, joins on underscore (not hyphen — the result
+// must satisfy budget_receipt_re()'s filename regex), and dedupes against
+// $knownKeys (by reference, so a whole batch of new labels in one save can't
+// collide with each other either, not just with pre-existing keys).
+function budget_slugify_key($label, &$knownKeys) {
+  $map = ['æ' => 'ae', 'ø' => 'oe', 'å' => 'aa', 'Æ' => 'ae', 'Ø' => 'oe', 'Å' => 'aa'];
+  $s = strtolower(strtr($label, $map));
+  $s = preg_replace('/[^a-z0-9]+/', '_', $s);
+  $s = trim($s, '_');
+  if ($s === '') $s = 'kategori';
+  $base = $s;
+  $n = 2;
+  while (isset($knownKeys[$s])) { $s = $base . '_' . $n; $n++; }
+  $knownKeys[$s] = true;
+  return $s;
+}
+
+// Receipt-filename component for a category key: its current abbrev, or the
+// key itself if somehow not found (unreachable in normal operation — every
+// caller validates the key against this year's category list first).
+function budget_category_abbrev($categories, $key) {
+  foreach (($categories['expense'] ?? []) as $c) {
+    if (($c['key'] ?? null) === $key) {
+      return (($c['abbrev'] ?? '') !== '') ? $c['abbrev'] : $key;
+    }
+  }
+  return $key;
 }
 
 // The ONLY guard between a request's "file" field and reading an arbitrary
@@ -567,6 +634,7 @@ function handle_budget($action, $body) {
   switch ($action) {
     case 'budget_submit':           return budget_submit($body);
     case 'budget_active_year_info': return budget_active_year_info($body);
+    case 'budget_active_categories':return budget_active_categories($body);
     case 'budget_read':             return budget_read($body);
     case 'budget_receipt':          return budget_receipt($body);
     case 'budget_approve':          return budget_approve($body);
@@ -576,6 +644,7 @@ function handle_budget($action, $body) {
     case 'budget_expense_update':   return budget_expense_update($body);
     case 'budget_expense_remove':   return budget_expense_remove($body);
     case 'budget_request_update':   return budget_request_update($body);
+    case 'budget_categories_save':  return budget_categories_save($body);
     case 'budget_create_year':      return budget_create_year($body);
     case 'budget_set_active_year':  return budget_set_active_year($body);
     case 'budget_delete_year':      return budget_delete_year($body);
@@ -602,6 +671,14 @@ function budget_next_n($year, $category) {
 // Always resolves the active year server-side — a client-supplied year is
 // never accepted here, unlike every admin-level handler below (a revyst
 // caller must never be able to write into an arbitrary past year).
+//
+// Category is deliberately NOT validated against this year's current list:
+// the submit form loads categories once on open, and an admin can delete a
+// category in the moments before a submitter clicks send. That submission
+// must still be accepted — it lands in Afventende udlæg with an unresolvable
+// category, and budget_request_update/budget_approve below refuse to let it
+// become an approved expense until an admin assigns it a real one. Rejecting
+// it here instead would just lose the submitter's work entirely.
 function budget_submit($body) {
   $year = budget_active_year();
   $category = $body['category'] ?? '';
@@ -610,13 +687,14 @@ function budget_submit($body) {
   $phone    = $body['phone'] ?? '';
   $comment  = $body['comment'] ?? '';
   $receipt  = $body['receiptBase64'] ?? '';
-  if (!in_array($category, budget_category_keys(), true)
+  if (!is_string($category) || trim($category) === '' || mb_strlen(trim($category)) > 60
       || !is_numeric($amount) || (float) $amount <= 0
       || !is_string($name) || trim($name) === ''
       || !is_string($phone) || trim($phone) === ''
       || !is_string($comment)) {
     respond(400, ['error' => 'invalid_shape']);
   }
+  $category = trim($category);
   $raw = budget_decode_receipt($receipt);
   $ext = budget_receipt_ext($body);
 
@@ -671,7 +749,18 @@ function budget_read($body) {
     'budget'     => budget_load($year, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null]),
     'requests'   => budget_load($year, 'requests.json', ['requests' => []]),
     'expenses'   => budget_load($year, 'expenses.json', ['expenses' => []]),
+    'categories' => budget_load_categories($year),
   ]);
+}
+
+// Revyst: the active year's expense categories only (no income, no
+// personal data) — for the submit form's category dropdown. Mirrors
+// budget_active_year_info: always the active year, never a client-supplied
+// one, since a revyst caller must never read an arbitrary past year.
+function budget_active_categories($body) {
+  $year = budget_active_year();
+  $categories = budget_load_categories($year);
+  respond(200, ['ok' => true, 'year' => $year, 'expense' => $categories['expense'] ?? []]);
 }
 
 // Admin: stream a receipt image (fetched with the password, so receipts are
@@ -692,9 +781,11 @@ function budget_receipt($body) {
 }
 
 // Admin: approve a pending request → assign the next bilag number for its
-// category, rename the receipt to "<key>_<n>.<ext>", move it into the ledger.
-// $body['year'] (optional) picks which year's pending requests to approve
-// into; defaults to the active year.
+// category, rename the receipt to "<abbrev>_<n>.<ext>", move it into the
+// ledger. $body['year'] (optional) picks which year's pending requests to
+// approve into; defaults to the active year. Re-validates the request's
+// category against this year's current list (see budget_submit) and, if
+// it's no longer valid, puts the request back and refuses to approve.
 function budget_approve($body) {
   $year     = budget_resolve_year($body);
   $id       = $body['id'] ?? '';
@@ -724,17 +815,32 @@ function budget_approve($body) {
   if ($found === null) respond(404, ['error' => 'not_found']);
 
   $category = $found['category'];
+  $categories = budget_load_categories($year);
+  $validExpenseKeys = array_column($categories['expense'] ?? [], 'key');
+  if (!in_array($category, $validExpenseKeys, true)) {
+    // Category no longer exists (deleted after the request was submitted,
+    // or was never valid — see budget_submit) — put the pulled request back
+    // rather than silently losing it, and refuse to approve it. The admin
+    // must reassign a real category via budget_request_update first.
+    budget_mutate($year, 'requests.json', ['requests' => []], function ($json) use ($found) {
+      if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
+      $json['requests'][] = $found;
+      return $json;
+    });
+    respond(409, ['error' => 'invalid_category']);
+  }
   $n = budget_next_n($year, $category);
+  $abbrev = budget_category_abbrev($categories, $category);
 
-  // Rename the receipt pending/<id>.<ext> → <key>_<n>.<ext> (best-effort) —
-  // ext follows whatever the pending file actually is (jpg or pdf), never
+  // Rename the receipt pending/<id>.<ext> → <abbrev>_<n>.<ext> (best-effort)
+  // — ext follows whatever the pending file actually is (jpg or pdf), never
   // hardcoded, so a PDF receipt doesn't get silently renamed to .jpg.
   $receiptsDir = budget_receipts_dir($year);
   $oldPath = $receiptsDir . '/' . ($found['receiptFile'] ?? '');
   $newRel = '';
   if (preg_match(budget_receipt_re(), $found['receiptFile'] ?? '') && is_file($oldPath)) {
     $ext = strtolower(pathinfo($found['receiptFile'], PATHINFO_EXTENSION));
-    $receiptFile = $category . '_' . $n . '.' . $ext;
+    $receiptFile = $abbrev . '_' . $n . '.' . $ext;
     if (@rename($oldPath, $receiptsDir . '/' . $receiptFile)) $newRel = $receiptFile;
   }
 
@@ -742,7 +848,7 @@ function budget_approve($body) {
     'id'          => $id,
     'category'    => $category,
     'n'           => $n,
-    'bilag'       => $category . '_' . $n,
+    'bilag'       => $abbrev . '_' . $n,
     'amount'      => $found['amount'],
     'date'        => $date,
     'paidBy'      => trim($paidBy),
@@ -795,27 +901,28 @@ function budget_save_sheet($body) {
   if (!is_array($planned) || !is_array($income)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  $keys = budget_category_keys();
+  $categories = budget_load_categories($year);
+  $expenseKeys = array_column($categories['expense'] ?? [], 'key');
+  $incomeKeys  = array_column($categories['income']  ?? [], 'key');
   $cleanPlanned = [];
   foreach ($planned as $key => $val) {
-    if (!in_array($key, $keys, true) || !is_numeric($val) || (float) $val < 0) {
+    if (!in_array($key, $expenseKeys, true) || !is_numeric($val) || (float) $val < 0) {
       respond(400, ['error' => 'invalid_shape']);
     }
     $cleanPlanned[$key] = round((float) $val, 2);
   }
   $cleanIncome = [];
   foreach ($income as $line) {
+    // Label is intentionally not accepted/stored here any more — it lives
+    // solely in categories.json now, resolved live, so it can't drift out
+    // of sync with a rename made via the "Rediger kategorier" modal.
     if (!is_array($line)
-        || !isset($line['label']) || !is_string($line['label']) || trim($line['label']) === ''
+        || !isset($line['key']) || !is_string($line['key']) || !in_array($line['key'], $incomeKeys, true)
         || !isset($line['amount']) || !is_numeric($line['amount']) || (float) $line['amount'] < 0) {
       respond(400, ['error' => 'invalid_shape']);
     }
-    $id = (isset($line['id']) && is_string($line['id']) && $line['id'] !== '')
-      ? $line['id']
-      : (dechex(time()) . bin2hex(random_bytes(3)));
     $entry = [
-      'id'     => $id,
-      'label'  => trim($line['label']),
+      'key'    => $line['key'],
       'amount' => round((float) $line['amount'], 2),
     ];
     // Optional free-text description (e.g. what the "Andet" income covers).
@@ -854,7 +961,9 @@ function budget_expense_add($body) {
   $name     = $body['name'] ?? '';
   $phone    = $body['phone'] ?? '';
   $receipt  = $body['receiptBase64'] ?? '';
-  if (!in_array($category, budget_category_keys(), true)
+  $categories = budget_load_categories($year);
+  $validExpenseKeys = array_column($categories['expense'] ?? [], 'key');
+  if (!in_array($category, $validExpenseKeys, true)
       || !is_numeric($amount) || (float) $amount <= 0
       || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
       || !is_string($paidBy) || trim($paidBy) === ''
@@ -867,13 +976,14 @@ function budget_expense_add($body) {
 
   $id = dechex(time()) . bin2hex(random_bytes(4));
   $n = budget_next_n($year, $category);
+  $abbrev = budget_category_abbrev($categories, $category);
 
   $receiptRel = '';
   if ($receipt !== '') {
     $raw = budget_decode_receipt($receipt);
     $ext = budget_receipt_ext($body);
     $receiptsDir = budget_receipts_dir($year);
-    $receiptRel = $category . '_' . $n . '.' . $ext;
+    $receiptRel = $abbrev . '_' . $n . '.' . $ext;
     if (@file_put_contents($receiptsDir . '/' . $receiptRel, $raw) === false) {
       respond(500, ['error' => 'budget_storage_unavailable']);
     }
@@ -883,7 +993,7 @@ function budget_expense_add($body) {
     'id'          => $id,
     'category'    => $category,
     'n'           => $n,
-    'bilag'       => $category . '_' . $n,
+    'bilag'       => $abbrev . '_' . $n,
     'amount'      => round((float) $amount, 2),
     'date'        => $date,
     'paidBy'      => trim($paidBy),
@@ -996,7 +1106,9 @@ function budget_expense_remove($body) {
 
 // Admin: edit a pending request. Category may change (no bilag assigned yet; the
 // receipt stays pending/<id>.<ext> regardless). $body['year'] (optional) picks
-// which year; defaults to the active year.
+// which year; defaults to the active year. Since budget_submit no longer
+// validates category, this is the one place that enforces it — the actual
+// reassignment step that clears an "orphaned" (deleted-category) request.
 function budget_request_update($body) {
   $year     = budget_resolve_year($body);
   $id       = $body['id'] ?? '';
@@ -1005,8 +1117,9 @@ function budget_request_update($body) {
   $name     = $body['name'] ?? '';
   $phone    = $body['phone'] ?? '';
   $comment  = $body['comment'] ?? '';
+  $validExpenseKeys = array_column(budget_load_categories($year)['expense'] ?? [], 'key');
   if (!is_string($id) || $id === ''
-      || !in_array($category, budget_category_keys(), true)
+      || !in_array($category, $validExpenseKeys, true)
       || !is_numeric($amount) || (float) $amount <= 0
       || !is_string($name) || trim($name) === ''
       || !is_string($phone) || trim($phone) === ''
@@ -1039,13 +1152,109 @@ function budget_request_update($body) {
   respond(200, ['ok' => true]);
 }
 
-// Admin: create a new, empty budget year — seeds its `planned` amounts as a
-// copy of the *currently active* year's `planned` (a deliberate starting
-// point so the admin doesn't retype every category from scratch), leaves
-// income/expenses/requests empty, and appends it to years.json. Does NOT
-// change which year is active — call budget_set_active_year separately to
-// actually route new revyst submissions into it (so "Start nyt budgetår" in
-// the client is just these two calls in sequence).
+// Admin: replace a year's expense + income category lists in one atomic
+// write — the save handler behind the "Rediger kategorier" modal. Deleting a
+// category is simply omitting it from the payload; no server-side block on
+// deleting an in-use one (the client warns first). $body['year'] (optional)
+// picks which year to edit; defaults to the active year.
+function budget_categories_save($body) {
+  $year = budget_resolve_year($body);
+  $expenseIn = $body['expense'] ?? null;
+  $incomeIn  = $body['income'] ?? null;
+  if (!is_array($expenseIn) || !is_array($incomeIn) || count($expenseIn) === 0 || count($incomeIn) === 0) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  $current = budget_load_categories($year);
+  $currentExpenseByKey = [];
+  foreach (($current['expense'] ?? []) as $c) { $currentExpenseByKey[$c['key']] = $c; }
+  $expensesLedger = budget_load($year, 'expenses.json', ['expenses' => []])['expenses'] ?? [];
+
+  $knownExpenseKeys = array_fill_keys(array_keys($currentExpenseByKey), true);
+  $usedExpenseKeys = [];
+  $usedAbbrevsLower = [];
+  $cleanExpense = [];
+  foreach ($expenseIn as $item) {
+    if (!is_array($item)
+        || !isset($item['label']) || !is_string($item['label']) || trim($item['label']) === '' || mb_strlen(trim($item['label'])) > 60
+        || !isset($item['abbrev']) || !is_string($item['abbrev']) || !preg_match('/^[A-Za-z0-9_]{1,20}$/', $item['abbrev'])) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $label = trim($item['label']);
+    $abbrev = $item['abbrev'];
+    $keyIn = (isset($item['key']) && is_string($item['key']) && $item['key'] !== '') ? $item['key'] : null;
+
+    if ($keyIn !== null) {
+      // A client-supplied key must already exist in this year's stored
+      // list — a stale key means a concurrent edit happened elsewhere;
+      // reject the whole save rather than silently inventing a row under
+      // an untrusted key.
+      if (!isset($currentExpenseByKey[$keyIn])) respond(409, ['error' => 'stale_categories']);
+      $key = $keyIn;
+      $storedAbbrev = $currentExpenseByKey[$keyIn]['abbrev'] ?? $keyIn;
+      if ($storedAbbrev !== $abbrev) {
+        foreach ($expensesLedger as $e) {
+          if (($e['category'] ?? null) === $keyIn && empty($e['deleted'])) {
+            respond(409, ['error' => 'abbrev_locked', 'category' => $keyIn]);
+          }
+        }
+      }
+    } else {
+      $key = budget_slugify_key($label, $knownExpenseKeys);
+    }
+    if (isset($usedExpenseKeys[$key])) respond(400, ['error' => 'duplicate_category']);
+    $usedExpenseKeys[$key] = true;
+    // Abbrev uniqueness (case-insensitive) is a hard requirement, not
+    // polish: budget_next_n() numbers per category KEY, but the receipt
+    // filename is "<abbrev>_<n>" — two keys sharing an abbrev would each
+    // restart their own n sequence while writing into the same filename
+    // space, silently overwriting one category's receipt with another's.
+    $abbrevLower = strtolower($abbrev);
+    if (isset($usedAbbrevsLower[$abbrevLower])) respond(400, ['error' => 'duplicate_abbrev']);
+    $usedAbbrevsLower[$abbrevLower] = true;
+
+    $cleanExpense[] = ['key' => $key, 'label' => $label, 'abbrev' => $abbrev];
+  }
+
+  $currentIncomeByKey = [];
+  foreach (($current['income'] ?? []) as $c) { $currentIncomeByKey[$c['key']] = $c; }
+  $knownIncomeKeys = array_fill_keys(array_keys($currentIncomeByKey), true);
+  $usedIncomeKeys = [];
+  $cleanIncome = [];
+  foreach ($incomeIn as $item) {
+    if (!is_array($item) || !isset($item['label']) || !is_string($item['label'])
+        || trim($item['label']) === '' || mb_strlen(trim($item['label'])) > 60) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $label = trim($item['label']);
+    $keyIn = (isset($item['key']) && is_string($item['key']) && $item['key'] !== '') ? $item['key'] : null;
+    if ($keyIn !== null) {
+      if (!isset($currentIncomeByKey[$keyIn])) respond(409, ['error' => 'stale_categories']);
+      $key = $keyIn;
+    } else {
+      $key = budget_slugify_key($label, $knownIncomeKeys);
+    }
+    if (isset($usedIncomeKeys[$key])) respond(400, ['error' => 'duplicate_category']);
+    $usedIncomeKeys[$key] = true;
+    $cleanIncome[] = ['key' => $key, 'label' => $label];
+  }
+
+  $result = budget_mutate($year, 'categories.json', budget_default_categories(),
+    function ($json) use ($cleanExpense, $cleanIncome) {
+      return ['expense' => $cleanExpense, 'income' => $cleanIncome];
+    });
+  respond(200, ['ok' => true, 'categories' => $result]);
+}
+
+// Admin: create a new, empty budget year — seeds its `planned` amounts and
+// its categories.json as a copy of the *currently active* year's (a
+// deliberate starting point so the admin doesn't retype every category from
+// scratch; falls back to budget_default_categories() if there's no active
+// year yet, i.e. true first-ever bootstrap), leaves income/expenses/requests
+// empty, and appends it to years.json. Does NOT change which year is active
+// — call budget_set_active_year separately to actually route new revyst
+// submissions into it (so "Start nyt budgetår" in the client is just these
+// two calls in sequence).
 function budget_create_year($body) {
   $year = $body['year'] ?? null;
   $label = $body['label'] ?? '';
@@ -1063,6 +1272,7 @@ function budget_create_year($body) {
     ? (budget_load($activeYear, 'budget.json', ['planned' => []])['planned'] ?? [])
     : [];
   if (empty($seedPlanned)) $seedPlanned = new stdClass();
+  $seedCategories = is_int($activeYear) ? budget_load_categories($activeYear) : budget_default_categories();
 
   budget_mutate($year, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
     function ($json) use ($seedPlanned) {
@@ -1073,6 +1283,9 @@ function budget_create_year($body) {
     });
   budget_mutate($year, 'requests.json', ['requests' => []], function ($json) { return ['requests' => []]; });
   budget_mutate($year, 'expenses.json', ['expenses' => []], function ($json) { return ['expenses' => []]; });
+  budget_mutate($year, 'categories.json', budget_default_categories(), function ($json) use ($seedCategories) {
+    return $seedCategories;
+  });
   budget_mutate(null, 'years.json', ['activeYear' => null, 'years' => []], function ($json) use ($year, $label) {
     if (!isset($json['years']) || !is_array($json['years'])) $json['years'] = [];
     $json['years'][] = ['year' => $year, 'label' => trim($label), 'createdAt' => date('c')];
