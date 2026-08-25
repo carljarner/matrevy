@@ -795,6 +795,17 @@
             "category": "deadline",
             "location": "",
             "note": "Evalueringen for årets revy sendes ud"
+        },
+        {
+            "id": "mt8yk7b4",
+            "date": "2026-09-02",
+            "endDate": "2026-09-02",
+            "start": "15:15",
+            "end": "21:00",
+            "title": "Manusmøde",
+            "category": "manus",
+            "location": "S01",
+            "note": "Kom og skriv manus!"
         }
     ]
 }
