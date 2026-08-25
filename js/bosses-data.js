@@ -4,7 +4,7 @@ const BOSSES_DATA = {
   "title": "Bosser for MatRevy 2026",
   "roles": [
     {
-      "names": "Frida Nøhr Larsen, Carl Jarner, Carl Kareem Saleh Brandt, Louise Carøe, Thea Deleuran Christensen, Thor Nilsson Pedersen, Frederikke Trolle Hansen",
+      "names": "Carl Kareem Saleh Brandt, Louise Carøe, Thea Deleuran Christensen, Frederikke Trolle Hansen, Linea Carlsen, Ronja Neel Rindel-Jansson",
       "role": "Koordinatorer"
     },
     {
@@ -12,7 +12,7 @@ const BOSSES_DATA = {
       "role": "Økonomiboss"
     },
     {
-      "names": "Hugo Valling Lauritsen, Augusta Dimon",
+      "names": "Carl Jarner, Thais Ziegler Hansen",
       "role": "Manusbosser"
     },
     {
@@ -20,7 +20,7 @@ const BOSSES_DATA = {
       "role": "Bandboss"
     },
     {
-      "names": "Frida Nøhr Larsen, Rune Steffensen",
+      "names": "Frida Nøhr Larsen, Rune Steffensen, Oscar Keiding",
       "role": "Rekvisitbosser"
     },
     {
@@ -28,11 +28,11 @@ const BOSSES_DATA = {
       "role": "Dansebosser"
     },
     {
-      "names": "Amalie Vanting Nielsen, Valdemar Cronfeld Schaaf",
+      "names": "Valdemar Cronfeld Schaaf",
       "role": "Sammenholdsbosser"
     },
     {
-      "names": "Kisser Duedahl",
+      "names": "Anni Kirstine Hultengren",
       "role": "Makeupboss"
     }
   ]
