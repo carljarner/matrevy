@@ -20,17 +20,19 @@
 
     <section class="card">
       <div class="cal-toolbar">
-        <div class="cal-view-toggle">
-          <button id="cal-view-month" type="button">Måned</button>
-          <button id="cal-view-list" type="button">Liste</button>
-        </div>
-        <div class="cal-month-nav" id="cal-month-nav">
-          <button id="cal-prev" type="button" aria-label="Forrige måned">‹</button>
-          <span id="cal-month-label"></span>
-          <button id="cal-next" type="button" aria-label="Næste måned">›</button>
+        <div class="cal-toolbar-left">
+          <div class="cal-view-toggle">
+            <button id="cal-view-month" type="button">Måned</button>
+            <button id="cal-view-list" type="button">Liste</button>
+          </div>
+          <div class="cal-month-nav" id="cal-month-nav">
+            <button id="cal-prev" type="button" aria-label="Forrige måned">‹</button>
+            <span id="cal-month-label"></span>
+            <button id="cal-next" type="button" aria-label="Næste måned">›</button>
+          </div>
+          <span id="cal-admin"></span>
         </div>
         <button id="cal-subscribe" type="button" class="btn-small">Abonner</button>
-        <span id="cal-admin"></span>
       </div>
       <div id="cal-view"></div>
       <div id="cal-legend"></div>

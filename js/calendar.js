@@ -83,7 +83,9 @@ function initCalState() {
   let view = null;
   try { view = localStorage.getItem(CAL_VIEW_KEY); } catch (e) { /* ignore */ }
   if (view !== 'month' && view !== 'list') {
-    view = window.matchMedia('(max-width: 640px)').matches ? 'list' : 'month';
+    // Same breakpoint as the site-wide mobile nav (see CLAUDE.md) — a
+    // portrait phone defaults to list view, landscape keeps the grid.
+    view = window.matchMedia('(max-width: 719px)').matches ? 'list' : 'month';
   }
   calState.view = view;
   const now = new Date();
@@ -194,8 +196,17 @@ function renderMonthView(container) {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = `cal-chip ${calCategoryClass(ev.category)}`;
-      chip.textContent = ev.start ? `${ev.start} ${ev.title}` : ev.title;
       chip.title = ev.title;
+      // Time and title are separate spans (not one textContent string) so
+      // calendar.css's mobile block can hide just the time and let the
+      // title use the full chip width.
+      if (ev.start) {
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'cal-chip-time';
+        timeSpan.textContent = ev.start + ' ';
+        chip.appendChild(timeSpan);
+      }
+      chip.appendChild(document.createTextNode(ev.title));
       chip.addEventListener('click', () => openEventDetail(ev));
       cell.appendChild(chip);
     }
