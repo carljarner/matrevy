@@ -440,16 +440,8 @@
     padding: 0.05rem 0.2rem;
     margin-bottom: 0.1rem;
     font-size: 0.62rem;
-    /* Column is too narrow for most titles even after dropping the time —
-       wrap instead of ellipsis-truncating to 2-3 characters. Cells have no
-       fixed height, so a taller chip just grows that day's row. */
-    white-space: normal;
-    overflow: visible;
-    text-overflow: clip;
-    line-height: 1.2;
-    /* A single long word (no spaces) would otherwise overflow the narrow
-       column instead of wrapping. */
-    overflow-wrap: anywhere;
+    /* Base .cal-chip's white-space:nowrap/text-overflow:ellipsis keeps
+       titles to a single line — narrower columns just truncate sooner. */
   }
 
   .cal-chip-time {
