@@ -5,29 +5,12 @@
    ========================================================= */
 
 /* --- Toolbar ---------------------------------------------- */
-/* #cal-subscribe is a direct child (not part of .cal-toolbar-left) so
-   justify-content:space-between pins it to the top-right corner of the
-   toolbar regardless of view or screen size, while the left-hand controls
-   wrap independently below it. */
 .cal-toolbar {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem 1rem;
-  margin-bottom: 1rem;
-}
-
-.cal-toolbar-left {
   display: flex;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  flex: 1;
-  min-width: 0;
-}
-
-#cal-subscribe {
-  flex-shrink: 0;
+  margin-bottom: 1rem;
 }
 
 .cal-view-toggle {
@@ -117,13 +100,13 @@
   text-align: center;
 }
 
+#cal-admin {
+  margin-left: auto;
+}
+
 /* --- Month grid ------------------------------------------- */
-/* Capped and centered so the grid doesn't stretch into oversized square
-   cells on wide screens (.page-content is up to 1200px). */
 .cal-grid-wrap {
   overflow-x: auto;
-  max-width: 900px;
-  margin: 0 auto;
 }
 
 .cal-grid {
@@ -470,6 +453,12 @@
   }
 
   .cal-chip-time {
+    display: none;
+  }
+
+  /* "+ Ny begivenhed" shrinks to just "+" — aria-label on the button keeps
+     the full label for screen readers. */
+  .cal-admin-btn-label {
     display: none;
   }
 

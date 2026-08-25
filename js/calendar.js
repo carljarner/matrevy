@@ -123,7 +123,14 @@ function renderCalendar() {
   if (siteHasLevel('boss')) {
     const addBtn = document.createElement('button');
     addBtn.className = 'btn-small';
-    addBtn.textContent = '+ Ny begivenhed';
+    addBtn.appendChild(document.createTextNode('+ '));
+    // Separate span (not one textContent string) so calendar.css's mobile
+    // block can hide just the label and shrink the button to "+".
+    const addLabel = document.createElement('span');
+    addLabel.className = 'cal-admin-btn-label';
+    addLabel.textContent = 'Ny begivenhed';
+    addBtn.appendChild(addLabel);
+    addBtn.setAttribute('aria-label', 'Ny begivenhed');
     addBtn.addEventListener('click', () => openEventEditor(null));
     adminSlot.appendChild(addBtn);
   }
