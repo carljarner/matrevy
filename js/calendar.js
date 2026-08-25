@@ -293,10 +293,12 @@ function renderListView(container) {
     title.textContent = ev.title;
     content.appendChild(title);
 
-    if (ev.note) {
+    if (ev.location || ev.note) {
       const note = document.createElement('span');
       note.className = 'cal-list-note';
-      note.textContent = ev.note;
+      note.textContent = ev.location && ev.note
+        ? `${ev.location}: ${ev.note}`
+        : (ev.location || ev.note);
       content.appendChild(note);
     }
 
