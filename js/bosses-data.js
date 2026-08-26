@@ -29,7 +29,7 @@ const BOSSES_DATA = {
     },
     {
       "names": "Valdemar Cronfeld Schaaf",
-      "role": "Sammenholdsbosser"
+      "role": "Sammenholdsboss"
     },
     {
       "names": "Anni Kirstine Hultengren",
