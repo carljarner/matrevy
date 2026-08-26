@@ -288,14 +288,5 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/sketches/Kender_Du_Det.pdf",
     "texPath": "archive/MatRevy_2026/sketches/Kender_Du_Det.tex",
     "createdAt": "2026-08-01T17:06:50"
-  },
-  {
-    "id": "6a8e98dddfcbf828",
-    "type": "sketch",
-    "title": "Test",
-    "sender": "Carl",
-    "pdfPath": "archive/MatRevy_2026/submitted/Test.pdf",
-    "texPath": "archive/MatRevy_2026/submitted/Test.tex",
-    "createdAt": "2026-08-26T09:42:21"
   }
 ];
