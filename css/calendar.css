@@ -98,6 +98,7 @@
   font-weight: 600;
   min-width: 9.5rem;
   text-align: center;
+  text-transform: capitalize;
 }
 
 #cal-admin {
@@ -231,6 +232,7 @@
   font-size: 0.95rem;
   font-weight: 600;
   margin: 1rem 0 0.5rem;
+  text-transform: capitalize;
 }
 
 .cal-list-month:first-child {
