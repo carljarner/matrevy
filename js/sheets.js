@@ -258,7 +258,23 @@ function sheetsFormatUpdatedAt(iso) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Ark isn't ready for cast/crew-at-large yet — only boss/admin (still
+// building it out) get the real list/grid; a revyst-level visitor gets
+// a static "under construction" card instead, mirroring wiki.js's own
+// renderWikiUnderConstruction().
+function renderSheetsUnderConstruction(root) {
+  root.replaceChildren();
+  const card = el('section', 'card site-gate-card');
+  card.appendChild(el('h2', null, 'Siden er under opbygning'));
+  card.appendChild(el('p', null, 'Ark er ved at blive bygget og er endnu ikke klar.'));
+  root.appendChild(card);
+}
+
 async function renderSheetsList(root) {
+  if (!siteHasLevel('boss')) {
+    renderSheetsUnderConstruction(root);
+    return;
+  }
   root.replaceChildren();
   const card = el('section', 'card sheets-list-card');
   const head = el('div', 'sheets-list-head');
