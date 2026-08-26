@@ -711,11 +711,15 @@ function openSwitchActiveYearModal(root) {
 
     if (yearSelect.value === NONE_YEAR_VALUE) {
       confirmBtn.disabled = true;
+      // If the view was only ever implicitly tracking "whatever's active"
+      // (budgetViewId null), pin it to that budget explicitly before
+      // clearing active — otherwise the next load re-resolves budgetId:null
+      // against the now-inactive state and loadAndRenderAdmin's
+      // deleted-budget fallback silently jumps the view to the newest
+      // budget instead of staying put.
+      if (budgetViewId == null && budgetActiveId != null) budgetSetViewId(budgetActiveId);
       const result = await budgetApi('budget_set_active_year', { budgetId: null });
       if (result.ok) {
-        // budgetViewId is left as-is — the budget being viewed still fully
-        // exists, so there's no need to jump away from it just because
-        // it's no longer the active one.
         close();
         loadAndRenderAdmin(root);
       } else {
