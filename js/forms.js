@@ -59,6 +59,12 @@ const FORMS_DYNAMIC_TEMPLATES = [
     description: 'Genereres fra de nuværende scener i aktfordeling',
     generate: formsGenerateRolleonskerSections,
   },
+  {
+    id: 'fravaer',
+    title: 'Fravær',
+    description: 'Genereres fra øve-begivenhederne i oktober/november i kalenderen',
+    generate: formsGenerateFravaerSections,
+  },
 ];
 
 // ── Revy helpers (the form's Revy field, Oversigt year filter) ──────
@@ -324,6 +330,51 @@ function formsRolleonskerScaleField(label) {
 
 function formsRolleonskerTextareaField(label, placeholder) {
   return { id: formsNewFieldId(), type: 'textarea', label, required: false, placeholder };
+}
+
+// ── "Fravær" dynamic template ─────────────────────────────────
+// One "Navn" field plus one short-answer field per "øvning"-category
+// calendar event in October/November of the current year, so a revyst can
+// note the time window they're absent for each rehearsal. Regenerated fresh
+// from CALENDAR_DATA every time the template is clicked, same reasoning as
+// Rolleønsker above — never a frozen snapshot.
+function formsGenerateFravaerSections() {
+  const events = formsFravaerRehearsalEvents();
+  const fields = [
+    { id: formsNewFieldId(), type: 'text', label: 'Navn', required: false },
+  ];
+  for (const ev of events) {
+    fields.push({
+      id: formsNewFieldId(), type: 'text', required: false,
+      label: `${ev.title}: ${formatDaDate(ev.date)} (${formsFravaerTimeRange(ev)})`,
+      placeholder: 'tt:mm - tt:mm',
+    });
+  }
+  return [
+    { id: formsNewFieldId(), title: 'Anmeld fravær', description: '', fields },
+  ];
+}
+
+// "ove" is CAL_CATEGORIES's "Øvning" key (js/calendar.js) — kept as a bare
+// literal here since forms.html doesn't load calendar.js, same convention
+// formsOptionsFromRehearsals's own sourceFilter.category usage follows.
+function formsFravaerRehearsalEvents() {
+  if (typeof CALENDAR_DATA === 'undefined' || !Array.isArray(CALENDAR_DATA)) return [];
+  const year = new Date().getFullYear();
+  return CALENDAR_DATA
+    .filter((ev) => ev.category === 'ove')
+    .filter((ev) => {
+      const [y, m] = String(ev.date).split('-').map(Number);
+      return y === year && (m === 10 || m === 11);
+    })
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+// Duplicate of calendar.js's calTimeRange — forms.html doesn't load that file.
+function formsFravaerTimeRange(ev) {
+  if (!ev.start) return '';
+  return ev.end ? `${ev.start}–${ev.end}` : ev.start;
 }
 
 function formsResolveOptions(field) {
