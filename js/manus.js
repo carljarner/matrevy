@@ -561,6 +561,7 @@ function openUploadModal() {
       renderColumns();
       manusStartPendingPoll();
       close();
+      siteShowToast('Manus uploadet – der går 1-2 min før siden er opdateret');
     } else {
       error.textContent = result.message;
     }

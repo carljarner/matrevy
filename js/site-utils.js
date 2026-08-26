@@ -86,7 +86,7 @@ function siteShowToast(message) {
   siteToastEl.classList.add('site-toast-visible');
   siteToastTimer = setTimeout(() => {
     siteToastEl.classList.remove('site-toast-visible');
-  }, 2200);
+  }, 3500);
 }
 
 // ── Global save ──────────────────────────────────────────────
