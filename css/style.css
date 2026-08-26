@@ -616,50 +616,200 @@ body.site-menu-open {
   font-size: 0.75rem;
 }
 
-/* --- Bosses edit modal (bosses.js openBossesEditModal) ----- */
-.boss-edit-rows {
+/* --- Bosses inline edit mode (bosses.js renderBossesEdit) --------------
+   Deliberately kept as close to the normal-mode card's own look as
+   possible, mirroring budget.js's own Rediger toggle
+   (buildCategoryEditSection): text edited in place — transparent fields
+   that read as plain text until focused (.boss-manage-text-input, same
+   recipe as budget.css's .budget-manage-text-input) rather than a
+   separate overlay form. Rows are draggable via the row itself (no
+   dedicated handle column), deletion is a plain unboxed "✕", and the
+   list grows via a small "+" below the last row. */
+.boss-manage-text-input {
+  width: 100%;
+  padding: 0.15rem 0.3rem;
+  margin: -0.15rem -0.3rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font-family: inherit;
+  color: inherit;
+  outline: none;
+}
+
+.boss-manage-text-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.boss-manage-title-input {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.boss-list-editing.boss-list-editing {
+  gap: 0.3rem;
+  /* Dead space below the last row to drop into — without it the list's
+     own box ends exactly at the last row, so there's nowhere to drop
+     that means "after the last row" (see bosses.js's list-level fallback
+     drop zone). */
+  padding-bottom: 0.9rem;
+  border-bottom: 2px solid transparent;
+  transition: border-bottom-color 0.15s;
+}
+
+.boss-list-editing.boss-list-editing.boss-drop-target {
+  border-bottom-color: var(--accent-warm);
+}
+
+/* Overrides .boss-list li's own display:flex/flex-direction:column —
+   needs the extra .boss-list specificity to win, since a plain .boss-list
+   li li selector otherwise outranks a single-class .boss-manage-row rule.
+   Kept to layout only (not the border-top below) — folding border-top
+   into this same higher-specificity selector would outrank
+   .boss-manage-row.boss-drop-target's own override and the drag
+   highlight would never show. */
+.boss-list.boss-list-editing li.boss-manage-row {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   gap: 0.4rem;
-  margin-bottom: 0.75rem;
+  cursor: grab;
 }
 
-.boss-edit-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
+.boss-manage-row:active { cursor: grabbing; }
+
+/* Drop-target highlight shows only the row's top edge (the insertion
+   point) — a transparent 2px top border at rest (reserving the space so
+   nothing shifts) that animates to accent-warm on drag-over, same recipe
+   as budget.css's .budget-manage-tr/.budget-drop-target. */
+.boss-manage-row {
+  border-top: 2px solid transparent;
+  padding-top: 2px;
+  transition: border-top-color 0.15s;
 }
 
-.boss-edit-row .edit-field {
+.boss-manage-row.boss-drop-target {
+  border-top-color: var(--accent-warm);
+}
+
+/* Role above names (own text column), matching the view-mode order —
+   keeps each field on its own full-width line (names can be long
+   comma-separated lists) with the remove button aligned to the right. */
+.boss-manage-fields {
   flex: 1;
   min-width: 0;
-  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
 }
 
-.boss-edit-remove {
-  flex-shrink: 0;
+.boss-manage-name-input {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.dashboard-board-bosses .boss-manage-name-input {
+  font-size: 0.8rem;
+}
+
+.boss-manage-role-input {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.dashboard-board-bosses .boss-manage-role-input {
+  font-size: 0.72rem;
+}
+
+.boss-manage-remove-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
-  padding: 0.5rem 0.35rem;
-  line-height: 1;
-  font-size: 1.1rem;
+  padding: 0.2rem;
+  border-radius: 6px;
   color: var(--text-muted);
+  width: 1.6rem;
+  height: 1.6rem;
+  line-height: 1;
   cursor: pointer;
-  border-radius: 4px;
+  transition: color 0.15s;
 }
 
 @media (hover: hover) {
-  .boss-edit-remove:hover { background: var(--surface-2); color: var(--danger); }
+  .boss-manage-remove-btn:hover { color: var(--danger); }
 }
 
-.boss-edit-remove:focus-visible {
-  outline: 2px solid var(--accent-warm);
-  outline-offset: 2px;
+.boss-manage-remove-btn:focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
 }
 
-.boss-edit-remove:disabled {
-  opacity: 0.4;
-  cursor: default;
+/* Purely-visual grab affordance, rightmost in the row (see bosses.js) —
+   same glyph/sizing recipe as manus.css's .manus-akt-drag-handle and
+   wiki.css's .wiki-manage-drag-handle. */
+.boss-manage-drag-handle {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: grab;
+}
+
+.boss-manage-row:active .boss-manage-drag-handle { cursor: grabbing; }
+
+/* One row along the bottom: "+" (left) — error (center, grows/shrinks to
+   fill whatever's left) — "Gem" (right, kept small rather than the
+   site-wide full-width .site-btn-primary). */
+.boss-editbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.boss-manage-add-plus {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+@media (hover: hover) {
+  .boss-manage-add-plus:hover { color: var(--accent-warm-text); }
+}
+
+.boss-manage-add-plus:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.boss-manage-error {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--danger);
+}
+
+.boss-manage-save-btn {
+  flex: none;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
 }
 
 /* --- Edit modal (site-utils.js siteOpenEditModal) --------- */
