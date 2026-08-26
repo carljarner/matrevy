@@ -204,6 +204,7 @@ $FORMS_ACTIONS = [
   'forms_admin_read' => 'boss',   // one form's full definition + all responses
   'forms_save'       => 'boss',   // create (no id) or update (id given) a form
   'forms_delete'     => 'boss',
+  'forms_delete_response' => 'boss', // remove one response, not the whole form
   'templates_list'   => 'boss',
   'templates_save'   => 'boss',   // create (no id) or update (id given) a template
   'templates_delete' => 'boss',
@@ -2063,6 +2064,28 @@ function forms_delete($body) {
   respond(200, ['ok' => true]);
 }
 
+// Boss: remove exactly ONE response from a form (as opposed to forms_delete,
+// which removes the whole form + every response) — lets a boss clear out
+// individual test/junk submissions, and is also how a form with responses
+// becomes editable again (the builder locks question/section editing while
+// responseCount > 0, see formsRenderBuilderScreen).
+function forms_delete_response($body) {
+  $formId = $body['formId'] ?? '';
+  if (!forms_valid_id($formId)) respond(400, ['error' => 'invalid_shape']);
+  $responseId = $body['responseId'] ?? '';
+  if (!forms_valid_id($responseId)) respond(400, ['error' => 'invalid_shape']);
+  $dir = forms_form_dir($formId);
+  if (!is_dir($dir)) respond(404, ['error' => 'not_found']);
+  forms_mutate($dir . '/responses.json', ['responses' => []], function ($json) use ($responseId) {
+    $list = is_array($json['responses'] ?? null) ? $json['responses'] : [];
+    $json['responses'] = array_values(array_filter($list, function ($r) use ($responseId) {
+      return ($r['id'] ?? null) !== $responseId;
+    }));
+    return $json;
+  });
+  respond(200, ['ok' => true]);
+}
+
 function templates_list($body) {
   $json = forms_load(forms_templates_path(), ['templates' => []]);
   respond(200, ['ok' => true, 'templates' => $json['templates'] ?? []]);
@@ -2157,6 +2180,7 @@ function handle_forms($action, $body) {
     case 'forms_admin_read': return forms_admin_read($body);
     case 'forms_save':       return forms_save($body);
     case 'forms_delete':     return forms_delete($body);
+    case 'forms_delete_response': return forms_delete_response($body);
     case 'templates_list':   return templates_list($body);
     case 'templates_save':   return templates_save($body);
     case 'templates_delete': return templates_delete($body);

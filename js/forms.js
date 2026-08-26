@@ -1484,6 +1484,11 @@ function formsValidateAndCleanSections(draftSections) {
 // "+ Tilføj sektion" and always at least one.
 function formsRenderBuilderScreen(root, existingDefinition) {
   const isEdit = !!(existingDefinition && existingDefinition.id);
+  // Editing questions/sections on a form that already has responses would
+  // silently orphan old answers (they're keyed by field id — see
+  // formsAnswerColumns) — locked below, once the sections list has rendered.
+  // Metadata (title/status/deadline/Revy) stays editable regardless.
+  const locked = isEdit && (existingDefinition.responseCount || 0) > 0;
   const card = el('section', 'card forms-builder-card');
   root.appendChild(card);
 
@@ -1565,12 +1570,20 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   metaRow.appendChild(siteEditField('Revy', revyDd));
   card.appendChild(metaRow);
 
+  if (locked) {
+    card.appendChild(el('p', 'forms-lock-banner',
+      `Denne formular har allerede modtaget ${existingDefinition.responseCount} svar. ` +
+      'Spørgsmål kan ikke redigeres, før alle svar er slettet under "Se svar".'));
+  }
+
   sectionsListEl = el('div', 'forms-sections-list');
   card.appendChild(sectionsListEl);
   renderSectionsList();
+  if (locked) formsLockSectionsEditor(sectionsListEl);
 
   const addSectionBtn = el('button', 'btn-small', '+ Tilføj sektion');
   addSectionBtn.type = 'button';
+  addSectionBtn.disabled = locked;
   addSectionBtn.addEventListener('click', () => {
     draftSections.push({
       id: formsNewFieldId(), title: '', description: '',
@@ -1643,6 +1656,19 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   // reads as unsaved; only a real edit after this point does.
   formsBuilderDraft = { titleInput, statusDd, deadlineField, revyDd, draftSections };
   formsBuilderSnapshot = formsBuilderSerializeForDiff(formsBuilderPayloadForDiff());
+}
+
+// Disables every mutation control inside an already-rendered sections list
+// (every input/textarea, and every button except each section's own
+// collapse/expand toggle) so a form's questions stay viewable but not
+// editable once it has responses. Every control in here is a real native
+// element — including the field-type picker (siteCreateDropdownField,
+// site-utils.js, a genuine <button>) — so `disabled` genuinely blocks it.
+function formsLockSectionsEditor(containerEl) {
+  containerEl.querySelectorAll('input, textarea').forEach((el) => { el.disabled = true; });
+  containerEl.querySelectorAll('button').forEach((btn) => {
+    if (!btn.classList.contains('forms-section-toggle')) btn.disabled = true;
+  });
 }
 
 // One section's editor block — every section, including the first, is the
@@ -1749,6 +1775,18 @@ function formsOpenDeleteSectionConfirm(sectionNumber, onConfirm) {
   const { modal, form, actions, close } = siteOpenModalWithClose('Slet sektion');
   modal.classList.add('forms-center-modal');
   form.appendChild(el('p', 'forms-intro', `Slet Sektion ${sectionNumber}? Dette kan ikke fortrydes.`));
+  const cancelBtn = formsPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+function formsOpenDeleteResponseConfirm(submittedAtLabel, onConfirm) {
+  const { modal, form, actions, close } = siteOpenModalWithClose('Slet svar');
+  modal.classList.add('forms-center-modal');
+  form.appendChild(el('p', 'forms-intro', `Slet dette svar (indsendt ${submittedAtLabel})? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
@@ -2010,6 +2048,7 @@ async function formsRenderResponsesScreen(root, formId) {
   const table = el('table', 'forms-responses-table');
   const thead = el('thead');
   const headRow = el('tr');
+  headRow.appendChild(el('th')); // delete-button column, no label
   headRow.appendChild(formsResponseCell('th', 'Sendt'));
   columns.forEach((c) => headRow.appendChild(formsResponseCell('th', c.label)));
   thead.appendChild(headRow);
@@ -2017,6 +2056,19 @@ async function formsRenderResponsesScreen(root, formId) {
   const tbody = el('tbody');
   for (const r of responses) {
     const row = el('tr');
+    const deleteCell = el('td');
+    const deleteBtn = el('button', 'boss-edit-remove', '✕');
+    deleteBtn.type = 'button';
+    deleteBtn.title = 'Slet svar';
+    deleteBtn.setAttribute('aria-label', 'Slet svar');
+    deleteBtn.addEventListener('click', () => {
+      formsOpenDeleteResponseConfirm(formsFormatSubmittedAt(r.submittedAt), async () => {
+        const del = await formsApi('forms_delete_response', { formId, responseId: r.id });
+        if (del.ok) renderAdminView(root, { name: 'responses', formId });
+      });
+    });
+    deleteCell.appendChild(deleteBtn);
+    row.appendChild(deleteCell);
     row.appendChild(formsResponseCell('td', formsFormatSubmittedAt(r.submittedAt)));
     for (const c of columns) {
       row.appendChild(formsResponseCell('td', c.get(r.answers)));

@@ -73,6 +73,19 @@
 .forms-msg.error { color: var(--danger); }
 .forms-msg.ok { color: var(--success); }
 
+/* Builder warning when editing a form that already has responses —
+   question/section controls are disabled below this (formsLockSectionsEditor)
+   since editing them would silently orphan already-submitted answers. Warm/
+   caution, not danger-red, since nothing is actually at risk of being lost. */
+.forms-lock-banner {
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  padding: 0.6rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
 /* ── Revyst: open-forms list ─────────────────────────────── */
 /* A <button>, not a styled <div> — the whole row opens the form, with
    the arrow as a decorative affordance rather than the sole target. */
