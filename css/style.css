@@ -812,6 +812,34 @@ body.site-menu-open {
   font-size: 0.8rem;
 }
 
+/* Shared icon-only "remove" button (✕) — used by Formularer's field/section
+   delete buttons (js/forms.js). Not Bosser-specific despite the name. */
+.boss-edit-remove {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0.5rem 0.35rem;
+  line-height: 1;
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .boss-edit-remove:hover { background: var(--surface-2); color: var(--danger); }
+}
+
+.boss-edit-remove:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
+.boss-edit-remove:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 /* --- Edit modal (site-utils.js siteOpenEditModal) --------- */
 .edit-modal {
   width: min(480px, 92vw);

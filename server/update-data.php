@@ -1924,6 +1924,7 @@ function forms_submit($body) {
     }
     $clean[$fid] = $result['value'];
   }
+  if (count($clean) === 0) respond(400, ['error' => 'empty_response']);
 
   $id = forms_id();
   forms_mutate(forms_form_dir($formId) . '/responses.json', ['responses' => []], function ($json) use ($id, $clean) {

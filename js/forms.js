@@ -56,13 +56,13 @@ const FORMS_DYNAMIC_TEMPLATES = [
   {
     id: 'rolleonsker',
     title: 'Rolleønsker',
-    description: 'Genereres fra de nuværende scener i aktfordeling',
+    description: 'Genereres ud fra aktfordeling',
     generate: formsGenerateRolleonskerSections,
   },
   {
     id: 'fravaer',
     title: 'Fravær',
-    description: 'Genereres fra øve-begivenhederne i oktober/november i kalenderen',
+    description: 'Genereres ud fra øvere i kalenderen',
     generate: formsGenerateFravaerSections,
   },
 ];
@@ -341,7 +341,7 @@ function formsRolleonskerTextareaField(label, placeholder) {
 function formsGenerateFravaerSections() {
   const events = formsFravaerRehearsalEvents();
   const fields = [
-    { id: formsNewFieldId(), type: 'text', label: 'Navn', required: false },
+    { id: formsNewFieldId(), type: 'text', label: 'Fulde navn', required: true, placeholder: "Der sker ikke noget, hvis du dropper et mellemnavn eller to" },
   ];
   for (const ev of events) {
     fields.push({
@@ -351,7 +351,7 @@ function formsGenerateFravaerSections() {
     });
   }
   return [
-    { id: formsNewFieldId(), title: 'Anmeld fravær', description: '', fields },
+    { id: formsNewFieldId(), title: 'Anmeld fravær', description: 'Skriv herunder det tidsinterval du IKKE kan være til stede til en øver', fields },
   ];
 }
 
@@ -737,6 +737,9 @@ async function renderFormFillIn(root, formId) {
         }
       }
       answers[field.id] = value;
+    }
+    if (!formsFillInHasAnyAnswer(inputs)) {
+      return setMsg('Udfyld mindst ét felt.', 'error');
     }
     submitBtn.disabled = true;
     setMsg('Sender …', null);
