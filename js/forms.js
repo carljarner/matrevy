@@ -728,7 +728,7 @@ async function renderFormFillIn(root, formId) {
     msg.className = 'forms-msg' + (kind ? ' ' + kind : '');
   }
 
-  const submitBtn = el('button', 'site-btn-primary', 'Indsend');
+  const submitBtn = el('button', 'site-btn-primary forms-fillin-submit-btn', 'Indsend');
   submitBtn.type = 'button';
   submitBtn.addEventListener('click', async () => {
     const answers = {};

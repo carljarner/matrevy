@@ -708,6 +708,15 @@
   justify-self: end;
 }
 
+/* Indsend sits next to Forrige/Næste (.btn-small) — match their padding/
+   font-size/border-box footprint so it reads as the same button row
+   instead of a taller, differently-scaled control. */
+.forms-fillin-submit-btn {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  border: 1px solid transparent;
+}
+
 .forms-fillin-page-label {
   font-weight: 600;
   min-width: 3ch;
