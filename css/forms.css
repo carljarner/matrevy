@@ -752,19 +752,23 @@
   text-align: left;
 }
 
-/* Skala's circles spread edge-to-edge across the available width
-   (justify-content:space-between) rather than clustering at a fixed
-   gap — the first/last circle then land at the row's own edges, lining
-   up with .forms-scale-captions below (same padding, same
-   space-between), and the spacing between circles naturally shrinks or
-   grows with the form's width instead of a hardcoded distance. `gap`
-   is only a floor, for a wide range (e.g. 0-10) on a narrow phone,
-   so circles never touch — nowrap plus overflow-x:auto is the backstop
-   once that floor no longer fits the row. */
+/* Skala's circles spread edge-to-edge (justify-content:space-between)
+   across their own box rather than clustering at a fixed gap — the
+   first/last circle then land at that box's edges, lining up with
+   .forms-scale-captions below (same max-width, same space-between).
+   That box's width is capped at --forms-scale-count (set inline in
+   forms.js, one per circle) times a comfortable per-circle budget, so
+   a short range (e.g. 0-5) doesn't stretch edge-to-edge across a wide
+   card and read as oddly spaced-out — on a narrow phone the `min()`
+   just falls back to 100%, so spacing still shrinks to fit there.
+   `gap` is only a floor once a wide range's cap already exceeds 100%:
+   nowrap plus overflow-x:auto is the backstop for that case. */
 .forms-radio-row-scale {
   flex-wrap: nowrap;
   justify-content: space-between;
   gap: 0.6rem;
+  max-width: min(100%, calc(var(--forms-scale-count, 5) * 3.25rem));
+  margin: 0 auto;
   padding: 0 4rem;
   overflow-x: auto;
 }
@@ -781,7 +785,8 @@
   justify-content: space-between;
   font-size: 0.8rem;
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  margin: 0 auto 0.5rem;
+  max-width: min(100%, calc(var(--forms-scale-count, 5) * 3.25rem));
   padding: 0 4rem; /* two tabs — one more than the general 2rem indent */
 }
 
@@ -842,7 +847,7 @@
   accent-color: var(--accent-warm-text);
 }
 
-@media (max-width: 719px) {
+@media (max-width: 600px) {
   .forms-field-row-top { flex-direction: column; align-items: stretch; }
   /* ".forms-field-row-top input[type=text]"'s flex-basis:160px is meant to
      set a minimum WIDTH in the desktop row layout — once the container

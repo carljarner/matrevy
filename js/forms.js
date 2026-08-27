@@ -505,6 +505,12 @@ function formsRenderAnswerInput(field) {
     const options = [];
     for (let n = min; n <= max; n++) options.push({ value: String(n), label: String(n) });
     const wrap = el('div');
+    // Read by forms.css to cap how far the circles/captions are allowed
+    // to spread on a wide form — without this a short range (e.g. 0-5)
+    // stretched with justify-content:space-between across a wide card
+    // reads as oddly spaced-out, since the row otherwise always fills
+    // 100% of the available width regardless of how few circles it has.
+    wrap.style.setProperty('--forms-scale-count', String(options.length));
     if (field.scaleMinLabel || field.scaleMaxLabel) {
       const capRow = el('div', 'forms-scale-captions');
       capRow.appendChild(el('span', null, field.scaleMinLabel || ''));
