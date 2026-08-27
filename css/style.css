@@ -1169,6 +1169,16 @@ body.site-menu-open {
   .site-list-selected:hover { background: var(--accent); }
 }
 
+/* Time picker's own selected row is warm/orange, not the shared blue,
+   so it doesn't read as "primary action" like a real submit would. */
+.site-tp-pop .site-list-selected {
+  background: var(--accent-warm-text);
+}
+
+@media (hover: hover) {
+  .site-tp-pop .site-list-selected:hover { background: var(--accent-warm-text); }
+}
+
 /* --- Generic dropdown popup (category-less <select> replacement) --- */
 .site-dd-pop {
   width: min(15rem, calc(100vw - 1rem));
@@ -1838,5 +1848,11 @@ p:last-child {
   .edit-field select,
   .site-field-input {
     font-size: 16px;
+  }
+
+  /* Force the style dropdown onto its own centered row when the toolbar
+     wraps, instead of sharing a row with some of the format buttons. */
+  .post-toolbar-style {
+    flex-basis: 100%;
   }
 }

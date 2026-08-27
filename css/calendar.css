@@ -400,6 +400,30 @@
 
 /* --- Mobile (≤719px, same breakpoint as style.css) ---------- */
 @media (max-width: 719px) {
+  /* When the toolbar wraps, push the month switcher onto its own centered
+     row below, so Måned/Liste, Abonner and "+" all fit on the top row. */
+  .cal-toolbar {
+    row-gap: 0.5rem;
+  }
+
+  .cal-view-toggle {
+    order: 1;
+  }
+
+  #cal-subscribe {
+    order: 2;
+  }
+
+  #cal-admin {
+    order: 3;
+  }
+
+  .cal-month-nav {
+    order: 4;
+    flex-basis: 100%;
+    justify-content: center;
+  }
+
   .cal-month-nav button {
     width: 2.4rem;
     /* Height still matches #cal-subscribe (unchanged at this breakpoint);

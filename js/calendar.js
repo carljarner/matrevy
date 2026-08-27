@@ -520,7 +520,7 @@ function openEventEditor(existing) {
   locationInput.type = 'text';
   locationInput.value = existing ? existing.location || '' : '';
 
-  const catField = calCreateCategoryField(existing && CAL_CATEGORIES[existing.category] ? existing.category : 'ove');
+  const catField = calCreateCategoryField(existing && CAL_CATEGORIES[existing.category] ? existing.category : 'andet');
 
   const catRow = document.createElement('div');
   catRow.className = 'edit-field-row';

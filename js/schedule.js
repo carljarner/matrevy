@@ -279,8 +279,9 @@ function schedOpenTimePicker(anchor, currentValue, onSelect) {
   // roughly where you are — the list only offers 15-min-grid options, and
   // currentValue can easily fall off that grid (e.g. a slot's end time
   // derived from a non-15-min segment/gap), so this is a nearest match, not
-  // necessarily exact. Nothing is marked "selected": clicking any row closes
-  // the popup immediately, so a persistent highlight serves no purpose.
+  // necessarily exact. An exact match also gets the shared "selected" style
+  // (site-utils.js's siteOpenTimePicker equivalent), even though clicking
+  // any row closes the popup immediately — it's a quick visual anchor on open.
   const currentMinutes = currentValue ? timeToMinutes(currentValue) : null;
   let nearestRow = null;
   let nearestDiff = Infinity;
@@ -289,6 +290,7 @@ function schedOpenTimePicker(anchor, currentValue, onSelect) {
     row.type = 'button';
     row.className = 'site-list-row';
     row.textContent = t;
+    if (t === currentValue) row.classList.add('site-list-selected');
     if (currentMinutes !== null) {
       const diff = Math.abs(timeToMinutes(t) - currentMinutes);
       if (diff < nearestDiff) { nearestDiff = diff; nearestRow = row; }
@@ -982,7 +984,7 @@ async function confirmClearSchedule() {
 function renderSceneSidebar() {
   const placedCounts = getPlacedSceneCounts();
 
-  const container = document.getElementById('scene-list');
+  const container = document.getElementById('scene-list-items');
   container.innerHTML = '';
 
   // Group by act (custom scenes never show in this sidebar)

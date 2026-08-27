@@ -141,6 +141,20 @@
 }
 
 /* ── Scene sidebar list ─────────────────────────────────── */
+/* .scene-sidebar-heading is the first child of #scene-list itself (not a
+   sibling before it) so both share one scroll box: a sticky element only
+   reserves its *unshifted* static-position space in the flow, so a sibling
+   scroll context (the old layout — heading sticky to the page, #scene-list
+   scrolling on its own) could lay out list content above where the heading
+   actually painted once its offset pushed it down. Sticking it at top:0 of
+   the very box it heads off avoids that mismatch entirely. */
+#scene-list {
+  display: flex;
+  flex-direction: column;
+  height: 500px;
+  overflow-y: auto;
+}
+
 .scene-sidebar-heading {
   font-size: 0.73rem;
   font-weight: 600;
@@ -149,16 +163,16 @@
   color: var(--text-muted);
   padding: 0.5rem 0.6rem 0.2rem;
   position: sticky;
-  top: 76px;
+  top: 0;
   background: var(--surface);
   z-index: 1;
+  flex-shrink: 0;
 }
-#scene-list {
+
+#scene-list-items {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  height: 500px;
-  overflow-y: auto;
 }
 
 /* Chromium makes any scrollable region with overflowing content an

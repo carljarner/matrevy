@@ -1353,6 +1353,22 @@ a.manus-pdf-title:focus-visible {
   /* .manus-kanban keeps horizontal scroll rather than stacking, consistent
      with Kalender's own month-grid overflow-x:auto mobile pattern. */
   .manus-tab-btn { padding: 0.55rem 0.3rem; font-size: 0.78rem; }
+
+  /* PDF quick-links: a 2x2 grid instead of one button per row. min-width
+     needs !important since renderManusPdfLinksSection sets it inline
+     (matching the widest button's own desktop content width). */
+  .manus-pdf-links-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+
+  .manus-pdf-links-row .site-pill-btn {
+    width: 100%;
+    min-width: 0 !important;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
 }
 
 /* --- "Hent stemmeark" print view ----------------------------
