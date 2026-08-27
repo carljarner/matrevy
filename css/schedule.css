@@ -149,14 +149,14 @@
   color: var(--text-muted);
   padding: 0.5rem 0.6rem 0.2rem;
   position: sticky;
-  top: 76px;
+  /* Flush against the site header (56px, style.css), not 76px — #scene-list
+     is a plain, non-sticky sibling, so any gap here is uncovered space its
+     own content can scroll up into and show through, right above this
+     still-stuck heading. Matches wiki.css's .wiki-toolbar, the same sticky
+     heading over a scrolling sibling pattern, for the same reason. */
+  top: 56px;
   background: var(--surface);
   z-index: 1;
-  /* Guards against a hairline sub-pixel seam where a scrolled chip's own
-     border can peek through right at the sticky boundary during momentum
-     scrolling — extends the opaque fill a few px past the box's own edges
-     (same background color, so invisible everywhere it doesn't matter). */
-  box-shadow: 0 0 0 4px var(--surface);
 }
 #scene-list {
   display: flex;
@@ -164,12 +164,6 @@
   gap: 3px;
   height: 500px;
   overflow-y: auto;
-  /* Stop an internal-list scroll from chaining into the outer page scroll
-     once it hits its own top/bottom — that handoff was the other half of
-     the "scenes appear above the still-stuck heading" bug: mid-chain, the
-     list (a plain sibling, not itself sticky) could keep moving with the
-     page after the heading had already latched to its 76px stuck position. */
-  overscroll-behavior: contain;
 }
 
 /* Chromium makes any scrollable region with overflowing content an
