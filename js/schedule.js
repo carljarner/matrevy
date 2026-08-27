@@ -984,7 +984,7 @@ async function confirmClearSchedule() {
 function renderSceneSidebar() {
   const placedCounts = getPlacedSceneCounts();
 
-  const container = document.getElementById('scene-list-items');
+  const container = document.getElementById('scene-list');
   container.innerHTML = '';
 
   // Group by act (custom scenes never show in this sidebar)
