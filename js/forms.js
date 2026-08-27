@@ -547,6 +547,12 @@ function formsRenderAnswerInput(field) {
       const controls = [];
       for (const c of cols) {
         const td = el('td', 'forms-grid-cell');
+        // Read by the mobile stacked layout (forms.css) as the column
+        // name next to each option, once the table itself switches from
+        // a horizontally-scrolled grid to a vertically-scrolled list of
+        // rows — the header row (where that name would otherwise live)
+        // is hidden there.
+        td.setAttribute('data-col-label', c.label);
         const input = document.createElement('input');
         input.type = field.type === 'grid_single' ? 'radio' : 'checkbox';
         if (field.type === 'grid_single') input.name = 'grid_' + field.id + '_' + r.id;

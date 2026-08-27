@@ -12,6 +12,16 @@
 .forms-fillin-wide { max-width: 640px; }
 .forms-fillin-wide .edit-field label { color: var(--text); }
 
+/* Kort svar/Langt svar's placeholder otherwise inherits the input's own
+   0.95rem (.edit-field input/textarea, style.css) — noticeably larger
+   than the 0.8rem question label right above it. Match the question
+   text's size instead so the placeholder doesn't read as the more
+   prominent line. */
+.forms-fillin-page input::placeholder,
+.forms-fillin-page textarea::placeholder {
+  font-size: 0.8rem;
+}
+
 /* A light divider between consecutive fields on one page — not before the
    first field or after the last (nothing to separate there). */
 .forms-fillin-page .edit-field:not(:last-child) {
@@ -117,7 +127,18 @@
 }
 
 .forms-open-info { min-width: 0; }
-.forms-open-title { font-weight: 600; }
+/* Truncates with an ellipsis rather than wrapping onto a second line —
+   a wrapped title would grow the row's height and, together with
+   .forms-open-row's align-items:center, visually shove the arrow down
+   away from the title's own line. Stays single-line at every width
+   (see the removed max-width:719px stacking override below) so the
+   arrow is always readable on the same line as the title. */
+.forms-open-title {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .forms-open-deadline { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem; }
 
 .forms-open-arrow {
@@ -731,17 +752,19 @@
   text-align: left;
 }
 
-/* Skala's circles sit close together (a fixed 50px apart) and centered as
-   a group, rather than stretched edge-to-edge — nowrap so the group stays
-   one row up to the 0-10 range's worth of circles. Two "tabs" (4rem) of
-   indent each side — twice .forms-scale-captions' one tab below — bounds
-   the centering box; overflow-x:auto is a safety net for a wide range on
-   a narrow phone, where nowrap would otherwise push the row past the
-   card's edge instead of scrolling within it. */
+/* Skala's circles spread edge-to-edge across the available width
+   (justify-content:space-between) rather than clustering at a fixed
+   gap — the first/last circle then land at the row's own edges, lining
+   up with .forms-scale-captions below (same padding, same
+   space-between), and the spacing between circles naturally shrinks or
+   grows with the form's width instead of a hardcoded distance. `gap`
+   is only a floor, for a wide range (e.g. 0-10) on a narrow phone,
+   so circles never touch — nowrap plus overflow-x:auto is the backstop
+   once that floor no longer fits the row. */
 .forms-radio-row-scale {
   flex-wrap: nowrap;
-  justify-content: center;
-  gap: 50px;
+  justify-content: space-between;
+  gap: 0.6rem;
   padding: 0 4rem;
   overflow-x: auto;
 }
@@ -765,8 +788,11 @@
 /* ── Fill-in form: Gitter (grid_single/grid_multi) ────────────
    A plain table — row labels down the left, columns across the top, one
    radio/checkbox per cell. Wrapped for horizontal scroll on narrow
-   screens, same as the admin responses table; one "tab" (2rem) of indent
-   left/right, same as the other answer widgets above. */
+   screens, same as the admin responses table (below the mobile
+   breakpoint this table drops to a vertical stack instead — see the
+   max-width:719px block below — so this scroll wrapper ends up unused
+   there); one "tab" (2rem) of indent left/right, same as the other
+   answer widgets above. */
 .forms-grid-wrap { overflow-x: auto; padding: 0 2rem; }
 
 /* table-layout:fixed is what reliably splits the value columns evenly
@@ -817,7 +843,6 @@
 }
 
 @media (max-width: 719px) {
-  .forms-open-row { flex-direction: column; align-items: flex-start; }
   .forms-field-row-top { flex-direction: column; align-items: stretch; }
   /* ".forms-field-row-top input[type=text]"'s flex-basis:160px is meant to
      set a minimum WIDTH in the desktop row layout — once the container
@@ -846,5 +871,45 @@
   .forms-scale-captions {
     padding-left: 2rem;
     padding-right: 2rem;
+  }
+
+  /* Gitter (grid_single/grid_multi): table-layout:fixed splits narrow
+     phone widths so evenly that column header text has nowhere to go
+     but overlap its neighbour. Below scrolls horizontally instead this
+     drops the table to a vertically-scrolled stack of cards (one per
+     row) — the header row is redundant once each option carries its
+     own column name (data-col-label, forms.js) right next to it, so
+     it's hidden rather than squeezed. .forms-grid-wrap's overflow-x:auto
+     is simply unused at this width once nothing overflows sideways. */
+  .forms-grid-table thead { display: none; }
+  .forms-grid-table,
+  .forms-grid-table tbody,
+  .forms-grid-table tr,
+  .forms-grid-table td {
+    display: block;
+    width: auto;
+  }
+  .forms-grid-table tr {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .forms-grid-table tr:first-child { padding-top: 0; }
+  .forms-grid-table td { border-bottom: none; padding: 0.3rem 0; }
+  .forms-grid-table .forms-grid-row-label {
+    font-weight: 600;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .forms-grid-table .forms-grid-cell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .forms-grid-table .forms-grid-cell::before {
+    content: attr(data-col-label);
+    font-size: 0.85rem;
+    color: var(--text);
   }
 }
