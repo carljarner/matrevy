@@ -98,6 +98,15 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/program-data.js',
+    sources: 'data/program.json',
+    globals: () => {
+      const program = readJson('data/program.json');
+      console.log(`  program: ${program.medvirkende.length} medvirkende-kategorier, ${program.ordliste.length} ordliste-termer, ${program.qrCodes.length} qr-koder`);
+      return { PROGRAM_DATA: program };
+    },
+  },
+  {
     // Static .ics feed, served directly by GitHub Pages at
     // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
     // the calendar data is already fully public (see CLAUDE.md's access-level

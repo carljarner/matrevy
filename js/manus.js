@@ -198,6 +198,17 @@ function splitDanceScene(scene) {
 // ── Data (with a localStorage-backed shadow after a create/delete) ──
 let manuscriptsOverride = siteLoadOverride('manuscripts');
 
+// Program tab's own data/program.json shadow — the ordinary site-wide
+// siteLoadOverride/siteSaveOverride pattern (like Kalender/Wiki/Posts), NOT
+// manusDraft's in-memory-only optimistic shadow, since the Program tab isn't
+// racing scripts/generate-pdfs.js the way Aktfordeling/Rollefordeling's
+// scenes/cast save is (see renderProgramTab/saveProgram below).
+let programOverride = siteLoadOverride('program');
+
+function getEffectiveProgram() {
+  return programOverride || (typeof PROGRAM_DATA !== 'undefined' ? PROGRAM_DATA : { medvirkende: [], ordliste: [], qrCodes: [] });
+}
+
 function getEffectiveManuscripts() {
   return manuscriptsOverride || MANUSCRIPTS_DATA;
 }
@@ -3095,6 +3106,378 @@ function renderStjerneArkTab() {
   }, 3, row => !manusRowIsManualMedia(row)));
 }
 
+// ── Program tab (Medvirkende / Ordliste / QR-koder → Program.pdf) ──
+// Architecturally independent of manusDraft (entirely scene-scoped) — its
+// own resource, own shadow (getEffectiveProgram, above), own "Gem" button.
+// A local mutable clone, built once on first visit to the tab and only
+// reset to null after a successful save — so switching to another Main
+// Manus View tab and back preserves an in-progress edit within the same
+// page session (mirrors manusDraft's "only rebuilt after a successful
+// save" rule, scoped to just this tab).
+let programDraft = null;
+let programDragId = null;
+
+function programNextId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// Splices `id` out of `arr` (matched by .id) and re-inserts it right before
+// `beforeId` (or at the end when null) — the no-lane simplification of
+// manusMoveRow above, since every Program list is a single flat array with
+// no lane concept.
+function programMoveInArray(arr, id, beforeId) {
+  const idx = arr.findIndex((x) => x.id === id);
+  if (idx === -1) return;
+  const [item] = arr.splice(idx, 1);
+  if (beforeId) {
+    const beforeIdx = arr.findIndex((x) => x.id === beforeId);
+    arr.splice(beforeIdx === -1 ? arr.length : beforeIdx, 0, item);
+  } else {
+    arr.push(item);
+  }
+}
+
+// Makes `rowEl` both a drag source and a drop target within `arr` (its own
+// backing array — a category list, a single category's name list, the
+// ordliste list, or the qrCodes list) — reuses wireDropHighlight's own
+// enter/leave/drop handling (and .manus-akt-row's existing drop-indicator
+// CSS) exactly like Aktfordeling's own rows do.
+function programWireRowDrag(rowEl, id, arr, onMoved) {
+  rowEl.draggable = true;
+  rowEl.addEventListener('dragstart', (e) => {
+    programDragId = id;
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  wireDropHighlight(rowEl, () => {
+    if (programDragId && programDragId !== id) {
+      programMoveInArray(arr, programDragId, id);
+      programDragId = null;
+      onMoved();
+    }
+  }, { stop: true });
+}
+
+function programRemoveBtn(title, onClick) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'manus-select-remove';
+  btn.textContent = '✕';
+  btn.title = title;
+  btn.setAttribute('aria-label', title);
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function programDragHandle() {
+  const handle = document.createElement('span');
+  handle.className = 'manus-akt-drag-handle';
+  handle.textContent = '⠿';
+  return handle;
+}
+
+function renderProgramNameRow(cat, person) {
+  const row = document.createElement('div');
+  row.className = 'manus-akt-row manus-program-name-row';
+  row.appendChild(programDragHandle());
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'manus-program-input';
+  nameInput.placeholder = 'Navn';
+  nameInput.value = person.name;
+  nameInput.addEventListener('input', () => { person.name = nameInput.value; });
+  row.appendChild(nameInput);
+
+  const noteInput = document.createElement('input');
+  noteInput.type = 'text';
+  noteInput.className = 'manus-program-input manus-program-note-input';
+  noteInput.placeholder = 'Note (valgfri, fx Boss)';
+  noteInput.value = person.note || '';
+  noteInput.addEventListener('input', () => { person.note = noteInput.value; });
+  row.appendChild(noteInput);
+
+  row.appendChild(programRemoveBtn(`Slet ${person.name || 'navn'}`, () => {
+    cat.names = cat.names.filter((n) => n.id !== person.id);
+    renderProgramTab();
+  }));
+
+  programWireRowDrag(row, person.id, cat.names, renderProgramTab);
+  return row;
+}
+
+function renderProgramCategoryRow(cat) {
+  const wrap = document.createElement('div');
+  wrap.className = 'manus-program-cat-row';
+
+  const header = document.createElement('div');
+  header.className = 'manus-akt-row manus-program-cat-header';
+  header.appendChild(programDragHandle());
+
+  const catInput = document.createElement('input');
+  catInput.type = 'text';
+  catInput.className = 'manus-program-input manus-program-cat-input';
+  catInput.placeholder = 'Kategori (fx Koordinatorer)';
+  catInput.value = cat.category;
+  catInput.addEventListener('input', () => { cat.category = catInput.value; });
+  header.appendChild(catInput);
+
+  header.appendChild(programRemoveBtn(`Slet kategorien ${cat.category || 'uden navn'}`, () => {
+    programDraft.medvirkende = programDraft.medvirkende.filter((c) => c.id !== cat.id);
+    renderProgramTab();
+  }));
+
+  wrap.appendChild(header);
+  programWireRowDrag(header, cat.id, programDraft.medvirkende, renderProgramTab);
+
+  const nameList = document.createElement('div');
+  nameList.className = 'manus-program-name-list';
+  cat.names.forEach((person) => nameList.appendChild(renderProgramNameRow(cat, person)));
+  wrap.appendChild(nameList);
+
+  const addNameBtn = document.createElement('button');
+  addNameBtn.type = 'button';
+  addNameBtn.className = 'manus-program-add-name-btn';
+  addNameBtn.textContent = '+ Navn';
+  addNameBtn.addEventListener('click', () => {
+    cat.names.push({ id: programNextId(), name: '', note: '' });
+    renderProgramTab();
+  });
+  wrap.appendChild(addNameBtn);
+
+  return wrap;
+}
+
+function renderProgramMedvirkendeSection() {
+  const section = document.createElement('section');
+  section.className = 'card manus-program-section';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Medvirkende';
+  section.appendChild(h2);
+
+  const list = document.createElement('div');
+  list.className = 'manus-program-cat-list';
+  programDraft.medvirkende.forEach((cat) => list.appendChild(renderProgramCategoryRow(cat)));
+  section.appendChild(list);
+
+  const addCatBtn = document.createElement('button');
+  addCatBtn.type = 'button';
+  addCatBtn.className = 'site-pill-btn site-pill-warm';
+  addCatBtn.textContent = '+ Kategori';
+  addCatBtn.addEventListener('click', () => {
+    programDraft.medvirkende.push({ id: programNextId(), category: '', names: [] });
+    renderProgramTab();
+  });
+  section.appendChild(addCatBtn);
+
+  return section;
+}
+
+function renderProgramTermRow(entry) {
+  const row = document.createElement('div');
+  row.className = 'manus-akt-row manus-program-term-row';
+  row.appendChild(programDragHandle());
+
+  const termInput = document.createElement('input');
+  termInput.type = 'text';
+  termInput.className = 'manus-program-input';
+  termInput.placeholder = 'Ord';
+  termInput.value = entry.term;
+  termInput.addEventListener('input', () => { entry.term = termInput.value; });
+  row.appendChild(termInput);
+
+  const defInput = document.createElement('textarea');
+  defInput.className = 'manus-program-input manus-program-def-input';
+  defInput.rows = 1;
+  defInput.placeholder = 'Forklaring';
+  defInput.value = entry.definition;
+  defInput.addEventListener('input', () => { entry.definition = defInput.value; });
+  row.appendChild(defInput);
+
+  row.appendChild(programRemoveBtn(`Slet ordet ${entry.term || 'uden navn'}`, () => {
+    programDraft.ordliste = programDraft.ordliste.filter((o) => o.id !== entry.id);
+    renderProgramTab();
+  }));
+
+  programWireRowDrag(row, entry.id, programDraft.ordliste, renderProgramTab);
+  return row;
+}
+
+function renderProgramOrdlisteSection() {
+  const section = document.createElement('section');
+  section.className = 'card manus-program-section';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Ordliste';
+  section.appendChild(h2);
+
+  const hint = document.createElement('p');
+  hint.className = 'manus-col-empty';
+  hint.textContent = 'Sorteres alfabetisk automatisk, når Program.pdf bygges — rækkefølgen her er kun til redigering.';
+  section.appendChild(hint);
+
+  const list = document.createElement('div');
+  list.className = 'manus-program-term-list';
+  programDraft.ordliste.forEach((entry) => list.appendChild(renderProgramTermRow(entry)));
+  section.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'site-pill-btn site-pill-warm';
+  addBtn.textContent = '+ Ord';
+  addBtn.addEventListener('click', () => {
+    programDraft.ordliste.push({ id: programNextId(), term: '', definition: '' });
+    renderProgramTab();
+  });
+  section.appendChild(addBtn);
+
+  return section;
+}
+
+function renderProgramQrRow(qr) {
+  const row = document.createElement('div');
+  row.className = 'manus-akt-row manus-program-qr-row';
+  row.appendChild(programDragHandle());
+
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text';
+  labelInput.className = 'manus-program-input';
+  labelInput.placeholder = 'Label (fx Sangtekster)';
+  labelInput.value = qr.label;
+  labelInput.addEventListener('input', () => { qr.label = labelInput.value; });
+  row.appendChild(labelInput);
+
+  const urlInput = document.createElement('input');
+  urlInput.type = 'url';
+  urlInput.className = 'manus-program-input';
+  urlInput.placeholder = 'https://...';
+  urlInput.value = qr.url;
+  const updateUrlValidity = () => {
+    urlInput.classList.toggle('manus-program-input-invalid', !!urlInput.value && !/^https?:\/\//i.test(urlInput.value));
+  };
+  urlInput.addEventListener('input', () => { qr.url = urlInput.value; updateUrlValidity(); });
+  updateUrlValidity();
+  row.appendChild(urlInput);
+
+  row.appendChild(programRemoveBtn(`Slet QR-koden ${qr.label || 'uden navn'}`, () => {
+    programDraft.qrCodes = programDraft.qrCodes.filter((q) => q.id !== qr.id);
+    renderProgramTab();
+  }));
+
+  programWireRowDrag(row, qr.id, programDraft.qrCodes, renderProgramTab);
+  return row;
+}
+
+function renderProgramQrSection() {
+  const section = document.createElement('section');
+  section.className = 'card manus-program-section';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'QR-koder';
+  section.appendChild(h2);
+
+  const hint = document.createElement('p');
+  hint.className = 'manus-col-empty';
+  hint.textContent = 'QR-koden tegnes automatisk ud fra linket, når Program.pdf bygges — der uploades ikke selve billedet.';
+  section.appendChild(hint);
+
+  const list = document.createElement('div');
+  list.className = 'manus-program-qr-list';
+  programDraft.qrCodes.forEach((qr) => list.appendChild(renderProgramQrRow(qr)));
+  section.appendChild(list);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'site-pill-btn site-pill-warm';
+  addBtn.textContent = '+ QR-kode';
+  addBtn.addEventListener('click', () => {
+    programDraft.qrCodes.push({ id: programNextId(), label: '', url: '' });
+    renderProgramTab();
+  });
+  section.appendChild(addBtn);
+
+  return section;
+}
+
+// Trims every field and drops rows the admin added but never filled in at
+// all (an untouched blank "+ Kategori"/"+ Ord"/"+ QR-kode" row) — anything
+// with *some* content survives verbatim, including a partially-filled row,
+// so a genuine mistake (e.g. a name with no category) is caught by
+// save_program's own server-side validation and surfaced as an error,
+// rather than silently dropped here.
+function programBuildSavePayload() {
+  const medvirkende = programDraft.medvirkende
+    .map((c) => ({
+      id: c.id,
+      category: c.category.trim(),
+      names: c.names
+        .map((n) => ({ id: n.id, name: n.name.trim(), note: (n.note || '').trim() }))
+        .filter((n) => n.name || n.note),
+    }))
+    .filter((c) => c.category || c.names.length);
+
+  const ordliste = programDraft.ordliste
+    .map((o) => ({ id: o.id, term: o.term.trim(), definition: (o.definition || '').trim() }))
+    .filter((o) => o.term || o.definition);
+
+  const qrCodes = programDraft.qrCodes
+    .map((q) => ({ id: q.id, label: q.label.trim(), url: (q.url || '').trim() }))
+    .filter((q) => q.label || q.url);
+
+  return { medvirkende, ordliste, qrCodes };
+}
+
+async function saveProgram(saveBtn, errorEl) {
+  saveBtn.disabled = true;
+  errorEl.textContent = '';
+  const payload = programBuildSavePayload();
+  const result = await siteSaveResource('program', payload);
+  if (result.ok) {
+    programOverride = payload;
+    siteSaveOverride('program', payload);
+    programDraft = null;
+    renderProgramTab();
+    siteShowToast('Program gemt');
+  } else {
+    saveBtn.disabled = false;
+    errorEl.textContent = result.message;
+  }
+}
+
+function renderProgramSaveRow() {
+  const row = document.createElement('div');
+  row.className = 'manus-program-actions';
+
+  const error = document.createElement('span');
+  error.className = 'manus-main-view-error';
+  row.appendChild(error);
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'site-pill-btn site-pill-primary';
+  // "Gem Program", not a bare "Gem" — this sits directly above
+  // #manus-main-view-actions' own "Gem" (the separate scenes/cast save), so
+  // a plain "Gem" here would read as a second, confusingly identical button.
+  saveBtn.textContent = 'Gem Program';
+  saveBtn.addEventListener('click', () => saveProgram(saveBtn, error));
+  row.appendChild(saveBtn);
+
+  return row;
+}
+
+function renderProgramTab() {
+  const mount = document.getElementById('manus-tab-program');
+  mount.textContent = '';
+  if (!programDraft) programDraft = structuredClone(getEffectiveProgram());
+
+  const hint = document.createElement('p');
+  hint.className = 'manus-col-empty';
+  hint.textContent = 'Gem herunder, og klik derefter "Generér PDF\'er" (i Aktfordeling) for at opdatere Program.pdf.';
+  mount.appendChild(hint);
+
+  mount.appendChild(renderProgramMedvirkendeSection());
+  mount.appendChild(renderProgramOrdlisteSection());
+  mount.appendChild(renderProgramQrSection());
+  mount.appendChild(renderProgramSaveRow());
+}
+
 // ── Tab bar + section chrome ───────────────────────────────────
 const MANUS_MAIN_TABS = [
   { key: 'select', label: 'Scener', render: renderSelectTab },
@@ -3102,6 +3485,7 @@ const MANUS_MAIN_TABS = [
   { key: 'rollefordeling', label: 'Rollefordeling', render: renderRollefordelingTab },
   { key: 'manus', label: 'Manus', render: renderManusTextTab },
   { key: 'stjerneark', label: 'Stjerneark', render: renderStjerneArkTab },
+  { key: 'program', label: 'Program', render: renderProgramTab },
 ];
 const MANUS_ACTIVE_TAB_KEY = 'matrevy-manus-tab';
 const manusStoredTab = localStorage.getItem(MANUS_ACTIVE_TAB_KEY);
@@ -3666,6 +4050,7 @@ function renderManusPdfLinksSection() {
     ['Aktfordeling', 'Aktoversigt.pdf'],
     ['Rollefordeling', 'Rolleoversigt.pdf'],
     ['Manus', 'Manuskript.pdf'],
+    ['Program', 'Program.pdf'],
   ];
   for (const [label, filename] of files) {
     const btn = document.createElement('button');

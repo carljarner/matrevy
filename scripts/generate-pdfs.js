@@ -453,6 +453,154 @@ ${body}\\end{tabular}%
 `;
 }
 
+// ── Program (mirrors the old hand-maintained program.tex, now driven by
+// data/program.json's boss-edited Medvirkende/Ordliste/QR-codes plus the
+// same act/scene data Aktoversigt.pdf uses) ─────────────────────
+// Resolves the front-cover image (this production's own Arkiv cover photo,
+// data/archive.json's coverImage for the currentFolder entry) and the
+// back-cover image (always the sitewide placeholder, same file archive.js
+// itself falls back to when a year has no cover photo — see
+// ARCHIVE_PLACEHOLDER_COVER there) — both repo-relative paths, resolved
+// before compiling so a missing/empty coverImage never fails the build.
+function resolveProgramImages(currentFolder) {
+  const PLACEHOLDER = 'archive/_assets/placeholder-cover.jpg';
+  const archiveJson = readJson('data/archive.json');
+  const entry = (archiveJson.years || []).find((y) => y.folder === currentFolder);
+  const coverRel = (entry && entry.coverImage) || PLACEHOLDER;
+  return { coverRel, backRel: PLACEHOLDER };
+}
+
+// Renders one QR PNG per qrCodes[] entry directly into workDir, from its
+// admin-entered `url` — no image is ever uploaded/stored, see save_program's
+// own doc comment in server/update-data.php. Entries with an empty/clearly
+// invalid url are skipped defensively (already checked server-side, but this
+// script also runs against hand-edited data/program.json), returning a
+// filename only for the entries that actually got a file written.
+async function generateQrFiles(workDir, qrCodes) {
+  const QRCode = require('qrcode');
+  const filenames = new Map();
+  let i = 0;
+  for (const qr of qrCodes) {
+    if (!qr || typeof qr.url !== 'string' || !/^https?:\/\//i.test(qr.url)) continue;
+    const filename = `qr-${i++}.png`;
+    await QRCode.toFile(path.join(workDir, filename), qr.url, { type: 'png', width: 600, margin: 1 });
+    filenames.set(qr.id, filename);
+  }
+  return filenames;
+}
+
+// Standalone article, no revy.sty (program.tex itself never used it either —
+// this is a printed audience programme, not a rehearsal script, so none of
+// revy.sty's \role/\begin{sketch}/\maketitle machinery applies). Styled to
+// mirror program.tex's own centered/\Huge look, not Aktoversigt.pdf's
+// numbered-enumerate/time-estimate style meant for internal rehearsal use.
+//
+// Escaping: act.label/scene.name/scene.melody are raw, already-valid LaTeX
+// straight out of scenes.json (same as buildAktoversigtTex above — a scene's
+// title/melody is typed as real LaTeX via the Manus tab, e.g. "$\chi$-faktor"
+// or "S\&M"). Every program.json string (category/name/note/term/definition/
+// label), by contrast, is plain text typed into the Program tab's web form
+// and is ALWAYS run through texEscape() — the opposite convention, and easy
+// to get backwards, so don't "fix" one to match the other.
+function buildProgramTex(programActs, prodMeta, programData, images) {
+  const { coverFile, backFile, qrFiles } = images;
+
+  let aktBody = '';
+  for (const act of programActs) {
+    aktBody += `\\vskip 18pt\n{\\Large \\bfseries ${texEscape(act.label)}}\n\\vskip 6pt\n`;
+    for (const s of act.scenes) {
+      aktBody += s.name;
+      if (s.melody) aktBody += ` (\\emph{${s.melody}})`;
+      aktBody += '\\\\\n';
+    }
+  }
+
+  let medBody = '';
+  for (const cat of programData.medvirkende) {
+    if (!cat.names || !cat.names.length) continue;
+    medBody += `\\textbf{${texEscape(cat.category)}}\\\\\n`;
+    for (const person of cat.names) {
+      medBody += texEscape(person.name);
+      if (person.note) medBody += ` -- \\emph{${texEscape(person.note)}}`;
+      medBody += '\\\\\n';
+    }
+    medBody += '\n';
+  }
+
+  const ordlisteSorted = [...programData.ordliste].sort((a, b) => a.term.localeCompare(b.term, 'da'));
+  let ordBody = '';
+  for (const entry of ordlisteSorted) {
+    ordBody += `\\textbf{${texEscape(entry.term)}:} ${texEscape(entry.definition)} \\\\\n`;
+  }
+
+  let qrBody = '';
+  for (const qr of programData.qrCodes) {
+    const file = qrFiles.get(qr.id);
+    if (!file) continue;
+    qrBody += `\\vspace*{\\fill}\n\\huge{${texEscape(qr.label)}}\\\\\n\\vspace{10mm}\n\\includegraphics[width=9cm]{${file}}\\\\\n\\vspace*{\\fill}\n`;
+  }
+
+  return `\\documentclass[a4paper,12pt]{article}
+\\usepackage[a4paper, hmargin=2cm, vmargin=1cm]{geometry}
+\\usepackage[danish]{babel}
+\\usepackage[utf8]{inputenc}
+\\usepackage[T1]{fontenc}
+\\usepackage{graphicx}
+\\usepackage{multicol}
+\\setlength{\\parindent}{0pt}
+\\pagestyle{empty}
+
+\\begin{document}
+
+% Front cover
+\\begin{center}
+\\vspace*{\\fill}
+\\includegraphics[width=\\textwidth]{${coverFile}}
+\\vspace*{\\fill}
+\\end{center}
+\\clearpage
+
+% Aktoversigt
+\\begin{center}
+{\\Huge Aktoversigt}
+\\end{center}
+\\begin{center}
+${aktBody}\\end{center}
+\\clearpage
+
+% Medvirkende
+\\begin{center}
+{\\Huge Medvirkende}
+\\end{center}
+\\begin{multicols}{2}
+${medBody}\\end{multicols}
+\\clearpage
+
+% Ordliste
+\\begin{center}
+{\\Huge Ordliste}
+\\end{center}
+\\begin{multicols}{2}
+\\noindent
+${ordBody}\\end{multicols}
+\\clearpage
+
+% QR-koder
+\\begin{center}
+${qrBody}\\end{center}
+\\clearpage
+
+% Back cover
+\\begin{center}
+\\vspace*{\\fill}
+\\includegraphics[width=0.6\\textwidth]{${backFile}}
+\\vspace*{\\fill}
+\\end{center}
+
+\\end{document}
+`;
+}
+
 // ── Compiling ────────────────────────────────────────────────
 function checkPdflatexAvailable() {
   const result = spawnSync('pdflatex', ['--version'], { encoding: 'utf8' });
@@ -728,6 +876,35 @@ async function main() {
   await buildActorManuskripts(realActs, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
   await buildSangbossManuskript(realActs, prodMeta, scenePdfPaths, currentFolder);
 
+  // 6) Program — self-hosted printed audience programme booklet (Manus
+  // page's "Program" tab). data/program.json is optional (feature just
+  // shipped / no admin save yet) — skip gracefully rather than fail the
+  // whole run, same bootstrap posture as Budget's "no active budget" state
+  // (see CLAUDE.md). The Aktoversigt section explicitly excludes the
+  // Ekstranumre act (unlike the internal Aktoversigt.pdf above, which
+  // includes it) — a printed audience programme lists only the three real
+  // acts.
+  const programJsonPath = root('data/program.json');
+  if (!fs.existsSync(programJsonPath)) {
+    console.log('  Skipping Program.pdf (data/program.json not found yet).');
+  } else {
+    console.log('  Compiling Program...');
+    const programJson = readJson('data/program.json');
+    const programActs = realActs.filter((act) => act.act !== 'E');
+    const { coverRel, backRel } = resolveProgramImages(currentFolder);
+    const workDir = path.join(BUILD_DIR, 'program');
+    fs.mkdirSync(workDir, { recursive: true });
+    const coverFile = 'cover' + path.extname(coverRel);
+    const backFile = 'back' + path.extname(backRel);
+    fs.copyFileSync(root(coverRel), path.join(workDir, coverFile));
+    fs.copyFileSync(root(backRel), path.join(workDir, backFile));
+    const qrFiles = await generateQrFiles(workDir, programJson.qrCodes || []);
+    const programTex = buildProgramTex(programActs, prodMeta, programJson, { coverFile, backFile, qrFiles });
+    fs.writeFileSync(path.join(workDir, 'Program.tex'), programTex, 'utf8');
+    const programPdf = compileTex(workDir, 'Program.tex');
+    copyToRepo(programPdf, `archive/${currentFolder}/Program.pdf`);
+  }
+
   console.log(
     `Done. Wrote Aktoversigt.pdf / Rolleoversigt.pdf / Manuskript.pdf plus ${castJson.cast.length} ` +
     `individual manuscripts (+ Sangboss) to archive/${currentFolder}/`
@@ -747,4 +924,5 @@ module.exports = {
   extractTexMelody, extractTexAuthor,
   buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
   buildSangbossManuskript,
+  resolveProgramImages, generateQrFiles, buildProgramTex,
 };

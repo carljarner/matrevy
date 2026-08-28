@@ -1445,3 +1445,127 @@ a.manus-pdf-title:focus-visible {
 
   .manus-print-table tr { page-break-inside: avoid; }
 }
+
+/* --- Program tab (Medvirkende / Ordliste / QR-koder) ------------- */
+/* .manus-program-section extends .card, which already supplies the
+   1.25rem stacked-card gap between Medvirkende/Ordliste/QR-koder — no
+   margin-bottom needed here. Rows reuse .manus-akt-row/.manus-akt-drag-
+   handle/.manus-select-remove verbatim (border/padding/background, and
+   the .manus-drop-target drag-highlight ::before, all come free). */
+.manus-program-section h2 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.manus-program-cat-list,
+.manus-program-term-list,
+.manus-program-qr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.manus-program-cat-row {
+  margin-bottom: 0.6rem;
+}
+
+.manus-program-cat-row:last-child {
+  margin-bottom: 0;
+}
+
+/* Indented one level under its category header, same visual nesting as a
+   Wiki chapter's attachment list. */
+.manus-program-name-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.4rem 1.5rem;
+}
+
+.manus-program-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--input-bg);
+  color: var(--header);
+}
+
+.manus-program-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* A QR link that doesn't look like http(s)://... yet — a soft nudge, not a
+   hard block; save_program's own server-side check is the real gate. */
+.manus-program-input-invalid {
+  border-color: var(--danger);
+}
+
+.manus-program-cat-input {
+  font-weight: 600;
+}
+
+.manus-program-note-input,
+.manus-program-qr-row .manus-program-input:first-of-type {
+  flex: 0 1 40%;
+}
+
+.manus-program-def-input {
+  resize: vertical;
+  min-height: 1.9rem;
+  font-family: inherit;
+}
+
+/* Small "+ Navn" affordance under each category's own name list — a
+   plainer, quieter chip than the section-level .site-pill-btn "+
+   Kategori"/"+ Ord"/"+ QR-kode" buttons, since it's nested one level
+   deeper. Mirrors .manus-role-tag-add's own idle look. */
+.manus-program-add-name-btn {
+  align-self: flex-start;
+  margin-left: 1.5rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: none;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .manus-program-add-name-btn:hover {
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+
+.manus-program-add-name-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Mirrors .manus-main-view-actions' own end-aligned error+button pairing,
+   scoped to just this tab's own save (not #manus-main-view-actions, which
+   belongs to the scenes/cast Gem/Generér PDF'er flow). */
+.manus-program-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+@media (max-width: 719px) {
+  .manus-program-name-row,
+  .manus-program-cat-header,
+  .manus-program-term-row,
+  .manus-program-qr-row {
+    flex-wrap: wrap;
+  }
+}
