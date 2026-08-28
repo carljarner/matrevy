@@ -223,10 +223,10 @@ if (isset($FORMS_ACTIONS[$action])) {
 // (any logged-in cast/crew member can add/edit/delete any row, like a
 // plain shared spreadsheet) — only the extra-field list is boss-gated.
 $FAELLES_ACTIONS = [
-  'faelles_read'        => 'revyst', // {fields, rows, updatedAt}
-  'faelles_upsert_row'  => 'revyst', // create (no rowId) or update (rowId given) one row
-  'faelles_delete_row'  => 'revyst', // idempotent — ok even if already gone
-  'faelles_save_fields' => 'boss',   // full replace of the extra-field list, prunes dangling answers
+  'faelles_read'            => 'revyst', // {rows, connection, updatedAt} — also lazily syncs a connected form
+  'faelles_upsert_row'      => 'revyst', // create (no rowId) or update (rowId given) one row
+  'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
+  'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
 ];
 if (isset($FAELLES_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FAELLES_ACTIONS[$action]]) {
@@ -2275,7 +2275,11 @@ function handle_forms($action, $body) {
 // under FAELLESSPISNING_DATA_DIR — never the public repo, since rows carry
 // names and food preferences. Unlike Forms/Sheets (many documents, one per
 // form/sheet) there is exactly one document total — no manifest, no id
-// routing — so every action just opens the same fixed path.
+// routing — so every action just opens the same fixed path. Optionally
+// `connection`-ed to one Formularer form (see faelles_save_connection/
+// faelles_sync_connection below) — once connected, every faelles_read
+// lazily pulls in any new responses, so a boss never has to manually
+// re-import.
 
 function faelles_dir() {
   if (!defined('FAELLESSPISNING_DATA_DIR') || !is_string(FAELLESSPISNING_DATA_DIR) || FAELLESSPISNING_DATA_DIR === '') {
@@ -2295,7 +2299,7 @@ function faelles_doc_path() {
 }
 
 function faelles_default_doc() {
-  return ['fields' => [], 'rows' => [], 'updatedAt' => null];
+  return ['rows' => [], 'connection' => null, 'updatedAt' => null];
 }
 
 // Read-only load, no lock — matches forms_get's own plain-read convention;
@@ -2316,19 +2320,6 @@ function faelles_valid_id($id) {
 
 function faelles_id() {
   return dechex(time()) . bin2hex(random_bytes(4));
-}
-
-// The two always-present answer keys — never part of the boss-editable
-// `fields` list, so the field editor only ever shows the extras.
-function faelles_base_field_ids() {
-  return ['navn', 'madforbehold'];
-}
-
-// Extra-field ids are boss-typed, so validated strictly (never trusted raw
-// into an answers-map key) and forbidden from colliding with a base id.
-function faelles_valid_field_id($id) {
-  return is_string($id) && preg_match('/^[A-Za-z0-9_-]{1,40}$/', $id) === 1
-    && !in_array($id, faelles_base_field_ids(), true);
 }
 
 // Flock'd read-modify-write against the single document — safe against
@@ -2357,40 +2348,19 @@ function faelles_mutate($mutate) {
   return $doc;
 }
 
-// Validates one boss-typed FieldSpec ({id, label, required}), tracking
-// already-seen ids in $seenIds to reject a duplicate within the same save.
-function faelles_validate_field_spec($f, &$seenIds) {
-  if (!is_array($f)) return null;
-  $id = $f['id'] ?? '';
-  $label = $f['label'] ?? '';
-  if (!faelles_valid_field_id($id) || isset($seenIds[$id])) return null;
-  if (!is_string($label) || trim($label) === '' || mb_strlen($label) > 80) return null;
-  $seenIds[$id] = true;
-  return ['id' => $id, 'label' => trim($label), 'required' => !empty($f['required'])];
-}
-
-// Allow-lists answers against the base ids plus the document's current
-// extra-field ids; rejects any unknown key. `navn` is always required.
-function faelles_validate_answers($answersIn, $fields) {
+// Fixed shape — just Navn (required) and Madforbehold (optional), no more
+// boss-configurable extra fields (there used to be an extra-field editor
+// here; the sheet never needed more than these two, so it's gone).
+function faelles_validate_answers($answersIn) {
   if (!is_array($answersIn)) return null;
-  $allowed = faelles_base_field_ids();
-  $requiredExtra = [];
-  foreach ($fields as $f) {
-    $allowed[] = $f['id'];
-    if (!empty($f['required'])) $requiredExtra[] = $f['id'];
+  foreach ($answersIn as $key => $_) {
+    if ($key !== 'navn' && $key !== 'madforbehold') return null;
   }
-  $answers = [];
-  foreach ($answersIn as $key => $value) {
-    if (!in_array($key, $allowed, true)) return null;
-    if (!is_string($value) || mb_strlen($value) > 500) return null;
-    $answers[$key] = $value;
-  }
-  $navn = trim($answers['navn'] ?? '');
-  if ($navn === '' || mb_strlen($navn) > 120) return null;
-  foreach ($requiredExtra as $id) {
-    if (trim($answers[$id] ?? '') === '') return null;
-  }
-  return $answers;
+  $navn = $answersIn['navn'] ?? '';
+  $madforbehold = $answersIn['madforbehold'] ?? '';
+  if (!is_string($navn) || trim($navn) === '' || mb_strlen($navn) > 120) return null;
+  if (!is_string($madforbehold) || mb_strlen($madforbehold) > 500) return null;
+  return ['navn' => $navn, 'madforbehold' => $madforbehold];
 }
 
 // No cross-check against CALENDAR_DATA (which day ids currently exist) —
@@ -2408,52 +2378,155 @@ function faelles_validate_days($daysIn) {
   return $days;
 }
 
-// Tags a row as having been created/refreshed by a Formularer import
-// (`{formId, responseId}`) — an opaque pair, not cross-checked against
-// Forms' own storage (same "don't validate against a live external list"
-// posture as faelles_validate_days above), used purely so re-running an
-// import updates the previously-imported row instead of duplicating it.
-// `present:false` means the request simply didn't include a `source` (an
-// ordinary grid edit) — leave whatever the row already has untouched;
-// `invalid:true` means one was sent but malformed.
-function faelles_validate_source($sourceIn) {
-  if ($sourceIn === null) return ['present' => false];
-  if (!is_array($sourceIn)) return ['present' => false, 'invalid' => true];
-  $formId = $sourceIn['formId'] ?? '';
-  $responseId = $sourceIn['responseId'] ?? '';
-  if (!is_string($formId) || $formId === '' || mb_strlen($formId) > 80) return ['present' => false, 'invalid' => true];
-  if (!is_string($responseId) || $responseId === '' || mb_strlen($responseId) > 80) return ['present' => false, 'invalid' => true];
-  return ['present' => true, 'source' => ['formId' => $formId, 'responseId' => $responseId]];
+// Stringifies a Forms answer value regardless of field type — plain text
+// for text/textarea/select, comma-joined for checkboxes/grid_multi,
+// Ja/Nej for yesno, etc. — so a connection can map Navn/Madforbehold to
+// any Forms field type and still get a sensible string instead of an
+// array or the literal word "Array" being stored.
+function faelles_forms_answer_to_text($value) {
+  if ($value === null) return '';
+  if (is_string($value)) return trim($value);
+  if (is_bool($value)) return $value ? 'Ja' : 'Nej';
+  if (is_int($value) || is_float($value)) return (string) $value;
+  if (is_array($value)) {
+    $parts = [];
+    foreach ($value as $v) {
+      $t = faelles_forms_answer_to_text($v);
+      if ($t !== '') $parts[] = $t;
+    }
+    return implode(', ', $parts);
+  }
+  return '';
 }
 
+// Validates a `faelles_save_connection` body. `formId: null` (or omitted)
+// means "disconnect" — distinct from a malformed connection request,
+// which is rejected outright. `formId` is validated with Forms' own
+// forms_valid_id() since it's actually used to build a filesystem path
+// (forms_form_dir) during sync — same path-traversal-guard reasoning as
+// Forms' own internal use of that regex.
+function faelles_validate_connection($body) {
+  $formId = array_key_exists('formId', $body) ? $body['formId'] : null;
+  if ($formId === null) return ['disconnect' => true];
+  if (!is_string($formId) || !forms_valid_id($formId)) return null;
+  $navnFieldId = $body['navnFieldId'] ?? '';
+  $madforboholdFieldId = $body['madforboholdFieldId'] ?? '';
+  if (!is_string($navnFieldId) || $navnFieldId === '' || mb_strlen($navnFieldId) > 80) return null;
+  if (!is_string($madforboholdFieldId) || $madforboholdFieldId === '' || mb_strlen($madforboholdFieldId) > 80) return null;
+  $formTitle = $body['formTitle'] ?? '';
+  if (!is_string($formTitle)) $formTitle = '';
+  return ['disconnect' => false, 'connection' => [
+    'formId' => $formId,
+    'navnFieldId' => $navnFieldId,
+    'madforboholdFieldId' => $madforboholdFieldId,
+    'formTitle' => mb_substr(trim($formTitle), 0, 200),
+    'syncedCount' => 0,
+  ]];
+}
+
+// Pulls every response from the connected form and upserts it into rows —
+// a response already synced before (tracked via each row's own
+// `source: {formId, responseId}`) is updated in place, never duplicated.
+// Always runs inside faelles_mutate(), so it's safe against a concurrent
+// grid edit. Deliberately never removes/un-syncs a row if its response is
+// no longer returned by the form (Forms has no per-response delete today
+// anyway) — this is a one-way "the form is the source of truth for these
+// rows" sync, not a full reconciliation; a row a boss deleted by hand
+// will reappear on the next sync as long as the response still exists,
+// same trade-off the old one-shot import made.
+function faelles_sync_connection($connection) {
+  return faelles_mutate(function ($doc) use ($connection) {
+    $formId = $connection['formId'] ?? '';
+    if (!forms_valid_id($formId)) return $doc;
+    $navnFieldId = $connection['navnFieldId'] ?? '';
+    $madforboholdFieldId = $connection['madforboholdFieldId'] ?? '';
+    $responsesDoc = forms_load(forms_form_dir($formId) . '/responses.json', ['responses' => []]);
+    $responses = is_array($responsesDoc['responses'] ?? null) ? $responsesDoc['responses'] : [];
+
+    $bySource = [];
+    foreach ($doc['rows'] as $idx => $row) {
+      if (isset($row['source']['formId'], $row['source']['responseId']) && $row['source']['formId'] === $formId) {
+        $bySource[$row['source']['responseId']] = $idx;
+      }
+    }
+
+    $now = date('c');
+    foreach ($responses as $resp) {
+      $rid = $resp['id'] ?? null;
+      if (!is_string($rid) || $rid === '') continue;
+      $answers = is_array($resp['answers'] ?? null) ? $resp['answers'] : [];
+      $navn = trim(faelles_forms_answer_to_text($answers[$navnFieldId] ?? null));
+      if ($navn === '') continue; // nothing meaningful to sync for this response
+      $madforbehold = faelles_forms_answer_to_text($answers[$madforboholdFieldId] ?? null);
+      if (isset($bySource[$rid])) {
+        $idx = $bySource[$rid];
+        if ($doc['rows'][$idx]['answers']['navn'] !== $navn || $doc['rows'][$idx]['answers']['madforbehold'] !== $madforbehold) {
+          $doc['rows'][$idx]['answers']['navn'] = $navn;
+          $doc['rows'][$idx]['answers']['madforbehold'] = $madforbehold;
+          $doc['rows'][$idx]['updatedAt'] = $now;
+        }
+      } else {
+        $doc['rows'][] = [
+          'id' => faelles_id(),
+          'answers' => ['navn' => $navn, 'madforbehold' => $madforbehold],
+          'days' => [],
+          'source' => ['formId' => $formId, 'responseId' => $rid],
+          'createdAt' => $now,
+          'updatedAt' => $now,
+        ];
+      }
+    }
+
+    $connection['syncedCount'] = count($responses);
+    $doc['connection'] = $connection;
+    $doc['updatedAt'] = $now;
+    return $doc;
+  });
+}
+
+// Cheap pre-check (no lock) so an ordinary page view doesn't pay for a
+// flock'd write when there's nothing new to sync — only calls
+// faelles_sync_connection() (which re-reads under the lock and does the
+// real per-response reconciliation) when the connected form's response
+// count has moved since the last sync.
+function faelles_maybe_sync($doc) {
+  $connection = $doc['connection'] ?? null;
+  if (!is_array($connection) || !forms_valid_id($connection['formId'] ?? '')) return $doc;
+  $responsesDoc = forms_load(forms_form_dir($connection['formId']) . '/responses.json', ['responses' => []]);
+  $respCount = count(is_array($responsesDoc['responses'] ?? null) ? $responsesDoc['responses'] : []);
+  $syncedCount = is_int($connection['syncedCount'] ?? null) ? $connection['syncedCount'] : -1;
+  if ($respCount === $syncedCount) return $doc;
+  return faelles_sync_connection($connection);
+}
+
+// Revyst: also lazily syncs a connected form's responses (see
+// faelles_maybe_sync) — so simply opening the page is what makes "every
+// new response gets written to the sheet" automatic, no manual re-import
+// button anywhere in the normal flow.
 function faelles_read($body) {
   $doc = faelles_load();
-  respond(200, ['ok' => true, 'fields' => $doc['fields'], 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
+  $doc = faelles_maybe_sync($doc);
+  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'updatedAt' => $doc['updatedAt']]);
 }
 
-// Revyst: create (no rowId) or update (rowId given) one row. `answers` is
-// merged onto the existing row's answers (only overwriting keys actually
-// sent), `days` is a full replace — a checkbox handler always has the
-// complete current day-set on hand, so that's safe. An optional `source`
-// ({formId, responseId}) tags the row as having come from a Formularer
-// import (see faelles_validate_source) — the client's import flow (boss-
-// level, reusing forms_admin_list/forms_admin_read directly, no dedicated
-// server action needed) uses it to find and update a previously-imported
-// row instead of duplicating it on a re-run.
+// Revyst: create (no rowId) or update (rowId given) one row from an
+// ordinary grid edit. `answers` is merged onto the existing row's answers
+// (only overwriting keys actually sent), `days` is a full replace — a
+// checkbox handler always has the complete current day-set on hand, so
+// that's safe. A row created/refreshed by a connected form goes through
+// faelles_sync_connection() instead, which writes rows directly (see
+// there for why `source` tagging happens there, not here).
 function faelles_upsert_row($body) {
   $rowId = $body['rowId'] ?? null;
   if ($rowId !== null && (!is_string($rowId) || !faelles_valid_id($rowId))) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  $sourceIn = array_key_exists('source', $body) ? $body['source'] : null;
-  $sourceResult = faelles_validate_source($sourceIn);
-  if (!empty($sourceResult['invalid'])) respond(400, ['error' => 'invalid_shape']);
+  $answers = faelles_validate_answers($body['answers'] ?? []);
+  $days = faelles_validate_days($body['days'] ?? []);
+  if ($answers === null || $days === null) respond(400, ['error' => 'invalid_shape']);
 
   $savedRow = null;
-  $doc = faelles_mutate(function ($doc) use ($rowId, $body, $sourceResult, &$savedRow) {
-    $answers = faelles_validate_answers($body['answers'] ?? [], $doc['fields']);
-    $days = faelles_validate_days($body['days'] ?? []);
-    if ($answers === null || $days === null) respond(400, ['error' => 'invalid_shape']);
+  $doc = faelles_mutate(function ($doc) use ($rowId, $answers, $days, &$savedRow) {
     $now = date('c');
     $found = false;
     foreach ($doc['rows'] as &$row) {
@@ -2461,7 +2534,6 @@ function faelles_upsert_row($body) {
         $row['answers'] = array_merge($row['answers'], $answers);
         $row['days'] = $days;
         $row['updatedAt'] = $now;
-        if ($sourceResult['present']) $row['source'] = $sourceResult['source'];
         $savedRow = $row;
         $found = true;
         break;
@@ -2472,12 +2544,11 @@ function faelles_upsert_row($body) {
     if ($rowId === null) {
       $savedRow = [
         'id' => faelles_id(),
-        'answers' => array_merge(['navn' => '', 'madforbehold' => ''], $answers),
+        'answers' => $answers,
         'days' => $days,
         'createdAt' => $now,
         'updatedAt' => $now,
       ];
-      if ($sourceResult['present']) $savedRow['source'] = $sourceResult['source'];
       $doc['rows'][] = $savedRow;
     }
     $doc['updatedAt'] = $now;
@@ -2502,40 +2573,40 @@ function faelles_delete_row($body) {
   respond(200, ['ok' => true]);
 }
 
-// Boss: full replace of the extra-field list, then prunes any row answer
-// keyed by a field that's no longer present — dead data nothing will ever
-// render again, same "server is source of truth for shape" posture used
-// elsewhere on the site. Doesn't touch `days` or bump a row's own
-// updatedAt (a schema change isn't that row's own edit).
-function faelles_save_fields($body) {
-  $fieldsIn = $body['fields'] ?? null;
-  if (!is_array($fieldsIn)) respond(400, ['error' => 'invalid_shape']);
-  $seenIds = [];
-  $fields = [];
-  foreach ($fieldsIn as $f) {
-    $clean = faelles_validate_field_spec($f, $seenIds);
-    if ($clean === null) respond(400, ['error' => 'invalid_shape']);
-    $fields[] = $clean;
+// Boss: connect (formId given) or disconnect (formId: null) a Formularer
+// form. Connecting immediately runs faelles_sync_connection() so existing
+// responses land right away, not just on the next faelles_read.
+// Disconnecting only clears `connection` — rows already synced in stay,
+// since deleting them would be a surprising side effect of what reads as
+// a purely forward-looking "stop syncing" action.
+function faelles_save_connection($body) {
+  $clean = faelles_validate_connection($body);
+  if ($clean === null) respond(400, ['error' => 'invalid_shape']);
+
+  if (!empty($clean['disconnect'])) {
+    $doc = faelles_mutate(function ($doc) {
+      $doc['connection'] = null;
+      $doc['updatedAt'] = date('c');
+      return $doc;
+    });
+    respond(200, ['ok' => true, 'connection' => null, 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
   }
-  $doc = faelles_mutate(function ($doc) use ($fields) {
-    $doc['fields'] = $fields;
-    $allowed = array_merge(faelles_base_field_ids(), array_column($fields, 'id'));
-    foreach ($doc['rows'] as &$row) {
-      $row['answers'] = array_intersect_key($row['answers'], array_flip($allowed));
-    }
-    unset($row);
+
+  $doc = faelles_mutate(function ($doc) use ($clean) {
+    $doc['connection'] = $clean['connection'];
     $doc['updatedAt'] = date('c');
     return $doc;
   });
-  respond(200, ['ok' => true, 'fields' => $doc['fields'], 'rows' => $doc['rows']]);
+  $doc = faelles_sync_connection($doc['connection']);
+  respond(200, ['ok' => true, 'connection' => $doc['connection'], 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
 }
 
 function handle_faelles($action, $body) {
   switch ($action) {
-    case 'faelles_read':        return faelles_read($body);
-    case 'faelles_upsert_row':  return faelles_upsert_row($body);
-    case 'faelles_delete_row':  return faelles_delete_row($body);
-    case 'faelles_save_fields': return faelles_save_fields($body);
+    case 'faelles_read':            return faelles_read($body);
+    case 'faelles_upsert_row':      return faelles_upsert_row($body);
+    case 'faelles_delete_row':      return faelles_delete_row($body);
+    case 'faelles_save_connection': return faelles_save_connection($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
@@ -3230,6 +3301,81 @@ function save_config($payload) {
   }, 'Opdater config.json');
 }
 
+// Boss/admin: full-array replace of the Program tab's content (Manus page)
+// — Medvirkende (categorized name lists), Ordliste (glossary term/definition
+// pairs) and QR-codes ({label, url}), feeding archive/<folder>/Program.pdf
+// (scripts/generate-pdfs.js's buildProgramTex). Every free-text field here
+// is plain admin-typed text (always texEscape()'d when composed into the
+// .tex — see that script's own comment), unlike scenes.json's name/
+// scriptBody/melody, which are raw pre-authored LaTeX — so validation here
+// only checks shape/length, same posture as save_wiki above. `qrCodes[].url`
+// is loosely checked to look like an http(s) link (not a hard requirement of
+// the PDF pipeline, just a sanity check against an obviously wrong value —
+// the actual QR image is generated from whatever string is here regardless).
+function save_program($payload) {
+  $medvirkende = $payload['medvirkende'] ?? null;
+  $ordliste    = $payload['ordliste'] ?? null;
+  $qrCodes     = $payload['qrCodes'] ?? null;
+  if (!is_array($medvirkende) || !is_array($ordliste) || !is_array($qrCodes)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  $seenCatId = [];
+  foreach ($medvirkende as $cat) {
+    if (!is_array($cat)
+        || !isset($cat['id'], $cat['category'], $cat['names'])
+        || !is_string($cat['id']) || $cat['id'] === '' || isset($seenCatId[$cat['id']])
+        || !is_string($cat['category']) || trim($cat['category']) === '' || mb_strlen($cat['category']) > 200
+        || !is_array($cat['names'])) {
+      respond(400, ['error' => 'invalid_program_shape']);
+    }
+    $seenCatId[$cat['id']] = true;
+    $seenNameId = [];
+    foreach ($cat['names'] as $n) {
+      if (!is_array($n)
+          || !isset($n['id'], $n['name'])
+          || !is_string($n['id']) || $n['id'] === '' || isset($seenNameId[$n['id']])
+          || !is_string($n['name']) || trim($n['name']) === '' || mb_strlen($n['name']) > 200
+          || (isset($n['note']) && (!is_string($n['note']) || mb_strlen($n['note']) > 200))) {
+        respond(400, ['error' => 'invalid_program_shape']);
+      }
+      $seenNameId[$n['id']] = true;
+    }
+  }
+
+  $seenTermId = [];
+  foreach ($ordliste as $o) {
+    if (!is_array($o)
+        || !isset($o['id'], $o['term'], $o['definition'])
+        || !is_string($o['id']) || $o['id'] === '' || isset($seenTermId[$o['id']])
+        || !is_string($o['term']) || trim($o['term']) === '' || mb_strlen($o['term']) > 200
+        || !is_string($o['definition']) || mb_strlen($o['definition']) > 1000) {
+      respond(400, ['error' => 'invalid_program_shape']);
+    }
+    $seenTermId[$o['id']] = true;
+  }
+
+  $seenQrId = [];
+  foreach ($qrCodes as $q) {
+    if (!is_array($q)
+        || !isset($q['id'], $q['label'], $q['url'])
+        || !is_string($q['id']) || $q['id'] === '' || isset($seenQrId[$q['id']])
+        || !is_string($q['label']) || trim($q['label']) === '' || mb_strlen($q['label']) > 200
+        || !is_string($q['url']) || mb_strlen($q['url']) > 500
+        || ($q['url'] !== '' && !preg_match('#^https?://#i', $q['url']))) {
+      respond(400, ['error' => 'invalid_program_shape']);
+    }
+    $seenQrId[$q['id']] = true;
+  }
+
+  update_file('data/program.json', function ($json) use ($medvirkende, $ordliste, $qrCodes) {
+    $json['medvirkende'] = $medvirkende;
+    $json['ordliste'] = $ordliste;
+    $json['qrCodes'] = $qrCodes;
+    return $json;
+  }, 'Opdater program.json via Manus');
+}
+
 $RESOURCES = [
   'manus'         => ['level' => 'boss',  'save' => 'save_manus'],
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
@@ -3239,6 +3385,7 @@ $RESOURCES = [
   'wiki'          => ['level' => 'boss',  'save' => 'save_wiki'],
   'manuscripts'   => ['level' => 'boss',  'save' => 'save_manuscripts'],
   'config'        => ['level' => 'admin', 'save' => 'save_config'],
+  'program'       => ['level' => 'boss',  'save' => 'save_program'],
 ];
 
 $resource = $body['resource'] ?? '';

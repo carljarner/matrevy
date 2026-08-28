@@ -23,6 +23,7 @@
 
 .faelles-toolbar-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
 
@@ -59,8 +60,8 @@
   font-size: 0.8rem;
 }
 
-/* Navn/Madforbehold/extra-field columns: left-aligned text, kept visible
-   while scrolling through the day columns to the right. */
+/* Navn/Madforbehold columns: left-aligned text, kept visible while
+   scrolling through the day columns to the right. */
 .faelles-table .faelles-col-field {
   text-align: left;
   position: sticky;
@@ -97,10 +98,14 @@
   background: var(--input-bg);
 }
 
+/* Day-attendance checkboxes: recolored to the site's own warm accent
+   instead of the browser-default blue, same convention as Forms'
+   checkbox/checkboxes-type fields (css/forms.css). */
 .faelles-table .faelles-col-day input[type="checkbox"] {
   width: 1.1rem;
   height: 1.1rem;
   cursor: pointer;
+  accent-color: var(--accent-warm-text);
 }
 
 .faelles-remove-btn {
@@ -128,6 +133,16 @@
   padding-top: 0.6rem;
 }
 
+/* Square-ish "+" affordance (add a row, add a date column) — a .btn-small
+   variant, not the oval .site-pill-btn system (that's reserved for
+   buttons actually inside a modal overlay). */
+.faelles-plus-btn {
+  padding: 0.2rem 0.55rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+
 /* --- Summary block -------------------------------------------------- */
 
 .faelles-table tbody.faelles-summary tr:first-child td,
@@ -146,11 +161,34 @@
   font-variant-numeric: tabular-nums;
 }
 
-.faelles-summary-prefs {
-  white-space: normal;
-  font-size: 0.78rem;
+/* Small icon-style button in the Madforbehold summary row — opens a
+   modal listing that day's preferences rather than showing them inline,
+   keeping the grid itself compact. */
+.faelles-prefs-btn {
+  background: none;
+  border: none;
   color: var(--text-muted);
-  max-width: 9rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.faelles-prefs-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .faelles-prefs-btn:not(:disabled):hover {
+    background: var(--accent-warm-fill);
+    color: var(--accent-warm-text);
+  }
+}
+
+.faelles-prefs-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .faelles-summary-note {
@@ -159,35 +197,38 @@
   margin-top: 0.75rem;
 }
 
-/* --- Import-from-formular modal -------------------------------------- */
+/* --- Madforbehold-for-a-day modal ------------------------------------ */
 
-.faelles-import-modal {
-  width: min(90vw, 30rem);
+.faelles-prefs-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
-/* --- Field editor modal --------------------------------------------- */
-
-.faelles-field-row {
+.faelles-prefs-list li {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
 }
 
-.faelles-field-row input[type="text"] {
-  flex: 1;
-  min-width: 0;
+.faelles-prefs-list li:last-child {
+  border-bottom: none;
 }
 
-.faelles-field-row label {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
+.faelles-prefs-name {
+  font-weight: 600;
+}
+
+.faelles-prefs-value {
   color: var(--text-muted);
-  white-space: nowrap;
+  text-align: right;
 }
 
-.faelles-field-add {
-  margin-top: 0.4rem;
+/* --- Connect-to-formular modal ---------------------------------------- */
+
+.faelles-connect-modal {
+  width: min(90vw, 30rem);
 }

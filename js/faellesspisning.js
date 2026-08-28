@@ -2,10 +2,10 @@
    Matematikrevyen – Fællesspisning (faellesspisning.html)
 
    Communal-meal rehearsal-day sign-up sheet, replacing a manually
-   maintained Google Sheet: one row per person, one column per rehearsal
-   day (read live from CALENDAR_DATA's "ove"-category events), a checkbox
-   marks "eating that day," plus a summary of headcount + food
-   preferences per day.
+   maintained Google Sheet: one row per person, one column per rehearsal/
+   performance day (read live from CALENDAR_DATA's "ove"/"forestilling"
+   events), a checkbox marks "eating that day," plus a summary of
+   headcount + food preferences per day.
 
    Same privacy posture as Budget/Forms: names and food preferences never
    touch the public repo / embed pipeline, only the private Simply.com
@@ -14,13 +14,23 @@
 
    One audience for the grid itself (any revyst+ visitor can add/edit/
    delete any row — a fully open shared spreadsheet, no per-row
-   ownership); boss additionally gets a "Rediger felter" button to manage
-   the extra-question list beyond the hardcoded Navn/Madforbehold.
+   ownership). Boss additionally gets:
+   - a "Forbind" button to connect the sheet to a Formularer form (which
+     field answers Navn, which answers Madforbehold) — once connected,
+     every response (existing and future) is synced into the grid
+     automatically, no manual re-import needed;
+   - a "+" after the last date column to add a new rehearsal/performance
+     date directly (writes through the public `calendar` resource, same
+     as Kalender's own editor).
 
-   Unlike the now-removed "Ark" page's whole-document-replace save, edits
-   here are row-granular and commit immediately (on blur/change) — many
-   revyster can toggle different rows/days concurrently without a batched
-   draft clobbering each other.
+   Only two columns exist beyond the day columns — Navn and Madforbehold,
+   fixed, not boss-configurable (there used to be an extra-field editor
+   here; removed, this sheet doesn't need more than the two).
+
+   Unlike the now-removed "Ark" page's whole-document-replace save, grid
+   edits here are row-granular and commit immediately (on blur/change) —
+   many revyster can toggle different rows/days concurrently without a
+   batched draft clobbering each other.
 
    Rendering rule (as elsewhere): createElement/textContent only, never
    innerHTML.
@@ -36,6 +46,16 @@ function el(tag, className, text) {
   return node;
 }
 
+// First-level (inline, not-in-an-overlay) button — CLAUDE.md's ".btn-small"
+// tier, not the oval ".site-pill-btn" system (that's reserved for buttons
+// actually inside a modal, see faellesPillBtn below).
+function faellesBtn(label, extraClass) {
+  const btn = el('button', 'btn-small' + (extraClass ? ' ' + extraClass : ''), label);
+  btn.type = 'button';
+  return btn;
+}
+
+// Second-level button, for buttons inside a modal overlay only.
 function faellesPillBtn(label, variant) {
   const btn = el('button', 'site-pill-btn' + (variant ? ' ' + variant : ''), label);
   btn.type = 'button';
@@ -92,29 +112,30 @@ async function faellesApi(action, body) {
   return { ok: true, data };
 }
 
-// ── Fields ────────────────────────────────────────────────────
-// Navn/Madforbehold are hardcoded, never part of the boss-editable
-// `fields` list stored server-side — the field editor only ever shows
-// the extras (mirrors faelles_base_field_ids() in update-data.php).
-const FAELLES_BASE_FIELDS = [
+// ── Fields — fixed, not boss-configurable ────────────────────
+const FAELLES_FIELDS = [
   { id: 'navn', label: 'Navn', required: true },
   { id: 'madforbehold', label: 'Madforbehold', required: false },
 ];
 
-function faellesAllFields() {
-  return FAELLES_BASE_FIELDS.concat((faellesState && faellesState.fields) || []);
+// ── Rehearsal/performance-day columns, derived live from CALENDAR_DATA ──
+// Never stored — mirrors formsOptionsFromRehearsals in js/forms.js, so a
+// day column always reflects the current calendar. A local override
+// (mirroring calendar.js's own calendarOverride) means a date added via
+// the "+" button here shows up immediately, without waiting for the
+// embed pipeline to regenerate calendar-data.js. Compact d/m label (not
+// formatDaDateShort's weekday-inclusive form) since the header needs many
+// narrow columns — matches the reference spreadsheet's own "8/11" style.
+let faellesCalendarOverride = (typeof siteLoadOverride === 'function') ? siteLoadOverride('calendar') : null;
+
+function faellesEffectiveCalendarEvents() {
+  if (faellesCalendarOverride) return faellesCalendarOverride;
+  return (typeof CALENDAR_DATA !== 'undefined' && Array.isArray(CALENDAR_DATA)) ? CALENDAR_DATA : [];
 }
 
-// ── Rehearsal-day columns, derived live from CALENDAR_DATA ──────
-// Never stored — mirrors formsOptionsFromRehearsals in js/forms.js, so a
-// day column always reflects the current calendar. Compact d/m label
-// (not formatDaDateShort's weekday-inclusive form) since the header needs
-// many narrow columns — matches the reference spreadsheet's own "8/11"
-// style.
 function faellesRehearsalColumns() {
-  if (typeof CALENDAR_DATA === 'undefined' || !Array.isArray(CALENDAR_DATA)) return [];
-  return CALENDAR_DATA
-    .filter((ev) => ev.category === 'ove')
+  return faellesEffectiveCalendarEvents()
+    .filter((ev) => ev.category === 'ove' || ev.category === 'forestilling')
     .slice()
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .map((ev) => {
@@ -127,7 +148,7 @@ function faellesRehearsalColumns() {
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { fields, rows, updatedAt } once loaded
+let faellesState = null; // { rows, connection, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -145,7 +166,7 @@ async function faellesLoad(root) {
     root.appendChild(card);
     return;
   }
-  faellesState = { fields: result.data.fields || [], rows: result.data.rows || [], updatedAt: result.data.updatedAt || null };
+  faellesState = { rows: result.data.rows || [], connection: result.data.connection || null, updatedAt: result.data.updatedAt || null };
   faellesRender(root);
 }
 
@@ -159,15 +180,14 @@ function faellesRender(root) {
   toolbar.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
   const actions = el('div', 'faelles-toolbar-actions');
   if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
-    const editFieldsBtn = faellesPillBtn('Rediger felter');
-    editFieldsBtn.addEventListener('click', () => faellesOpenFieldEditor(root));
-    actions.appendChild(editFieldsBtn);
-
-    const importBtn = faellesPillBtn('Importér fra formular');
-    importBtn.addEventListener('click', () => faellesOpenImportModal(root));
-    actions.appendChild(importBtn);
+    const connectLabel = faellesState.connection
+      ? `Forbindelse: ${faellesState.connection.formTitle || 'formular'}`
+      : 'Forbind';
+    const connectBtn = faellesBtn(connectLabel);
+    connectBtn.addEventListener('click', () => faellesOpenConnectModal(root));
+    actions.appendChild(connectBtn);
   }
-  const refreshBtn = faellesPillBtn('Opdater');
+  const refreshBtn = faellesBtn('Opdater');
   refreshBtn.addEventListener('click', () => faellesLoad(root));
   actions.appendChild(refreshBtn);
   toolbar.appendChild(actions);
@@ -176,28 +196,34 @@ function faellesRender(root) {
   card.appendChild(el('div', 'faelles-error'));
 
   const wrap = el('div', 'faelles-table-wrap');
-  wrap.appendChild(faellesBuildTable());
+  wrap.appendChild(faellesBuildTable(root));
   card.appendChild(wrap);
-
-  card.appendChild(el('p', 'faelles-summary-note',
-    'Madforbehold-rækken er en simpel optælling af den fritekst, folk selv har skrevet — ikke en automatisk kategorisering.'));
 
   root.appendChild(card);
 }
 
-function faellesBuildTable() {
+function faellesBuildTable(root) {
   const columns = faellesRehearsalColumns();
-  const fields = faellesAllFields();
+  const showAddDate = typeof siteHasLevel === 'function' && siteHasLevel('boss');
+  const totalCols = FAELLES_FIELDS.length + columns.length + (showAddDate ? 1 : 0) + 1;
 
   const table = el('table', 'faelles-table');
 
   const thead = el('thead');
   const headRow = el('tr');
-  for (const f of fields) {
+  for (const f of FAELLES_FIELDS) {
     headRow.appendChild(el('th', 'faelles-col-field', f.label));
   }
   for (const col of columns) {
     headRow.appendChild(el('th', 'faelles-col-day', col.label));
+  }
+  if (showAddDate) {
+    const addDateTh = el('th', 'faelles-col-day');
+    const addDateBtn = faellesBtn('+', 'faelles-plus-btn');
+    addDateBtn.title = 'Tilføj dato';
+    addDateBtn.addEventListener('click', () => faellesOpenQuickAddDateModal(root));
+    addDateTh.appendChild(addDateBtn);
+    headRow.appendChild(addDateTh);
   }
   headRow.appendChild(el('th', '', ''));
   thead.appendChild(headRow);
@@ -205,16 +231,16 @@ function faellesBuildTable() {
 
   const tbody = el('tbody');
   for (const row of faellesState.rows) {
-    tbody.appendChild(faellesRenderRow(row, fields, columns));
+    tbody.appendChild(faellesRenderRow(row, columns, showAddDate));
   }
   const addRow = el('tr', 'faelles-add-row');
   const addCell = el('td');
-  addCell.colSpan = fields.length + columns.length + 1;
-  const addBtn = faellesPillBtn('+ Tilføj række');
+  addCell.colSpan = totalCols;
+  const addBtn = faellesBtn('+', 'faelles-plus-btn');
+  addBtn.title = 'Tilføj række';
   addBtn.addEventListener('click', () => {
-    const draft = { id: null, answers: {}, days: [] };
-    for (const f of fields) draft.answers[f.id] = '';
-    const tr = faellesRenderRow(draft, fields, columns);
+    const draft = { id: null, answers: { navn: '', madforbehold: '' }, days: [] };
+    const tr = faellesRenderRow(draft, columns, showAddDate);
     tbody.insertBefore(tr, addRow);
     const firstInput = tr.querySelector('input[type="text"]');
     if (firstInput) firstInput.focus();
@@ -224,16 +250,16 @@ function faellesBuildTable() {
   tbody.appendChild(addRow);
   table.appendChild(tbody);
 
-  const summary = faellesBuildSummaryBody(columns);
+  const summary = faellesBuildSummaryBody(columns, showAddDate);
   table.appendChild(summary);
 
   return table;
 }
 
-function faellesRenderRow(row, fields, columns) {
+function faellesRenderRow(row, columns, showAddDate) {
   const tr = el('tr');
 
-  for (const f of fields) {
+  for (const f of FAELLES_FIELDS) {
     const td = el('td', 'faelles-col-field');
     const input = document.createElement('input');
     input.type = 'text';
@@ -266,6 +292,8 @@ function faellesRenderRow(row, fields, columns) {
     tr.appendChild(td);
   }
 
+  if (showAddDate) tr.appendChild(el('td')); // filler under the header's "+" add-date column
+
   const removeTd = el('td');
   const removeBtn = el('button', 'faelles-remove-btn', '✕');
   removeBtn.type = 'button';
@@ -278,11 +306,11 @@ function faellesRenderRow(row, fields, columns) {
 }
 
 // Commits the row's current in-memory answers/days to the server. A brand
-// new (id === null) row with an empty Navn is a no-op — an abandoned "+
-// Tilføj række" click must leave nothing behind server-side. Commits on
-// the same row are serialized via row._inFlight — without this, blurring
-// two fields on the same still-unsaved row in quick succession could fire
-// two concurrent "create" requests and produce a duplicate row.
+// new (id === null) row with an empty Navn is a no-op — an abandoned "+"
+// click must leave nothing behind server-side. Commits on the same row
+// are serialized via row._inFlight — without this, blurring two fields on
+// the same still-unsaved row in quick succession could fire two
+// concurrent "create" requests and produce a duplicate row.
 async function faellesCommitRow(row, tr) {
   if (row.id === null && !faellesRowHasContent(row)) return;
   if (row._inFlight) await row._inFlight;
@@ -335,196 +363,87 @@ function faellesRefreshSummary(tr) {
     if (countEl) countEl.textContent = `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`;
   }
   if (!table) return;
+  const showAddDate = typeof siteHasLevel === 'function' && siteHasLevel('boss');
   const oldSummary = table.querySelector('tbody.faelles-summary');
-  const newSummary = faellesBuildSummaryBody(faellesRehearsalColumns());
+  const newSummary = faellesBuildSummaryBody(faellesRehearsalColumns(), showAddDate);
   if (oldSummary) oldSummary.replaceWith(newSummary);
   else table.appendChild(newSummary);
 }
 
 // Computed client-side from faellesState.rows — no server round-trip.
-function faellesBuildSummaryBody(columns) {
+function faellesBuildSummaryBody(columns, showAddDate) {
   const tbody = el('tbody', 'faelles-summary');
-  const fieldsColSpan = faellesAllFields().length - 1; // leaves room for the row label in the last field column
+  const trailingCols = (showAddDate ? 1 : 0) + 1; // add-date filler + remove-column filler
 
   const countRow = el('tr');
   countRow.appendChild(el('th', '', 'Samlet antal i dag'));
-  if (fieldsColSpan > 0) {
-    const spacer = el('td');
-    spacer.colSpan = fieldsColSpan;
-    countRow.appendChild(spacer);
-  }
+  countRow.appendChild(el('td')); // spans the Madforbehold column
   for (const col of columns) {
     const count = faellesState.rows.filter((r) => r.days.includes(col.id)).length;
     countRow.appendChild(el('td', '', String(count)));
   }
-  countRow.appendChild(el('td'));
+  for (let i = 0; i < trailingCols; i++) countRow.appendChild(el('td'));
   tbody.appendChild(countRow);
 
   const prefRow = el('tr');
   prefRow.appendChild(el('th', '', 'Madforbehold'));
-  if (fieldsColSpan > 0) {
-    const spacer = el('td');
-    spacer.colSpan = fieldsColSpan;
-    prefRow.appendChild(spacer);
-  }
+  prefRow.appendChild(el('td'));
   for (const col of columns) {
     const attendees = faellesState.rows.filter((r) => r.days.includes(col.id));
-    prefRow.appendChild(el('td', 'faelles-summary-prefs', faellesSummarizePreferences(attendees)));
+    const withPrefs = attendees.filter((r) => (r.answers.madforbehold || '').trim() !== '').length;
+    const cell = el('td', 'faelles-summary-prefs');
+    const btn = el('button', 'faelles-prefs-btn', attendees.length ? `ⓘ ${withPrefs}` : '–');
+    btn.type = 'button';
+    btn.title = 'Se madforbehold for denne dag';
+    btn.disabled = attendees.length === 0;
+    btn.addEventListener('click', () => faellesOpenPreferencesModal(col, attendees));
+    cell.appendChild(btn);
+    prefRow.appendChild(cell);
   }
-  prefRow.appendChild(el('td'));
+  for (let i = 0; i < trailingCols; i++) prefRow.appendChild(el('td'));
   tbody.appendChild(prefRow);
 
   return tbody;
 }
 
-// Groups non-empty Madforbehold values (trimmed, case-insensitive) among a
-// list of rows and renders them as "Vegetar (2), Nøddeallergi (1)". A
-// deliberate simplification vs. the old spreadsheet's manually-curated
-// pescetar/vegetar/vegan category counts — free text can't be reliably
-// auto-classified into fixed diet buckets without a field-type picker,
-// which this feature's scope leaves out.
-function faellesSummarizePreferences(rows) {
-  const counts = new Map(); // lowercased -> { label, count }
-  for (const r of rows) {
-    const raw = (r.answers.madforbehold || '').trim();
-    if (!raw) continue;
-    const key = raw.toLowerCase();
-    const entry = counts.get(key);
-    if (entry) entry.count += 1;
-    else counts.set(key, { label: raw, count: 1 });
-  }
-  if (counts.size === 0) return '–';
-  return Array.from(counts.values())
-    .sort((a, b) => b.count - a.count)
-    .map((e) => `${e.label} (${e.count})`)
-    .join(', ');
-}
+// Lists every attendee's stated Madforbehold for one day, on demand — the
+// summary row itself only shows a small "ⓘ N" affordance, not the text
+// directly, per the site's preference for keeping the grid itself compact.
+function faellesOpenPreferencesModal(col, attendees) {
+  const { modal, form, actions, close } = siteOpenModalWithClose(`Madforbehold – ${col.label}`);
+  modal.classList.add('faelles-prefs-modal');
 
-// ── Boss field editor ─────────────────────────────────────────
-function faellesOpenFieldEditor(root) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger felter');
-  modal.classList.add('faelles-field-modal');
-
-  form.appendChild(el('p', 'faelles-summary-note', 'Navn og Madforbehold er altid med. Tilføj eventuelle ekstra spørgsmål her.'));
-
-  const list = el('div');
-  form.appendChild(list);
-
-  // Working copy — {id, label, required}[]; ids only assigned server-side
-  // on save for genuinely new fields (a blank client-side id here just
-  // marks "not yet saved").
-  const draft = (faellesState.fields || []).map((f) => ({ id: f.id, label: f.label, required: !!f.required }));
-
-  function renderList() {
-    list.replaceChildren();
-    draft.forEach((f, idx) => {
-      const row = el('div', 'faelles-field-row');
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.placeholder = 'Spørgsmål';
-      input.value = f.label;
-      input.addEventListener('input', () => { f.label = input.value; });
-      row.appendChild(input);
-
-      const reqLabel = document.createElement('label');
-      const reqCb = document.createElement('input');
-      reqCb.type = 'checkbox';
-      reqCb.checked = f.required;
-      reqCb.addEventListener('change', () => { f.required = reqCb.checked; });
-      reqLabel.appendChild(reqCb);
-      reqLabel.appendChild(document.createTextNode('Påkrævet'));
-      row.appendChild(reqLabel);
-
-      const removeBtn = el('button', 'faelles-remove-btn', '✕');
-      removeBtn.type = 'button';
-      removeBtn.addEventListener('click', () => {
-        draft.splice(idx, 1);
-        renderList();
-      });
-      row.appendChild(removeBtn);
-
-      list.appendChild(row);
-    });
-  }
-  renderList();
-
-  const addBtn = faellesPillBtn('+ Tilføj felt');
-  addBtn.classList.add('faelles-field-add');
-  addBtn.addEventListener('click', () => {
-    draft.push({ id: '', label: '', required: false });
-    renderList();
-    const inputs = list.querySelectorAll('input[type="text"]');
-    if (inputs.length) inputs[inputs.length - 1].focus();
-  });
-  form.appendChild(addBtn);
-
-  const cancelBtn = faellesPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-
-  const saveBtn = faellesPillBtn('Gem', 'site-pill-primary');
-  saveBtn.addEventListener('click', async () => {
-    const cleanFields = [];
-    for (const f of draft) {
-      const label = (f.label || '').trim();
-      if (!label) continue; // skip a still-blank row rather than reject the whole save
-      cleanFields.push({
-        id: f.id || faellesSlugForLabel(label, cleanFields.map((c) => c.id)),
-        label,
-        required: !!f.required,
-      });
+  if (attendees.length === 0) {
+    form.appendChild(el('p', 'faelles-summary-note', 'Ingen tilmeldte denne dag.'));
+  } else {
+    const list = el('ul', 'faelles-prefs-list');
+    for (const row of attendees) {
+      const li = document.createElement('li');
+      li.appendChild(el('span', 'faelles-prefs-name', row.answers.navn || '(uden navn)'));
+      const pref = (row.answers.madforbehold || '').trim();
+      li.appendChild(el('span', 'faelles-prefs-value', pref || '–'));
+      list.appendChild(li);
     }
-    saveBtn.disabled = true;
-    error.textContent = '';
-    const result = await faellesApi('faelles_save_fields', { fields: cleanFields });
-    saveBtn.disabled = false;
-    if (!result.ok) {
-      if (result.message) error.textContent = result.message;
-      return;
-    }
-    faellesState.fields = result.data.fields;
-    faellesState.rows = result.data.rows;
-    close();
-    faellesRender(root);
-  });
-
-  actions.appendChild(cancelBtn);
-  actions.appendChild(saveBtn);
-}
-
-// Client-side id proposal for a brand-new field — the server independently
-// enforces the real shape/uniqueness rule (faelles_valid_field_id /
-// duplicate check in faelles_validate_field_spec), this is just a
-// reasonable id to send.
-function faellesSlugForLabel(label, existingIds) {
-  // Server-side faelles_valid_field_id() only allows [A-Za-z0-9_-], so
-  // Danish letters are transliterated (not just stripped) to keep the
-  // slug recognizable.
-  const base = label
-    .toLowerCase()
-    .replace(/æ/g, 'ae').replace(/ø/g, 'o').replace(/å/g, 'aa')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 30) || 'felt';
-  let candidate = base;
-  let n = 2;
-  while (existingIds.includes(candidate) || FAELLES_BASE_FIELDS.some((f) => f.id === candidate)) {
-    candidate = `${base}_${n}`;
-    n += 1;
+    form.appendChild(list);
   }
-  return candidate;
+
+  const closeBtn = faellesPillBtn('Luk');
+  closeBtn.addEventListener('click', close);
+  actions.appendChild(closeBtn);
 }
 
-// ── Boss import from Formularer ──────────────────────────────
-// Lets boss/admin pull an existing form's responses straight into the
-// grid — pick a form (e.g. "Tilmelding 2026"), then which of its fields
-// maps to Navn and which to Madforbehold. Reuses Forms' own boss-level
+// ── Boss: connect the sheet to a Formularer form ─────────────
+// Pick a form (e.g. "Tilmelding 2026"), then which of its fields answers
+// Navn and which answers Madforbehold. Reuses Forms' own boss-level
 // actions directly (forms_admin_list/forms_admin_read) rather than adding
-// a dedicated server endpoint — the shared password/level model doesn't
-// care which page a request came from, so this is a legitimate reuse, not
-// a workaround.
-async function faellesOpenImportModal(root) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Importér fra formular');
-  modal.classList.add('faelles-import-modal');
+// a dedicated server endpoint for listing/reading — the shared password/
+// level model doesn't care which page a request came from. Once saved,
+// the server immediately syncs every existing response, and every future
+// faelles_read keeps syncing new ones automatically (see faelles_read/
+// faelles_sync_connection in update-data.php) — no manual re-import step.
+async function faellesOpenConnectModal(root) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Forbind til formular');
+  modal.classList.add('faelles-connect-modal');
 
   const status = el('p', 'faelles-summary-note', 'Indlæser formularer…');
   form.appendChild(status);
@@ -541,18 +460,20 @@ async function faellesOpenImportModal(root) {
     return;
   }
 
+  const currentConnection = faellesState.connection;
   const formOptions = forms.map((f) => ({
     value: f.id,
     label: `${f.title || '(uden titel)'} — ${f.responseCount} svar`,
   }));
-  const formPicker = siteCreateDropdownField(formOptions, formOptions[0].value);
+  const initialFormId = (currentConnection && forms.some((f) => f.id === currentConnection.formId))
+    ? currentConnection.formId : formOptions[0].value;
+  const formPicker = siteCreateDropdownField(formOptions, initialFormId);
   form.appendChild(siteEditField('Formular', formPicker));
 
   const fieldsContainer = el('div');
   form.appendChild(fieldsContainer);
 
   let currentFormId = null;
-  let currentResponses = [];
   let navnPicker = null;
   let madforboholdPicker = null;
 
@@ -568,43 +489,74 @@ async function faellesOpenImportModal(root) {
       error.textContent = readResult.message || 'Kunne ikke hente formularen.';
       return;
     }
-    currentResponses = readResult.data.responses || [];
     const fieldOpts = faellesFormFieldOptions(readResult.data.definition);
     if (fieldOpts.length === 0) {
       fieldsContainer.appendChild(el('p', 'faelles-summary-note', 'Formularen har ingen felter at vælge imellem.'));
       return;
     }
-    navnPicker = siteCreateDropdownField(fieldOpts, fieldOpts[0].value);
-    madforboholdPicker = siteCreateDropdownField(fieldOpts, fieldOpts[0].value);
+    const sameAsConnected = currentConnection && currentConnection.formId === formId;
+    const initialNavn = (sameAsConnected && fieldOpts.some((o) => o.value === currentConnection.navnFieldId))
+      ? currentConnection.navnFieldId : fieldOpts[0].value;
+    const initialMad = (sameAsConnected && fieldOpts.some((o) => o.value === currentConnection.madforboholdFieldId))
+      ? currentConnection.madforboholdFieldId : fieldOpts[0].value;
+    navnPicker = siteCreateDropdownField(fieldOpts, initialNavn);
+    madforboholdPicker = siteCreateDropdownField(fieldOpts, initialMad);
     fieldsContainer.appendChild(siteEditField('Navn-felt', navnPicker));
     fieldsContainer.appendChild(siteEditField('Madforbehold-felt', madforboholdPicker));
     fieldsContainer.appendChild(el('p', 'faelles-summary-note',
-      `${currentResponses.length} svar fundet. Import kan køres igen senere — allerede importerede rækker opdateres, de dubleres ikke.`));
+      'Alle nuværende og fremtidige svar bliver automatisk skrevet til arket — ingen manuel import nødvendig.'));
   }
 
   formPicker.addEventListener('change', () => loadFormFields(formPicker.value));
-  await loadFormFields(formPicker.value);
+  await loadFormFields(initialFormId);
 
   const cancelBtn = faellesPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
+  actions.appendChild(cancelBtn);
 
-  const importBtn = faellesPillBtn('Importér', 'site-pill-primary');
-  importBtn.addEventListener('click', async () => {
+  if (currentConnection) {
+    const disconnectBtn = faellesPillBtn('Fjern forbindelse', 'site-pill-danger');
+    disconnectBtn.addEventListener('click', async () => {
+      if (!confirm('Fjern forbindelsen til formularen? Rækker der allerede er hentet ind, bliver ikke slettet.')) return;
+      disconnectBtn.disabled = true;
+      error.textContent = '';
+      const result = await faellesApi('faelles_save_connection', { formId: null });
+      disconnectBtn.disabled = false;
+      if (!result.ok) {
+        error.textContent = result.message || 'Kunne ikke fjerne forbindelsen.';
+        return;
+      }
+      faellesState.connection = null;
+      faellesState.rows = result.data.rows;
+      close();
+      faellesRender(root);
+    });
+    actions.appendChild(disconnectBtn);
+  }
+
+  const connectBtn = faellesPillBtn('Forbind', 'site-pill-primary');
+  connectBtn.addEventListener('click', async () => {
     if (!currentFormId || !navnPicker || !madforboholdPicker) return;
-    importBtn.disabled = true;
+    const formTitle = (forms.find((f) => f.id === currentFormId) || {}).title || '';
+    connectBtn.disabled = true;
     error.textContent = '';
-    const result = await faellesImportResponses(currentFormId, currentResponses, navnPicker.value, madforboholdPicker.value);
-    importBtn.disabled = false;
+    const result = await faellesApi('faelles_save_connection', {
+      formId: currentFormId,
+      navnFieldId: navnPicker.value,
+      madforboholdFieldId: madforboholdPicker.value,
+      formTitle,
+    });
+    connectBtn.disabled = false;
     if (!result.ok) {
-      error.textContent = result.message || 'Import fejlede.';
+      error.textContent = result.message || 'Kunne ikke forbinde.';
       return;
     }
+    faellesState.connection = result.data.connection;
+    faellesState.rows = result.data.rows;
     close();
     faellesRender(root);
   });
-
-  actions.appendChild(cancelBtn);
-  actions.appendChild(importBtn);
+  actions.appendChild(connectBtn);
 }
 
 // A form's fields can live either directly on the definition or inside its
@@ -619,60 +571,64 @@ function faellesFormFieldOptions(definition) {
     .map((f) => ({ value: f.id, label: f.label }));
 }
 
-// Stringifies a Forms answer value regardless of field type — plain text
-// for text/textarea/select, comma-joined for checkboxes/grid_multi,
-// Ja/Nej for yesno, etc. — so mapping Navn/Madforbehold to any field type
-// degrades gracefully instead of importing "[object Object]".
-function faellesAnswerToText(value) {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value.trim();
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'boolean') return value ? 'Ja' : 'Nej';
-  if (Array.isArray(value)) return value.map(faellesAnswerToText).filter(Boolean).join(', ');
-  if (typeof value === 'object') return Object.values(value).map(faellesAnswerToText).filter(Boolean).join(', ');
-  return String(value);
-}
+// ── Boss: quick-add a rehearsal/performance date ─────────────
+// Writes through the same public `calendar` resource Kalender itself
+// uses (siteSaveResource) — day columns are never a Fællesspisning-only
+// concept, so a date added here shows up in Kalender too, and vice versa.
+async function faellesOpenQuickAddDateModal(root) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Tilføj dato');
+  modal.classList.add('faelles-quickdate-modal');
 
-// Imports one form's responses into the grid, mapping navnFieldId/
-// madforboholdFieldId's answers onto the Navn/Madforbehold columns. A
-// response already imported from this exact form (tracked via each row's
-// `source: {formId, responseId}`) is updated in place rather than
-// duplicated, so this is safe to run again as new sign-ups come in — an
-// existing row's day-selections are preserved (resent unchanged), only
-// Navn/Madforbehold refresh from the form. A response with no Navn answer
-// is skipped (nothing meaningful to import). Stops at the first failure
-// and reports it — already-imported responses before that point stay
-// imported.
-async function faellesImportResponses(formId, responses, navnFieldId, madforboholdFieldId) {
-  const existingBySource = new Map();
-  for (const row of faellesState.rows) {
-    if (row.source && row.source.formId === formId) existingBySource.set(row.source.responseId, row);
-  }
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.placeholder = 'Fx Øvedag';
+  form.appendChild(siteEditField('Titel', titleInput));
 
-  for (const resp of responses) {
-    const answers = resp.answers || {};
-    const navn = faellesAnswerToText(answers[navnFieldId]);
-    if (!navn) continue;
-    const madforbehold = faellesAnswerToText(answers[madforboholdFieldId]);
-    const existingRow = existingBySource.get(resp.id);
-    const body = {
-      answers: { navn, madforbehold },
-      days: existingRow ? existingRow.days : [],
-      source: { formId, responseId: resp.id },
-    };
-    if (existingRow) body.rowId = existingRow.id;
-    const result = await faellesApi('faelles_upsert_row', body);
-    if (!result.ok) return result;
-    if (existingRow) {
-      existingRow.answers = result.data.row.answers;
-      existingRow.source = result.data.row.source;
-    } else {
-      const newRow = result.data.row;
-      faellesState.rows.push(newRow);
-      existingBySource.set(resp.id, newRow);
+  const dateInput = siteCreateDateField('');
+  form.appendChild(siteEditField('Dato', dateInput));
+
+  const catOptions = [
+    { value: 'ove', label: 'Øvning' },
+    { value: 'forestilling', label: 'Forestilling' },
+  ];
+  const catField = siteCreateDropdownField(catOptions, 'ove');
+  form.appendChild(siteEditField('Kategori', catField));
+
+  const cancelBtn = faellesPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const saveBtn = faellesPillBtn('Tilføj', 'site-pill-primary');
+  saveBtn.addEventListener('click', async () => {
+    const title = titleInput.value.trim();
+    const date = dateInput.value;
+    if (!title || !date) {
+      error.textContent = 'Udfyld både titel og dato.';
+      return;
     }
-  }
-  return { ok: true };
+    const item = {
+      id: Date.now().toString(36),
+      date, endDate: date, start: '', end: '',
+      title, category: catField.value, location: '', note: '',
+    };
+    const next = faellesEffectiveCalendarEvents().concat([item]);
+
+    saveBtn.disabled = true;
+    error.textContent = '';
+    const result = await siteSaveResource('calendar', { events: next });
+    saveBtn.disabled = false;
+    if (!result.ok) {
+      if (result.message) error.textContent = result.message;
+      return;
+    }
+    faellesCalendarOverride = next;
+    if (typeof siteSaveOverride === 'function') siteSaveOverride('calendar', next);
+    close();
+    faellesRender(root);
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  titleInput.focus();
 }
 
 // ── Init ─────────────────────────────────────────────────────
