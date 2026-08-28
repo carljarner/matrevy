@@ -1229,9 +1229,10 @@
    one hue per FORMS_STATS_PALETTE slot) beside its own legend — the
    legend carries every label/value in plain text tokens, never the slice
    color itself (see forms.js's own comment on this). Capped width +
-   margin:auto centers the block on a wide card; the padding is one
-   "tab" — same general indent as .forms-radio-row/.forms-checkbox-list/
-   .forms-grid-wrap above (not Skala's own doubled 4rem). */
+   margin:auto centers the block on a wide card; the padding is a half
+   "tab" (1rem) — narrower than the general 2rem indent used elsewhere
+   (.forms-radio-row/.forms-checkbox-list/.forms-grid-wrap above), since
+   the donut+legend pair already reads as its own distinct block. */
 .forms-stats-donut-wrap {
   display: flex;
   align-items: center;
@@ -1239,7 +1240,7 @@
   flex-wrap: wrap;
   max-width: 28rem;
   margin: 0 auto;
-  padding: 0 2rem;
+  padding: 0 1rem;
 }
 
 .forms-stats-donut {
@@ -1328,5 +1329,5 @@
   /* Halved, same "half the desktop indent" spirit as the fill-in view's
      own 600px block — .forms-radio-row/.forms-checkbox-list/.forms-grid-
      wrap's own mobile override above halves the same way. */
-  .forms-stats-donut-wrap { justify-content: center; padding: 0 1rem; }
+  .forms-stats-donut-wrap { justify-content: center; padding: 0 0.5rem; }
 }
