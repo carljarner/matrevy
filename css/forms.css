@@ -80,6 +80,13 @@
   min-height: 1.2rem;
   margin: 0.5rem 0;
 }
+/* renderFormFillIn creates this element empty up front and fills it in
+   later via setMsg() — reserving height/margin for it unconditionally
+   left a permanent blank line between the last question and the nav row
+   even when there was never anything to say. Collapse it while genuinely
+   empty (setMsg('', null) — a cancelled password prompt — included) and
+   let it appear only once there's real text. */
+.forms-msg:empty { min-height: 0; margin: 0; }
 .forms-msg.error { color: var(--danger); }
 .forms-msg.ok { color: var(--success); }
 
