@@ -1675,7 +1675,12 @@ function forms_validate_options($optionsIn) {
 // Validates + returns a clean FieldSpec, or null on any violation. $seenIds
 // (by reference) rejects a duplicate field id within the same form/template
 // — response answers are keyed by field id, so a collision would silently
-// merge two questions' answers together.
+// merge two questions' answers together. It also doubles as the lookup a
+// LATER field's dependsOn needs: every entry holds the earlier field's own
+// clean spec (not just a bool), overwritten in below once this field's
+// $clean is built, so "is this fieldId valid and does it come before me"
+// falls out of the same map for free — a forward/self reference simply
+// isn't in there yet when a later field tries to resolve it.
 function forms_validate_field_spec($f, &$seenIds) {
   if (!is_array($f)) return null;
   $id = $f['id'] ?? '';
@@ -1684,7 +1689,7 @@ function forms_validate_field_spec($f, &$seenIds) {
   if (!is_string($id) || $id === '' || mb_strlen($id) > 60 || isset($seenIds[$id])) return null;
   if (!forms_valid_field_type($type)) return null;
   if (!is_string($label) || trim($label) === '' || mb_strlen($label) > 200) return null;
-  $seenIds[$id] = true;
+  $seenIds[$id] = true; // placeholder — real spec patched in below, once $clean exists
 
   $clean = [
     'id' => $id,
@@ -1744,7 +1749,76 @@ function forms_validate_field_spec($f, &$seenIds) {
     $clean['options'] = $cleanOptions;
   }
 
+  // Optional conditional-visibility rule: shows this field only when an
+  // EARLIER field's answer is one of a fixed value set — see forms.js's
+  // formsEarlierDependencyCandidates/formsDependencyMatches for the
+  // client-side half, and forms_dependency_hidden below for how a hidden
+  // field's own `required` gets exempted on submit.
+  if (array_key_exists('dependsOn', $f) && $f['dependsOn'] !== null) {
+    $dep = $f['dependsOn'];
+    if (!is_array($dep)) return null;
+    $depId = $dep['fieldId'] ?? '';
+    $depValues = $dep['values'] ?? null;
+    // Must already be in $seenIds — i.e. a real, earlier field (a forward
+    // or self reference isn't in there yet) — and of a type whose answer
+    // is a fixed, matchable token set (see FORMS_DEPENDENCY_CONTROL_TYPES
+    // client-side; scenes/rehearsals-sourced select/checkboxes excluded
+    // too, since their options only ever resolve live client-side — this
+    // server has no stored list to validate dependsOn.values against).
+    if (!is_string($depId) || !isset($seenIds[$depId]) || !is_array($seenIds[$depId])) return null;
+    $controlling = $seenIds[$depId];
+    if (!in_array($controlling['type'], ['select', 'checkboxes', 'scale', 'yesno'], true)) return null;
+    if (($controlling['type'] === 'select' || $controlling['type'] === 'checkboxes')
+        && ($controlling['optionsSource'] ?? 'manual') !== 'manual') return null;
+    if (!is_array($depValues) || count($depValues) === 0 || count($depValues) > 50) return null;
+    $allowed = forms_dependency_allowed_values($controlling);
+    $cleanValues = [];
+    foreach ($depValues as $v) {
+      if (!in_array($v, $allowed, true)) return null;
+      $cleanValues[] = $v;
+    }
+    $clean['dependsOn'] = ['fieldId' => $depId, 'values' => $cleanValues];
+  }
+
+  $seenIds[$id] = $clean; // patch the placeholder — see this function's own comment above
   return $clean;
+}
+
+// The set of raw answer tokens $field (an already-clean FieldSpec) can
+// actually produce — mirrors forms.js's own formsDependencyOptionsForField,
+// used to validate a dependsOn.values list against whichever earlier field
+// it names.
+function forms_dependency_allowed_values($field) {
+  $type = $field['type'];
+  if ($type === 'yesno') return [true, false];
+  if ($type === 'scale') {
+    $out = [];
+    for ($n = $field['scaleMin']; $n <= $field['scaleMax']; $n++) $out[] = $n;
+    return $out;
+  }
+  $out = [];
+  foreach (($field['options'] ?? []) as $o) { $out[] = $o['value']; }
+  return $out;
+}
+
+// True when $dep's condition is NOT met by $answersSoFar (the clean answers
+// already processed earlier in field order, by forms_submit's own loop) —
+// i.e. this field should be treated as hidden: never required, never
+// stored. Mirrors forms.js's own formsDependencyMatches, inverted. Fails
+// open (never hides) on a malformed dependsOn, since forms_validate_field_spec
+// already guarantees a saved definition's dependsOn is well-formed — this
+// only guards against a stored definition older than that guarantee.
+function forms_dependency_hidden($dep, $answersSoFar) {
+  $fid = $dep['fieldId'] ?? null;
+  $values = is_array($dep['values'] ?? null) ? $dep['values'] : [];
+  if (!is_string($fid) || count($values) === 0) return false;
+  if (!array_key_exists($fid, $answersSoFar)) return true; // controlling question unanswered
+  $answer = $answersSoFar[$fid];
+  if (is_array($answer)) {
+    foreach ($answer as $a) { if (in_array($a, $values, true)) return false; }
+    return true;
+  }
+  return !in_array($answer, $values, true);
 }
 
 // Validates + returns a clean Section ({id, title, description, fields}),
@@ -1916,6 +1990,15 @@ function forms_submit($body) {
   foreach ($fields as $field) {
     $fid = $field['id'] ?? null;
     if (!is_string($fid) || $fid === '') continue;
+
+    // A field hidden by its own dependsOn (an earlier answer that doesn't
+    // match) is skipped entirely — never required, and never trusted even
+    // if the client sent something for it anyway, since dependsOn is
+    // purely a display rule the server can independently re-derive from
+    // the same $clean answers processed so far (see forms_dependency_hidden).
+    $dep = $field['dependsOn'] ?? null;
+    if (is_array($dep) && forms_dependency_hidden($dep, $clean)) continue;
+
     $raw = array_key_exists($fid, $answersIn) ? $answersIn[$fid] : null;
     $result = forms_validate_answer($field, $raw);
     if (!$result['ok']) respond(400, ['error' => 'invalid_shape']);

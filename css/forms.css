@@ -96,6 +96,39 @@
   margin-bottom: 1rem;
 }
 
+/* formsShowLockToast() — a dark banner pinned to the bottom of the
+   viewport, shown on an attempted edit of a locked (already-answered)
+   form. Fixed to the viewport (not the card) since the builder can be
+   scrolled well past the top .forms-lock-banner by the time someone
+   clicks a locked control further down. Hidden via opacity+translateY
+   (not display:none) so the 0.2s transition actually animates in/out;
+   pointer-events:none while hidden keeps it from intercepting clicks
+   meant for whatever's underneath. */
+.forms-lock-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%) translateY(0.5rem);
+  max-width: min(28rem, calc(100vw - 2rem));
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  box-shadow: var(--modal-shadow);
+  text-align: center;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.forms-lock-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 /* ── Revyst: open-forms list ─────────────────────────────── */
 /* A <button>, not a styled <div> — the whole row opens the form, with
    the arrow as a decorative affordance rather than the sole target. */
@@ -598,11 +631,15 @@
   }
 }
 
-/* Påkrævet sits alone on its own row, right-aligned, under whatever type-
-   specific config rendered above it. */
+/* Afhængighed (left) / Påkrævet (right) share their own row, under
+   whatever type-specific config rendered above — space-between since
+   formsRenderFieldRow always renders something on the left (either the
+   "+ Tilføj afhængighed" link or the current dependency's summary). */
 .forms-field-row-bottom {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
   margin-top: 0.5rem;
 }
 
@@ -617,6 +654,68 @@
   width: auto;
   margin: 0;
   accent-color: var(--accent-warm-text);
+}
+
+/* Afhængighed (conditional visibility) — mirrors .forms-required-label's
+   own sizing so the two sit at equal visual weight on either end of
+   .forms-field-row-bottom. No dependency yet: a plain text-style link. A
+   dependency set: a muted summary + small Rediger/✕ actions. */
+.forms-field-dependency {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+
+.forms-dependency-add {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.forms-dependency-summary {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forms-dependency-broken {
+  color: var(--danger);
+}
+
+.forms-dependency-edit {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  flex: 0 0 auto;
+}
+
+.forms-dependency-remove {
+  background: none;
+  border: none;
+  padding: 0 0.1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+@media (hover: hover) {
+  .forms-dependency-add:hover,
+  .forms-dependency-edit:hover { color: var(--accent-warm-text); }
+  .forms-dependency-remove:hover { color: var(--danger); }
 }
 
 .forms-options-editor {

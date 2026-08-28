@@ -397,6 +397,83 @@ function formsResolveOptions(field) {
   return Array.isArray(field.options) ? field.options : [];
 }
 
+// ── Field dependencies ("Tilføj afhængighed") ────────────────
+// A field's optional `dependsOn: {fieldId, values}` hides it (both in the
+// fill-in view and — see forms_dependency_hidden server-side — for
+// required-answer enforcement on submit) unless an EARLIER field's answer
+// is one of `values`. Only select/checkboxes/scale/yesno can be the
+// controlling field: their answers are a fixed, matchable set of tokens;
+// Kort/langt svar (free text) and Gitter (a per-row map, not one answer)
+// don't fit the same "answer is one of these values" check. A legacy
+// scenes/rehearsals-sourced select/checkboxes field is also excluded —
+// its options only ever resolve live client-side (see formsResolveOptions
+// above), so the server has no stored option list to validate a
+// dependsOn.values entry against.
+const FORMS_DEPENDENCY_CONTROL_TYPES = ['select', 'checkboxes', 'scale', 'yesno'];
+
+// The set of raw answer tokens `field` can actually produce, i.e. the
+// choices offered when picking dependsOn.values for something that
+// depends on it — mirrors forms_dependency_allowed_values server-side.
+function formsDependencyOptionsForField(field) {
+  if (field.type === 'yesno') return [{ value: true, label: 'Ja' }, { value: false, label: 'Nej' }];
+  if (field.type === 'scale') {
+    const min = typeof field.scaleMin === 'number' ? field.scaleMin : 1;
+    const max = typeof field.scaleMax === 'number' ? field.scaleMax : 5;
+    const out = [];
+    for (let n = min; n <= max; n++) out.push({ value: n, label: String(n) });
+    return out;
+  }
+  return formsResolveOptions(field);
+}
+
+function formsFieldCanControlDependency(field) {
+  if (!FORMS_DEPENDENCY_CONTROL_TYPES.includes(field.type)) return false;
+  if ((field.type === 'select' || field.type === 'checkboxes')
+      && field.optionsSource && field.optionsSource !== 'manual') return false;
+  return formsDependencyOptionsForField(field).length > 0;
+}
+
+// Every field strictly before (sectionIdx, fieldIdx) in the form's own
+// section/field order, eligible to control a dependency — the picker only
+// offers questions the respondent will already have answered by the time
+// this one would render. Recomputed fresh whenever the picker opens
+// rather than cached, since earlier fields can be added/edited/removed
+// while this row sits on the page.
+function formsEarlierDependencyCandidates(draftSections, sectionIdx, fieldIdx) {
+  const out = [];
+  for (let s = 0; s <= sectionIdx; s++) {
+    const fields = Array.isArray(draftSections[s].fields) ? draftSections[s].fields : [];
+    const limit = s === sectionIdx ? fieldIdx : fields.length;
+    for (let f = 0; f < limit; f++) {
+      if (formsFieldCanControlDependency(fields[f])) out.push(fields[f]);
+    }
+  }
+  return out;
+}
+
+// Clears `dependsOn` on any field across the whole form that points at
+// `fieldId` — called whenever that field is deleted or its type changes,
+// since a stored value set only makes sense against the field's original
+// type (e.g. Skala's numbers vs. Vælg én's option strings).
+function formsPruneDanglingDependencies(draftSections, fieldId) {
+  for (const section of draftSections) {
+    for (const f of (Array.isArray(section.fields) ? section.fields : [])) {
+      if (f.dependsOn && f.dependsOn.fieldId === fieldId) delete f.dependsOn;
+    }
+  }
+}
+
+// True when `dep`'s condition is met by `value` (the controlling field's
+// current/submitted answer) — mirrors forms_dependency_hidden server-side
+// (inverted: that one answers "should this be hidden"). checkboxes answers
+// are arrays — matches if ANY selected option is one of the trigger values.
+function formsDependencyMatches(dep, value) {
+  if (!dep || !Array.isArray(dep.values) || dep.values.length === 0) return true;
+  if (value === undefined || value === null || value === '') return false;
+  if (Array.isArray(value)) return value.some((v) => dep.values.includes(v));
+  return dep.values.includes(value);
+}
+
 // ── Field id generator (client-side only; validated server-side too) ─
 let formsFieldIdCounter = 0;
 function formsNewFieldId() {
@@ -655,7 +732,8 @@ async function renderFormsList(root) {
 // the form — gates the back arrow's "Forlad siden?" warning below so it
 // only interrupts when there's actually something of theirs to lose.
 function formsFillInHasAnyAnswer(inputs) {
-  return inputs.some(({ field, input }) => {
+  return inputs.some(({ field, input, visible }) => {
+    if (visible === false) return false; // hidden by a dependency — not something to lose
     const v = input.formsValue();
     if (field.type === 'grid_single' || field.type === 'grid_multi') {
       return v && Object.keys(v).length > 0;
@@ -728,12 +806,40 @@ async function renderFormFillIn(root, formId) {
     for (const field of pageDef.fields) {
       const input = formsRenderAnswerInput(field);
       const labelText = field.label + (field.required ? ' *' : '');
-      pageEl.appendChild(siteEditField(labelText, input));
-      inputs.push({ field, input, page: pageIdx });
+      const wrap = siteEditField(labelText, input);
+      pageEl.appendChild(wrap);
+      inputs.push({ field, input, wrap, page: pageIdx });
     }
     body.appendChild(pageEl);
     return pageEl;
   });
+
+  // Conditional visibility ("Tilføj afhængighed" in the builder): walked
+  // in field order — the same order a dependsOn can only ever point
+  // backwards through — building up an `answers` snapshot as it goes, so
+  // a field whose OWN controller is currently hidden naturally reads as
+  // unanswered too (it's simply never added to `answers`), cascading
+  // correctly through a chain of dependencies with no extra bookkeeping.
+  // Mirrors forms_submit's own per-field loop server-side.
+  function updateDependentVisibility() {
+    const answers = {};
+    for (const item of inputs) {
+      const { field, input, wrap } = item;
+      const visible = !field.dependsOn || formsDependencyMatches(field.dependsOn, answers[field.dependsOn.fieldId]);
+      item.visible = visible;
+      wrap.style.display = visible ? '' : 'none';
+      if (visible) answers[field.id] = input.formsValue();
+    }
+  }
+  updateDependentVisibility();
+  // Delegated rather than per-widget: every answer control (native inputs,
+  // and the radio/checkbox-based custom widgets formsRenderAnswerInput
+  // builds for select/checkboxes/scale/grid) dispatches a real bubbling
+  // input/change event on its own native control, so one listener here
+  // catches all of them without formsRenderAnswerInput needing to know
+  // anything about dependencies.
+  body.addEventListener('input', updateDependentVisibility);
+  body.addEventListener('change', updateDependentVisibility);
 
   const msg = el('div', 'forms-msg');
   body.appendChild(msg);
@@ -745,8 +851,10 @@ async function renderFormFillIn(root, formId) {
   const submitBtn = el('button', 'site-btn-primary forms-fillin-submit-btn', 'Indsend');
   submitBtn.type = 'button';
   submitBtn.addEventListener('click', async () => {
+    updateDependentVisibility();
     const answers = {};
-    for (const { field, input, page } of inputs) {
+    for (const { field, input, page, visible } of inputs) {
+      if (!visible) continue; // hidden by a dependency — never required, never submitted
       const value = input.formsValue();
       if (field.required) {
         // Grid types answer with a {rowId: value} map — required means
@@ -1169,17 +1277,21 @@ function formsOpenDeleteConfirm(root, f) {
 // (`draftFields`, mutated in place) with add/remove/reorder controls. No
 // drag-and-drop in v1 — plain up/down buttons are simpler and much lower
 // implementation risk for a handful of fields per form.
-function formsRenderFieldEditor(listEl, draftFields, onChange) {
+// draftSections/sectionIdx (the WHOLE form + which section this is) are
+// threaded through purely so formsRenderFieldRow's dependency picker can
+// see fields from EARLIER sections, not just this section's own
+// draftFields — nothing else here reads them.
+function formsRenderFieldEditor(listEl, draftFields, onChange, draftSections, sectionIdx) {
   listEl.replaceChildren();
   draftFields.forEach((field, idx) => {
-    if (idx > 0) listEl.appendChild(formsRenderFieldInsertBtn(idx, draftFields, listEl, onChange));
-    listEl.appendChild(formsRenderFieldRow(field, idx, draftFields, listEl, onChange));
+    if (idx > 0) listEl.appendChild(formsRenderFieldInsertBtn(idx, draftFields, listEl, onChange, draftSections, sectionIdx));
+    listEl.appendChild(formsRenderFieldRow(field, idx, draftFields, listEl, onChange, draftSections, sectionIdx));
   });
   const addBtn = el('button', 'btn-small', '+ Tilføj felt');
   addBtn.type = 'button';
   addBtn.addEventListener('click', () => {
     draftFields.push({ id: formsNewFieldId(), type: 'text', label: '', required: false });
-    formsRenderFieldEditor(listEl, draftFields, onChange);
+    formsRenderFieldEditor(listEl, draftFields, onChange, draftSections, sectionIdx);
     onChange();
   });
   listEl.appendChild(addBtn);
@@ -1188,14 +1300,14 @@ function formsRenderFieldEditor(listEl, draftFields, onChange) {
 // A small "+" divider between two existing field rows, inserting a fresh
 // blank field at that exact position (splice at `idx`, i.e. before the
 // field currently at `idx`) rather than only ever appending at the end.
-function formsRenderFieldInsertBtn(idx, draftFields, listEl, onChange) {
+function formsRenderFieldInsertBtn(idx, draftFields, listEl, onChange, draftSections, sectionIdx) {
   const wrap = el('div', 'forms-field-insert');
   const btn = el('button', 'forms-field-insert-btn', '+');
   btn.type = 'button';
   btn.title = 'Indsæt spørgsmål her';
   btn.addEventListener('click', () => {
     draftFields.splice(idx, 0, { id: formsNewFieldId(), type: 'text', label: '', required: false });
-    formsRenderFieldEditor(listEl, draftFields, onChange);
+    formsRenderFieldEditor(listEl, draftFields, onChange, draftSections, sectionIdx);
     onChange();
   });
   wrap.appendChild(btn);
@@ -1224,7 +1336,7 @@ function formsResetFieldTypeExtras(field) {
   }
 }
 
-function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
+function formsRenderFieldRow(field, idx, draftFields, listEl, onChange, draftSections, sectionIdx) {
   const row = el('div', 'forms-field-row');
 
   // Spørgsmål (~75%) + type dropdown + ✕, all on one row — no up/down
@@ -1243,7 +1355,12 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
   typeDd.addEventListener('change', () => {
     field.type = typeDd.value;
     formsResetFieldTypeExtras(field);
-    formsRenderFieldEditor(listEl, draftFields, onChange);
+    // A type change invalidates any dependsOn.values another field stored
+    // against this one's OLD type (e.g. Skala's numbers vs. Vælg én's
+    // option strings) — drop them rather than leave a silently-broken
+    // dependency behind.
+    formsPruneDanglingDependencies(draftSections, field.id);
+    formsRenderFieldEditor(listEl, draftFields, onChange, draftSections, sectionIdx);
     onChange();
   });
   topRow.appendChild(typeDd);
@@ -1255,7 +1372,8 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
   removeBtn.addEventListener('click', () => {
     const doRemove = () => {
       draftFields.splice(idx, 1);
-      formsRenderFieldEditor(listEl, draftFields, onChange);
+      formsPruneDanglingDependencies(draftSections, field.id);
+      formsRenderFieldEditor(listEl, draftFields, onChange, draftSections, sectionIdx);
       onChange();
     };
     // A blank, never-filled-in field deletes instantly — anything with an
@@ -1269,9 +1387,11 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
   const configEl = formsRenderFieldTypeConfig(field, onChange);
   if (configEl) row.appendChild(configEl);
 
-  // Påkrævet moves to its own bottom-right row, under whatever type-
-  // specific config rendered above.
+  // Afhængighed (left) / Påkrævet (right) share their own row, under
+  // whatever type-specific config rendered above.
   const bottomRow = el('div', 'forms-field-row-bottom');
+  bottomRow.appendChild(formsRenderFieldDependencyControl(field, draftSections, sectionIdx, idx, onChange));
+
   const reqLabel = el('label', 'forms-required-label');
   const reqBox = document.createElement('input');
   reqBox.type = 'checkbox';
@@ -1283,6 +1403,127 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange) {
   row.appendChild(bottomRow);
 
   return row;
+}
+
+// The bottom-left "Tilføj afhængighed" control: no dependency yet renders
+// a plain add link; a dependency set renders a live summary (resolved
+// fresh from the controlling field's CURRENT options each time, never a
+// frozen label snapshot — same reasoning as the stats screen's own
+// formsResolveOptions lookups) plus Rediger/✕. Re-renders itself in place
+// on every change, same self-contained pattern as formsRenderOptionsEditor.
+function formsRenderFieldDependencyControl(field, draftSections, sectionIdx, fieldIdx, onChange) {
+  const wrap = el('div', 'forms-field-dependency');
+
+  function openPicker() {
+    const candidates = formsEarlierDependencyCandidates(draftSections, sectionIdx, fieldIdx);
+    formsOpenDependencyModal(field, candidates, (dep) => {
+      field.dependsOn = dep;
+      render();
+      onChange();
+    });
+  }
+
+  function render() {
+    wrap.replaceChildren();
+    if (!field.dependsOn) {
+      const addBtn = el('button', 'forms-dependency-add', '+ Tilføj afhængighed');
+      addBtn.type = 'button';
+      addBtn.addEventListener('click', openPicker);
+      wrap.appendChild(addBtn);
+      return;
+    }
+    const candidates = formsEarlierDependencyCandidates(draftSections, sectionIdx, fieldIdx);
+    const controlling = candidates.find((f) => f.id === field.dependsOn.fieldId);
+    const summary = el('span', 'forms-dependency-summary');
+    if (controlling) {
+      const labels = formsDependencyOptionsForField(controlling)
+        .filter((o) => field.dependsOn.values.includes(o.value))
+        .map((o) => o.label);
+      summary.textContent = `Vises kun hvis "${controlling.label || '(uden titel)'}" = ${labels.join(', ') || '—'}`;
+    } else {
+      summary.textContent = 'Afhængighed peger på et spørgsmål, der ikke længere findes.';
+      summary.classList.add('forms-dependency-broken');
+    }
+    wrap.appendChild(summary);
+
+    const editBtn = el('button', 'forms-dependency-edit', 'Rediger');
+    editBtn.type = 'button';
+    editBtn.addEventListener('click', openPicker);
+    wrap.appendChild(editBtn);
+
+    const removeBtn = el('button', 'forms-dependency-remove', '✕');
+    removeBtn.type = 'button';
+    removeBtn.title = 'Fjern afhængighed';
+    removeBtn.setAttribute('aria-label', 'Fjern afhængighed');
+    removeBtn.addEventListener('click', () => { delete field.dependsOn; render(); onChange(); });
+    wrap.appendChild(removeBtn);
+  }
+  render();
+  return wrap;
+}
+
+// The "Tilføj afhængighed" modal: pick an earlier eligible question, then
+// check off which of ITS answers should reveal `field`. `onSave` receives
+// a clean {fieldId, values} (or is never called, on Annuller).
+function formsOpenDependencyModal(field, candidates, onSave) {
+  const { modal, form, actions, close } = siteOpenModalWithClose('Afhængighed');
+  modal.classList.add('forms-center-modal');
+
+  if (candidates.length === 0) {
+    form.appendChild(el('p', 'forms-intro',
+      'Der er ingen tidligere spørgsmål i formularen, som dette felt kan afhænge af — flyt spørgsmålet ' +
+      'ned under det, du vil betinge det af, eller tilføj et Vælg én/Vælg flere/Skala/Ja-Nej-spørgsmål ovenfor.'));
+    const okBtn = formsPillBtn('OK');
+    okBtn.addEventListener('click', close);
+    actions.appendChild(okBtn);
+    return;
+  }
+
+  const existing = field.dependsOn;
+  const fieldDd = siteCreateDropdownField(
+    candidates.map((c) => ({ value: c.id, label: c.label || '(uden titel)' })),
+    existing && candidates.some((c) => c.id === existing.fieldId) ? existing.fieldId : candidates[0].id);
+  form.appendChild(siteEditField('Vis kun hvis', fieldDd));
+
+  const valuesWrap = el('div', 'forms-checkbox-list');
+  form.appendChild(valuesWrap);
+
+  function renderValueOptions() {
+    valuesWrap.replaceChildren();
+    const controlling = candidates.find((c) => c.id === fieldDd.value);
+    if (!controlling) return;
+    const options = formsDependencyOptionsForField(controlling);
+    const currentValues = (existing && existing.fieldId === fieldDd.value) ? existing.values : [];
+    const boxes = [];
+    for (const opt of options) {
+      const optRow = el('label', 'forms-checkbox-row');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = currentValues.includes(opt.value);
+      optRow.appendChild(cb);
+      optRow.appendChild(document.createTextNode(opt.label));
+      valuesWrap.appendChild(optRow);
+      boxes.push({ cb, value: opt.value });
+    }
+    valuesWrap.formsSelectedValues = () => boxes.filter((b) => b.cb.checked).map((b) => b.value);
+  }
+  renderValueOptions();
+  fieldDd.addEventListener('change', renderValueOptions);
+
+  const depError = el('p', 'forms-msg error');
+  form.appendChild(depError);
+
+  const cancelBtn = formsPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const saveBtn = formsPillBtn('Gem', 'site-pill-primary');
+  saveBtn.addEventListener('click', () => {
+    const values = valuesWrap.formsSelectedValues ? valuesWrap.formsSelectedValues() : [];
+    if (values.length === 0) { depError.textContent = 'Vælg mindst ét svar.'; return; }
+    onSave({ fieldId: fieldDd.value, values });
+    close();
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
 }
 
 function formsRenderFieldTypeConfig(field, onChange) {
@@ -1519,6 +1760,14 @@ function formsValidateAndCleanFields(draftFields) {
           .map((r) => ({ id: r.id, label: r.label.trim() }));
         clean.options = (Array.isArray(f.options) ? f.options : []).filter((o) => o.value && o.label);
       }
+      // Shape-only here (does the field/its controller actually exist and
+      // line up in order?) — the server is the authoritative check, same
+      // division of labor as everywhere else on this page (see
+      // forms_validate_field_spec's own dependsOn block).
+      if (f.dependsOn && typeof f.dependsOn.fieldId === 'string' && f.dependsOn.fieldId
+          && Array.isArray(f.dependsOn.values) && f.dependsOn.values.length > 0) {
+        clean.dependsOn = { fieldId: f.dependsOn.fieldId, values: f.dependsOn.values.slice() };
+      }
       return clean;
     }),
   };
@@ -1647,7 +1896,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   const addSectionBtn = el('button', 'btn-small', '+ Tilføj sektion');
   addSectionBtn.type = 'button';
-  addSectionBtn.disabled = locked;
+  if (locked) formsLockClickIntercept(addSectionBtn);
   addSectionBtn.addEventListener('click', () => {
     draftSections.push({
       id: formsNewFieldId(), title: '', description: '',
@@ -1722,17 +1971,57 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   formsBuilderSnapshot = formsBuilderSerializeForDiff(formsBuilderPayloadForDiff());
 }
 
-// Disables every mutation control inside an already-rendered sections list
-// (every input/textarea, and every button except each section's own
-// collapse/expand toggle) so a form's questions stay viewable but not
-// editable once it has responses. Every control in here is a real native
-// element — including the field-type picker (siteCreateDropdownField,
-// site-utils.js, a genuine <button>) — so `disabled` genuinely blocks it.
+// Intercepts a click on `elm` — in the CAPTURE phase, before any of its
+// own listeners run — and shows the lock toast instead of letting the
+// click do anything. Deliberately not the native `disabled` attribute: a
+// genuinely disabled control never dispatches a click at all (not even to
+// an ancestor), so there'd be no way to catch an attempted edit and warn
+// about it. e.preventDefault() cancels the click's own default action
+// (e.g. a checkbox's toggle); e.stopImmediatePropagation() stops every
+// other listener on the same dispatch (e.g. a delete-field button's own
+// handler, or — via delegation, since capture travels down through
+// ancestors first — a descendant's handler reached through containerEl)
+// from ever running. The one exception is each section's own collapse/
+// expand toggle, which should keep working even while locked.
+function formsLockClickIntercept(elm) {
+  elm.addEventListener('click', (e) => {
+    if (e.target.closest('.forms-section-toggle')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    formsShowLockToast();
+  }, true);
+}
+
+// Locks an already-rendered sections list so a form's questions stay
+// viewable but not editable once it has responses (see
+// formsRenderBuilderScreen's own `locked` comment for why) — every
+// input/textarea goes read-only (blocks typing while still dispatching
+// events normally, unlike `disabled`) and every click within the
+// container (buttons, checkboxes, the field-type picker) is caught by one
+// delegated formsLockClickIntercept on the container itself.
 function formsLockSectionsEditor(containerEl) {
-  containerEl.querySelectorAll('input, textarea').forEach((el) => { el.disabled = true; });
-  containerEl.querySelectorAll('button').forEach((btn) => {
-    if (!btn.classList.contains('forms-section-toggle')) btn.disabled = true;
-  });
+  containerEl.querySelectorAll('input, textarea').forEach((elm) => { elm.readOnly = true; });
+  formsLockClickIntercept(containerEl);
+}
+
+// A transient dark banner pinned to the bottom of the viewport — shown
+// whenever a locked (already-answered) form's editor is clicked, since the
+// read-only/click-swallowed controls above otherwise give no feedback for
+// why nothing happened. Re-triggers its own auto-dismiss timer on repeat
+// clicks rather than stacking multiple banners.
+let formsLockToastEl = null;
+let formsLockToastTimer = null;
+function formsShowLockToast() {
+  if (!formsLockToastEl) {
+    formsLockToastEl = el('div', 'forms-lock-toast',
+      'Denne formular har allerede modtaget svar og kan ikke redigeres, før alle svar er slettet under "Se svar".');
+    document.body.appendChild(formsLockToastEl);
+  }
+  formsLockToastEl.classList.add('visible');
+  clearTimeout(formsLockToastTimer);
+  formsLockToastTimer = setTimeout(() => {
+    if (formsLockToastEl) formsLockToastEl.classList.remove('visible');
+  }, 3200);
 }
 
 // One section's editor block — every section, including the first, is the
@@ -1772,14 +2061,24 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   removeBtn.setAttribute('aria-label', 'Slet sektion');
   // A form always needs at least one section — can't delete the last one.
   removeBtn.disabled = draftSections.length <= 1;
+  // Deleting a whole section can remove several fields at once — prune any
+  // dependency elsewhere in the form pointing at one of them, same as a
+  // single field's own removeBtn does.
+  function pruneSectionFields() {
+    for (const f of (Array.isArray(section.fields) ? section.fields : [])) {
+      formsPruneDanglingDependencies(draftSections, f.id);
+    }
+  }
   removeBtn.addEventListener('click', () => {
     if (formsSectionIsEmpty(section)) {
       draftSections.splice(idx, 1);
+      pruneSectionFields();
       rerenderAll();
       onChange();
     } else {
       formsOpenDeleteSectionConfirm(idx + 1, () => {
         draftSections.splice(idx, 1);
+        pruneSectionFields();
         rerenderAll();
         onChange();
       });
@@ -1820,7 +2119,7 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   const fieldListEl = el('div', 'forms-field-list');
   bodyEl.appendChild(fieldListEl);
   if (!Array.isArray(section.fields)) section.fields = [];
-  formsRenderFieldEditor(fieldListEl, section.fields, onChange);
+  formsRenderFieldEditor(fieldListEl, section.fields, onChange, draftSections, idx);
 
   return block;
 }
