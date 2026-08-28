@@ -656,30 +656,21 @@
   accent-color: var(--accent-warm-text);
 }
 
-/* Afhængighed (conditional visibility) — mirrors .forms-required-label's
-   own sizing so the two sit at equal visual weight on either end of
-   .forms-field-row-bottom. No dependency yet: a plain text-style link. A
-   dependency set: a muted summary + small Rediger/✕ actions. */
+/* Afhængighed (conditional visibility) — no dependency yet: a plain
+   .btn-small, same "+ Tilføj X" chrome as Tilføj felt/Tilføj mulighed
+   elsewhere on this page. A dependency set: a muted summary (no action of
+   its own — editing/removing both live in the modal now) plus a small
+   Rediger icon button, reusing .forms-row-icon-btn verbatim (same pencil
+   icon, warm hover, tooltip) rather than a bespoke text link. */
 .forms-field-dependency {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.82rem;
+  gap: 0.3rem;
   min-width: 0;
 }
 
-.forms-dependency-add {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--accent);
-  font-size: 0.82rem;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 .forms-dependency-summary {
+  font-size: 0.82rem;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -688,34 +679,6 @@
 
 .forms-dependency-broken {
   color: var(--danger);
-}
-
-.forms-dependency-edit {
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--accent);
-  font-size: 0.82rem;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  flex: 0 0 auto;
-}
-
-.forms-dependency-remove {
-  background: none;
-  border: none;
-  padding: 0 0.1rem;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  line-height: 1;
-  cursor: pointer;
-  flex: 0 0 auto;
-}
-@media (hover: hover) {
-  .forms-dependency-add:hover,
-  .forms-dependency-edit:hover { color: var(--accent-warm-text); }
-  .forms-dependency-remove:hover { color: var(--danger); }
 }
 
 .forms-options-editor {

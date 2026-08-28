@@ -440,13 +440,24 @@ function formsFieldCanControlDependency(field) {
 // rather than cached, since earlier fields can be added/edited/removed
 // while this row sits on the page.
 function formsEarlierDependencyCandidates(draftSections, sectionIdx, fieldIdx) {
+  return formsDependencySectionCandidates(draftSections, sectionIdx, fieldIdx)
+    .reduce((acc, g) => acc.concat(g.fields), []);
+}
+
+// Same eligible-earlier-fields set as formsEarlierDependencyCandidates, but
+// grouped per section (one entry per section from the first up to and
+// including this field's own) — feeds the picker modal's two cascading
+// dropdowns (Sektion, then Spørgsmål within it).
+function formsDependencySectionCandidates(draftSections, sectionIdx, fieldIdx) {
   const out = [];
   for (let s = 0; s <= sectionIdx; s++) {
     const fields = Array.isArray(draftSections[s].fields) ? draftSections[s].fields : [];
     const limit = s === sectionIdx ? fieldIdx : fields.length;
+    const eligible = [];
     for (let f = 0; f < limit; f++) {
-      if (formsFieldCanControlDependency(fields[f])) out.push(fields[f]);
+      if (formsFieldCanControlDependency(fields[f])) eligible.push(fields[f]);
     }
+    out.push({ sectionIdx: s, section: draftSections[s], fields: eligible });
   }
   return out;
 }
@@ -1409,27 +1420,27 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange, draftSec
 }
 
 // The bottom-left "Tilføj afhængighed" control: no dependency yet renders
-// a plain add link; a dependency set renders a live summary (resolved
-// fresh from the controlling field's CURRENT options each time, never a
-// frozen label snapshot — same reasoning as the stats screen's own
-// formsResolveOptions lookups) plus Rediger/✕. Re-renders itself in place
-// on every change, same self-contained pattern as formsRenderOptionsEditor.
+// a plain .btn-small (same "+ Tilføj X" chrome as Tilføj felt/Tilføj
+// mulighed elsewhere on this page); a dependency set renders a live
+// summary (resolved fresh from the controlling field's CURRENT options
+// each time, never a frozen label snapshot — same reasoning as the stats
+// screen's own formsResolveOptions lookups) plus a Rediger icon button —
+// editing AND removing both live in the modal now, so there's no separate
+// ✕ out here. Re-renders itself in place on every change, same
+// self-contained pattern as formsRenderOptionsEditor.
 function formsRenderFieldDependencyControl(field, draftSections, sectionIdx, fieldIdx, onChange) {
   const wrap = el('div', 'forms-field-dependency');
 
   function openPicker() {
-    const candidates = formsEarlierDependencyCandidates(draftSections, sectionIdx, fieldIdx);
-    formsOpenDependencyModal(field, candidates, (dep) => {
-      field.dependsOn = dep;
-      render();
-      onChange();
-    });
+    formsOpenDependencyModal(field, draftSections, sectionIdx, fieldIdx,
+      (dep) => { field.dependsOn = dep; render(); onChange(); },
+      () => { delete field.dependsOn; render(); onChange(); });
   }
 
   function render() {
     wrap.replaceChildren();
     if (!field.dependsOn) {
-      const addBtn = el('button', 'forms-dependency-add', '+ Tilføj afhængighed');
+      const addBtn = el('button', 'btn-small', '+ Tilføj afhængighed');
       addBtn.type = 'button';
       addBtn.addEventListener('click', openPicker);
       wrap.appendChild(addBtn);
@@ -1442,40 +1453,46 @@ function formsRenderFieldDependencyControl(field, draftSections, sectionIdx, fie
       const labels = formsDependencyOptionsForField(controlling)
         .filter((o) => field.dependsOn.values.includes(o.value))
         .map((o) => o.label);
-      summary.textContent = `Vises kun hvis "${controlling.label || '(uden titel)'}" = ${labels.join(', ') || '—'}`;
+      summary.textContent = `Vises hvis: ${controlling.label || '(uden titel)'} (${labels.join(', ') || '—'})`;
     } else {
       summary.textContent = 'Afhængighed peger på et spørgsmål, der ikke længere findes.';
       summary.classList.add('forms-dependency-broken');
     }
     wrap.appendChild(summary);
 
-    const editBtn = el('button', 'forms-dependency-edit', 'Rediger');
+    // Same icon-button chrome as Oversigt's own Rediger row action
+    // (.forms-row-icon-btn, formsPencilIcon) rather than a bespoke text
+    // link — "in style with the rest of the page".
+    const editBtn = el('button', 'forms-row-icon-btn');
     editBtn.type = 'button';
+    editBtn.setAttribute('aria-label', 'Rediger afhængighed');
+    editBtn.setAttribute('data-tooltip', 'Rediger afhængighed');
+    editBtn.appendChild(formsPencilIcon());
     editBtn.addEventListener('click', openPicker);
     wrap.appendChild(editBtn);
-
-    const removeBtn = el('button', 'forms-dependency-remove', '✕');
-    removeBtn.type = 'button';
-    removeBtn.title = 'Fjern afhængighed';
-    removeBtn.setAttribute('aria-label', 'Fjern afhængighed');
-    removeBtn.addEventListener('click', () => { delete field.dependsOn; render(); onChange(); });
-    wrap.appendChild(removeBtn);
   }
   render();
   return wrap;
 }
 
-// The "Tilføj afhængighed" modal: pick an earlier eligible question, then
-// check off which of ITS answers should reveal `field`. `onSave` receives
-// a clean {fieldId, values} (or is never called, on Annuller).
-function formsOpenDependencyModal(field, candidates, onSave) {
+// The "Tilføj afhængighed" modal: Sektion (defaults to this field's own
+// section) → Spørgsmål (defaults to the closest eligible field above,
+// within that section) → which of ITS answers should reveal `field`.
+// `onSave` receives a clean {fieldId, values} on Gem; `onRemove` fires on
+// the modal's own "Fjern afhængighed" (only offered when editing an
+// existing one) — neither is called on Annuller.
+function formsOpenDependencyModal(field, draftSections, sectionIdx, fieldIdx, onSave, onRemove) {
+  const groups = formsDependencySectionCandidates(draftSections, sectionIdx, fieldIdx);
+  const nonEmptyGroups = groups.filter((g) => g.fields.length > 0);
   const { modal, form, actions, close } = siteOpenModalWithClose('Afhængighed');
   modal.classList.add('forms-center-modal');
+  form.appendChild(el('p', 'forms-intro',
+    'Vælg et tidligere spørgsmål i formularen, og hvilke af dets svar der skal vise dette felt.'));
 
-  if (candidates.length === 0) {
+  if (nonEmptyGroups.length === 0) {
     form.appendChild(el('p', 'forms-intro',
-      'Der er ingen tidligere spørgsmål i formularen, som dette felt kan afhænge af — flyt spørgsmålet ' +
-      'ned under det, du vil betinge det af, eller tilføj et Vælg én/Vælg flere/Skala/Ja-Nej-spørgsmål ovenfor.'));
+      'Der er endnu ingen tidligere Vælg én/Vælg flere/Skala/Ja-Nej-spørgsmål i formularen, som dette ' +
+      'felt kan afhænge af.'));
     const okBtn = formsPillBtn('OK');
     okBtn.addEventListener('click', close);
     actions.appendChild(okBtn);
@@ -1483,17 +1500,45 @@ function formsOpenDependencyModal(field, candidates, onSave) {
   }
 
   const existing = field.dependsOn;
-  const fieldDd = siteCreateDropdownField(
-    candidates.map((c) => ({ value: c.id, label: c.label || '(uden titel)' })),
-    existing && candidates.some((c) => c.id === existing.fieldId) ? existing.fieldId : candidates[0].id);
-  form.appendChild(siteEditField('Vis kun hvis', fieldDd));
+  const existingGroup = existing && groups.find((g) => g.fields.some((f) => f.id === existing.fieldId));
+  // Defaults to this field's own section — unless it has no eligible
+  // fields of its own (e.g. it's the first field in it), in which case the
+  // closest earlier section that does have any stands in instead.
+  let defaultSectionIdx = existingGroup ? existingGroup.sectionIdx : sectionIdx;
+  if (!nonEmptyGroups.some((g) => g.sectionIdx === defaultSectionIdx)) {
+    defaultSectionIdx = nonEmptyGroups[nonEmptyGroups.length - 1].sectionIdx;
+  }
+
+  const sectionDd = siteCreateDropdownField(
+    nonEmptyGroups.map((g) => ({ value: String(g.sectionIdx), label: formsSectionHeaderLabel(g.section, g.sectionIdx) })),
+    String(defaultSectionIdx));
+  form.appendChild(siteEditField('Sektion', sectionDd));
+
+  // A plain .edit-field built by hand (not siteEditField) since its own
+  // dropdown is rebuilt from scratch on every section change below —
+  // siteEditField only ever wraps one fixed element.
+  const fieldFieldWrap = el('div', 'edit-field');
+  fieldFieldWrap.appendChild(el('label', null, 'Spørgsmål'));
+  const fieldDdSlot = el('div');
+  fieldFieldWrap.appendChild(fieldDdSlot);
+  form.appendChild(fieldFieldWrap);
 
   const valuesWrap = el('div', 'forms-checkbox-list');
   form.appendChild(valuesWrap);
 
+  let fieldDd = null;
+
+  function defaultFieldIdFor(secIdx) {
+    const g = groups.find((gg) => gg.sectionIdx === secIdx);
+    if (!g || g.fields.length === 0) return null;
+    if (existing && g.fields.some((f) => f.id === existing.fieldId)) return existing.fieldId;
+    return g.fields[g.fields.length - 1].id; // closest field above
+  }
+
   function renderValueOptions() {
     valuesWrap.replaceChildren();
-    const controlling = candidates.find((c) => c.id === fieldDd.value);
+    const g = groups.find((gg) => gg.sectionIdx === Number(sectionDd.value));
+    const controlling = g && g.fields.find((f) => f.id === fieldDd.value);
     if (!controlling) return;
     const options = formsDependencyOptionsForField(controlling);
     const currentValues = (existing && existing.fieldId === fieldDd.value) ? existing.values : [];
@@ -1510,17 +1555,35 @@ function formsOpenDependencyModal(field, candidates, onSave) {
     }
     valuesWrap.formsSelectedValues = () => boxes.filter((b) => b.cb.checked).map((b) => b.value);
   }
-  renderValueOptions();
-  fieldDd.addEventListener('change', renderValueOptions);
+
+  function renderFieldDropdown() {
+    const secIdx = Number(sectionDd.value);
+    const g = groups.find((gg) => gg.sectionIdx === secIdx);
+    const fields = g ? g.fields : [];
+    const defaultId = defaultFieldIdFor(secIdx) || (fields[0] && fields[0].id) || '';
+    fieldDd = siteCreateDropdownField(
+      fields.map((f) => ({ value: f.id, label: f.label || '(uden titel)' })), defaultId);
+    fieldDd.addEventListener('change', renderValueOptions);
+    fieldDdSlot.replaceChildren(fieldDd);
+    renderValueOptions();
+  }
+  renderFieldDropdown();
+  sectionDd.addEventListener('change', renderFieldDropdown);
 
   const depError = el('p', 'forms-msg error');
   form.appendChild(depError);
 
+  if (existing) {
+    const removeBtn = formsPillBtn('Fjern afhængighed', 'site-pill-danger');
+    removeBtn.addEventListener('click', () => { close(); onRemove(); });
+    actions.appendChild(removeBtn);
+  }
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const saveBtn = formsPillBtn('Gem', 'site-pill-primary');
   saveBtn.addEventListener('click', () => {
     const values = valuesWrap.formsSelectedValues ? valuesWrap.formsSelectedValues() : [];
+    if (!fieldDd || !fieldDd.value) { depError.textContent = 'Vælg et spørgsmål.'; return; }
     if (values.length === 0) { depError.textContent = 'Vælg mindst ét svar.'; return; }
     onSave({ fieldId: fieldDd.value, values });
     close();
