@@ -1487,7 +1487,7 @@ function formsOpenDependencyModal(field, draftSections, sectionIdx, fieldIdx, on
   const { modal, form, actions, close } = siteOpenModalWithClose('Afhængighed');
   modal.classList.add('forms-center-modal');
   form.appendChild(el('p', 'forms-intro',
-    'Vælg et tidligere spørgsmål i formularen, og hvilke af dets svar der skal vise dette felt.'));
+    'Vælg et tidligere spørgsmål, og hvilke af dets svar der skal vise dette felt.'));
 
   if (nonEmptyGroups.length === 0) {
     form.appendChild(el('p', 'forms-intro',
@@ -1573,13 +1573,13 @@ function formsOpenDependencyModal(field, draftSections, sectionIdx, fieldIdx, on
   const depError = el('p', 'forms-msg error');
   form.appendChild(depError);
 
+  // No Annuller here — the modal's own X (siteOpenModalWithClose) already
+  // covers that, so only real actions sit in the button row.
   if (existing) {
-    const removeBtn = formsPillBtn('Fjern afhængighed', 'site-pill-danger');
+    const removeBtn = formsPillBtn('Fjern', 'site-pill-danger');
     removeBtn.addEventListener('click', () => { close(); onRemove(); });
     actions.appendChild(removeBtn);
   }
-  const cancelBtn = formsPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const saveBtn = formsPillBtn('Gem', 'site-pill-primary');
   saveBtn.addEventListener('click', () => {
     const values = valuesWrap.formsSelectedValues ? valuesWrap.formsSelectedValues() : [];
@@ -1588,7 +1588,6 @@ function formsOpenDependencyModal(field, draftSections, sectionIdx, fieldIdx, on
     onSave({ fieldId: fieldDd.value, values });
     close();
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
 }
 
