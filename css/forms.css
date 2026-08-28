@@ -1001,32 +1001,145 @@
   margin-bottom: 0.6rem;
 }
 
-/* Gitter: one labeled bar list per row, stacked with a light divider
-   between rows — same "divider between consecutive items, none before the
-   first/after the last" pattern as .forms-fillin-page .edit-field above. */
-.forms-stats-grid { display: flex; flex-direction: column; gap: 0.9rem; }
+/* Gitter: one combined grouped column chart (formsStatsGridChart) rather
+   than a chart per row — every row/group shares this one y-axis, so
+   .forms-stats-gridchart-yaxis/-plot both use the same fixed height
+   (12rem) and JS positions ticks/gridlines/bar heights as percentages of
+   that shared height. Legend up top names each column's color, same
+   swatch+label convention as .forms-stats-legend-row. */
+.forms-stats-gridchart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin-bottom: 0.9rem;
+  font-size: 0.82rem;
+  color: var(--text);
+}
 
-.forms-stats-grid-row:not(:last-child) {
-  padding-bottom: 0.9rem;
+.forms-stats-gridchart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.forms-stats-gridchart-legend-swatch {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.forms-stats-gridchart-plot-row {
+  display: flex;
+  align-items: stretch;
+}
+
+/* Tick labels positioned absolutely at the same bottom:X% JS gives each
+   .forms-stats-gridchart-gridline, so the two stay aligned despite being
+   separate elements — both resolve that percentage against this same
+   12rem height. */
+.forms-stats-gridchart-yaxis {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.2rem;
+  height: 12rem;
+  margin-right: 0.5rem;
+}
+
+.forms-stats-gridchart-tick {
+  position: absolute;
+  right: 0;
+  transform: translateY(50%);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Only the bars/gridlines/row-labels scroll horizontally when a wide
+   Gitter has more rows than fit — the y-axis above stays fixed, same
+   split as .forms-grid-wrap's own overflow-x:auto convention. */
+.forms-stats-gridchart-scroller {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.forms-stats-gridchart-inner {
+  width: max-content;
+  min-width: 100%;
+}
+
+.forms-stats-gridchart-plot {
+  position: relative;
+  height: 12rem;
   border-bottom: 1px solid var(--border);
 }
 
-.forms-stats-grid-row-label {
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text);
-  margin-bottom: 0.4rem;
+.forms-stats-gridchart-gridline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--border);
+}
+
+.forms-stats-gridchart-groups {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(3.5rem, 1fr);
+}
+
+/* One bar per column option, ≤24px thick with a 4px rounded data-end
+   (square at the baseline, grows from it) and a 2px surface gap between
+   adjacent bars — the dataviz mark spec for a column mark. */
+.forms-stats-gridchart-bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  padding: 0 0.3rem;
+}
+
+.forms-stats-gridchart-bar {
+  width: 1rem;
+  max-width: 24px;
+  min-height: 0;
+  border-radius: 4px 4px 0 0;
+}
+
+.forms-stats-gridchart-labels {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(3.5rem, 1fr);
+  margin-top: 0.4rem;
+}
+
+.forms-stats-gridchart-group-label {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 0 0.2rem;
+  overflow-wrap: break-word;
 }
 
 /* Vælg én / legacy yesno: a CSS conic-gradient donut (built inline in JS,
    one hue per FORMS_STATS_PALETTE slot) beside its own legend — the
    legend carries every label/value in plain text tokens, never the slice
-   color itself (see forms.js's own comment on this). */
+   color itself (see forms.js's own comment on this). Capped width +
+   margin:auto centers the block on a wide card; the padding is two
+   "tabs" — same indent convention (and exact 4rem value) as Skala's own
+   row, forms.css:781/799. */
 .forms-stats-donut-wrap {
   display: flex;
   align-items: center;
   gap: 1.25rem;
   flex-wrap: wrap;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 0 4rem;
 }
 
 .forms-stats-donut {
@@ -1110,5 +1223,8 @@
     grid-template-columns: minmax(0, 5.5rem) 1fr auto;
     gap: 0.4rem;
   }
-  .forms-stats-donut-wrap { justify-content: center; }
+  /* Halved, same "half the desktop indent" spirit as the fill-in view's
+     own 600px block — and .forms-radio-row-scale's own mobile override
+     above halves its two-tab 4rem the same way. */
+  .forms-stats-donut-wrap { justify-content: center; padding: 0 2rem; }
 }

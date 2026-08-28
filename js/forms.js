@@ -2290,7 +2290,7 @@ function formsRenderFieldStatsWidget(field, responses) {
   if (field.type === 'grid_single' || field.type === 'grid_multi') {
     const rowStats = formsGridStats(field, responses);
     const answered = rowStats.reduce((sum, r) => sum + r.answeredCount, 0);
-    return formsStatsFieldWrap(answered, () => formsStatsGrid(rowStats));
+    return formsStatsFieldWrap(answered, () => formsStatsGridChart(field, rowStats));
   }
   // text / textarea
   const values = formsTextAnswers(field, responses);
@@ -2409,11 +2409,12 @@ function formsTextAnswers(field, responses) {
 }
 
 // Single-hue horizontal bar list — one row per option, used for Vælg
-// flere, Skala's value histogram, and each Gitter row. All share the
-// site's own --accent blue rather than a categorical palette: these bars
-// compare one question's own answer magnitudes, not distinct series
-// identities (see FORMS_STATS_PALETTE's own comment above for why the pie
-// chart is the one exception).
+// flere and Skala's value histogram. Both share the site's own --accent
+// blue rather than a categorical palette: these bars compare one
+// question's own answer magnitudes, not distinct series identities (see
+// FORMS_STATS_PALETTE's own comment above, and formsStatsGridChart below,
+// for the one case — Gitter's grouped columns — that IS an identity
+// comparison and does use that palette).
 function formsStatsBarList(items) {
   const wrap = el('div', 'forms-stats-bar-list');
   for (const item of items) {
@@ -2444,19 +2445,89 @@ function formsStatsScale(stats) {
   return wrap;
 }
 
-// Gitter: one labeled formsStatsBarList per row, stacked vertically —
-// deliberately separate mini-charts, not one combined chart, so e.g. each
-// rehearsal date's own availability breakdown reads on its own.
-function formsStatsGrid(rowStatsList) {
-  const wrap = el('div', 'forms-stats-grid');
-  for (const { row, items, answeredCount } of rowStatsList) {
-    const block = el('div', 'forms-stats-grid-row');
-    block.appendChild(el('div', 'forms-stats-grid-row-label', row.label));
-    block.appendChild(answeredCount === 0
-      ? el('p', 'forms-stats-empty', 'Ingen svar for denne linje.')
-      : formsStatsBarList(items));
-    wrap.appendChild(block);
+// "Nice" axis max/step for the Gitter combined chart's shared y-axis —
+// standard nice-number rounding (1/2/5 × 10^n, clamped to whole numbers
+// since these are answer counts) so ticks land on round values (0, 5, 10,
+// 15, 20, ...) instead of the raw max count.
+function formsNiceAxis(rawMax) {
+  if (rawMax <= 0) return { max: 1, step: 1 };
+  const roughStep = rawMax / 4;
+  const mag = Math.max(1, Math.pow(10, Math.floor(Math.log10(roughStep))));
+  const norm = roughStep / mag;
+  const step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10) * mag;
+  return { max: Math.ceil(rawMax / step) * step, step };
+}
+
+// Gitter: one combined grouped column chart, not a separate chart per row
+// — every row shares the same y-axis (answer count), so a comparison
+// across rows (e.g. one rehearsal date vs. another) reads directly, the
+// way a Google Sheets grouped bar chart would. Each row is one x-axis
+// group; each column option is one bar within it, colored by
+// FORMS_STATS_PALETTE (this IS an identity comparison — which option per
+// row — unlike the single-hue bars above) with a shared legend up top.
+function formsStatsGridChart(field, rowStatsList) {
+  const columns = formsResolveOptions(field);
+  const wrap = el('div', 'forms-stats-gridchart');
+
+  const legend = el('div', 'forms-stats-gridchart-legend');
+  columns.forEach((c, i) => {
+    const item = el('span', 'forms-stats-gridchart-legend-item');
+    const swatch = el('span', 'forms-stats-gridchart-legend-swatch');
+    swatch.style.background = FORMS_STATS_PALETTE[i % FORMS_STATS_PALETTE.length];
+    item.appendChild(swatch);
+    item.appendChild(document.createTextNode(c.label));
+    legend.appendChild(item);
+  });
+  wrap.appendChild(legend);
+
+  const rawMax = rowStatsList.reduce(
+    (m, r) => r.items.reduce((rm, it) => Math.max(rm, it.count), m), 0);
+  const axis = formsNiceAxis(rawMax);
+
+  const plotRow = el('div', 'forms-stats-gridchart-plot-row');
+
+  const yAxis = el('div', 'forms-stats-gridchart-yaxis');
+  for (let v = axis.max; v >= 0; v -= axis.step) {
+    const tick = el('span', 'forms-stats-gridchart-tick', String(v));
+    tick.style.bottom = (v / axis.max) * 100 + '%';
+    yAxis.appendChild(tick);
   }
+  plotRow.appendChild(yAxis);
+
+  // The plot (gridlines + bars) and the row labels below it scroll
+  // together as one block, same overflow-x:auto convention as
+  // .forms-grid-wrap/.forms-responses-wrap — only the y-axis stays fixed.
+  const scroller = el('div', 'forms-stats-gridchart-scroller');
+  const inner = el('div', 'forms-stats-gridchart-inner');
+  const plot = el('div', 'forms-stats-gridchart-plot');
+  for (let v = axis.step; v <= axis.max; v += axis.step) {
+    const line = el('div', 'forms-stats-gridchart-gridline');
+    line.style.bottom = (v / axis.max) * 100 + '%';
+    plot.appendChild(line);
+  }
+  const groups = el('div', 'forms-stats-gridchart-groups');
+  for (const { items } of rowStatsList) {
+    const bars = el('div', 'forms-stats-gridchart-bars');
+    items.forEach((item, i) => {
+      const bar = el('div', 'forms-stats-gridchart-bar');
+      bar.style.height = (item.count / axis.max) * 100 + '%';
+      bar.style.background = FORMS_STATS_PALETTE[i % FORMS_STATS_PALETTE.length];
+      bar.title = `${item.label}: ${item.count}`;
+      bars.appendChild(bar);
+    });
+    groups.appendChild(bars);
+  }
+  plot.appendChild(groups);
+  inner.appendChild(plot);
+  const labels = el('div', 'forms-stats-gridchart-labels');
+  for (const { row } of rowStatsList) {
+    labels.appendChild(el('span', 'forms-stats-gridchart-group-label', row.label));
+  }
+  inner.appendChild(labels);
+  scroller.appendChild(inner);
+  plotRow.appendChild(scroller);
+  wrap.appendChild(plotRow);
+
   return wrap;
 }
 
