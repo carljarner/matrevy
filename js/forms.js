@@ -45,6 +45,20 @@ const FORMS_FIELD_TYPES = [
   { value: 'grid_multi',  label: 'Gitter (vælg flere)' },
 ];
 
+// ── Statistik: categorical palette for the "Vælg én" pie/donut chart ──
+// The only chart in this view that needs multiple hues — bar charts (Vælg
+// flere/Skala/Gitter) show one question's own magnitude, not a comparison
+// between distinct series, so they stay in the single site --accent hue
+// instead. This 8-hue order is validated (CVD + normal-vision + lightness
+// band all PASS) against this site's actual warm-cream card surface
+// (#f1e6cf, not a generic white) via the dataviz skill's palette
+// validator; the contrast-vs-surface WARN it carries is why option labels
+// are always plain text next to a swatch, never colored text themselves.
+const FORMS_STATS_PALETTE = [
+  '#2a78d6', '#eb6834', '#1baf7a', '#eda100',
+  '#e87ba4', '#008300', '#4a3aa7', '#e34948',
+];
+
 // ── Dynamic templates ────────────────────────────────────────
 // Unlike a real (stored) template, a "dynamic" one isn't a frozen field
 // snapshot — clicking it runs `generate()` fresh against the site's own
@@ -888,10 +902,11 @@ function renderAdminView(root, screen) {
   if (screen.name !== 'builder') { formsBuilderDraft = null; formsBuilderSnapshot = null; }
   root.replaceChildren();
   const tabs = el('div', 'forms-admin-tabs');
-  // "Se svar" is a view onto one form from within Oversigt, not a separate
-  // tab — the Oversigt tab stays active and visible while viewing it, so
-  // there's always a way back to the list without a dedicated back button.
-  const overviewActive = screen.name === 'overview' || screen.name === 'responses';
+  // "Se svar"/"Se statistik" are views onto one form from within Oversigt,
+  // not separate tabs — the Oversigt tab stays active and visible while
+  // viewing them, so there's always a way back to the list without a
+  // dedicated back button.
+  const overviewActive = screen.name === 'overview' || screen.name === 'responses' || screen.name === 'stats';
   const overviewTab = el('button', 'forms-admin-tab' + (overviewActive ? ' active' : ''), 'Oversigt');
   overviewTab.type = 'button';
   overviewTab.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'overview' })));
@@ -907,6 +922,8 @@ function renderAdminView(root, screen) {
     formsRenderBuilderScreen(root, screen.existingDefinition || null);
   } else if (screen.name === 'responses') {
     formsRenderResponsesScreen(root, screen.formId);
+  } else if (screen.name === 'stats') {
+    formsRenderStatsScreen(root, screen.formId);
   } else {
     formsRenderOverviewScreen(root);
   }
@@ -961,6 +978,34 @@ function formsPaperIcon() {
   const line2 = document.createElementNS(svgNS, 'path');
   line2.setAttribute('d', 'M5.5 10.4h5');
   svg.appendChild(line2);
+  return svg;
+}
+
+// "Se statistik" row action icon — three ascending bars, same 16x16/
+// currentColor-stroke recipe as formsPencilIcon/formsPaperIcon above.
+function formsChartIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const bar1 = document.createElementNS(svgNS, 'path');
+  bar1.setAttribute('d', 'M3.3 13.5v-4');
+  svg.appendChild(bar1);
+  const bar2 = document.createElementNS(svgNS, 'path');
+  bar2.setAttribute('d', 'M8 13.5v-8');
+  svg.appendChild(bar2);
+  const bar3 = document.createElementNS(svgNS, 'path');
+  bar3.setAttribute('d', 'M12.7 13.5V4.3');
+  svg.appendChild(bar3);
+  const baseline = document.createElementNS(svgNS, 'path');
+  baseline.setAttribute('d', 'M1.7 13.5h12.6');
+  svg.appendChild(baseline);
   return svg;
 }
 
@@ -1047,11 +1092,17 @@ async function formsRenderOverviewScreen(root) {
         ? (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline) : '—'));
       row.appendChild(el('td', null, String(f.responseCount)));
 
-      // Only two row actions now: "Se svar" (paper) and "Rediger" (pencil,
-      // same icon convention as calendar.js/budget.js's own edit buttons),
-      // far right, edit last. Deleting a form moved into its own edit view
-      // (top-right X) — see formsRenderBuilderScreen.
+      // Three row actions: "Se statistik" (bars), "Se svar" (paper) and
+      // "Rediger" (pencil, same icon convention as calendar.js/budget.js's
+      // own edit buttons), far right, edit last. Deleting a form moved into
+      // its own edit view (top-right X) — see formsRenderBuilderScreen.
       const actionsCell = el('td', 'forms-row-actions');
+      const statsBtn = el('button', 'forms-row-icon-btn');
+      statsBtn.type = 'button';
+      statsBtn.setAttribute('aria-label', 'Se statistik');
+      statsBtn.setAttribute('data-tooltip', 'Se statistik');
+      statsBtn.appendChild(formsChartIcon());
+      statsBtn.addEventListener('click', () => renderAdminView(root, { name: 'stats', formId: f.id }));
       const respBtn = el('button', 'forms-row-icon-btn');
       respBtn.type = 'button';
       respBtn.setAttribute('aria-label', 'Se svar');
@@ -1075,6 +1126,7 @@ async function formsRenderOverviewScreen(root) {
           });
         }
       });
+      actionsCell.appendChild(statsBtn);
       actionsCell.appendChild(respBtn);
       actionsCell.appendChild(editBtn);
       row.appendChild(actionsCell);
@@ -2167,6 +2219,292 @@ function formsExportCsv(definition, responses) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// ── Statistik screen ("Se statistik" row action) ───────────────
+// Appended below the tab bar renderAdminView already rendered (Oversigt
+// stays the active tab, same in-page-view convention as
+// formsRenderResponsesScreen above — no dedicated back button). Structured
+// like the revyst fill-in view (one block per section, via the same
+// formsSectionsFromDefinition helper renderFormFillIn uses) but every
+// field renders an aggregate of its answers instead of an input, and every
+// section shows on one scrollable page at once — read-only, so there's
+// nothing to lose by seeing it all, unlike the fill-in view there's no
+// prev/next paging here.
+async function formsRenderStatsScreen(root, formId) {
+  const card = el('section', 'card forms-form forms-fillin-wide');
+  const body = el('div', null, 'Henter statistik …');
+  card.appendChild(body);
+  root.appendChild(card);
+
+  const result = await formsApi('forms_admin_read', { formId });
+  body.replaceChildren();
+  if (!result.ok) {
+    body.appendChild(el('p', 'forms-msg error', result.message || 'Kunne ikke hente statistik.'));
+    return;
+  }
+  const definition = result.data.definition;
+  const responses = Array.isArray(result.data.responses) ? result.data.responses : [];
+  body.appendChild(el('h2', null, definition.title));
+  body.appendChild(el('p', 'forms-stats-summary',
+    responses.length === 1 ? '1 svar indsendt' : `${responses.length} svar indsendt`));
+
+  if (responses.length === 0) {
+    body.appendChild(el('p', 'forms-intro', 'Ingen svar endnu.'));
+    return;
+  }
+
+  for (const pageDef of formsSectionsFromDefinition(definition)) {
+    const pageEl = el('div', 'forms-fillin-page');
+    if (pageDef.title) pageEl.appendChild(el('h3', 'forms-fillin-section-title', pageDef.title));
+    if (pageDef.description) pageEl.appendChild(el('p', 'forms-intro', pageDef.description));
+    for (const field of pageDef.fields) {
+      pageEl.appendChild(siteEditField(field.label, formsRenderFieldStatsWidget(field, responses)));
+    }
+    body.appendChild(pageEl);
+  }
+}
+
+// Dispatches by field.type, mirroring formsRenderAnswerInput's own
+// type-switch above — but every branch here aggregates responses[]
+// instead of building an interactive input.
+function formsRenderFieldStatsWidget(field, responses) {
+  if (field.type === 'select') {
+    const agg = formsCountAnswers(field, responses);
+    return formsStatsFieldWrap(agg.answeredCount, () => formsStatsDonut(formsStatsItems(agg)));
+  }
+  if (field.type === 'yesno') {
+    // No FieldSpec.options to resolve — a synthetic two-option list stands
+    // in so this reuses the exact same tally/pie widget as "Vælg én".
+    const agg = formsCountAnswers(field, responses, [{ value: true, label: 'Ja' }, { value: false, label: 'Nej' }]);
+    return formsStatsFieldWrap(agg.answeredCount, () => formsStatsDonut(formsStatsItems(agg)));
+  }
+  if (field.type === 'checkboxes') {
+    const agg = formsCountAnswers(field, responses);
+    return formsStatsFieldWrap(agg.answeredCount, () => formsStatsBarList(formsStatsItems(agg)));
+  }
+  if (field.type === 'scale') {
+    const stats = formsScaleStats(field, responses);
+    return formsStatsFieldWrap(stats.answeredCount, () => formsStatsScale(stats));
+  }
+  if (field.type === 'grid_single' || field.type === 'grid_multi') {
+    const rowStats = formsGridStats(field, responses);
+    const answered = rowStats.reduce((sum, r) => sum + r.answeredCount, 0);
+    return formsStatsFieldWrap(answered, () => formsStatsGrid(rowStats));
+  }
+  // text / textarea
+  const values = formsTextAnswers(field, responses);
+  return formsStatsFieldWrap(values.length, () => formsStatsComments(values));
+}
+
+// Shared "Ingen svar for dette spørgsmål" empty state — every field type
+// above goes through this rather than rendering a chart with nothing in it.
+function formsStatsFieldWrap(answeredCount, buildWidget) {
+  if (answeredCount === 0) return el('p', 'forms-stats-empty', 'Ingen svar for dette spørgsmål.');
+  return buildWidget();
+}
+
+// Tallies one select/checkboxes/yesno field's answers against its option
+// list (resolved live via formsResolveOptions, the same helper the fill-in
+// view uses — so a legacy scenes/rehearsals-sourced field still resolves
+// to real labels here, not raw ids). overrideOptions lets yesno reuse this
+// without a fake FieldSpec.options array. A raw stored value with no
+// matching option (e.g. a since-deleted scene) still gets counted, just
+// labeled with its own raw value instead of losing the response entirely.
+function formsCountAnswers(field, responses, overrideOptions) {
+  const options = overrideOptions || formsResolveOptions(field);
+  const counts = new Map(options.map((o) => [String(o.value), 0]));
+  const unknown = new Map();
+  let answeredCount = 0;
+  for (const r of responses) {
+    const v = r.answers ? r.answers[field.id] : undefined;
+    if (v === undefined || v === null || (Array.isArray(v) && v.length === 0)) continue;
+    answeredCount++;
+    for (const val of (Array.isArray(v) ? v : [v])) {
+      const key = String(val);
+      if (counts.has(key)) counts.set(key, counts.get(key) + 1);
+      else unknown.set(key, (unknown.get(key) || 0) + 1);
+    }
+  }
+  const out = options.map((o) => ({ label: o.label, count: counts.get(String(o.value)) || 0 }));
+  for (const [label, count] of unknown) out.push({ label, count });
+  return { options: out, answeredCount };
+}
+
+// Turns a formsCountAnswers() result into {label, count, percent}[] against
+// the number of respondents who actually answered this question (not the
+// form's total submission count) — matches Google Forms' own convention
+// and keeps an optional field from reading as artificially low.
+function formsStatsItems(agg) {
+  return agg.options.map((o) => ({
+    label: o.label,
+    count: o.count,
+    percent: agg.answeredCount > 0 ? Math.round((o.count / agg.answeredCount) * 100) : 0,
+  }));
+}
+
+// Buckets a Skala field's integer answers across its own [scaleMin,
+// scaleMax] range (unlike formsCountAnswers, the "option list" here is a
+// synthesized numeric range, not something formsResolveOptions produces)
+// and computes the average of all answered values.
+function formsScaleStats(field, responses) {
+  const min = typeof field.scaleMin === 'number' ? field.scaleMin : 1;
+  const max = typeof field.scaleMax === 'number' ? field.scaleMax : 5;
+  const counts = new Map();
+  for (let n = min; n <= max; n++) counts.set(n, 0);
+  let answeredCount = 0;
+  let sum = 0;
+  for (const r of responses) {
+    const v = r.answers ? r.answers[field.id] : undefined;
+    if (typeof v !== 'number') continue;
+    answeredCount++;
+    sum += v;
+    if (counts.has(v)) counts.set(v, counts.get(v) + 1);
+  }
+  const buckets = [];
+  for (let n = min; n <= max; n++) buckets.push({ value: n, count: counts.get(n) || 0 });
+  return { buckets, answeredCount, average: answeredCount > 0 ? sum / answeredCount : 0 };
+}
+
+// One formsCountAnswers-style tally per Gitter row, reading
+// answers[field.id][row.id] instead of answers[field.id] directly (a
+// grid_single/grid_multi answer is a {rowId: value} map — see
+// forms_validate_answer server-side). Columns are formsResolveOptions(field)
+// same as any select/checkboxes field, since a grid's "options" ARE its
+// columns.
+function formsGridStats(field, responses) {
+  const options = formsResolveOptions(field);
+  const rows = Array.isArray(field.rows) ? field.rows : [];
+  return rows.map((row) => {
+    const counts = new Map(options.map((o) => [String(o.value), 0]));
+    let answeredCount = 0;
+    for (const r of responses) {
+      const cell = r.answers ? r.answers[field.id] : undefined;
+      const v = cell && typeof cell === 'object' ? cell[row.id] : undefined;
+      if (v === undefined || (Array.isArray(v) && v.length === 0)) continue;
+      answeredCount++;
+      for (const val of (Array.isArray(v) ? v : [v])) {
+        const key = String(val);
+        if (counts.has(key)) counts.set(key, counts.get(key) + 1);
+      }
+    }
+    const items = options.map((o) => {
+      const count = counts.get(String(o.value)) || 0;
+      return { label: o.label, count, percent: answeredCount > 0 ? Math.round((count / answeredCount) * 100) : 0 };
+    });
+    return { row, items, answeredCount };
+  });
+}
+
+// Non-empty, trimmed text/textarea answers in submission order — same
+// "unanswered = key omitted or empty string" convention forms_submit
+// stores server-side.
+function formsTextAnswers(field, responses) {
+  const out = [];
+  for (const r of responses) {
+    const v = r.answers ? r.answers[field.id] : undefined;
+    if (typeof v === 'string' && v.trim() !== '') out.push(v.trim());
+  }
+  return out;
+}
+
+// Single-hue horizontal bar list — one row per option, used for Vælg
+// flere, Skala's value histogram, and each Gitter row. All share the
+// site's own --accent blue rather than a categorical palette: these bars
+// compare one question's own answer magnitudes, not distinct series
+// identities (see FORMS_STATS_PALETTE's own comment above for why the pie
+// chart is the one exception).
+function formsStatsBarList(items) {
+  const wrap = el('div', 'forms-stats-bar-list');
+  for (const item of items) {
+    const row = el('div', 'forms-stats-bar-row');
+    row.appendChild(el('span', 'forms-stats-bar-label', item.label));
+    const track = el('div', 'forms-stats-bar-track');
+    const fill = el('div', 'forms-stats-bar-fill');
+    fill.style.width = item.percent + '%';
+    track.appendChild(fill);
+    row.appendChild(track);
+    row.appendChild(el('span', 'forms-stats-bar-value', `${item.count} (${item.percent}%)`));
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+// Skala: the same bar-list primitive as formsStatsBarList, one row per
+// scale value, plus the average prominently displayed above it.
+function formsStatsScale(stats) {
+  const wrap = el('div', 'forms-stats-scale');
+  wrap.appendChild(el('div', 'forms-stats-scale-avg', `Gennemsnit: ${stats.average.toFixed(1)}`));
+  const items = stats.buckets.map((b) => ({
+    label: String(b.value),
+    count: b.count,
+    percent: stats.answeredCount > 0 ? Math.round((b.count / stats.answeredCount) * 100) : 0,
+  }));
+  wrap.appendChild(formsStatsBarList(items));
+  return wrap;
+}
+
+// Gitter: one labeled formsStatsBarList per row, stacked vertically —
+// deliberately separate mini-charts, not one combined chart, so e.g. each
+// rehearsal date's own availability breakdown reads on its own.
+function formsStatsGrid(rowStatsList) {
+  const wrap = el('div', 'forms-stats-grid');
+  for (const { row, items, answeredCount } of rowStatsList) {
+    const block = el('div', 'forms-stats-grid-row');
+    block.appendChild(el('div', 'forms-stats-grid-row-label', row.label));
+    block.appendChild(answeredCount === 0
+      ? el('p', 'forms-stats-empty', 'Ingen svar for denne linje.')
+      : formsStatsBarList(items));
+    wrap.appendChild(block);
+  }
+  return wrap;
+}
+
+// Vælg én / legacy yesno: a CSS conic-gradient pie built from cumulative
+// percentages against FORMS_STATS_PALETTE, plus a legend (swatch + label +
+// count + percent) — the legend, not the slice, carries the text, per the
+// "text never wears the data color" rule (a light palette slot reads as
+// illegible text on this site's own warm surface).
+function formsStatsDonut(items) {
+  const wrap = el('div', 'forms-stats-donut-wrap');
+  const total = items.reduce((sum, i) => sum + i.count, 0);
+  const circle = el('div', 'forms-stats-donut');
+  if (total > 0) {
+    let acc = 0;
+    const stops = [];
+    items.forEach((item, i) => {
+      if (item.count === 0) return;
+      const color = FORMS_STATS_PALETTE[i % FORMS_STATS_PALETTE.length];
+      const start = (acc / total) * 360;
+      acc += item.count;
+      const end = (acc / total) * 360;
+      stops.push(`${color} ${start}deg ${end}deg`);
+    });
+    circle.style.background = `conic-gradient(${stops.join(', ')})`;
+  }
+  wrap.appendChild(circle);
+  const legend = el('div', 'forms-stats-legend');
+  items.forEach((item, i) => {
+    const row = el('div', 'forms-stats-legend-row');
+    const swatch = el('span', 'forms-stats-legend-swatch');
+    swatch.style.background = FORMS_STATS_PALETTE[i % FORMS_STATS_PALETTE.length];
+    row.appendChild(swatch);
+    row.appendChild(el('span', 'forms-stats-legend-label', item.label));
+    row.appendChild(el('span', 'forms-stats-legend-value', `${item.count} (${item.percent}%)`));
+    legend.appendChild(row);
+  });
+  wrap.appendChild(legend);
+  return wrap;
+}
+
+// Kort svar / Langt svar: a scrollable list of the raw submitted text,
+// same overflow-y:auto convention as .forms-responses-wrap's horizontal
+// scroll container above — here vertical, since a comment list can run
+// long but each entry doesn't need its own row width.
+function formsStatsComments(values) {
+  const wrap = el('div', 'forms-stats-comments');
+  for (const v of values) wrap.appendChild(el('p', 'forms-stats-comment-row', v));
+  return wrap;
 }
 
 // ── Init ─────────────────────────────────────────────────────
