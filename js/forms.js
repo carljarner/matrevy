@@ -889,7 +889,10 @@ async function renderFormFillIn(root, formId) {
         else input.querySelectorAll('input[type=checkbox], input[type=radio]').forEach((cb) => { cb.checked = false; });
       }
       submitBtn.disabled = true;
-      showPage(0);
+      // Stays on whichever page Indsend was clicked from (always the last
+      // one) rather than jumping back to page 1 — a multi-page form
+      // shouldn't dump the visitor back at the top after they've just
+      // finished it.
     } else if (res.message) {
       setMsg(res.message, 'error');
     } else {
