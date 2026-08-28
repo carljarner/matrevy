@@ -2408,6 +2408,24 @@ function faelles_validate_days($daysIn) {
   return $days;
 }
 
+// Tags a row as having been created/refreshed by a Formularer import
+// (`{formId, responseId}`) — an opaque pair, not cross-checked against
+// Forms' own storage (same "don't validate against a live external list"
+// posture as faelles_validate_days above), used purely so re-running an
+// import updates the previously-imported row instead of duplicating it.
+// `present:false` means the request simply didn't include a `source` (an
+// ordinary grid edit) — leave whatever the row already has untouched;
+// `invalid:true` means one was sent but malformed.
+function faelles_validate_source($sourceIn) {
+  if ($sourceIn === null) return ['present' => false];
+  if (!is_array($sourceIn)) return ['present' => false, 'invalid' => true];
+  $formId = $sourceIn['formId'] ?? '';
+  $responseId = $sourceIn['responseId'] ?? '';
+  if (!is_string($formId) || $formId === '' || mb_strlen($formId) > 80) return ['present' => false, 'invalid' => true];
+  if (!is_string($responseId) || $responseId === '' || mb_strlen($responseId) > 80) return ['present' => false, 'invalid' => true];
+  return ['present' => true, 'source' => ['formId' => $formId, 'responseId' => $responseId]];
+}
+
 function faelles_read($body) {
   $doc = faelles_load();
   respond(200, ['ok' => true, 'fields' => $doc['fields'], 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
@@ -2416,14 +2434,23 @@ function faelles_read($body) {
 // Revyst: create (no rowId) or update (rowId given) one row. `answers` is
 // merged onto the existing row's answers (only overwriting keys actually
 // sent), `days` is a full replace — a checkbox handler always has the
-// complete current day-set on hand, so that's safe.
+// complete current day-set on hand, so that's safe. An optional `source`
+// ({formId, responseId}) tags the row as having come from a Formularer
+// import (see faelles_validate_source) — the client's import flow (boss-
+// level, reusing forms_admin_list/forms_admin_read directly, no dedicated
+// server action needed) uses it to find and update a previously-imported
+// row instead of duplicating it on a re-run.
 function faelles_upsert_row($body) {
   $rowId = $body['rowId'] ?? null;
   if ($rowId !== null && (!is_string($rowId) || !faelles_valid_id($rowId))) {
     respond(400, ['error' => 'invalid_shape']);
   }
+  $sourceIn = array_key_exists('source', $body) ? $body['source'] : null;
+  $sourceResult = faelles_validate_source($sourceIn);
+  if (!empty($sourceResult['invalid'])) respond(400, ['error' => 'invalid_shape']);
+
   $savedRow = null;
-  $doc = faelles_mutate(function ($doc) use ($rowId, $body, &$savedRow) {
+  $doc = faelles_mutate(function ($doc) use ($rowId, $body, $sourceResult, &$savedRow) {
     $answers = faelles_validate_answers($body['answers'] ?? [], $doc['fields']);
     $days = faelles_validate_days($body['days'] ?? []);
     if ($answers === null || $days === null) respond(400, ['error' => 'invalid_shape']);
@@ -2434,6 +2461,7 @@ function faelles_upsert_row($body) {
         $row['answers'] = array_merge($row['answers'], $answers);
         $row['days'] = $days;
         $row['updatedAt'] = $now;
+        if ($sourceResult['present']) $row['source'] = $sourceResult['source'];
         $savedRow = $row;
         $found = true;
         break;
@@ -2449,6 +2477,7 @@ function faelles_upsert_row($body) {
         'createdAt' => $now,
         'updatedAt' => $now,
       ];
+      if ($sourceResult['present']) $savedRow['source'] = $sourceResult['source'];
       $doc['rows'][] = $savedRow;
     }
     $doc['updatedAt'] = $now;

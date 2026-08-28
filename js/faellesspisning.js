@@ -162,6 +162,10 @@ function faellesRender(root) {
     const editFieldsBtn = faellesPillBtn('Rediger felter');
     editFieldsBtn.addEventListener('click', () => faellesOpenFieldEditor(root));
     actions.appendChild(editFieldsBtn);
+
+    const importBtn = faellesPillBtn('Importér fra formular');
+    importBtn.addEventListener('click', () => faellesOpenImportModal(root));
+    actions.appendChild(importBtn);
   }
   const refreshBtn = faellesPillBtn('Opdater');
   refreshBtn.addEventListener('click', () => faellesLoad(root));
@@ -508,6 +512,167 @@ function faellesSlugForLabel(label, existingIds) {
     n += 1;
   }
   return candidate;
+}
+
+// ── Boss import from Formularer ──────────────────────────────
+// Lets boss/admin pull an existing form's responses straight into the
+// grid — pick a form (e.g. "Tilmelding 2026"), then which of its fields
+// maps to Navn and which to Madforbehold. Reuses Forms' own boss-level
+// actions directly (forms_admin_list/forms_admin_read) rather than adding
+// a dedicated server endpoint — the shared password/level model doesn't
+// care which page a request came from, so this is a legitimate reuse, not
+// a workaround.
+async function faellesOpenImportModal(root) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Importér fra formular');
+  modal.classList.add('faelles-import-modal');
+
+  const status = el('p', 'faelles-summary-note', 'Indlæser formularer…');
+  form.appendChild(status);
+
+  const listResult = await faellesApi('forms_admin_list', {});
+  status.remove();
+  if (!listResult.ok) {
+    error.textContent = listResult.message || 'Kunne ikke hente formularer.';
+    return;
+  }
+  const forms = listResult.data.forms || [];
+  if (forms.length === 0) {
+    form.appendChild(el('p', 'faelles-summary-note', 'Ingen formularer fundet.'));
+    return;
+  }
+
+  const formOptions = forms.map((f) => ({
+    value: f.id,
+    label: `${f.title || '(uden titel)'} — ${f.responseCount} svar`,
+  }));
+  const formPicker = siteCreateDropdownField(formOptions, formOptions[0].value);
+  form.appendChild(siteEditField('Formular', formPicker));
+
+  const fieldsContainer = el('div');
+  form.appendChild(fieldsContainer);
+
+  let currentFormId = null;
+  let currentResponses = [];
+  let navnPicker = null;
+  let madforboholdPicker = null;
+
+  async function loadFormFields(formId) {
+    currentFormId = formId;
+    navnPicker = null;
+    madforboholdPicker = null;
+    fieldsContainer.replaceChildren();
+    fieldsContainer.appendChild(el('p', 'faelles-summary-note', 'Indlæser felter…'));
+    const readResult = await faellesApi('forms_admin_read', { formId });
+    fieldsContainer.replaceChildren();
+    if (!readResult.ok) {
+      error.textContent = readResult.message || 'Kunne ikke hente formularen.';
+      return;
+    }
+    currentResponses = readResult.data.responses || [];
+    const fieldOpts = faellesFormFieldOptions(readResult.data.definition);
+    if (fieldOpts.length === 0) {
+      fieldsContainer.appendChild(el('p', 'faelles-summary-note', 'Formularen har ingen felter at vælge imellem.'));
+      return;
+    }
+    navnPicker = siteCreateDropdownField(fieldOpts, fieldOpts[0].value);
+    madforboholdPicker = siteCreateDropdownField(fieldOpts, fieldOpts[0].value);
+    fieldsContainer.appendChild(siteEditField('Navn-felt', navnPicker));
+    fieldsContainer.appendChild(siteEditField('Madforbehold-felt', madforboholdPicker));
+    fieldsContainer.appendChild(el('p', 'faelles-summary-note',
+      `${currentResponses.length} svar fundet. Import kan køres igen senere — allerede importerede rækker opdateres, de dubleres ikke.`));
+  }
+
+  formPicker.addEventListener('change', () => loadFormFields(formPicker.value));
+  await loadFormFields(formPicker.value);
+
+  const cancelBtn = faellesPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const importBtn = faellesPillBtn('Importér', 'site-pill-primary');
+  importBtn.addEventListener('click', async () => {
+    if (!currentFormId || !navnPicker || !madforboholdPicker) return;
+    importBtn.disabled = true;
+    error.textContent = '';
+    const result = await faellesImportResponses(currentFormId, currentResponses, navnPicker.value, madforboholdPicker.value);
+    importBtn.disabled = false;
+    if (!result.ok) {
+      error.textContent = result.message || 'Import fejlede.';
+      return;
+    }
+    close();
+    faellesRender(root);
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(importBtn);
+}
+
+// A form's fields can live either directly on the definition or inside its
+// sections (see forms_submit's own identical merge server-side) — flatten
+// both so every real question is offered, regardless of layout.
+function faellesFormFieldOptions(definition) {
+  const fields = (definition.fields || []).concat(
+    (definition.sections || []).flatMap((s) => s.fields || [])
+  );
+  return fields
+    .filter((f) => f && f.id && f.label)
+    .map((f) => ({ value: f.id, label: f.label }));
+}
+
+// Stringifies a Forms answer value regardless of field type — plain text
+// for text/textarea/select, comma-joined for checkboxes/grid_multi,
+// Ja/Nej for yesno, etc. — so mapping Navn/Madforbehold to any field type
+// degrades gracefully instead of importing "[object Object]".
+function faellesAnswerToText(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return value ? 'Ja' : 'Nej';
+  if (Array.isArray(value)) return value.map(faellesAnswerToText).filter(Boolean).join(', ');
+  if (typeof value === 'object') return Object.values(value).map(faellesAnswerToText).filter(Boolean).join(', ');
+  return String(value);
+}
+
+// Imports one form's responses into the grid, mapping navnFieldId/
+// madforboholdFieldId's answers onto the Navn/Madforbehold columns. A
+// response already imported from this exact form (tracked via each row's
+// `source: {formId, responseId}`) is updated in place rather than
+// duplicated, so this is safe to run again as new sign-ups come in — an
+// existing row's day-selections are preserved (resent unchanged), only
+// Navn/Madforbehold refresh from the form. A response with no Navn answer
+// is skipped (nothing meaningful to import). Stops at the first failure
+// and reports it — already-imported responses before that point stay
+// imported.
+async function faellesImportResponses(formId, responses, navnFieldId, madforboholdFieldId) {
+  const existingBySource = new Map();
+  for (const row of faellesState.rows) {
+    if (row.source && row.source.formId === formId) existingBySource.set(row.source.responseId, row);
+  }
+
+  for (const resp of responses) {
+    const answers = resp.answers || {};
+    const navn = faellesAnswerToText(answers[navnFieldId]);
+    if (!navn) continue;
+    const madforbehold = faellesAnswerToText(answers[madforboholdFieldId]);
+    const existingRow = existingBySource.get(resp.id);
+    const body = {
+      answers: { navn, madforbehold },
+      days: existingRow ? existingRow.days : [],
+      source: { formId, responseId: resp.id },
+    };
+    if (existingRow) body.rowId = existingRow.id;
+    const result = await faellesApi('faelles_upsert_row', body);
+    if (!result.ok) return result;
+    if (existingRow) {
+      existingRow.answers = result.data.row.answers;
+      existingRow.source = result.data.row.source;
+    } else {
+      const newRow = result.data.row;
+      faellesState.rows.push(newRow);
+      existingBySource.set(resp.id, newRow);
+    }
+  }
+  return { ok: true };
 }
 
 // ── Init ─────────────────────────────────────────────────────
