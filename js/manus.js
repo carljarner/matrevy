@@ -3941,7 +3941,6 @@ function renderManusPdfLinksSection() {
     ['Aktfordeling', 'Aktoversigt.pdf'],
     ['Rollefordeling', 'Rolleoversigt.pdf'],
     ['Manus', 'Manuskript.pdf'],
-    ['Program', 'Program.pdf'],
   ];
   for (const [label, filename] of files) {
     const btn = document.createElement('button');
@@ -3956,6 +3955,26 @@ function renderManusPdfLinksSection() {
     btn.addEventListener('click', () => openFile(filename));
     linkRow.appendChild(btn);
   }
+
+  // Program.pdf has two generated layouts (see buildProgramTex()'s
+  // 'standard'/'booklet' variants in scripts/generate-pdfs.js) — a dropdown
+  // picker instead of a direct-open button, same pattern as "Individuelt
+  // Manus" below.
+  const PROGRAM_PDF_VARIANTS = [
+    { value: 'Program.pdf', label: 'Standard' },
+    { value: 'ProgramHaefte.pdf', label: 'Hæfte' },
+  ];
+  const programBtn = document.createElement('button');
+  programBtn.type = 'button';
+  programBtn.className = 'site-pill-btn site-pill-warm';
+  programBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
+  programBtn.textContent = 'Program';
+  programBtn.addEventListener('click', () => {
+    siteOpenDropdownPicker(programBtn, PROGRAM_PDF_VARIANTS, null, (filename) => {
+      openFile(filename);
+    });
+  });
+  linkRow.appendChild(programBtn);
 
   const individualBtn = document.createElement('button');
   individualBtn.type = 'button';

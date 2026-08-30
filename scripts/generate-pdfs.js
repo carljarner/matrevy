@@ -513,7 +513,18 @@ async function generateQrFiles(workDir, qrCodes) {
 // QR code from) and are ALWAYS run through texEscape() — the opposite
 // convention, and easy to get backwards, so don't "fix" one to match the
 // other.
-function buildProgramTex(programActs, prodMeta, programData, images) {
+// `variant` picks the section order:
+// - 'standard' (default): front cover, Aktoversigt, Medvirkende, Ordliste,
+//   QR-koder, back cover — the original order this function always built.
+// - 'booklet': front cover, Aktoversigt, Ordliste, Medvirkende, a blank
+//   page, QR-koder, back cover — a second requested layout (Manus page's
+//   Program tab offers a choice between the two, mirroring the "Individuelt
+//   Manus" dropdown's per-person picker — see renderManusPdfLinksSection in
+//   js/manus.js). Same content/images either way, just reordered, plus one
+//   inserted blank page — not real print-imposition (folded sheet order for
+//   physical saddle-stitch booklet printing), just this specific section
+//   sequence, which is all that was actually asked for.
+function buildProgramTex(programActs, prodMeta, programData, images, variant = 'standard') {
   const { coverFile, backFile, qrFiles } = images;
 
   // Wrapped in a local \baselineskip bump (scoped to this \begin{center}...
@@ -541,6 +552,65 @@ function buildProgramTex(programActs, prodMeta, programData, images) {
     qrBody += `\\vspace*{\\fill}\n\\huge{${texEscape(qr.label)}}\\\\\n\\vspace{10mm}\n\\includegraphics[width=9cm]{${file}}\\\\\n\\vspace*{\\fill}\n`;
   }
 
+  const frontCover = `% Front cover
+\\begin{center}
+\\vspace*{\\fill}
+\\includegraphics[width=\\textwidth]{${coverFile}}
+\\vspace*{\\fill}
+\\end{center}`;
+
+  const aktSection = `% Aktoversigt
+\\begin{center}
+{\\Huge Aktoversigt}
+\\end{center}
+\\begin{center}
+${aktBody}\\end{center}`;
+
+  const medSection = `% Medvirkende
+\\begin{center}
+{\\Huge Medvirkende}
+\\end{center}
+\\begin{multicols}{2}
+${medBody}
+\\end{multicols}`;
+
+  const ordSection = `% Ordliste
+\\begin{center}
+{\\Huge Ordliste}
+\\end{center}
+\\begin{multicols}{2}
+\\noindent
+${ordBody}
+\\end{multicols}`;
+
+  const qrSection = `% QR-koder
+\\begin{center}
+${qrBody}\\end{center}`;
+
+  // A genuinely blank page — \clearpage alone wouldn't produce one here,
+  // since a \clearpage immediately following another with no material in
+  // between collapses to nothing; \mbox{} puts an empty-but-real box on the
+  // page so it actually gets flushed.
+  const blankPage = '% Blank page\n\\mbox{}';
+
+  const backCover = `% Back cover
+\\begin{center}
+\\vspace*{\\fill}
+\\includegraphics[width=0.6\\textwidth]{${backFile}}
+\\vspace*{\\fill}
+\\end{center}`;
+
+  const middleSections = variant === 'booklet'
+    ? [aktSection, ordSection, medSection, blankPage, qrSection]
+    : [aktSection, medSection, ordSection, qrSection];
+
+  const body = [frontCover, ...middleSections, backCover]
+    .map((section) => `${section}\n\\clearpage`)
+    .join('\n\n')
+    // The very last \clearpage before \end{document} is redundant (nothing
+    // follows it) but harmless; left in place rather than special-cased.
+    ;
+
   return `\\documentclass[a4paper,12pt]{article}
 \\usepackage[a4paper, hmargin=2cm, vmargin=1cm]{geometry}
 \\usepackage[danish]{babel}
@@ -555,52 +625,7 @@ function buildProgramTex(programActs, prodMeta, programData, images) {
 
 \\begin{document}
 
-% Front cover
-\\begin{center}
-\\vspace*{\\fill}
-\\includegraphics[width=\\textwidth]{${coverFile}}
-\\vspace*{\\fill}
-\\end{center}
-\\clearpage
-
-% Aktoversigt
-\\begin{center}
-{\\Huge Aktoversigt}
-\\end{center}
-\\begin{center}
-${aktBody}\\end{center}
-\\clearpage
-
-% Medvirkende
-\\begin{center}
-{\\Huge Medvirkende}
-\\end{center}
-\\begin{multicols}{2}
-${medBody}
-\\end{multicols}
-\\clearpage
-
-% Ordliste
-\\begin{center}
-{\\Huge Ordliste}
-\\end{center}
-\\begin{multicols}{2}
-\\noindent
-${ordBody}
-\\end{multicols}
-\\clearpage
-
-% QR-koder
-\\begin{center}
-${qrBody}\\end{center}
-\\clearpage
-
-% Back cover
-\\begin{center}
-\\vspace*{\\fill}
-\\includegraphics[width=0.6\\textwidth]{${backFile}}
-\\vspace*{\\fill}
-\\end{center}
+${body}
 
 \\end{document}
 `;
@@ -904,10 +929,20 @@ async function main() {
     fs.copyFileSync(root(coverRel), path.join(workDir, coverFile));
     fs.copyFileSync(root(backRel), path.join(workDir, backFile));
     const qrFiles = await generateQrFiles(workDir, programJson.qrCodes || []);
-    const programTex = buildProgramTex(programActs, prodMeta, programJson, { coverFile, backFile, qrFiles });
+    const images = { coverFile, backFile, qrFiles };
+    const programTex = buildProgramTex(programActs, prodMeta, programJson, images, 'standard');
     fs.writeFileSync(path.join(workDir, 'Program.tex'), programTex, 'utf8');
     const programPdf = compileTex(workDir, 'Program.tex');
     copyToRepo(programPdf, `archive/${currentFolder}/Program.pdf`);
+
+    // Second layout, same content/images — see buildProgramTex()'s own
+    // comment on the 'booklet' variant and js/manus.js's Program quick-link
+    // picker, which lets a boss choose between the two.
+    console.log('  Compiling ProgramHaefte...');
+    const bookletTex = buildProgramTex(programActs, prodMeta, programJson, images, 'booklet');
+    fs.writeFileSync(path.join(workDir, 'ProgramHaefte.tex'), bookletTex, 'utf8');
+    const bookletPdf = compileTex(workDir, 'ProgramHaefte.tex');
+    copyToRepo(bookletPdf, `archive/${currentFolder}/ProgramHaefte.pdf`);
   }
 
   console.log(
