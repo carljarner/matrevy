@@ -7,12 +7,12 @@ const PROGRAM_DATA = {
     {
       "id": "qr1",
       "label": "Sangtekster",
-      "url": ""
+      "url": "https://github.com/carljarner/matrevy/tree/main/archive/MatRevy_2026/songs"
     },
     {
       "id": "qr2",
       "label": "Interesseret i at være med i Matematikrevyen næste år?",
-      "url": ""
+      "url": "https://matematikrevy.dk/kalender.html"
     }
   ]
 };
