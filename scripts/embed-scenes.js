@@ -102,7 +102,7 @@ const EMBEDS = [
     sources: 'data/program.json',
     globals: () => {
       const program = readJson('data/program.json');
-      console.log(`  program: ${program.medvirkende.length} medvirkende-kategorier, ${program.ordliste.length} ordliste-termer, ${program.qrCodes.length} qr-koder`);
+      console.log(`  program: ${program.medvirkende.length} tegn medvirkende, ${program.ordliste.length} tegn ordliste, ${program.qrCodes.length} qr-koder`);
       return { PROGRAM_DATA: program };
     },
   },

@@ -206,7 +206,7 @@ let manuscriptsOverride = siteLoadOverride('manuscripts');
 let programOverride = siteLoadOverride('program');
 
 function getEffectiveProgram() {
-  return programOverride || (typeof PROGRAM_DATA !== 'undefined' ? PROGRAM_DATA : { medvirkende: [], ordliste: [], qrCodes: [] });
+  return programOverride || (typeof PROGRAM_DATA !== 'undefined' ? PROGRAM_DATA : { medvirkende: '', ordliste: '', qrCodes: [] });
 }
 
 function getEffectiveManuscripts() {
@@ -3175,78 +3175,17 @@ function programDragHandle() {
   return handle;
 }
 
-function renderProgramNameRow(cat, person) {
-  const row = document.createElement('div');
-  row.className = 'manus-akt-row manus-program-name-row';
-  row.appendChild(programDragHandle());
-
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.className = 'manus-program-input';
-  nameInput.placeholder = 'Navn';
-  nameInput.value = person.name;
-  nameInput.addEventListener('input', () => { person.name = nameInput.value; });
-  row.appendChild(nameInput);
-
-  const noteInput = document.createElement('input');
-  noteInput.type = 'text';
-  noteInput.className = 'manus-program-input manus-program-note-input';
-  noteInput.placeholder = 'Note (valgfri, fx Boss)';
-  noteInput.value = person.note || '';
-  noteInput.addEventListener('input', () => { person.note = noteInput.value; });
-  row.appendChild(noteInput);
-
-  row.appendChild(programRemoveBtn(`Slet ${person.name || 'navn'}`, () => {
-    cat.names = cat.names.filter((n) => n.id !== person.id);
-    renderProgramTab();
-  }));
-
-  programWireRowDrag(row, person.id, cat.names, renderProgramTab);
-  return row;
-}
-
-function renderProgramCategoryRow(cat) {
-  const wrap = document.createElement('div');
-  wrap.className = 'manus-program-cat-row';
-
-  const header = document.createElement('div');
-  header.className = 'manus-akt-row manus-program-cat-header';
-  header.appendChild(programDragHandle());
-
-  const catInput = document.createElement('input');
-  catInput.type = 'text';
-  catInput.className = 'manus-program-input manus-program-cat-input';
-  catInput.placeholder = 'Kategori (fx Koordinatorer)';
-  catInput.value = cat.category;
-  catInput.addEventListener('input', () => { cat.category = catInput.value; });
-  header.appendChild(catInput);
-
-  header.appendChild(programRemoveBtn(`Slet kategorien ${cat.category || 'uden navn'}`, () => {
-    programDraft.medvirkende = programDraft.medvirkende.filter((c) => c.id !== cat.id);
-    renderProgramTab();
-  }));
-
-  wrap.appendChild(header);
-  programWireRowDrag(header, cat.id, programDraft.medvirkende, renderProgramTab);
-
-  const nameList = document.createElement('div');
-  nameList.className = 'manus-program-name-list';
-  cat.names.forEach((person) => nameList.appendChild(renderProgramNameRow(cat, person)));
-  wrap.appendChild(nameList);
-
-  const addNameBtn = document.createElement('button');
-  addNameBtn.type = 'button';
-  addNameBtn.className = 'manus-program-add-name-btn';
-  addNameBtn.textContent = '+ Navn';
-  addNameBtn.addEventListener('click', () => {
-    cat.names.push({ id: programNextId(), name: '', note: '' });
-    renderProgramTab();
-  });
-  wrap.appendChild(addNameBtn);
-
-  return wrap;
-}
-
+// Medvirkende and Ordliste are edited as raw LaTeX text, exactly like the
+// Manus tab's scriptBody box (openScriptSceneModal) or Rollefordeling's
+// \role{} textarea (openRoleSceneModal) — a plain monospace textarea,
+// live-bound straight into programDraft on every keystroke (no separate
+// "Opdater" step, unlike the roles textarea, since there's no structured
+// row array to re-derive here — the string *is* the data). buildProgramTex
+// wraps this content in \begin{multicols}{2}...\end{multicols} and inserts
+// it verbatim (see that function's own comment on the escaping convention
+// this switches to). \arb{} is a small helper macro (\textbf{#1}\\, matching
+// the original hand-maintained program.tex) defined in that same preamble so
+// `\arb{Koordinatorer}`-style category headers work here unchanged.
 function renderProgramMedvirkendeSection() {
   const section = document.createElement('section');
   section.className = 'card manus-program-section';
@@ -3254,52 +3193,20 @@ function renderProgramMedvirkendeSection() {
   h2.textContent = 'Medvirkende';
   section.appendChild(h2);
 
-  const list = document.createElement('div');
-  list.className = 'manus-program-cat-list';
-  programDraft.medvirkende.forEach((cat) => list.appendChild(renderProgramCategoryRow(cat)));
-  section.appendChild(list);
+  const hint = document.createElement('p');
+  hint.className = 'manus-col-empty';
+  hint.textContent = 'Rå LaTeX, ligesom Manus/Rollefordeling. Brug \\arb{Kategori} til en overskrift, og afslut hvert navn med \\\\.';
+  section.appendChild(hint);
 
-  const addCatBtn = document.createElement('button');
-  addCatBtn.type = 'button';
-  addCatBtn.className = 'site-pill-btn site-pill-warm';
-  addCatBtn.textContent = '+ Kategori';
-  addCatBtn.addEventListener('click', () => {
-    programDraft.medvirkende.push({ id: programNextId(), category: '', names: [] });
-    renderProgramTab();
-  });
-  section.appendChild(addCatBtn);
+  const textarea = document.createElement('textarea');
+  textarea.className = 'manus-script-textarea manus-program-textarea';
+  textarea.rows = 20;
+  textarea.spellcheck = false;
+  textarea.value = programDraft.medvirkende;
+  textarea.addEventListener('input', () => { programDraft.medvirkende = textarea.value; });
+  section.appendChild(textarea);
 
   return section;
-}
-
-function renderProgramTermRow(entry) {
-  const row = document.createElement('div');
-  row.className = 'manus-akt-row manus-program-term-row';
-  row.appendChild(programDragHandle());
-
-  const termInput = document.createElement('input');
-  termInput.type = 'text';
-  termInput.className = 'manus-program-input';
-  termInput.placeholder = 'Ord';
-  termInput.value = entry.term;
-  termInput.addEventListener('input', () => { entry.term = termInput.value; });
-  row.appendChild(termInput);
-
-  const defInput = document.createElement('textarea');
-  defInput.className = 'manus-program-input manus-program-def-input';
-  defInput.rows = 1;
-  defInput.placeholder = 'Forklaring';
-  defInput.value = entry.definition;
-  defInput.addEventListener('input', () => { entry.definition = defInput.value; });
-  row.appendChild(defInput);
-
-  row.appendChild(programRemoveBtn(`Slet ordet ${entry.term || 'uden navn'}`, () => {
-    programDraft.ordliste = programDraft.ordliste.filter((o) => o.id !== entry.id);
-    renderProgramTab();
-  }));
-
-  programWireRowDrag(row, entry.id, programDraft.ordliste, renderProgramTab);
-  return row;
 }
 
 function renderProgramOrdlisteSection() {
@@ -3311,23 +3218,16 @@ function renderProgramOrdlisteSection() {
 
   const hint = document.createElement('p');
   hint.className = 'manus-col-empty';
-  hint.textContent = 'Sorteres alfabetisk automatisk, når Program.pdf bygges — rækkefølgen her er kun til redigering.';
+  hint.textContent = 'Rå LaTeX, ligesom Manus/Rollefordeling — fx \\textbf{Ord:} Forklaring \\\\. Rækkefølgen her er også rækkefølgen i Program.pdf.';
   section.appendChild(hint);
 
-  const list = document.createElement('div');
-  list.className = 'manus-program-term-list';
-  programDraft.ordliste.forEach((entry) => list.appendChild(renderProgramTermRow(entry)));
-  section.appendChild(list);
-
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'site-pill-btn site-pill-warm';
-  addBtn.textContent = '+ Ord';
-  addBtn.addEventListener('click', () => {
-    programDraft.ordliste.push({ id: programNextId(), term: '', definition: '' });
-    renderProgramTab();
-  });
-  section.appendChild(addBtn);
+  const textarea = document.createElement('textarea');
+  textarea.className = 'manus-script-textarea manus-program-textarea';
+  textarea.rows = 20;
+  textarea.spellcheck = false;
+  textarea.value = programDraft.ordliste;
+  textarea.addEventListener('input', () => { programDraft.ordliste = textarea.value; });
+  section.appendChild(textarea);
 
   return section;
 }
@@ -3396,26 +3296,17 @@ function renderProgramQrSection() {
   return section;
 }
 
-// Trims every field and drops rows the admin added but never filled in at
-// all (an untouched blank "+ Kategori"/"+ Ord"/"+ QR-kode" row) — anything
-// with *some* content survives verbatim, including a partially-filled row,
-// so a genuine mistake (e.g. a name with no category) is caught by
-// save_program's own server-side validation and surfaced as an error,
-// rather than silently dropped here.
+// Medvirkende/ordliste are trimmed raw-LaTeX strings now (see
+// renderProgramMedvirkendeSection/renderProgramOrdlisteSection above).
+// qrCodes stays a structured array — trims every field and drops rows the
+// boss added but never filled in at all (an untouched blank "+ QR-kode"
+// row) — anything with *some* content survives verbatim, including a
+// partially-filled row, so a genuine mistake is caught by save_program's own
+// server-side validation and surfaced as an error, rather than silently
+// dropped here.
 function programBuildSavePayload() {
-  const medvirkende = programDraft.medvirkende
-    .map((c) => ({
-      id: c.id,
-      category: c.category.trim(),
-      names: c.names
-        .map((n) => ({ id: n.id, name: n.name.trim(), note: (n.note || '').trim() }))
-        .filter((n) => n.name || n.note),
-    }))
-    .filter((c) => c.category || c.names.length);
-
-  const ordliste = programDraft.ordliste
-    .map((o) => ({ id: o.id, term: o.term.trim(), definition: (o.definition || '').trim() }))
-    .filter((o) => o.term || o.definition);
+  const medvirkende = programDraft.medvirkende.trim();
+  const ordliste = programDraft.ordliste.trim();
 
   const qrCodes = programDraft.qrCodes
     .map((q) => ({ id: q.id, label: q.label.trim(), url: (q.url || '').trim() }))

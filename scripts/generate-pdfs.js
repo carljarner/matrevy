@@ -498,14 +498,30 @@ async function generateQrFiles(workDir, qrCodes) {
 // Escaping: act.label/scene.name/scene.melody are raw, already-valid LaTeX
 // straight out of scenes.json (same as buildAktoversigtTex above — a scene's
 // title/melody is typed as real LaTeX via the Manus tab, e.g. "$\chi$-faktor"
-// or "S\&M"). Every program.json string (category/name/note/term/definition/
-// label), by contrast, is plain text typed into the Program tab's web form
-// and is ALWAYS run through texEscape() — the opposite convention, and easy
-// to get backwards, so don't "fix" one to match the other.
+// or "S\&M"). programData.medvirkende/.ordliste are ALSO raw, already-valid
+// LaTeX now — boss-typed through the Program tab's own plain textareas
+// (js/manus.js's renderProgramMedvirkendeSection/renderProgramOrdlisteSection,
+// mirroring scenes.json's scriptBody box) — so those two are inserted
+// verbatim, un-texEscape()'d. This used to be a structured array
+// (category/name/note, term/definition) that this function assembled into
+// LaTeX itself, alphabetizing ordliste by `term` along the way; with
+// free-form LaTeX there's no structured field left to sort by, so both
+// content *and* ordering are now entirely the boss's own responsibility,
+// same as the original hand-maintained program.tex this feature replaced.
+// programData.qrCodes[].label/.url, by contrast, are still plain text typed
+// into small structured fields (a URL needs to stay a real URL to generate a
+// QR code from) and are ALWAYS run through texEscape() — the opposite
+// convention, and easy to get backwards, so don't "fix" one to match the
+// other.
 function buildProgramTex(programActs, prodMeta, programData, images) {
   const { coverFile, backFile, qrFiles } = images;
 
-  let aktBody = '';
+  // Wrapped in a local \baselineskip bump (scoped to this \begin{center}...
+  // \end{center} group) so scenes/act headers get noticeably more breathing
+  // room than the document's default line spacing — matches the old
+  // hand-maintained program.tex, which set the same 20pt around its own
+  // Aktoversigt block.
+  let aktBody = '\\setlength{\\baselineskip}{20pt}\n';
   for (const act of programActs) {
     aktBody += `\\vskip 18pt\n{\\Large \\bfseries ${texEscape(act.label)}}\n\\vskip 6pt\n`;
     for (const s of act.scenes) {
@@ -515,23 +531,8 @@ function buildProgramTex(programActs, prodMeta, programData, images) {
     }
   }
 
-  let medBody = '';
-  for (const cat of programData.medvirkende) {
-    if (!cat.names || !cat.names.length) continue;
-    medBody += `\\textbf{${texEscape(cat.category)}}\\\\\n`;
-    for (const person of cat.names) {
-      medBody += texEscape(person.name);
-      if (person.note) medBody += ` -- \\emph{${texEscape(person.note)}}`;
-      medBody += '\\\\\n';
-    }
-    medBody += '\n';
-  }
-
-  const ordlisteSorted = [...programData.ordliste].sort((a, b) => a.term.localeCompare(b.term, 'da'));
-  let ordBody = '';
-  for (const entry of ordlisteSorted) {
-    ordBody += `\\textbf{${texEscape(entry.term)}:} ${texEscape(entry.definition)} \\\\\n`;
-  }
+  const medBody = programData.medvirkende;
+  const ordBody = programData.ordliste;
 
   let qrBody = '';
   for (const qr of programData.qrCodes) {
@@ -547,6 +548,8 @@ function buildProgramTex(programActs, prodMeta, programData, images) {
 \\usepackage[T1]{fontenc}
 \\usepackage{graphicx}
 \\usepackage{multicol}
+\\usepackage{soul}
+\\newcommand{\\arb}[1]{\\textbf{#1}\\\\}
 \\setlength{\\parindent}{0pt}
 \\pagestyle{empty}
 
@@ -573,7 +576,8 @@ ${aktBody}\\end{center}
 {\\Huge Medvirkende}
 \\end{center}
 \\begin{multicols}{2}
-${medBody}\\end{multicols}
+${medBody}
+\\end{multicols}
 \\clearpage
 
 % Ordliste
@@ -582,7 +586,8 @@ ${medBody}\\end{multicols}
 \\end{center}
 \\begin{multicols}{2}
 \\noindent
-${ordBody}\\end{multicols}
+${ordBody}
+\\end{multicols}
 \\clearpage
 
 % QR-koder

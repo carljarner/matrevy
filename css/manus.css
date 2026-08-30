@@ -1449,7 +1449,7 @@ a.manus-pdf-title:focus-visible {
 /* --- Program tab (Medvirkende / Ordliste / QR-koder) ------------- */
 /* .manus-program-section extends .card, which already supplies the
    1.25rem stacked-card gap between Medvirkende/Ordliste/QR-koder — no
-   margin-bottom needed here. Rows reuse .manus-akt-row/.manus-akt-drag-
+   margin-bottom needed here. QR rows reuse .manus-akt-row/.manus-akt-drag-
    handle/.manus-select-remove verbatim (border/padding/background, and
    the .manus-drop-target drag-highlight ::before, all come free). */
 .manus-program-section h2 {
@@ -1457,30 +1457,18 @@ a.manus-pdf-title:focus-visible {
   margin-bottom: 0.75rem;
 }
 
-.manus-program-cat-list,
-.manus-program-term-list,
+/* Medvirkende/Ordliste are plain .manus-script-textarea boxes (same raw-
+   LaTeX editing as Manus/Rollefordeling) — this only adds the bit of
+   bottom margin .manus-script-textarea doesn't need inside a modal. */
+.manus-program-textarea {
+  margin-bottom: 0.25rem;
+}
+
 .manus-program-qr-list {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   margin-bottom: 0.6rem;
-}
-
-.manus-program-cat-row {
-  margin-bottom: 0.6rem;
-}
-
-.manus-program-cat-row:last-child {
-  margin-bottom: 0;
-}
-
-/* Indented one level under its category header, same visual nesting as a
-   Wiki chapter's attachment list. */
-.manus-program-name-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin: 0.4rem 0 0.4rem 1.5rem;
 }
 
 .manus-program-input {
@@ -1507,47 +1495,8 @@ a.manus-pdf-title:focus-visible {
   border-color: var(--danger);
 }
 
-.manus-program-cat-input {
-  font-weight: 600;
-}
-
-.manus-program-note-input,
 .manus-program-qr-row .manus-program-input:first-of-type {
   flex: 0 1 40%;
-}
-
-.manus-program-def-input {
-  resize: vertical;
-  min-height: 1.9rem;
-  font-family: inherit;
-}
-
-/* Small "+ Navn" affordance under each category's own name list — a
-   plainer, quieter chip than the section-level .site-pill-btn "+
-   Kategori"/"+ Ord"/"+ QR-kode" buttons, since it's nested one level
-   deeper. Mirrors .manus-role-tag-add's own idle look. */
-.manus-program-add-name-btn {
-  align-self: flex-start;
-  margin-left: 1.5rem;
-  padding: 0.2rem 0.6rem;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  background: none;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .manus-program-add-name-btn:hover {
-    border-color: var(--accent-warm);
-    color: var(--accent-warm-text);
-  }
-}
-
-.manus-program-add-name-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 /* Mirrors .manus-main-view-actions' own end-aligned error+button pairing,
@@ -1562,9 +1511,6 @@ a.manus-pdf-title:focus-visible {
 }
 
 @media (max-width: 719px) {
-  .manus-program-name-row,
-  .manus-program-cat-header,
-  .manus-program-term-row,
   .manus-program-qr-row {
     flex-wrap: wrap;
   }

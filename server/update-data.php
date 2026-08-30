@@ -3302,57 +3302,29 @@ function save_config($payload) {
 }
 
 // Boss/admin: full-array replace of the Program tab's content (Manus page)
-// — Medvirkende (categorized name lists), Ordliste (glossary term/definition
-// pairs) and QR-codes ({label, url}), feeding archive/<folder>/Program.pdf
-// (scripts/generate-pdfs.js's buildProgramTex). Every free-text field here
-// is plain admin-typed text (always texEscape()'d when composed into the
-// .tex — see that script's own comment), unlike scenes.json's name/
-// scriptBody/melody, which are raw pre-authored LaTeX — so validation here
-// only checks shape/length, same posture as save_wiki above. `qrCodes[].url`
-// is loosely checked to look like an http(s) link (not a hard requirement of
-// the PDF pipeline, just a sanity check against an obviously wrong value —
-// the actual QR image is generated from whatever string is here regardless).
+// — Medvirkende and Ordliste (each a single raw-LaTeX string, edited as a
+// plain textarea exactly like scenes.json's scriptBody — see
+// js/manus.js's renderProgramMedvirkendeSection/renderProgramOrdlisteSection)
+// plus QR-codes ({label, url}), feeding archive/<folder>/Program.pdf
+// (scripts/generate-pdfs.js's buildProgramTex). Unlike scenes.json's own
+// scriptBody/name/melody though, medvirkende/ordliste here are boss-typed
+// through this tab rather than pre-authored in a .tex upload, but the
+// escaping convention is the same: both are inserted into the .tex verbatim,
+// un-texEscape()'d (see buildProgramTex's own comment). Only a length cap is
+// checked here, same posture as save_wiki's body. `qrCodes[].label`/`.url`
+// stay plain admin-typed text (always texEscape()'d) since those aren't
+// LaTeX — `url` is loosely checked to look like an http(s) link (not a hard
+// requirement of the PDF pipeline, just a sanity check against an obviously
+// wrong value — the actual QR image is generated from whatever string is
+// here regardless).
 function save_program($payload) {
   $medvirkende = $payload['medvirkende'] ?? null;
   $ordliste    = $payload['ordliste'] ?? null;
   $qrCodes     = $payload['qrCodes'] ?? null;
-  if (!is_array($medvirkende) || !is_array($ordliste) || !is_array($qrCodes)) {
+  if (!is_string($medvirkende) || mb_strlen($medvirkende) > 50000
+      || !is_string($ordliste) || mb_strlen($ordliste) > 50000
+      || !is_array($qrCodes)) {
     respond(400, ['error' => 'invalid_shape']);
-  }
-
-  $seenCatId = [];
-  foreach ($medvirkende as $cat) {
-    if (!is_array($cat)
-        || !isset($cat['id'], $cat['category'], $cat['names'])
-        || !is_string($cat['id']) || $cat['id'] === '' || isset($seenCatId[$cat['id']])
-        || !is_string($cat['category']) || trim($cat['category']) === '' || mb_strlen($cat['category']) > 200
-        || !is_array($cat['names'])) {
-      respond(400, ['error' => 'invalid_program_shape']);
-    }
-    $seenCatId[$cat['id']] = true;
-    $seenNameId = [];
-    foreach ($cat['names'] as $n) {
-      if (!is_array($n)
-          || !isset($n['id'], $n['name'])
-          || !is_string($n['id']) || $n['id'] === '' || isset($seenNameId[$n['id']])
-          || !is_string($n['name']) || trim($n['name']) === '' || mb_strlen($n['name']) > 200
-          || (isset($n['note']) && (!is_string($n['note']) || mb_strlen($n['note']) > 200))) {
-        respond(400, ['error' => 'invalid_program_shape']);
-      }
-      $seenNameId[$n['id']] = true;
-    }
-  }
-
-  $seenTermId = [];
-  foreach ($ordliste as $o) {
-    if (!is_array($o)
-        || !isset($o['id'], $o['term'], $o['definition'])
-        || !is_string($o['id']) || $o['id'] === '' || isset($seenTermId[$o['id']])
-        || !is_string($o['term']) || trim($o['term']) === '' || mb_strlen($o['term']) > 200
-        || !is_string($o['definition']) || mb_strlen($o['definition']) > 1000) {
-      respond(400, ['error' => 'invalid_program_shape']);
-    }
-    $seenTermId[$o['id']] = true;
   }
 
   $seenQrId = [];
