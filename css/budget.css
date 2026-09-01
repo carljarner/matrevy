@@ -166,13 +166,13 @@
 
 /* --- Submit form ------------------------------------------ */
 /* Send button centered, tight under the last field. */
-.budget-form .site-btn-primary {
+.budget-form .site-btn-success {
   display: block;
   margin: 0.375rem auto 0;
 }
 
 /* --- Warm-theme inputs (page-scoped) ---------------------- */
-/* The blue primary buttons stay; only the fields and small gray
+/* The green primary button stays; only the fields and small gray
    buttons are pulled into the honey/walnut palette. */
 .budget-form .edit-field input,
 .budget-form .edit-field select,
