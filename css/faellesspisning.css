@@ -105,26 +105,19 @@
   min-width: 3.75rem;
 }
 
-/* A Fællesspisning-only day column (added via the "+" button, never a
-   public calendar event) also gets a small remove "✕" — the only way to
-   correct it, since there's no Kalender editor to remove it from. Stacked
-   under the date label rather than beside it, to fit the same fixed
-   column width as an ordinary date header. */
-.faelles-table th.faelles-col-day-extra {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-}
-
+/* Every day column gets a small remove "✕", at the bottom of the grid in
+   the same row as "Tilføj række" (see .faelles-add-row below) rather than
+   in the header — removing a calendar-sourced column only hides it from
+   this sheet (the real event is untouched), while an extra column is
+   deleted outright; see faellesOpenDeleteDayConfirm in faellesspisning.js. */
 .faelles-col-day-remove {
   background: none;
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   line-height: 1;
-  padding: 0;
+  padding: 0.1rem;
 }
 
 @media (hover: hover) {
@@ -191,8 +184,11 @@
 
 .faelles-add-row td {
   border-bottom: none;
-  text-align: left;
   padding-top: 0.6rem;
+}
+
+.faelles-add-row-plus-cell {
+  text-align: left;
 }
 
 /* faellesShowFieldTooltip()'s popup — position:fixed on <body>, clamped

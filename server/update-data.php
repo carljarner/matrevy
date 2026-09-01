@@ -224,12 +224,13 @@ if (isset($FORMS_ACTIONS[$action])) {
 // plain shared spreadsheet) — connecting a form and managing day columns
 // are boss-gated.
 $FAELLES_ACTIONS = [
-  'faelles_read'            => 'revyst', // {rows, connection, extraDays, updatedAt} — also lazily syncs a connected form
+  'faelles_read'            => 'revyst', // {rows, connection, extraDays, hiddenDays, updatedAt} — also lazily syncs a connected form
   'faelles_upsert_row'      => 'revyst', // create (no rowId) or update (rowId given) one row
   'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
   'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
   'faelles_add_day'         => 'boss',   // add a Fællesspisning-only day column (never the public `calendar` resource)
   'faelles_delete_day'      => 'boss',   // remove one — the only way to correct a mistaken add
+  'faelles_hide_day'        => 'boss',   // hide a real calendar-sourced day column from this sheet only — the event itself is untouched
 ];
 if (isset($FAELLES_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FAELLES_ACTIONS[$action]]) {
@@ -2302,13 +2303,20 @@ function faelles_doc_path() {
 }
 
 function faelles_default_doc() {
-  return ['rows' => [], 'connection' => null, 'extraDays' => [], 'updatedAt' => null];
+  return ['rows' => [], 'connection' => null, 'extraDays' => [], 'hiddenDays' => [], 'updatedAt' => null];
 }
 
-// A document written before extraDays existed has no such key — back-fill
-// rather than migrate on disk, same posture as budget_normalize_years_shape.
+// A document written before extraDays/hiddenDays existed has no such key —
+// back-fill rather than migrate on disk, same posture as
+// budget_normalize_years_shape.
 function faelles_extra_days($doc) {
   return (isset($doc['extraDays']) && is_array($doc['extraDays'])) ? $doc['extraDays'] : [];
+}
+
+// Ids of calendar-sourced day columns hidden from this sheet only — the
+// real data/calendar.json event is never touched (see faelles_hide_day).
+function faelles_hidden_days($doc) {
+  return (isset($doc['hiddenDays']) && is_array($doc['hiddenDays'])) ? $doc['hiddenDays'] : [];
 }
 
 // Read-only load, no lock — matches forms_get's own plain-read convention;
@@ -2524,7 +2532,7 @@ function faelles_maybe_sync($doc) {
 function faelles_read($body) {
   $doc = faelles_load();
   $doc = faelles_maybe_sync($doc);
-  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Revyst: create (no rowId) or update (rowId given) one row from an
@@ -2655,6 +2663,28 @@ function faelles_delete_day($body) {
   respond(200, ['ok' => true, 'extraDays' => $doc['extraDays'], 'updatedAt' => $doc['updatedAt']]);
 }
 
+// Boss: hides a real (calendar-sourced) day column from just this sheet —
+// data/calendar.json, and Kalender's own display of the event, are left
+// completely untouched, only this document's own `hiddenDays` gains the
+// id. Not a `faelles_valid_id()` hex string like a row/extra-day id — a
+// calendar event's id comes from calendar.js's own generator (arbitrary
+// alphanumeric), so this just bounds it as a plain non-empty string, same
+// posture as faelles_validate_days. No cross-check against which day ids
+// currently exist in the calendar either — a stale/already-removed id is
+// harmless to hide, same "don't validate against a live external list"
+// posture used throughout this file.
+function faelles_hide_day($body) {
+  $dayId = $body['dayId'] ?? '';
+  if (!is_string($dayId) || $dayId === '' || mb_strlen($dayId) > 80) respond(400, ['error' => 'invalid_shape']);
+  $doc = faelles_mutate(function ($doc) use ($dayId) {
+    $doc['hiddenDays'] = faelles_hidden_days($doc);
+    if (!in_array($dayId, $doc['hiddenDays'], true)) $doc['hiddenDays'][] = $dayId;
+    $doc['updatedAt'] = date('c');
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'hiddenDays' => $doc['hiddenDays'], 'updatedAt' => $doc['updatedAt']]);
+}
+
 function handle_faelles($action, $body) {
   switch ($action) {
     case 'faelles_read':            return faelles_read($body);
@@ -2663,6 +2693,7 @@ function handle_faelles($action, $body) {
     case 'faelles_save_connection': return faelles_save_connection($body);
     case 'faelles_add_day':         return faelles_add_day($body);
     case 'faelles_delete_day':      return faelles_delete_day($body);
+    case 'faelles_hide_day':        return faelles_hide_day($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }

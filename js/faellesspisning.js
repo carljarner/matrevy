@@ -48,7 +48,7 @@ function el(tag, className, text) {
 }
 
 // First-level (inline, not-in-an-overlay) button — CLAUDE.md's ".btn-small"
-// tier, not the oval ".site-pill-btn" system (that's reserved for buttons
+// tier, not the square ".site-btn-*" system (that's reserved for buttons
 // actually inside a modal, see faellesPillBtn below).
 function faellesBtn(label, extraClass) {
   const btn = el('button', 'btn-small' + (extraClass ? ' ' + extraClass : ''), label);
@@ -58,7 +58,7 @@ function faellesBtn(label, extraClass) {
 
 // Second-level button, for buttons inside a modal overlay only.
 function faellesPillBtn(label, variant) {
-  const btn = el('button', 'site-pill-btn' + (variant ? ' ' + variant : ''), label);
+  const btn = el('button', variant || 'site-btn-warm', label);
   btn.type = 'button';
   return btn;
 }
@@ -158,7 +158,7 @@ const FAELLES_FIELDS = [
 ];
 
 // ── Day columns: live CALENDAR_DATA events + this document's own private
-// "extra" days ──────────────────────────────────────────────
+// "extra" days, minus whichever are hidden ────────────────────
 // The calendar half is never stored here — mirrors formsOptionsFromRehearsals
 // in js/forms.js, so it always reflects the current public calendar. A
 // local override (mirroring calendar.js's own calendarOverride) means a
@@ -167,9 +167,13 @@ const FAELLES_FIELDS = [
 // half (faellesState.extraDays) is Fællesspisning-only — added via the "+"
 // button below, stored on this page's own private document, never written
 // to the public `calendar` resource (so it does NOT create a Kalender
-// event). Compact d/m label (not formatDaDateShort's weekday-inclusive
-// form) since the header needs many narrow columns — matches the reference
-// spreadsheet's own "8/11" style.
+// event). Every column — calendar or extra — is removable from the bottom
+// row's "✕": a calendar-sourced column only gets hidden from this sheet
+// (its id added to faellesState.hiddenDays, the real event untouched),
+// while an extra column is deleted outright, since nothing else
+// references it. Compact d/m label (not formatDaDateShort's
+// weekday-inclusive form) since the header needs many narrow columns —
+// matches the reference spreadsheet's own "8/11" style.
 let faellesCalendarOverride = (typeof siteLoadOverride === 'function') ? siteLoadOverride('calendar') : null;
 
 function faellesEffectiveCalendarEvents() {
@@ -178,8 +182,10 @@ function faellesEffectiveCalendarEvents() {
 }
 
 function faellesRehearsalColumns() {
+  const hidden = (faellesState && faellesState.hiddenDays) || [];
   const fromCalendar = faellesEffectiveCalendarEvents()
     .filter((ev) => ev.category === 'ove' || ev.category === 'forestilling')
+    .filter((ev) => !hidden.includes(ev.id))
     .map((ev) => ({ id: ev.id, date: ev.date, title: ev.title || '', extra: false }));
   const fromExtra = ((faellesState && faellesState.extraDays) || [])
     .map((d) => ({ id: d.id, date: d.date, title: d.title || '', extra: true }));
@@ -195,7 +201,7 @@ function faellesRehearsalColumns() {
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { rows, connection, extraDays, updatedAt } once loaded
+let faellesState = null; // { rows, connection, extraDays, hiddenDays, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -217,6 +223,7 @@ async function faellesLoad(root) {
     rows: result.data.rows || [],
     connection: result.data.connection || null,
     extraDays: result.data.extraDays || [],
+    hiddenDays: result.data.hiddenDays || [],
     updatedAt: result.data.updatedAt || null,
   };
   faellesRender(root);
@@ -260,7 +267,6 @@ function faellesRender(root) {
 function faellesBuildTable(root) {
   const columns = faellesRehearsalColumns();
   const showAddDate = typeof siteHasLevel === 'function' && siteHasLevel('boss');
-  const totalCols = FAELLES_FIELDS.length + columns.length + (showAddDate ? 1 : 0) + 1;
 
   const table = el('table', 'faelles-table');
 
@@ -270,25 +276,10 @@ function faellesBuildTable(root) {
     headRow.appendChild(el('th', `faelles-col-field faelles-col-${f.id}`, f.label));
   }
   for (const col of columns) {
-    const th = el('th', 'faelles-col-day' + (col.extra ? ' faelles-col-day-extra' : ''));
-    th.appendChild(document.createTextNode(col.label));
+    const th = el('th', 'faelles-col-day', col.label);
     if (col.title) {
       th.addEventListener('mouseenter', () => faellesShowFieldTooltip(th, col.title));
       th.addEventListener('mouseleave', faellesHideFieldTooltip);
-    }
-    if (col.extra && showAddDate) {
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'faelles-col-day-remove';
-      removeBtn.title = 'Fjern dato';
-      removeBtn.setAttribute('aria-label', 'Fjern dato');
-      removeBtn.textContent = '✕';
-      removeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        faellesHideFieldTooltip();
-        faellesOpenDeleteDayConfirm(col, root);
-      });
-      th.appendChild(removeBtn);
     }
     headRow.appendChild(th);
   }
@@ -311,9 +302,13 @@ function faellesBuildTable(root) {
   for (const row of sortedRows) {
     tbody.appendChild(faellesRenderRow(row, columns, showAddDate));
   }
+  // Bottom row: "Tilføj række" (under the Navn/Madforbehold columns) plus
+  // one "✕" per day column, at the same row — every day column is
+  // removable from the sheet here, calendar-sourced or extra alike (see
+  // faellesOpenDeleteDayConfirm for what "removable" means per source).
   const addRow = el('tr', 'faelles-add-row');
-  const addCell = el('td');
-  addCell.colSpan = totalCols;
+  const addCell = el('td', 'faelles-add-row-plus-cell');
+  addCell.colSpan = FAELLES_FIELDS.length;
   const addBtn = faellesAddPlusBtn('Tilføj række');
   addBtn.addEventListener('click', () => {
     const draft = { id: null, answers: { navn: '', madforbehold: '' }, days: [] };
@@ -324,6 +319,24 @@ function faellesBuildTable(root) {
   });
   addCell.appendChild(addBtn);
   addRow.appendChild(addCell);
+
+  for (const col of columns) {
+    const td = el('td', 'faelles-col-day');
+    if (showAddDate) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'faelles-col-day-remove';
+      removeBtn.title = col.extra ? 'Fjern dato' : 'Fjern dato fra arket';
+      removeBtn.setAttribute('aria-label', removeBtn.title);
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', () => faellesOpenDeleteDayConfirm(col, root));
+      td.appendChild(removeBtn);
+    }
+    addRow.appendChild(td);
+  }
+  if (showAddDate) addRow.appendChild(el('td')); // filler under the header's add-date "+" column
+  addRow.appendChild(el('td')); // filler under the trailing per-row remove column
+
   tbody.appendChild(addRow);
   table.appendChild(tbody);
 
@@ -445,7 +458,7 @@ function faellesOpenDeleteRowConfirm(row, tr) {
 
   const cancelBtn = faellesPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = faellesPillBtn('Fjern', 'site-pill-danger');
+  const confirmBtn = faellesPillBtn('Fjern', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -623,7 +636,7 @@ async function faellesOpenConnectModal(root) {
   await loadFormFields(initialFormId);
 
   if (currentConnection) {
-    const disconnectBtn = faellesPillBtn('Fjern', 'site-pill-danger');
+    const disconnectBtn = faellesPillBtn('Fjern', 'site-btn-danger');
     disconnectBtn.addEventListener('click', async () => {
       if (!confirm('Fjern forbindelsen til formularen? Rækker der allerede er hentet ind, bliver ikke slettet.')) return;
       disconnectBtn.disabled = true;
@@ -642,7 +655,7 @@ async function faellesOpenConnectModal(root) {
     actions.appendChild(disconnectBtn);
   }
 
-  const connectBtn = faellesPillBtn('Forbind', 'site-pill-primary');
+  const connectBtn = faellesPillBtn('Forbind', 'site-btn-primary');
   connectBtn.addEventListener('click', async () => {
     if (!currentFormId || !navnPicker || !madforboholdPicker) return;
     const formTitle = (forms.find((f) => f.id === currentFormId) || {}).title || '';
@@ -699,7 +712,7 @@ async function faellesOpenQuickAddDateModal(root) {
   const cancelBtn = faellesPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const saveBtn = faellesPillBtn('Tilføj', 'site-pill-primary');
+  const saveBtn = faellesPillBtn('Tilføj', 'site-btn-primary');
   saveBtn.addEventListener('click', async () => {
     const title = titleInput.value.trim();
     const date = dateInput.value;
@@ -726,10 +739,15 @@ async function faellesOpenQuickAddDateModal(root) {
   titleInput.focus();
 }
 
-// Styled "Er du sikker?" overlay for removing a Fællesspisning-only day
-// column — there's no Kalender editor to remove it from instead, since it
-// was never written there. Any row's `days` entry referencing it is left
-// alone server-side (see faelles_delete_day), same as a deleted row.
+// Styled "Er du sikker?" overlay for removing a day column from the
+// sheet — every column is removable this way, but what "removable" means
+// depends on where it came from: an extra (Fællesspisning-only) column is
+// deleted outright (faelles_delete_day, nothing else references it),
+// while a real calendar-sourced column is only *hidden* from this sheet
+// (faelles_hide_day adds its id to faellesState.hiddenDays) — the actual
+// data/calendar.json event, and Kalender's own display of it, are left
+// completely untouched. Either way, any row's `days` entry referencing
+// the removed id is left alone server-side, same as a deleted row.
 function faellesOpenDeleteDayConfirm(col, root) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
   modal.classList.add('faelles-confirm-modal');
@@ -738,22 +756,26 @@ function faellesOpenDeleteDayConfirm(col, root) {
 
   const info = document.createElement('p');
   info.className = 'faelles-confirm-text';
-  info.textContent = `Fjern datoen "${col.title || col.label}"?`;
+  info.textContent = col.extra
+    ? `Fjern datoen "${col.title || col.label}"?`
+    : `Fjern "${col.title || col.label}" fra arket? Begivenheden i Kalenderen bliver ikke slettet.`;
   form.appendChild(info);
 
   const cancelBtn = faellesPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = faellesPillBtn('Fjern', 'site-pill-danger');
+  const confirmBtn = faellesPillBtn('Fjern', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await faellesApi('faelles_delete_day', { dayId: col.id });
+    const action = col.extra ? 'faelles_delete_day' : 'faelles_hide_day';
+    const result = await faellesApi(action, { dayId: col.id });
     if (!result.ok) {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;
       return;
     }
-    faellesState.extraDays = result.data.extraDays;
+    if (col.extra) faellesState.extraDays = result.data.extraDays;
+    else faellesState.hiddenDays = result.data.hiddenDays;
     close();
     faellesRender(root);
   });
