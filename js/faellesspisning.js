@@ -75,11 +75,11 @@ function faellesAddPlusBtn(title) {
   return btn;
 }
 
-// ── Madforbehold truncation tooltip ──────────────────────────
+// ── Hover tooltip (truncated Madforbehold text, a day column's full
+// event title) ────────────────────────────────────────────────
 // Mirrors forms.js's formsShowResponseTooltip/formsHideResponseTooltip
 // (that file isn't loaded on this page, per the per-feature duplication
-// convention documented in CLAUDE.md): a fixed-position dark box shown
-// only while the field is actually truncated.
+// convention documented in CLAUDE.md): a fixed-position dark box.
 let faellesFieldTooltipEl = null;
 function faellesShowFieldTooltip(anchor, text) {
   faellesHideFieldTooltip();
@@ -178,7 +178,7 @@ function faellesRehearsalColumns() {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .map((ev) => {
       const d = (typeof parseIsoDate === 'function') ? parseIsoDate(ev.date) : new Date(ev.date);
-      return { id: ev.id, label: `${d.getDate()}/${d.getMonth() + 1}` };
+      return { id: ev.id, label: `${d.getDate()}/${d.getMonth() + 1}`, title: ev.title || '' };
     });
 }
 
@@ -256,7 +256,12 @@ function faellesBuildTable(root) {
     headRow.appendChild(el('th', `faelles-col-field faelles-col-${f.id}`, f.label));
   }
   for (const col of columns) {
-    headRow.appendChild(el('th', 'faelles-col-day', col.label));
+    const th = el('th', 'faelles-col-day', col.label);
+    if (col.title) {
+      th.addEventListener('mouseenter', () => faellesShowFieldTooltip(th, col.title));
+      th.addEventListener('mouseleave', faellesHideFieldTooltip);
+    }
+    headRow.appendChild(th);
   }
   if (showAddDate) {
     const addDateTh = el('th', 'faelles-col-day');
@@ -384,22 +389,46 @@ async function faellesCommitRow(row, tr) {
   faellesRefreshSummary(tr);
 }
 
-async function faellesDeleteRow(row, tr) {
+function faellesDeleteRow(row, tr) {
   if (row.id === null) {
     tr.remove();
     return;
   }
-  if (!confirm('Fjern denne række permanent?')) return;
-  const result = await faellesApi('faelles_delete_row', { rowId: row.id });
-  const errorBox = document.querySelector('.faelles-error');
-  if (!result.ok) {
-    if (errorBox && result.message) errorBox.textContent = result.message;
-    return;
-  }
-  if (errorBox) errorBox.textContent = '';
-  faellesState.rows = faellesState.rows.filter((r) => r !== row);
-  faellesRefreshSummary(tr);
-  tr.remove();
+  faellesOpenDeleteRowConfirm(row, tr);
+}
+
+// Styled "Er du sikker?" overlay, replacing the native confirm() dialog —
+// mirrors calendar.js's openDeleteConfirm/manus.js's openManuscriptDeleteConfirm.
+function faellesOpenDeleteRowConfirm(row, tr) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('faelles-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'faelles-confirm-text';
+  info.textContent = `Fjern ${row.answers.navn || 'denne række'} permanent?`;
+  form.appendChild(info);
+
+  const cancelBtn = faellesPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = faellesPillBtn('Fjern', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await faellesApi('faelles_delete_row', { rowId: row.id });
+    if (!result.ok) {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+      return;
+    }
+    faellesState.rows = faellesState.rows.filter((r) => r !== row);
+    faellesRefreshSummary(tr);
+    tr.remove();
+    close();
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // Re-renders just the summary tbody + the "N tilmeldte" count, without
@@ -440,13 +469,13 @@ function faellesBuildSummaryBody(columns, showAddDate) {
   prefRow.appendChild(el('td'));
   for (const col of columns) {
     const attendees = faellesState.rows.filter((r) => r.days.includes(col.id));
-    const withPrefs = attendees.filter((r) => (r.answers.madforbehold || '').trim() !== '').length;
+    const withPrefsRows = attendees.filter((r) => (r.answers.madforbehold || '').trim() !== '');
     const cell = el('td', 'faelles-summary-prefs');
-    const btn = el('button', 'faelles-prefs-btn', attendees.length ? `ⓘ ${withPrefs}` : '–');
+    const btn = el('button', 'faelles-prefs-btn', attendees.length ? `ⓘ ${withPrefsRows.length}` : '–');
     btn.type = 'button';
     btn.title = 'Se madforbehold for denne dag';
     btn.disabled = attendees.length === 0;
-    btn.addEventListener('click', () => faellesOpenPreferencesModal(col, attendees));
+    btn.addEventListener('click', () => faellesOpenPreferencesModal(col, withPrefsRows));
     cell.appendChild(btn);
     prefRow.appendChild(cell);
   }
@@ -456,22 +485,22 @@ function faellesBuildSummaryBody(columns, showAddDate) {
   return tbody;
 }
 
-// Lists every attendee's stated Madforbehold for one day, on demand — the
-// summary row itself only shows a small "ⓘ N" affordance, not the text
-// directly, per the site's preference for keeping the grid itself compact.
+// Lists only the attendees who actually stated a Madforbehold for one day
+// (a blank field is skipped, not shown as "–") — the summary row itself
+// only shows a small "ⓘ N" affordance, not the text directly, per the
+// site's preference for keeping the grid itself compact.
 function faellesOpenPreferencesModal(col, attendees) {
   const { modal, form, actions, close } = siteOpenModalWithClose(`Madforbehold – ${col.label}`);
   modal.classList.add('faelles-prefs-modal');
 
   if (attendees.length === 0) {
-    form.appendChild(el('p', 'faelles-summary-note', 'Ingen tilmeldte denne dag.'));
+    form.appendChild(el('p', 'faelles-summary-note', 'Ingen har angivet madforbehold denne dag.'));
   } else {
     const list = el('ul', 'faelles-prefs-list');
     for (const row of attendees) {
       const li = document.createElement('li');
       li.appendChild(el('span', 'faelles-prefs-name', row.answers.navn || '(uden navn)'));
-      const pref = (row.answers.madforbehold || '').trim();
-      li.appendChild(el('span', 'faelles-prefs-value', pref || '–'));
+      li.appendChild(el('span', 'faelles-prefs-value', row.answers.madforbehold.trim()));
       list.appendChild(li);
     }
     form.appendChild(list);
@@ -513,7 +542,7 @@ async function faellesOpenConnectModal(root) {
   const currentConnection = faellesState.connection;
   const formOptions = forms.map((f) => ({
     value: f.id,
-    label: `${f.title || '(uden titel)'} — ${f.responseCount} svar`,
+    label: `${f.title || '(uden titel)'} (${f.responseCount} svar)`,
   }));
   const initialFormId = (currentConnection && forms.some((f) => f.id === currentConnection.formId))
     ? currentConnection.formId : formOptions[0].value;

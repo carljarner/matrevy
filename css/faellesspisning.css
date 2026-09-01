@@ -96,11 +96,13 @@
   text-overflow: ellipsis;
 }
 
-/* Day columns: a floor wide enough for a two-digit headcount / "ⓘ 12" /
-   a "31/12" date label, so a column never widens (and shifts every column
-   to its right) as people sign up and the summary counts grow. */
+/* Day columns: a floor wide enough for the worst-case content — a
+   two-digit "ⓘ 12" preference count (headcounts never reach three
+   digits) — measured directly, so a column never widens (and shifts
+   every column to its right) as people sign up and the summary counts
+   grow past a single digit. */
 .faelles-table .faelles-col-day {
-  min-width: 3rem;
+  min-width: 3.75rem;
 }
 
 .faelles-table .faelles-col-field input[type="text"] {
@@ -270,4 +272,19 @@
 
 .faelles-connect-modal {
   width: min(90vw, 30rem);
+}
+
+/* --- "Fjern række" confirm — replaces the native confirm() dialog,
+   mirrors calendar.css's .cal-confirm-modal/.cal-confirm-text. -------- */
+
+.login-modal .faelles-confirm-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.faelles-confirm-modal {
+  width: min(300px, 85vw);
 }
