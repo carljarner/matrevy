@@ -198,6 +198,11 @@
   white-space: nowrap;
 }
 
+.wiki-manage-add-trigger-wrap {
+  display: flex;
+  justify-content: center;
+}
+
 .wiki-manage-add-row {
   display: flex;
   align-items: center;
@@ -421,6 +426,12 @@
   gap: 0.6rem;
   margin-top: 0.75rem;
   flex-wrap: wrap;
+}
+
+/* Matches Annuller's own natural width (see style.css's .login-actions >
+   button), so Annuller/Slet/Gem read as equal weight. */
+.wiki-edit-actions > button {
+  min-width: 5.5rem;
 }
 
 /* --- Attachments (edit view: list + "+ Vedhæft fil" picker) --- */

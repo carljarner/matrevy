@@ -1046,31 +1046,62 @@ function openManageChaptersModal() {
   }
   renderList();
 
-  // ── Inline "+ Ny kapitel" row ──
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.placeholder = 'F.eks. Nye traditioner';
-  const nameField = siteEditField('Nyt kapitel', nameInput);
+  // ── "+ Ny kapitel" — collapsed behind a centered "+" trigger by default;
+  // the "Nyt kapitel" field only appears once clicked, mirroring posts.js's
+  // comment-trigger reveal pattern (renderCommentForm) rather than sitting
+  // permanently visible next to the drag-and-drop list.
+  const addSlot = document.createElement('div');
+  form.appendChild(addSlot);
 
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'boss-manage-add-plus';
-  addBtn.textContent = '+';
-  addBtn.title = 'Tilføj kapitel';
-  addBtn.setAttribute('aria-label', 'Tilføj kapitel');
-  addBtn.addEventListener('click', () => {
-    const t = nameInput.value.trim();
-    if (!t) return;
-    draft.push({ id: Date.now().toString(36), title: t });
-    nameInput.value = '';
-    renderList();
-  });
+  function renderAddTrigger() {
+    addSlot.textContent = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'wiki-manage-add-trigger-wrap';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'boss-manage-add-plus';
+    trigger.textContent = '+';
+    trigger.title = 'Tilføj kapitel';
+    trigger.setAttribute('aria-label', 'Tilføj kapitel');
+    trigger.addEventListener('click', renderAddField);
+    wrap.appendChild(trigger);
+    addSlot.appendChild(wrap);
+  }
 
-  const addRow = document.createElement('div');
-  addRow.className = 'wiki-manage-add-row';
-  addRow.appendChild(nameField);
-  addRow.appendChild(addBtn);
-  form.appendChild(addRow);
+  function renderAddField() {
+    addSlot.textContent = '';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'F.eks. Nye traditioner';
+    const nameField = siteEditField('Nyt kapitel', nameInput);
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'boss-manage-add-plus';
+    addBtn.textContent = '+';
+    addBtn.title = 'Tilføj kapitel';
+    addBtn.setAttribute('aria-label', 'Tilføj kapitel');
+    addBtn.addEventListener('click', () => {
+      const t = nameInput.value.trim();
+      if (!t) return;
+      draft.push({ id: Date.now().toString(36), title: t });
+      renderList();
+      renderAddTrigger();
+    });
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+    });
+
+    const row = document.createElement('div');
+    row.className = 'wiki-manage-add-row';
+    row.appendChild(nameField);
+    row.appendChild(addBtn);
+    addSlot.appendChild(row);
+    nameInput.focus();
+  }
+
+  renderAddTrigger();
 
   const save = wikiPillBtn('Gem', 'site-btn-success');
   actions.appendChild(save);

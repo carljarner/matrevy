@@ -1976,10 +1976,10 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   // Same far-left/true-centered/far-right layout as Budget's own
   // .budget-save-bar (Slet/Rediger/Gem), just with different colors/
-  // actions: green Skabelon, warm Annuller, green Gem.
+  // actions: blue Skabelon, warm Annuller, green Gem.
   const actionsRow = el('div', 'forms-builder-actions');
 
-  const saveAsTemplateBtn = el('button', 'site-btn-success', 'Skabelon');
+  const saveAsTemplateBtn = el('button', 'site-btn-primary', 'Skabelon');
   saveAsTemplateBtn.type = 'button';
   saveAsTemplateBtn.addEventListener('click', async () => {
     error.textContent = '';

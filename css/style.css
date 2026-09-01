@@ -307,29 +307,36 @@ body {
   font-size: 0.82rem;
   min-height: 0;
   margin-top: 0;
+  line-height: 0;
 }
 
 /* Reserve the visible height/gap only once there's actually an error to
    show — otherwise every modal pays this space above its button row on
-   every open, stacking with .login-actions' own margin-top below. */
+   every open, stacking with .login-actions' own margin-top below.
+   line-height is reset to 0 above (belt-and-suspenders against an empty
+   block still claiming a line-height-tall "strut" in some engines) and
+   restored to normal here once there's real text to lay out. */
 .login-error:not(:empty) {
   min-height: 1.2em;
   margin-top: 0.4rem;
+  line-height: 1.4;
 }
 
 .login-actions {
   display: flex;
-  gap: 0.6rem;
-  justify-content: space-between;
+  gap: 0.5rem;
+  justify-content: center;
   margin-top: 1.5rem;
 }
 
-/* A single button (most info/confirm dialogs with just one action) stays
-   centered rather than pinned to the left edge that space-between alone
-   would produce. Two or three buttons spread to the corners (and, for
-   three, roughly the center) instead — the site-wide modal-action layout. */
-.login-actions:has(> :only-child) {
-  justify-content: center;
+/* Matches Annuller's own natural width, so a plain "Er du sikker?"
+   confirm's Annuller/Slet (or similar) pair reads as equal weight instead
+   of Slet looking narrower/lighter than Annuller. A handful of modals with
+   their own explicit corner layout (.cal-event-actions,
+   .faelles-connect-modal .login-actions) override both this and
+   justify-content above. */
+.login-actions > button {
+  min-width: 5.5rem;
 }
 
 /* The plain login modal (openLoginModal in site.js, not one of
@@ -1847,7 +1854,7 @@ body.site-menu-open {
 }
 
 .post-detail-actions > button {
-  min-width: 7rem;
+  min-width: 5rem;
 }
 
 .post-comments {

@@ -737,7 +737,7 @@ tr.budget-row-filler td {
 }
 
 .budget-save-bar > button {
-  min-width: 6.5rem;
+  min-width: 5rem;
 }
 
 /* True-centers the Rediger button in the row regardless of the Slet/Gem

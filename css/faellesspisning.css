@@ -301,6 +301,16 @@
   width: min(90vw, 30rem);
 }
 
+.faelles-connect-modal .login-actions {
+  justify-content: space-between;
+}
+
+/* No existing connection means only "Forbind" shows — keep that
+   single-button case centered instead of space-between pinning it left. */
+.faelles-connect-modal .login-actions:has(> :only-child) {
+  justify-content: center;
+}
+
 .faelles-connect-modal .login-actions > button {
   min-width: 6.5rem;
 }
