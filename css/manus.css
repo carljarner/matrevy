@@ -1213,6 +1213,10 @@ a.manus-pdf-title:focus-visible {
   text-align: center;
 }
 
+.manus-delete-warning-text {
+  text-align: center;
+}
+
 .manus-confirm-modal {
   width: min(300px, 85vw);
 }

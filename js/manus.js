@@ -2018,6 +2018,7 @@ function openManuscriptDeleteWarning(row) {
   modal.querySelector('.site-modal-close')?.remove();
 
   const info = document.createElement('p');
+  info.className = 'manus-delete-warning-text';
   info.textContent = manusRowIsManualMedia(row)
     ? `Slet "${manusRowTitle(row)}" permanent?`
     : `Dette sletter "${manusRowTitle(row)}" permanent, inklusive de uploadede .tex- og .pdf-filer fra GitHub.`;
