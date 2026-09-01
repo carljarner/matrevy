@@ -210,6 +210,8 @@
   margin-bottom: 0;
 }
 
+/* Layout-only tweaks on top of the shared .site-btn-warm (style.css) —
+   never color/shape — sized as a compact icon button next to the input. */
 .wiki-manage-add-btn {
   padding: 0.6rem 0.75rem;
   font-size: 1rem;

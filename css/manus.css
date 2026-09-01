@@ -1,7 +1,7 @@
 /* =========================================================
    Matematikrevyen – Manus page styles (manus.html only)
    Page-scoped like calendar.css/archive.css/budget.css; shared
-   shell styles (cards, .btn-small, .site-pill-btn, modals) live
+   shell styles (cards, .btn-small, .site-btn-*, modals) live
    in style.css and are reused as-is.
    ========================================================= */
 
@@ -216,7 +216,7 @@ a.manus-pdf-title:focus-visible {
   margin-top: 0.85rem;
 }
 
-.manus-col-actions .site-pill-btn {
+.manus-col-actions [class*="site-btn-"] {
   flex: 0 0 auto;
   width: 7rem;
   justify-content: center;
@@ -319,10 +319,10 @@ a.manus-pdf-title:focus-visible {
 }
 
 /* Quick-open buttons for the last-generated PDFs, sitting above the
-   pool/guide row. Deliberately the oval .site-pill-btn
-   style (normally reserved for modal contexts per the site-wide convention)
-   rather than .btn-small — asked for explicitly here, sized to each
-   button's own content instead of stretched full-width. */
+   pool/guide row. Uses the shared .site-btn-* square colored family
+   (normally reserved for modal contexts / Budget's main view per the
+   site-wide convention) rather than .btn-small — asked for explicitly
+   here, sized to each button's own content instead of stretched full-width. */
 .manus-pdf-links {
   display: flex;
   margin-bottom: 1.25rem;
@@ -333,7 +333,7 @@ a.manus-pdf-title:focus-visible {
    main "Generér PDF'er" trigger button pulse identically while a rebuild is
    in flight. */
 @media (prefers-reduced-motion: no-preference) {
-  .site-pill-btn.manus-pdf-generating {
+  .manus-pdf-generating {
     animation: manus-pending-pulse 1.4s ease-in-out infinite;
   }
 }
@@ -342,7 +342,7 @@ a.manus-pdf-title:focus-visible {
    leaves zero space at the row's own edges (only *between* items), which
    read as uneven against the card's padding. space-evenly gives the same
    gap from the card edge to the first/last button as between buttons.
-   Width is normally content-driven per .site-pill-btn, except all four are
+   Width is normally content-driven per .site-btn-*, except all four are
    additionally forced to match the widest one's own natural width (set
    inline by renderManusPdfLinksSection, since there's no clean pure-CSS way
    to size flex siblings off the widest sibling's content). gap is a floor
@@ -355,7 +355,7 @@ a.manus-pdf-title:focus-visible {
   width: 100%;
 }
 
-.manus-pdf-links-row .site-pill-btn {
+.manus-pdf-links-row [class*="site-btn-"] {
   justify-content: center;
 }
 
@@ -550,7 +550,7 @@ a.manus-pdf-title:focus-visible {
   color: var(--text-muted);
 }
 
-.manus-select-panel-group .site-pill-btn {
+.manus-select-panel-group [class*="site-btn-"] {
   width: 100%;
   justify-content: center;
 }
@@ -560,7 +560,7 @@ a.manus-pdf-title:focus-visible {
   gap: 0.5rem;
 }
 
-.manus-select-panel-btn-row .site-pill-btn {
+.manus-select-panel-btn-row [class*="site-btn-"] {
   flex: 1;
 }
 
@@ -1391,7 +1391,7 @@ a.manus-pdf-title:focus-visible {
     gap: 0.5rem;
   }
 
-  .manus-pdf-links-row .site-pill-btn {
+  .manus-pdf-links-row [class*="site-btn-"] {
     width: 100%;
     min-width: 0 !important;
     padding: 0.4rem 0.6rem;

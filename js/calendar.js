@@ -307,12 +307,13 @@ function renderListView(container) {
   }
 }
 
-// A rounded "pill" button for Kalender's modals — see style.css's shared
-// .site-pill-btn for the styling (also used by every other page's modals).
+// A square colored button for Kalender's modals — see style.css's shared
+// .site-btn-primary/-danger/-warm for the styling (also used by every other
+// page's modals). variant defaults to 'site-btn-warm' (e.g. Annuller).
 function calPillBtn(label, variant) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'site-pill-btn' + (variant ? ' ' + variant : '');
+  btn.className = variant || 'site-btn-warm';
   btn.textContent = label;
   return btn;
 }
@@ -379,7 +380,7 @@ function openEventDetail(ev) {
   }
 
   if (siteHasLevel('boss')) {
-    const editBtn = calPillBtn('Rediger', 'site-pill-warm');
+    const editBtn = calPillBtn('Rediger', 'site-btn-warm');
     editBtn.addEventListener('click', () => { close(); openEventEditor(ev); });
     actions.appendChild(editBtn);
   }
@@ -532,10 +533,10 @@ function openEventEditor(existing) {
   noteArea.value = existing ? existing.note || '' : '';
   form.appendChild(siteEditField('Note', noteArea));
 
-  const save = calPillBtn('Gem', 'site-pill-primary');
+  const save = calPillBtn('Gem', 'site-btn-primary');
 
   if (existing) {
-    const del = calPillBtn('Slet', 'site-pill-danger');
+    const del = calPillBtn('Slet', 'site-btn-danger');
     del.addEventListener('click', () => openDeleteConfirm(existing, close));
     actions.appendChild(del);
   }
@@ -595,7 +596,7 @@ function openDeleteConfirm(ev, onDeleted) {
 
   const cancelBtn = calPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = calPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = calPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -647,7 +648,7 @@ function openSubscribeModal() {
   urlInput.readOnly = true;
   form.appendChild(siteEditField('Link', urlInput));
 
-  const copyBtn = calPillBtn('Kopiér link', 'site-pill-warm');
+  const copyBtn = calPillBtn('Kopiér link', 'site-btn-warm');
   copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(CALENDAR_FEED_URL);

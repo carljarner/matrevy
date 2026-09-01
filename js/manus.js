@@ -452,7 +452,7 @@ function renderBottomActions() {
   if (!siteHasLevel('revyst') || siteHasLevel('boss')) return;
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'site-pill-btn site-pill-warm';
+  btn.className = 'site-btn-warm';
   btn.textContent = 'Upload';
   btn.addEventListener('click', openUploadModal);
   mount.appendChild(btn);
@@ -509,7 +509,7 @@ function openUploadModal() {
   form.appendChild(siteEditField('Type', typeToggle.element));
 
   const save = document.createElement('button');
-  save.className = 'site-pill-btn site-pill-primary';
+  save.className = 'site-btn-primary';
   save.textContent = 'Upload';
   actions.appendChild(save);
 
@@ -591,12 +591,12 @@ function confirmDeleteManuscript(item) {
   form.appendChild(info);
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.className = 'site-btn-warm';
   cancelBtn.textContent = 'Annuller';
   cancelBtn.addEventListener('click', close);
 
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.className = 'site-btn-danger';
   confirmBtn.textContent = 'Fjern';
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
@@ -826,7 +826,7 @@ function openPointEntryModal(type) {
 
     const prevBtn = document.createElement('button');
     prevBtn.type = 'button';
-    prevBtn.className = 'site-pill-btn';
+    prevBtn.className = 'site-btn-warm';
     prevBtn.textContent = '‹ Forrige';
     prevBtn.disabled = currentIndex === 0;
     prevBtn.addEventListener('click', () => {
@@ -845,7 +845,7 @@ function openPointEntryModal(type) {
 
     const nextBtn = document.createElement('button');
     nextBtn.type = 'button';
-    nextBtn.className = 'site-pill-btn';
+    nextBtn.className = 'site-btn-warm';
     nextBtn.textContent = 'Næste ›';
     nextBtn.addEventListener('click', () => {
       if (currentIndex === bucket.sheets.length - 1) bucket.sheets.push({});
@@ -861,7 +861,7 @@ function openPointEntryModal(type) {
 
     const resultsBtn = document.createElement('button');
     resultsBtn.type = 'button';
-    resultsBtn.className = 'site-pill-btn site-pill-warm manus-points-col-end';
+    resultsBtn.className = 'site-btn-warm manus-points-col-end';
     resultsBtn.textContent = 'Resultat';
     resultsBtn.addEventListener('click', () => {
       mode = 'results';
@@ -1016,7 +1016,7 @@ function openPointEntryModal(type) {
 
     const resetBtn = document.createElement('button');
     resetBtn.type = 'button';
-    resetBtn.className = 'site-pill-btn site-pill-danger manus-points-col-start';
+    resetBtn.className = 'site-btn-danger manus-points-col-start';
     resetBtn.textContent = 'Nulstil';
     resetBtn.addEventListener('click', () => {
       openResetPointsConfirm(bucket, store, renderBody);
@@ -1024,7 +1024,7 @@ function openPointEntryModal(type) {
 
     const printBtn = document.createElement('button');
     printBtn.type = 'button';
-    printBtn.className = 'site-pill-btn site-pill-warm manus-points-col-center';
+    printBtn.className = 'site-btn-warm manus-points-col-center';
     printBtn.textContent = 'Udskriv';
     printBtn.addEventListener('click', () => {
       // Close the modal first — otherwise it's still sitting on top of the
@@ -1038,7 +1038,7 @@ function openPointEntryModal(type) {
 
     const backBtn = document.createElement('button');
     backBtn.type = 'button';
-    backBtn.className = 'site-pill-btn manus-points-col-end';
+    backBtn.className = 'site-btn-warm manus-points-col-end';
     backBtn.textContent = 'Tilbage';
     backBtn.addEventListener('click', () => {
       mode = 'entry';
@@ -1070,12 +1070,12 @@ function openResetPointsConfirm(bucket, store, onReset) {
   form.appendChild(info);
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.className = 'site-btn-warm';
   cancelBtn.textContent = 'Annuller';
   cancelBtn.addEventListener('click', close);
 
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.className = 'site-btn-danger';
   confirmBtn.textContent = 'Nulstil';
   confirmBtn.addEventListener('click', () => {
     bucket.sheets = [];
@@ -2020,12 +2020,12 @@ function openManuscriptDeleteWarning(row) {
   form.appendChild(info);
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.className = 'site-btn-warm';
   cancelBtn.textContent = 'Annuller';
   cancelBtn.addEventListener('click', close);
 
   const continueBtn = document.createElement('button');
-  continueBtn.className = 'site-pill-btn site-pill-danger';
+  continueBtn.className = 'site-btn-danger';
   continueBtn.textContent = 'Fortsæt';
   continueBtn.addEventListener('click', () => {
     close();
@@ -2048,12 +2048,12 @@ function openManuscriptDeleteConfirm(row) {
   form.appendChild(info);
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.className = 'site-btn-warm';
   cancelBtn.textContent = 'Annuller';
   cancelBtn.addEventListener('click', close);
 
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.className = 'site-btn-danger';
   confirmBtn.textContent = 'Slet';
   confirmBtn.addEventListener('click', async () => {
     // A manual media row has no backing archive files/manuscripts.json
@@ -2294,7 +2294,7 @@ function renderSelectionColumn() {
   for (const type of MANUS_TYPES) {
     const voteBtn = document.createElement('button');
     voteBtn.type = 'button';
-    voteBtn.className = 'site-pill-btn site-pill-warm';
+    voteBtn.className = 'site-btn-warm';
     voteBtn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
     voteBtn.addEventListener('click', () => manusOpenVotingSheet(type));
     voteBtnRow.appendChild(voteBtn);
@@ -2308,7 +2308,7 @@ function renderSelectionColumn() {
   for (const type of MANUS_TYPES) {
     const pointBtn = document.createElement('button');
     pointBtn.type = 'button';
-    pointBtn.className = 'site-pill-btn site-pill-warm';
+    pointBtn.className = 'site-btn-warm';
     pointBtn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
     pointBtn.addEventListener('click', () => openPointEntryModal(type));
     pointBtnRow.appendChild(pointBtn);
@@ -2319,7 +2319,7 @@ function renderSelectionColumn() {
   const selectGroup = renderSelectPanelGroup('Vælg Scener');
   const selectBtn = document.createElement('button');
   selectBtn.type = 'button';
-  selectBtn.className = 'site-pill-btn site-pill-primary';
+  selectBtn.className = 'site-btn-primary';
   selectBtn.textContent = 'Vælg scener';
   selectBtn.addEventListener('click', () => openSelectScenesOverlay());
   selectGroup.appendChild(selectBtn);
@@ -2374,13 +2374,13 @@ function renderMediaColumn() {
   btnRow.className = 'manus-select-panel-btn-row manus-media-btn-row';
   const videoBtn = document.createElement('button');
   videoBtn.type = 'button';
-  videoBtn.className = 'site-pill-btn site-pill-warm';
+  videoBtn.className = 'site-btn-warm';
   videoBtn.textContent = 'Video';
   videoBtn.addEventListener('click', () => addManualMediaRow('video'));
   btnRow.appendChild(videoBtn);
   const bandBtn = document.createElement('button');
   bandBtn.type = 'button';
-  bandBtn.className = 'site-pill-btn site-pill-warm';
+  bandBtn.className = 'site-btn-warm';
   bandBtn.textContent = 'Bandsang';
   bandBtn.addEventListener('click', () => addManualMediaRow('bandsang'));
   btnRow.appendChild(bandBtn);
@@ -2459,7 +2459,7 @@ function openSelectScenesOverlay() {
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
-  saveBtn.className = 'site-pill-btn site-pill-primary';
+  saveBtn.className = 'site-btn-primary';
   saveBtn.textContent = 'Gem';
   saveBtn.addEventListener('click', () => {
     // Commit the whole staged batch at once: flip `selected`, then the same
@@ -2702,7 +2702,7 @@ function openRoleSceneModal(row, badge) {
 
   const updateBtn = document.createElement('button');
   updateBtn.type = 'button';
-  updateBtn.className = 'site-pill-btn site-pill-primary';
+  updateBtn.className = 'site-btn-primary';
   updateBtn.textContent = 'Opdater roller';
   updateBtn.addEventListener('click', () => {
     const isSong = manusRowIsSong(row);
@@ -2943,7 +2943,7 @@ function openVideoBandsangModal(row, { isNew = false } = {}) {
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
-  saveBtn.className = 'site-pill-btn site-pill-primary';
+  saveBtn.className = 'site-btn-primary';
   saveBtn.textContent = 'Gem';
   actions.appendChild(saveBtn);
 
@@ -3835,7 +3835,7 @@ function renderMainViewActions() {
 
   const generateBtn = document.createElement('button');
   generateBtn.type = 'button';
-  generateBtn.className = 'site-pill-btn site-pill-warm';
+  generateBtn.className = 'site-btn-warm';
   generateBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   generateBtn.textContent = manusPdfGenerating ? 'Genererer...' : "Generér PDF'er";
   generateBtn.disabled = manusPdfGenerating || manusResourceSaveInFlight;
@@ -3867,7 +3867,7 @@ function renderMainViewActions() {
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
-  saveBtn.className = 'site-pill-btn site-pill-primary';
+  saveBtn.className = 'site-btn-primary';
   saveBtn.textContent = 'Gem';
   saveBtn.disabled = manusResourceSaveInFlight;
   saveBtn.addEventListener('click', () => manusSaveMain());
@@ -3962,7 +3962,7 @@ function renderManusPdfLinksSection() {
   for (const [label, filename] of files) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'site-pill-btn site-pill-warm';
+    btn.className = 'site-btn-warm';
     // Stays fully clickable during generation, label unchanged — opens
     // whichever version is currently live, the pulse alone flags that a
     // fresher one is on its way (see manusRegeneratePdfs/
@@ -3984,7 +3984,7 @@ function renderManusPdfLinksSection() {
   ];
   const programBtn = document.createElement('button');
   programBtn.type = 'button';
-  programBtn.className = 'site-pill-btn site-pill-warm';
+  programBtn.className = 'site-btn-warm';
   programBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   programBtn.textContent = 'Program';
   programBtn.addEventListener('click', () => {
@@ -4001,7 +4001,7 @@ function renderManusPdfLinksSection() {
   // point of view.
   const manusBtn = document.createElement('button');
   manusBtn.type = 'button';
-  manusBtn.className = 'site-pill-btn site-pill-warm';
+  manusBtn.className = 'site-btn-warm';
   manusBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   manusBtn.textContent = 'Manus';
   manusBtn.addEventListener('click', () => {
@@ -4104,12 +4104,12 @@ function confirmLeaveDirtyPage(href) {
   form.appendChild(info);
 
   const stayBtn = document.createElement('button');
-  stayBtn.className = 'site-pill-btn';
+  stayBtn.className = 'site-btn-warm';
   stayBtn.textContent = 'Bliv';
   stayBtn.addEventListener('click', close);
 
   const leaveBtn = document.createElement('button');
-  leaveBtn.className = 'site-pill-btn site-pill-danger';
+  leaveBtn.className = 'site-btn-danger';
   leaveBtn.textContent = 'Forlad';
   leaveBtn.addEventListener('click', () => { window.location.href = href; });
 

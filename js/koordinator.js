@@ -182,7 +182,7 @@ function koordSuggestNextFolder(folder) {
 }
 
 function koordPillBtn(label, variant) {
-  const btn = el('button', 'site-pill-btn' + (variant ? ' ' + variant : ''), label);
+  const btn = el('button', variant || 'site-btn-warm', label);
   btn.type = 'button';
   return btn;
 }
@@ -309,10 +309,10 @@ function openKoordYearEditor(existing) {
   const progress = el('div', 'koord-progress');
   form.appendChild(progress);
 
-  const save = koordPillBtn('Gem', 'site-pill-primary');
+  const save = koordPillBtn('Gem', 'site-btn-primary');
 
   if (existing) {
-    const del = el('button', 'site-pill-btn site-pill-danger edit-actions-left', 'Slet');
+    const del = el('button', 'site-btn-danger edit-actions-left', 'Slet');
     del.type = 'button';
     del.addEventListener('click', () => { close(); openDeleteArchiveYearConfirm(existing); });
     actions.appendChild(del);
@@ -417,7 +417,7 @@ function openDeleteArchiveYearConfirm(entry) {
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = koordPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = koordPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     cancelBtn.disabled = true;
     confirmBtn.disabled = true;
@@ -531,7 +531,7 @@ function openCloseYearModal(closingFolder) {
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = koordPillBtn('Afslut år og start nyt', 'site-pill-primary');
+  const confirmBtn = koordPillBtn('Afslut år og start nyt', 'site-btn-primary');
   confirmBtn.addEventListener('click', async () => {
     error.textContent = '';
     const closingName = nameInput.value.trim();

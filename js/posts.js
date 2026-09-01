@@ -916,13 +916,13 @@ function openPostDetail(post) {
     actionsRow.className = 'post-detail-actions';
 
     const editBtn = document.createElement('button');
-    editBtn.className = 'site-pill-btn site-pill-warm';
+    editBtn.className = 'site-btn-warm';
     editBtn.textContent = 'Rediger';
     editBtn.addEventListener('click', () => { close(); openPostEditModal(post); });
     actionsRow.appendChild(editBtn);
 
     const delBtn = document.createElement('button');
-    delBtn.className = 'site-pill-btn site-pill-danger';
+    delBtn.className = 'site-btn-danger';
     delBtn.textContent = 'Slet';
     delBtn.addEventListener('click', () => deletePost(post, close));
     actionsRow.appendChild(delBtn);
@@ -946,7 +946,7 @@ function renderCommentForm(container, post, closeDetailModal) {
   container.appendChild(commentError);
 
   const submitBtn = document.createElement('button');
-  submitBtn.className = 'site-pill-btn site-pill-primary post-comment-submit';
+  submitBtn.className = 'site-btn-primary post-comment-submit';
   submitBtn.textContent = 'Tilføj';
   submitBtn.addEventListener('click', async () => {
     const author = authorInput.value.trim();
@@ -1007,12 +1007,12 @@ function deleteComment(post, comment, closeDetailModal) {
   form.appendChild(info);
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.className = 'site-btn-warm';
   cancelBtn.textContent = 'Annuller';
   cancelBtn.addEventListener('click', close);
 
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.className = 'site-btn-danger';
   confirmBtn.textContent = 'Slet';
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
@@ -1073,7 +1073,7 @@ function openPostCreateModal() {
   form.appendChild(siteEditField('Billede (valgfrit)', fileInput));
 
   const save = document.createElement('button');
-  save.className = 'site-pill-btn site-pill-primary';
+  save.className = 'site-btn-primary';
   save.textContent = 'Gem';
   actions.appendChild(save);
 
@@ -1162,7 +1162,7 @@ function openPostEditModal(existing) {
   const close = () => { toolbar.destroy(); closeModal(); };
 
   const save = document.createElement('button');
-  save.className = 'site-pill-btn site-pill-primary';
+  save.className = 'site-btn-primary';
   save.textContent = 'Gem';
   actions.appendChild(save);
 
@@ -1221,12 +1221,12 @@ function deletePost(post, onDeleted) {
   form.appendChild(info);
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.className = 'site-pill-btn';
+  cancelBtn.className = 'site-btn-warm';
   cancelBtn.textContent = 'Annuller';
   cancelBtn.addEventListener('click', close);
 
   const confirmBtn = document.createElement('button');
-  confirmBtn.className = 'site-pill-btn site-pill-danger';
+  confirmBtn.className = 'site-btn-danger';
   confirmBtn.textContent = 'Slet';
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;

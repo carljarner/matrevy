@@ -523,7 +523,7 @@
    above (Øveplan's own pre-theme system): styled to match Budget's own
    delete-confirm dialogs instead (e.g. openExpenseRemoveConfirm in
    js/budget.js), reusing the shared site-wide .login-overlay/.login-modal/
-   .site-pill-btn chrome from style.css (loaded on every page, schedule.html
+   .site-btn-* chrome from style.css (loaded on every page, schedule.html
    included) rather than duplicating it. */
 .sched-confirm-modal { width: min(340px, 90vw); }
 .login-modal .sched-confirm-title {

@@ -397,14 +397,14 @@ function renderChapterEditView(chapter) {
 
   const del = document.createElement('button');
   del.type = 'button';
-  del.className = 'site-pill-btn site-pill-danger edit-actions-left';
+  del.className = 'site-btn-danger edit-actions-left';
   del.textContent = 'Slet kapitel';
   del.addEventListener('click', () => openDeleteChapterConfirm(chapter));
   actions.appendChild(del);
 
   const cancel = document.createElement('button');
   cancel.type = 'button';
-  cancel.className = 'site-pill-btn';
+  cancel.className = 'site-btn-warm';
   cancel.textContent = 'Annuller';
   cancel.addEventListener('click', () => {
     toolbar.destroy();
@@ -415,7 +415,7 @@ function renderChapterEditView(chapter) {
 
   const save = document.createElement('button');
   save.type = 'button';
-  save.className = 'site-pill-btn site-pill-primary';
+  save.className = 'site-btn-primary';
   save.textContent = 'Gem';
   actions.appendChild(save);
 
@@ -910,12 +910,13 @@ async function saveChapters(next) {
   return result;
 }
 
-// A rounded "pill" button — see style.css's shared .site-pill-btn for the
-// styling (also used by every other page's modals).
+// A square colored button for modal actions — see style.css's shared
+// .site-btn-primary/-danger/-warm for the styling (also used by every other
+// page's modals). variant defaults to 'site-btn-warm' (e.g. Annuller).
 function wikiPillBtn(label, variant) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'site-pill-btn' + (variant ? ' ' + variant : '');
+  btn.className = variant || 'site-btn-warm';
   btn.textContent = label;
   return btn;
 }
@@ -936,7 +937,7 @@ function openDeleteChapterConfirm(existing) {
 
   const cancelBtn = wikiPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = wikiPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = wikiPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -1053,7 +1054,7 @@ function openManageChaptersModal() {
 
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'btn-small wiki-manage-add-btn';
+  addBtn.className = 'site-btn-warm wiki-manage-add-btn';
   addBtn.textContent = '+';
   addBtn.title = 'Tilføj kapitel';
   addBtn.addEventListener('click', () => {
@@ -1070,7 +1071,7 @@ function openManageChaptersModal() {
   addRow.appendChild(addBtn);
   form.appendChild(addRow);
 
-  const save = wikiPillBtn('Gem', 'site-pill-primary');
+  const save = wikiPillBtn('Gem', 'site-btn-primary');
   actions.appendChild(save);
 
   save.addEventListener('click', async () => {

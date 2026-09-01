@@ -736,7 +736,7 @@
    display:none/'' rather than a class, so no rule is needed for that part.
    A multi-page form gets prev/label/next nav at the bottom, same idea as
    Manus's point-entry modal paging between sheets (openPointEntryModal) —
-   .btn-small here instead of that modal's .site-pill-btn since this lives
+   .btn-small here instead of that modal's .site-btn-warm since this lives
    inline on the page, not in a modal (see the site-wide button-tier rule). */
 .forms-fillin-section-title {
   text-align: center;

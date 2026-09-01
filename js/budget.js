@@ -678,7 +678,7 @@ function openSwitchActiveYearModal(root) {
 
   form.appendChild(newYearFields);
 
-  const confirmBtn = budgetPillBtn('Vælg', 'site-pill-primary');
+  const confirmBtn = budgetPillBtn('Vælg', 'site-btn-primary');
   updateNewYearFieldsVisibility();
   confirmBtn.addEventListener('click', async () => {
     const creatingNew = isCreatingNew();
@@ -778,7 +778,7 @@ function openRenameYearModal(root) {
   fieldRow.appendChild(siteEditField('Nyt årstal', yearInput));
   form.appendChild(fieldRow);
 
-  const confirmBtn = budgetPillBtn('Omdøb', 'site-pill-warm');
+  const confirmBtn = budgetPillBtn('Omdøb', 'site-btn-warm');
   confirmBtn.addEventListener('click', async () => {
     const newYear = Number(yearInput.value);
     const newLabel = labelInput.value.trim();
@@ -823,7 +823,7 @@ function openDeleteYearWarning(root) {
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const continueBtn = budgetPillBtn('Fortsæt', 'site-pill-danger');
+  const continueBtn = budgetPillBtn('Fortsæt', 'site-btn-danger');
   continueBtn.addEventListener('click', () => {
     close();
     openDeleteYearConfirm(root, id);
@@ -844,7 +844,7 @@ function openDeleteYearConfirm(root, id) {
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = budgetPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = budgetPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -1644,10 +1644,11 @@ function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
   return group;
 }
 
-// A rounded "pill" button — see style.css's shared .site-pill-btn for the
-// styling (also used by every other page's modals).
+// A square colored button for modal actions — see style.css's shared
+// .site-btn-primary/-danger/-warm for the styling (also used by every other
+// page's modals). variant defaults to 'site-btn-warm' (e.g. Annuller).
 function budgetPillBtn(label, variant) {
-  const btn = el('button', 'site-pill-btn' + (variant ? ' ' + variant : ''), label);
+  const btn = el('button', variant || 'site-btn-warm', label);
   btn.type = 'button';
   return btn;
 }
@@ -1666,7 +1667,7 @@ function openApproveModal(root, req) {
     form.appendChild(el('p', 'budget-intro', `Kommentar: ${req.comment.trim()}`));
   }
 
-  const confirmBtn = budgetPillBtn('Betalt', 'site-pill-primary');
+  const confirmBtn = budgetPillBtn('Betalt', 'site-btn-primary');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -1715,7 +1716,7 @@ function openApproveAllModal(root, members) {
   const total = members.reduce((sum, req) => sum + (Number(req.amount) || 0), 0);
   form.appendChild(el('p', 'budget-approve-all-total', `I alt at overføre: ${formatKr(total)}`));
 
-  const confirmBtn = budgetPillBtn('Betalt', 'site-pill-primary');
+  const confirmBtn = budgetPillBtn('Betalt', 'site-btn-primary');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -1777,7 +1778,7 @@ function openRequestEditModal(root, req) {
   commentInput.value = req.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
-  const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
+  const confirmBtn = budgetPillBtn('Gem', 'site-btn-warm');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
@@ -1813,7 +1814,7 @@ function rejectRequest(root, req) {
   form.appendChild(el('p', 'budget-intro',
     `Afvis udlægget fra ${req.name} (${formatKr(req.amount)})? Kvitteringen slettes.`));
 
-  const confirmBtn = budgetPillBtn('Afvis', 'site-pill-danger');
+  const confirmBtn = budgetPillBtn('Afvis', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -2064,7 +2065,7 @@ function openExpenseAddModal(root) {
   receiptInput.accept = 'image/*,application/pdf';
   form.appendChild(siteEditField('Kvittering (billede eller PDF, valgfrit)', receiptInput));
 
-  const confirmBtn = budgetPillBtn('Tilføj', 'site-pill-primary');
+  const confirmBtn = budgetPillBtn('Tilføj', 'site-btn-primary');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
@@ -2132,7 +2133,7 @@ function openExpenseEditModal(root, exp) {
   if (exp.deleted) {
     form.appendChild(el('p', 'budget-intro', 'Denne udgift er slettet og tæller ikke med i budgettet.'));
 
-    const restoreBtn = budgetPillBtn('Gendan', 'site-pill-primary');
+    const restoreBtn = budgetPillBtn('Gendan', 'site-btn-primary');
     restoreBtn.addEventListener('click', async () => {
       restoreBtn.disabled = true;
       error.textContent = '';
@@ -2157,7 +2158,7 @@ function openExpenseEditModal(root, exp) {
       }
     });
 
-    const removeBtn = budgetPillBtn('Fjern', 'site-pill-danger');
+    const removeBtn = budgetPillBtn('Fjern', 'site-btn-danger');
     removeBtn.addEventListener('click', () => openExpenseRemoveConfirm(root, exp, close));
 
     actions.appendChild(removeBtn);
@@ -2201,7 +2202,7 @@ function openExpenseEditModal(root, exp) {
     };
   }
 
-  const confirmBtn = budgetPillBtn('Gem', 'site-pill-warm');
+  const confirmBtn = budgetPillBtn('Gem', 'site-btn-warm');
   confirmBtn.addEventListener('click', async () => {
     const msg = validate();
     if (msg) { error.textContent = msg; return; }
@@ -2217,7 +2218,7 @@ function openExpenseEditModal(root, exp) {
     }
   });
 
-  const deleteBtn = budgetPillBtn('Slet', 'site-pill-danger');
+  const deleteBtn = budgetPillBtn('Slet', 'site-btn-danger');
   deleteBtn.addEventListener('click', () => {
     const msg = validate();
     if (msg) { error.textContent = msg; return; }
@@ -2244,7 +2245,7 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = budgetPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = budgetPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -2280,7 +2281,7 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = budgetPillBtn('Fjern', 'site-pill-danger');
+  const confirmBtn = budgetPillBtn('Fjern', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';

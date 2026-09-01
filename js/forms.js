@@ -134,7 +134,7 @@ function el(tag, className, text) {
 }
 
 function formsPillBtn(label, variant) {
-  const btn = el('button', 'site-pill-btn' + (variant ? ' ' + variant : ''), label);
+  const btn = el('button', variant || 'site-btn-warm', label);
   btn.type = 'button';
   return btn;
 }
@@ -762,7 +762,7 @@ function formsOpenLeaveWarning(onLeave) {
   form.appendChild(el('p', 'forms-intro', 'Dine ændringer gemmes ikke.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const leaveBtn = formsPillBtn('Forlad', 'site-pill-warm');
+  const leaveBtn = formsPillBtn('Forlad', 'site-btn-warm');
   leaveBtn.addEventListener('click', () => { close(); onLeave(); });
   actions.appendChild(cancelBtn);
   actions.appendChild(leaveBtn);
@@ -804,7 +804,7 @@ async function renderFormFillIn(root, formId) {
   // arrows at the bottom, same idea as Manus's point-entry modal
   // (openPointEntryModal) paging between sheets — except this lives inline
   // on the page, not in a modal, so it uses .btn-small rather than that
-  // modal's .site-pill-btn (see the site-wide button-tier convention). All
+  // modal's .site-btn-warm (see the site-wide button-tier convention). All
   // pages render up front and are just hidden/shown, so native input values
   // survive navigating back and forth for free.
   const pageDefs = formsSectionsFromDefinition(form);
@@ -1270,7 +1270,7 @@ function formsOpenDeleteConfirm(root, f) {
     `Slet "${f.title}" permanent, inklusive alle ${f.responseCount} indsendte svar? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     const result = await formsApi('forms_delete', { formId: f.id });
@@ -1576,11 +1576,11 @@ function formsOpenDependencyModal(field, draftSections, sectionIdx, fieldIdx, on
   // No Annuller here — the modal's own X (siteOpenModalWithClose) already
   // covers that, so only real actions sit in the button row.
   if (existing) {
-    const removeBtn = formsPillBtn('Fjern', 'site-pill-danger');
+    const removeBtn = formsPillBtn('Fjern', 'site-btn-danger');
     removeBtn.addEventListener('click', () => { close(); onRemove(); });
     actions.appendChild(removeBtn);
   }
-  const saveBtn = formsPillBtn('Gem', 'site-pill-primary');
+  const saveBtn = formsPillBtn('Gem', 'site-btn-primary');
   saveBtn.addEventListener('click', () => {
     const values = valuesWrap.formsSelectedValues ? valuesWrap.formsSelectedValues() : [];
     if (!fieldDd || !fieldDd.value) { depError.textContent = 'Vælg et spørgsmål.'; return; }
@@ -2205,7 +2205,7 @@ function formsOpenDeleteSectionConfirm(sectionNumber, onConfirm) {
   form.appendChild(el('p', 'forms-intro', `Slet Sektion ${sectionNumber}? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
@@ -2217,7 +2217,7 @@ function formsOpenDeleteResponseConfirm(submittedAtLabel, onConfirm) {
   form.appendChild(el('p', 'forms-intro', `Slet dette svar (indsendt ${submittedAtLabel})? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
@@ -2238,7 +2238,7 @@ function formsOpenDeleteFieldConfirm(fieldLabel, onConfirm) {
     (label ? `Slet spørgsmålet "${label}"` : 'Slet dette spørgsmål') + '? Dette kan ikke fortrydes.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
@@ -2310,7 +2310,7 @@ function formsOpenDeleteTemplateConfirm(t) {
   form.appendChild(el('p', 'forms-intro', `Slet skabelonen "${t.title}" permanent? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Slet', 'site-pill-danger');
+  const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     const result = await formsApi('templates_delete', { id: t.id });
@@ -2347,7 +2347,7 @@ function formsOpenSaveAsTemplateModal(templates, suggestedTitle, sections) {
 
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Opret', 'site-pill-primary');
+  const confirmBtn = formsPillBtn('Opret', 'site-btn-primary');
 
   function syncForSelection() {
     const isNew = pickerDd.value === FORMS_NEW_TEMPLATE_VALUE;
