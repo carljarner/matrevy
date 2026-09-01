@@ -380,12 +380,6 @@
   gap: 0.5rem;
 }
 
-/* A white ring keeps every category dot legible against the selected
-   row's own warm-orange background, regardless of the dot's own color. */
-.site-list-selected .cal-dot {
-  border: 1px solid #ffffff;
-}
-
 /* --- Read-only detail modal -------------------------------- */
 .cal-detail-row {
   margin-bottom: 0.4rem;
