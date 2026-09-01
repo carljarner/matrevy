@@ -11,7 +11,7 @@ const PROGRAM_DATA = {
     },
     {
       "id": "qr2",
-      "label": "Interesseret i at være med i Matematikrevyen næste år?",
+      "label": "Interesseret i at være med i MatRevy næste år?",
       "url": "https://matematikrevy.dk/kalender.html"
     }
   ]
