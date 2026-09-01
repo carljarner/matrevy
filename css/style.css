@@ -110,7 +110,11 @@ body {
   gap: 0.25rem;
 }
 
-.site-nav a {
+/* Direct-child combinator (not a bare descendant selector) so this
+   doesn't also style the <a> tags inside a grouped tab's dropdown
+   (.site-nav-group > .site-nav-dropdown > a), which are meant to look
+   like .site-list-row popup rows instead of top-level nav links. */
+.site-nav > a {
   color: #c9d1d9;
   text-decoration: none;
   padding: 0.35rem 0.75rem;
@@ -120,18 +124,18 @@ body {
 }
 
 @media (hover: hover) {
-  .site-nav a:hover {
+  .site-nav > a:hover {
     background: rgba(255,255,255,0.1);
     color: #ffffff;
   }
 }
 
-.site-nav a:focus-visible {
+.site-nav > a:focus-visible {
   outline: 2px solid var(--accent-warm);
   outline-offset: 2px;
 }
 
-.site-nav a.active {
+.site-nav > a.active {
   background: rgba(255,255,255,0.15);
   color: #ffffff;
   font-weight: 500;
@@ -143,6 +147,56 @@ body {
   font-size: 0.9rem;
   cursor: not-allowed;
   user-select: none;
+}
+
+/* --- Redskaber-style grouped nav tab (desktop dropdown) ---- */
+.site-nav-group {
+  position: relative;
+}
+
+.site-nav-group-btn {
+  background: none;
+  border: none;
+  color: #c9d1d9;
+  text-decoration: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+@media (hover: hover) {
+  .site-nav-group-btn:hover {
+    background: rgba(255,255,255,0.1);
+    color: #ffffff;
+  }
+}
+
+.site-nav-group-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
+.site-nav-group-btn.active {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.site-nav-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.3rem;
+  min-width: 11rem;
+}
+
+/* .site-list-row is normally a <button> (site-utils.js's popups); here
+   it's an <a>, so it needs the underline reset explicitly. */
+.site-nav-dropdown a {
+  text-decoration: none;
 }
 
 /* --- Login button / modal --------------------------------- */
@@ -519,6 +573,43 @@ body {
   padding: 0.75rem 0.5rem;
   cursor: not-allowed;
   user-select: none;
+}
+
+/* --- Redskaber-style grouped nav tab (mobile accordion) ---- */
+.site-menu-nav-group-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #c9d1d9;
+  font-size: 1.25rem;
+  font-family: inherit;
+  padding: 0.75rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.site-menu-nav-group-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
+.site-menu-nav-group-btn.active {
+  background: rgba(255,255,255,0.15);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.site-menu-nav-sub:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-left: 1rem;
+}
+
+.site-menu-nav-sub a {
+  font-size: 1.1rem;
 }
 
 .site-menu-auth {

@@ -20,6 +20,10 @@ const SITE_AUTH_KEY = 'matrevy-auth';
 //   'public' — always visible
 //   'revyst' — greyed-out in nav until revyst+ login
 //   'boss'/'admin' — omitted from nav entirely until that level or above
+// `group` (optional) folds a page into a single nav tab shared with every
+// other page carrying the same group key — see SITE_NAV_GROUP_LABELS and
+// buildSiteNavLinks(). A future tool just adds another entry with the same
+// group; no nav/CSS changes needed per tool.
 const SITE_PAGES = [
   { href: 'index.html',       label: 'Forside',     level: 'public' },
   { href: 'kalender.html',    label: 'Kalender',    level: 'public' },
@@ -29,9 +33,12 @@ const SITE_PAGES = [
   { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
   { href: 'forms.html',       label: 'Formularer',  level: 'revyst' },
   { href: 'faellesspisning.html', label: 'Fællesspisning', level: 'revyst' },
-  { href: 'schedule.html',    label: 'Øveplan',     level: 'revyst' },
+  { href: 'schedule.html',    label: 'Øveplan',     level: 'revyst', group: 'redskaber' },
   { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
 ];
+
+// Tab label for each `group` key used above.
+const SITE_NAV_GROUP_LABELS = { redskaber: 'Redskaber' };
 
 const SITE_LEVEL_RANK = { public: 0, revyst: 1, boss: 2, admin: 3 };
 
@@ -72,31 +79,161 @@ function siteCurrentPage() {
   return location.pathname.split('/').pop() || 'index.html';
 }
 
-// Fills `nav` with the page links — shared by the desktop header
-// nav and the mobile menu overlay.
-function buildSiteNavLinks(nav) {
+// One page's nav visibility: 'link' (visitor can use it), 'locked'
+// (shown greyed so visitors know it exists), or 'hidden' (omitted
+// entirely) — see the level comment on SITE_PAGES above.
+function siteNavItemVisibility(page) {
+  if (siteHasLevel(page.level)) return 'link';
+  if (SITE_LEVEL_RANK[page.level] <= SITE_LEVEL_RANK.revyst) return 'locked';
+  return 'hidden';
+}
+
+function siteNavLockedSpan(label) {
+  const span = document.createElement('span');
+  span.className = 'site-nav-locked';
+  span.textContent = label;
+  span.title = 'Log ind for at se denne side';
+  return span;
+}
+
+// Fills `nav` with the page links and group tabs — shared by the
+// desktop header nav (`mobile` false) and the mobile menu overlay
+// (`mobile` true, renders a grouped tab as an accordion instead of a
+// dropdown).
+function buildSiteNavLinks(nav, opts) {
+  const mobile = !!(opts && opts.mobile);
   const current = siteCurrentPage();
+  const renderedGroups = new Set();
   for (const page of SITE_PAGES) {
-    if (siteHasLevel(page.level)) {
-      // falls through to the real link below
-    } else if (SITE_LEVEL_RANK[page.level] <= SITE_LEVEL_RANK.revyst) {
-      // revyst-level pages: greyed-out but visible, so visitors know they exist
-      const locked = document.createElement('span');
-      locked.className = 'site-nav-locked';
-      locked.textContent = page.label;
-      locked.title = 'Log ind for at se denne side';
-      nav.appendChild(locked);
+    if (page.group) {
+      if (renderedGroups.has(page.group)) continue;
+      renderedGroups.add(page.group);
+      renderNavGroup(nav, page.group, current, mobile);
       continue;
-    } else {
-      // boss/admin-level pages: hidden entirely below that level
+    }
+    renderNavItem(nav, page, current);
+  }
+}
+
+function renderNavItem(nav, page, current) {
+  const visibility = siteNavItemVisibility(page);
+  if (visibility === 'hidden') return;
+  if (visibility === 'locked') {
+    nav.appendChild(siteNavLockedSpan(page.label));
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = page.href;
+  a.textContent = page.label;
+  if (page.href === current) a.className = 'active';
+  nav.appendChild(a);
+}
+
+// Renders every SITE_PAGES entry sharing `groupKey` as one nav tab:
+// nothing if none are visible to this visitor (mirrors a hidden
+// boss/admin item), a plain locked span if visible-but-all-locked
+// (mirrors a locked item), or an interactive dropdown/accordion once
+// at least one sub-item is unlocked.
+function renderNavGroup(nav, groupKey, current, mobile) {
+  const items = SITE_PAGES.filter(p => p.group === groupKey);
+  const visible = items.filter(p => siteNavItemVisibility(p) !== 'hidden');
+  if (visible.length === 0) return;
+
+  const label = SITE_NAV_GROUP_LABELS[groupKey] || groupKey;
+  const hasUnlocked = visible.some(p => siteNavItemVisibility(p) === 'link');
+  if (!hasUnlocked) {
+    nav.appendChild(siteNavLockedSpan(label));
+    return;
+  }
+
+  const isCurrent = items.some(p => p.href === current);
+  if (mobile) renderMobileNavGroup(nav, label, visible, current, isCurrent);
+  else renderDesktopNavGroup(nav, label, visible, current, isCurrent);
+}
+
+function renderDesktopNavGroup(nav, label, visible, current, isCurrent) {
+  const wrap = document.createElement('div');
+  wrap.className = 'site-nav-group';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-nav-group-btn' + (isCurrent ? ' active' : '');
+  btn.textContent = label + ' ▾';
+  btn.setAttribute('aria-expanded', 'false');
+  wrap.appendChild(btn);
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'site-field-pop site-nav-dropdown';
+  dropdown.hidden = true;
+  for (const page of visible) {
+    if (siteNavItemVisibility(page) === 'locked') {
+      dropdown.appendChild(siteNavLockedSpan(page.label));
+      continue;
+    }
+    const a = document.createElement('a');
+    a.className = 'site-list-row' + (page.href === current ? ' site-list-selected' : '');
+    a.href = page.href;
+    a.textContent = page.label;
+    dropdown.appendChild(a);
+  }
+  wrap.appendChild(dropdown);
+  nav.appendChild(wrap);
+
+  // Self-contained open/close/outside-click/Escape handling — this
+  // page may not have loaded site-utils.js (schedule.html doesn't),
+  // so it can't reuse that file's shared popup helpers.
+  let onDocClick = null;
+  let onKeydown = null;
+  function closeDropdown() {
+    dropdown.hidden = true;
+    btn.setAttribute('aria-expanded', 'false');
+    if (onDocClick) document.removeEventListener('click', onDocClick);
+    if (onKeydown) document.removeEventListener('keydown', onKeydown);
+    onDocClick = null;
+    onKeydown = null;
+  }
+  btn.addEventListener('click', () => {
+    if (!dropdown.hidden) { closeDropdown(); return; }
+    dropdown.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    onDocClick = (e) => { if (!wrap.contains(e.target)) closeDropdown(); };
+    onKeydown = (e) => { if (e.key === 'Escape') { e.stopPropagation(); closeDropdown(); btn.focus(); } };
+    // Deferred so this opening click doesn't also trigger onDocClick.
+    setTimeout(() => document.addEventListener('click', onDocClick), 0);
+    document.addEventListener('keydown', onKeydown);
+  });
+}
+
+function renderMobileNavGroup(nav, label, visible, current, isCurrent) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-menu-nav-group-btn' + (isCurrent ? ' active' : '');
+  btn.setAttribute('aria-expanded', isCurrent ? 'true' : 'false');
+  nav.appendChild(btn);
+
+  const sub = document.createElement('div');
+  sub.className = 'site-menu-nav-sub';
+  sub.hidden = !isCurrent;
+  for (const page of visible) {
+    if (siteNavItemVisibility(page) === 'locked') {
+      sub.appendChild(siteNavLockedSpan(page.label));
       continue;
     }
     const a = document.createElement('a');
     a.href = page.href;
     a.textContent = page.label;
     if (page.href === current) a.className = 'active';
-    nav.appendChild(a);
+    sub.appendChild(a);
   }
+  nav.appendChild(sub);
+
+  function setChevron() { btn.textContent = (sub.hidden ? '▸ ' : '▾ ') + label; }
+  setChevron();
+  btn.addEventListener('click', () => {
+    sub.hidden = !sub.hidden;
+    btn.setAttribute('aria-expanded', sub.hidden ? 'false' : 'true');
+    setChevron();
+  });
 }
 
 // Returns a configured login/logout button, or null over file://
@@ -129,7 +266,7 @@ function renderSiteHeader() {
 
   const nav = document.createElement('nav');
   nav.className = 'site-nav';
-  buildSiteNavLinks(nav);
+  buildSiteNavLinks(nav, { mobile: false });
   header.appendChild(nav);
 
   const authBtn = buildAuthButton();
@@ -207,7 +344,7 @@ function openSiteMenu(menuBtn) {
 
   const nav = document.createElement('nav');
   nav.className = 'site-menu-nav';
-  buildSiteNavLinks(nav);
+  buildSiteNavLinks(nav, { mobile: true });
   overlay.appendChild(nav);
 
   const authBtn = buildAuthButton();
