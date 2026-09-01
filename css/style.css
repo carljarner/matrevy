@@ -329,14 +329,16 @@ body {
   margin-top: 1.5rem;
 }
 
-/* Matches Annuller's own natural width, so a plain "Er du sikker?"
-   confirm's Annuller/Slet (or similar) pair reads as equal weight instead
-   of Slet looking narrower/lighter than Annuller. A handful of modals with
-   their own explicit corner layout (.cal-event-actions,
-   .faelles-connect-modal .login-actions) override both this and
-   justify-content above. */
+/* Site-wide floor for every newly-styled square button (Manus excepted —
+   it has its own sizing system), matched to Budget's own "Rediger" button
+   on the main sheet — the reference size the rest of the site now floors
+   to. Longer labels still grow past it naturally; this only stops a short
+   one (e.g. "Slet" next to "Annuller") from looking noticeably lighter/
+   narrower than its neighbor. A handful of modals with their own explicit
+   corner layout (.cal-event-actions, .faelles-connect-modal .login-actions)
+   override both this and justify-content above. */
 .login-actions > button {
-  min-width: 5.5rem;
+  min-width: 5rem;
 }
 
 /* The plain login modal (openLoginModal in site.js, not one of

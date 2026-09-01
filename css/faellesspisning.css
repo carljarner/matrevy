@@ -311,10 +311,6 @@
   justify-content: center;
 }
 
-.faelles-connect-modal .login-actions > button {
-  min-width: 6.5rem;
-}
-
 /* --- "Fjern række" confirm — replaces the native confirm() dialog,
    mirrors calendar.css's .cal-confirm-modal/.cal-confirm-text. -------- */
 

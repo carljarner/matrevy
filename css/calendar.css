@@ -399,22 +399,18 @@
 }
 
 /* Event editor's Slet/Gem: kept in the corners (unlike the site-wide
-   .login-actions default of centered) with matching, content-fit width so
-   neither button reads as more prominent than the other. The extra
-   .login-actions in each selector out-specifies style.css's own
-   .login-actions/.login-actions > button rules regardless of load order.
-   A new event has only Gem (no Slet) — :has(> :only-child) keeps that
-   single-button case centered instead of space-between pinning it left. */
+   .login-actions default of centered) — width comes from the shared
+   .login-actions > button floor (style.css), no override needed here. The
+   extra .login-actions in the selector out-specifies style.css's own
+   .login-actions rule regardless of load order. A new event has only Gem
+   (no Slet) — :has(> :only-child) keeps that single-button case centered
+   instead of space-between pinning it left. */
 .login-actions.cal-event-actions {
   justify-content: space-between;
 }
 
 .login-actions.cal-event-actions:has(> :only-child) {
   justify-content: center;
-}
-
-.login-actions.cal-event-actions > button {
-  min-width: 4rem;
 }
 
 /* --- Mobile (≤719px, same breakpoint as style.css) ---------- */

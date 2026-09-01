@@ -428,10 +428,11 @@
   flex-wrap: wrap;
 }
 
-/* Matches Annuller's own natural width (see style.css's .login-actions >
-   button), so Annuller/Slet/Gem read as equal weight. */
+/* Matches the site-wide button-width floor (style.css's .login-actions >
+   button, sized to Budget's own "Rediger"), so Annuller/Slet/Gem read as
+   equal weight. */
 .wiki-edit-actions > button {
-  min-width: 5.5rem;
+  min-width: 5rem;
 }
 
 /* --- Attachments (edit view: list + "+ Vedhæft fil" picker) --- */
