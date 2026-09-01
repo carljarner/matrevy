@@ -163,6 +163,7 @@ body {
   border-radius: 4px;
   font-size: 0.9rem;
   font-family: inherit;
+  line-height: inherit;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -197,6 +198,17 @@ body {
    it's an <a>, so it needs the underline reset explicitly. */
 .site-nav-dropdown a {
   text-decoration: none;
+}
+
+/* The current-page row is warm/orange, not the shared blue .site-list-selected
+   (reserved for a real primary action) — same override as .site-tp-pop's own
+   selected row above. */
+.site-nav-dropdown .site-list-selected {
+  background: var(--accent-warm-text);
+}
+
+@media (hover: hover) {
+  .site-nav-dropdown .site-list-selected:hover { background: var(--accent-warm-text); }
 }
 
 /* --- Login button / modal --------------------------------- */
