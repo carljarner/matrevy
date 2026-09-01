@@ -408,9 +408,18 @@ body {
 
 /* --- Mobile menu (hamburger + overlay) --------------------
    z-index ladder: header 100 → menu overlay 150 → login/edit
-   modals 200. The hamburger is hidden on desktop (≥720px). */
+   modals 200. Which layout shows isn't a fixed viewport breakpoint —
+   SITE_PAGES can grow past what a wide-but-not-huge window can fit,
+   so site.js measures the header's real content width and toggles
+   `.site-header-collapsed` whenever the inline nav+login would
+   overflow, regardless of viewport size (see siteUpdateHeaderFit()). */
+.site-header.site-header-collapsed .site-nav,
+.site-header.site-header-collapsed .site-auth {
+  display: none;
+}
+
 .site-menu-btn {
-  display: none; /* shown ≤719px */
+  display: none; /* shown once site.js marks the header collapsed */
   flex-direction: column;
   justify-content: space-between;
   width: 44px;
@@ -464,6 +473,10 @@ body {
 
 .site-menu-close:focus-visible {
   outline: 2px solid var(--accent-warm);
+}
+
+.site-header-collapsed .site-menu-btn {
+  display: flex;
 }
 
 .site-menu-nav {
@@ -1820,17 +1833,6 @@ p:last-child {
   .site-header {
     padding: 0 0.75rem 0 1rem;
     gap: 1rem;
-  }
-
-  /* Inline nav + login collapse into the hamburger menu.
-     Scoped to .site-header so the overlay's own nav is unaffected. */
-  .site-header .site-nav,
-  .site-header .site-auth {
-    display: none;
-  }
-
-  .site-menu-btn {
-    display: flex;
   }
 
   .page-content {

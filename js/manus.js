@@ -3351,22 +3351,40 @@ const MANUS_ACTIVE_TAB_KEY = 'matrevy-manus-tab';
 const manusStoredTab = localStorage.getItem(MANUS_ACTIVE_TAB_KEY);
 let manusActiveTab = MANUS_MAIN_TABS.some(t => t.key === manusStoredTab) ? manusStoredTab : 'select';
 
+function manusSetActiveTab(key) {
+  manusActiveTab = key;
+  localStorage.setItem(MANUS_ACTIVE_TAB_KEY, manusActiveTab);
+  renderTabBar();
+  renderActiveTabPanel();
+}
+
+// Renders both the desktop folder-tab bar and a mobile dropdown built from
+// the same MANUS_MAIN_TABS list — CSS (≤719px) shows only one of the two,
+// since six folder tabs get too squeezed to read on a phone-width screen.
 function renderTabBar() {
   const mount = document.getElementById('manus-tab-bar');
   mount.textContent = '';
+
+  const btnBar = document.createElement('div');
+  btnBar.className = 'manus-tab-btn-bar';
   for (const tab of MANUS_MAIN_TABS) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'manus-tab-btn' + (tab.key === manusActiveTab ? ' active' : '');
     btn.textContent = tab.label;
-    btn.addEventListener('click', () => {
-      manusActiveTab = tab.key;
-      localStorage.setItem(MANUS_ACTIVE_TAB_KEY, manusActiveTab);
-      renderTabBar();
-      renderActiveTabPanel();
-    });
-    mount.appendChild(btn);
+    btn.addEventListener('click', () => manusSetActiveTab(tab.key));
+    btnBar.appendChild(btn);
   }
+  mount.appendChild(btnBar);
+
+  const dropdown = siteCreateDropdownField(
+    MANUS_MAIN_TABS.map(tab => ({ value: tab.key, label: tab.label })),
+    manusActiveTab
+  );
+  dropdown.classList.add('manus-tab-select-mobile');
+  dropdown.setAttribute('aria-label', 'Vælg fane');
+  dropdown.addEventListener('change', () => manusSetActiveTab(dropdown.value));
+  mount.appendChild(dropdown);
 }
 
 function renderActiveTabPanel() {

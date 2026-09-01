@@ -153,6 +153,34 @@ function renderSiteHeader() {
   }
   menuBtn.addEventListener('click', () => openSiteMenu(menuBtn));
   header.appendChild(menuBtn);
+
+  siteUpdateHeaderFit();
+}
+
+// Switches the header between inline nav and hamburger based on
+// whether the nav+login actually fit — not a fixed viewport
+// breakpoint, since SITE_PAGES can grow past what a wide-but-not-huge
+// window can fit well before the ≤719px mobile breakpoint kicks in.
+function siteUpdateHeaderFit() {
+  const header = document.querySelector('.site-header');
+  if (!header) return;
+  // Un-collapse first so the measurement reflects the full inline
+  // nav+login, not whatever the last measurement decided.
+  header.classList.remove('site-header-collapsed');
+  const overflowing = header.scrollWidth > header.clientWidth + 1;
+  header.classList.toggle('site-header-collapsed', overflowing);
+}
+
+let siteHeaderFitRaf = null;
+window.addEventListener('resize', () => {
+  if (siteHeaderFitRaf) cancelAnimationFrame(siteHeaderFitRaf);
+  siteHeaderFitRaf = requestAnimationFrame(() => {
+    siteHeaderFitRaf = null;
+    siteUpdateHeaderFit();
+  });
+});
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(siteUpdateHeaderFit);
 }
 
 // ── Mobile menu overlay ──────────────────────────────────────
