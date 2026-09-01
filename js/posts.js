@@ -915,17 +915,17 @@ function openPostDetail(post) {
     const actionsRow = document.createElement('div');
     actionsRow.className = 'post-detail-actions';
 
-    const editBtn = document.createElement('button');
-    editBtn.className = 'site-btn-warm';
-    editBtn.textContent = 'Rediger';
-    editBtn.addEventListener('click', () => { close(); openPostEditModal(post); });
-    actionsRow.appendChild(editBtn);
-
     const delBtn = document.createElement('button');
     delBtn.className = 'site-btn-danger';
     delBtn.textContent = 'Slet';
     delBtn.addEventListener('click', () => deletePost(post, close));
     actionsRow.appendChild(delBtn);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'site-btn-warm';
+    editBtn.textContent = 'Rediger';
+    editBtn.addEventListener('click', () => { close(); openPostEditModal(post); });
+    actionsRow.appendChild(editBtn);
 
     form.appendChild(actionsRow);
   }
@@ -946,7 +946,7 @@ function renderCommentForm(container, post, closeDetailModal) {
   container.appendChild(commentError);
 
   const submitBtn = document.createElement('button');
-  submitBtn.className = 'site-btn-primary post-comment-submit';
+  submitBtn.className = 'site-btn-success post-comment-submit';
   submitBtn.textContent = 'Tilføj';
   submitBtn.addEventListener('click', async () => {
     const author = authorInput.value.trim();
@@ -1073,7 +1073,7 @@ function openPostCreateModal() {
   form.appendChild(siteEditField('Billede (valgfrit)', fileInput));
 
   const save = document.createElement('button');
-  save.className = 'site-btn-primary';
+  save.className = 'site-btn-success';
   save.textContent = 'Gem';
   actions.appendChild(save);
 
@@ -1162,7 +1162,7 @@ function openPostEditModal(existing) {
   const close = () => { toolbar.destroy(); closeModal(); };
 
   const save = document.createElement('button');
-  save.className = 'site-btn-primary';
+  save.className = 'site-btn-success';
   save.textContent = 'Gem';
   actions.appendChild(save);
 

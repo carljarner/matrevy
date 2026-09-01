@@ -308,7 +308,7 @@ function renderListView(container) {
 }
 
 // A square colored button for Kalender's modals — see style.css's shared
-// .site-btn-primary/-danger/-warm for the styling (also used by every other
+// .site-btn-success/-danger/-warm for the styling (blue .site-btn-primary is reserved for Login/Archive; also used by every other
 // page's modals). variant defaults to 'site-btn-warm' (e.g. Annuller).
 function calPillBtn(label, variant) {
   const btn = document.createElement('button');
@@ -467,6 +467,7 @@ function calCreateCategoryField(initialKey) {
 // ── Editor modal ─────────────────────────────────────────────
 function openEventEditor(existing) {
   const { form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger begivenhed' : 'Ny begivenhed');
+  actions.classList.add('cal-event-actions');
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -533,7 +534,7 @@ function openEventEditor(existing) {
   noteArea.value = existing ? existing.note || '' : '';
   form.appendChild(siteEditField('Note', noteArea));
 
-  const save = calPillBtn('Gem', 'site-btn-primary');
+  const save = calPillBtn('Gem', 'site-btn-success');
 
   if (existing) {
     const del = calPillBtn('Slet', 'site-btn-danger');

@@ -200,7 +200,7 @@
 
 .wiki-manage-add-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.5rem;
 }
 
@@ -208,14 +208,6 @@
   flex: 1;
   min-width: 0;
   margin-bottom: 0;
-}
-
-/* Layout-only tweaks on top of the shared .site-btn-warm (style.css) —
-   never color/shape — sized as a compact icon button next to the input. */
-.wiki-manage-add-btn {
-  padding: 0.6rem 0.75rem;
-  font-size: 1rem;
-  line-height: 1;
 }
 
 /* --- Right column: selected chapter's content ---------------- */
@@ -425,6 +417,7 @@
 .wiki-edit-actions {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.6rem;
   margin-top: 0.75rem;
   flex-wrap: wrap;

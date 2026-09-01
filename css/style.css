@@ -254,8 +254,16 @@ body {
 .login-actions {
   display: flex;
   gap: 0.6rem;
-  justify-content: center;
+  justify-content: space-between;
   margin-top: 1.5rem;
+}
+
+/* A single button (most info/confirm dialogs with just one action) stays
+   centered rather than pinned to the left edge that space-between alone
+   would produce. Two or three buttons spread to the corners (and, for
+   three, roughly the center) instead — the site-wide modal-action layout. */
+.login-actions:has(> :only-child) {
+  justify-content: center;
 }
 
 /* The plain login modal (openLoginModal in site.js, not one of
@@ -1728,11 +1736,15 @@ body.site-menu-open {
 
 .post-detail-actions {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   gap: 1rem;
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+}
+
+.post-detail-actions > button {
+  min-width: 7rem;
 }
 
 .post-comments {

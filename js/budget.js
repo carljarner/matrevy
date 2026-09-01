@@ -313,7 +313,7 @@ function renderRevystForm(root) {
   const msg = el('div', 'budget-msg');
   card.appendChild(msg);
 
-  const submitBtn = el('button', 'site-btn-primary', 'Send udlæg');
+  const submitBtn = el('button', 'site-btn-success', 'Send udlæg');
   submitBtn.type = 'button';
   card.appendChild(submitBtn);
 
@@ -678,7 +678,7 @@ function openSwitchActiveYearModal(root) {
 
   form.appendChild(newYearFields);
 
-  const confirmBtn = budgetPillBtn('Vælg', 'site-btn-primary');
+  const confirmBtn = budgetPillBtn('Vælg', 'site-btn-success');
   updateNewYearFieldsVisibility();
   confirmBtn.addEventListener('click', async () => {
     const creatingNew = isCreatingNew();
@@ -984,7 +984,7 @@ function buildBudgetSheetCard() {
   });
   saveBar.appendChild(editBudgetBtn);
 
-  const saveBtn = el('button', 'site-btn-primary', 'Gem');
+  const saveBtn = el('button', 'site-btn-success', 'Gem');
   saveBtn.type = 'button';
   if (budgetCategoriesEditMode) {
     saveBtn.addEventListener('click', () => saveCategoryEdits(saveBtn, status, categoryDrafts));
@@ -1645,7 +1645,7 @@ function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
 }
 
 // A square colored button for modal actions — see style.css's shared
-// .site-btn-primary/-danger/-warm for the styling (also used by every other
+// .site-btn-success/-danger/-warm for the styling (blue .site-btn-primary is reserved for Login/Archive; also used by every other
 // page's modals). variant defaults to 'site-btn-warm' (e.g. Annuller).
 function budgetPillBtn(label, variant) {
   const btn = el('button', variant || 'site-btn-warm', label);
@@ -1667,7 +1667,7 @@ function openApproveModal(root, req) {
     form.appendChild(el('p', 'budget-intro', `Kommentar: ${req.comment.trim()}`));
   }
 
-  const confirmBtn = budgetPillBtn('Betalt', 'site-btn-primary');
+  const confirmBtn = budgetPillBtn('Betalt', 'site-btn-success');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -1716,7 +1716,7 @@ function openApproveAllModal(root, members) {
   const total = members.reduce((sum, req) => sum + (Number(req.amount) || 0), 0);
   form.appendChild(el('p', 'budget-approve-all-total', `I alt at overføre: ${formatKr(total)}`));
 
-  const confirmBtn = budgetPillBtn('Betalt', 'site-btn-primary');
+  const confirmBtn = budgetPillBtn('Betalt', 'site-btn-success');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -2065,7 +2065,7 @@ function openExpenseAddModal(root) {
   receiptInput.accept = 'image/*,application/pdf';
   form.appendChild(siteEditField('Kvittering (billede eller PDF, valgfrit)', receiptInput));
 
-  const confirmBtn = budgetPillBtn('Tilføj', 'site-btn-primary');
+  const confirmBtn = budgetPillBtn('Tilføj', 'site-btn-success');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
@@ -2133,7 +2133,7 @@ function openExpenseEditModal(root, exp) {
   if (exp.deleted) {
     form.appendChild(el('p', 'budget-intro', 'Denne udgift er slettet og tæller ikke med i budgettet.'));
 
-    const restoreBtn = budgetPillBtn('Gendan', 'site-btn-primary');
+    const restoreBtn = budgetPillBtn('Gendan', 'site-btn-success');
     restoreBtn.addEventListener('click', async () => {
       restoreBtn.disabled = true;
       error.textContent = '';

@@ -655,7 +655,7 @@ async function faellesOpenConnectModal(root) {
     actions.appendChild(disconnectBtn);
   }
 
-  const connectBtn = faellesPillBtn('Forbind', 'site-btn-primary');
+  const connectBtn = faellesPillBtn('Forbind', 'site-btn-success');
   connectBtn.addEventListener('click', async () => {
     if (!currentFormId || !navnPicker || !madforboholdPicker) return;
     const formTitle = (forms.find((f) => f.id === currentFormId) || {}).title || '';
@@ -709,10 +709,7 @@ async function faellesOpenQuickAddDateModal(root) {
   const dateInput = siteCreateDateField('');
   form.appendChild(siteEditField('Dato', dateInput));
 
-  const cancelBtn = faellesPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-
-  const saveBtn = faellesPillBtn('Tilføj', 'site-btn-primary');
+  const saveBtn = faellesPillBtn('Tilføj', 'site-btn-success');
   saveBtn.addEventListener('click', async () => {
     const title = titleInput.value.trim();
     const date = dateInput.value;
@@ -734,7 +731,6 @@ async function faellesOpenQuickAddDateModal(root) {
     faellesRender(root);
   });
 
-  actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
   titleInput.focus();
 }

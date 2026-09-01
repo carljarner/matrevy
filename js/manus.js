@@ -509,7 +509,7 @@ function openUploadModal() {
   form.appendChild(siteEditField('Type', typeToggle.element));
 
   const save = document.createElement('button');
-  save.className = 'site-btn-primary';
+  save.className = 'site-btn-success';
   save.textContent = 'Upload';
   actions.appendChild(save);
 
@@ -2319,7 +2319,7 @@ function renderSelectionColumn() {
   const selectGroup = renderSelectPanelGroup('Vælg Scener');
   const selectBtn = document.createElement('button');
   selectBtn.type = 'button';
-  selectBtn.className = 'site-btn-primary';
+  selectBtn.className = 'site-btn-success';
   selectBtn.textContent = 'Vælg scener';
   selectBtn.addEventListener('click', () => openSelectScenesOverlay());
   selectGroup.appendChild(selectBtn);
@@ -2459,7 +2459,7 @@ function openSelectScenesOverlay() {
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
-  saveBtn.className = 'site-btn-primary';
+  saveBtn.className = 'site-btn-success';
   saveBtn.textContent = 'Gem';
   saveBtn.addEventListener('click', () => {
     // Commit the whole staged batch at once: flip `selected`, then the same
@@ -2702,7 +2702,7 @@ function openRoleSceneModal(row, badge) {
 
   const updateBtn = document.createElement('button');
   updateBtn.type = 'button';
-  updateBtn.className = 'site-btn-primary';
+  updateBtn.className = 'site-btn-success';
   updateBtn.textContent = 'Opdater roller';
   updateBtn.addEventListener('click', () => {
     const isSong = manusRowIsSong(row);
@@ -2943,7 +2943,7 @@ function openVideoBandsangModal(row, { isNew = false } = {}) {
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
-  saveBtn.className = 'site-btn-primary';
+  saveBtn.className = 'site-btn-success';
   saveBtn.textContent = 'Gem';
   actions.appendChild(saveBtn);
 
@@ -3867,7 +3867,7 @@ function renderMainViewActions() {
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
-  saveBtn.className = 'site-btn-primary';
+  saveBtn.className = 'site-btn-success';
   saveBtn.textContent = 'Gem';
   saveBtn.disabled = manusResourceSaveInFlight;
   saveBtn.addEventListener('click', () => manusSaveMain());

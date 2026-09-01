@@ -724,6 +724,10 @@
   margin-top: 1rem;
 }
 
+.forms-builder-actions > button {
+  min-width: 7rem;
+}
+
 .forms-builder-cancel {
   position: absolute;
   left: 50%;

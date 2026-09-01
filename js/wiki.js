@@ -395,13 +395,6 @@ function renderChapterEditView(chapter) {
   const actions = document.createElement('div');
   actions.className = 'wiki-edit-actions';
 
-  const del = document.createElement('button');
-  del.type = 'button';
-  del.className = 'site-btn-danger edit-actions-left';
-  del.textContent = 'Slet kapitel';
-  del.addEventListener('click', () => openDeleteChapterConfirm(chapter));
-  actions.appendChild(del);
-
   const cancel = document.createElement('button');
   cancel.type = 'button';
   cancel.className = 'site-btn-warm';
@@ -413,9 +406,16 @@ function renderChapterEditView(chapter) {
   });
   actions.appendChild(cancel);
 
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'site-btn-danger';
+  del.textContent = 'Slet';
+  del.addEventListener('click', () => openDeleteChapterConfirm(chapter));
+  actions.appendChild(del);
+
   const save = document.createElement('button');
   save.type = 'button';
-  save.className = 'site-btn-primary';
+  save.className = 'site-btn-success';
   save.textContent = 'Gem';
   actions.appendChild(save);
 
@@ -911,7 +911,7 @@ async function saveChapters(next) {
 }
 
 // A square colored button for modal actions — see style.css's shared
-// .site-btn-primary/-danger/-warm for the styling (also used by every other
+// .site-btn-success/-danger/-warm for the styling (blue .site-btn-primary is reserved for Login/Archive; also used by every other
 // page's modals). variant defaults to 'site-btn-warm' (e.g. Annuller).
 function wikiPillBtn(label, variant) {
   const btn = document.createElement('button');
@@ -1054,9 +1054,10 @@ function openManageChaptersModal() {
 
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'site-btn-warm wiki-manage-add-btn';
+  addBtn.className = 'boss-manage-add-plus';
   addBtn.textContent = '+';
   addBtn.title = 'Tilføj kapitel';
+  addBtn.setAttribute('aria-label', 'Tilføj kapitel');
   addBtn.addEventListener('click', () => {
     const t = nameInput.value.trim();
     if (!t) return;
@@ -1071,7 +1072,7 @@ function openManageChaptersModal() {
   addRow.appendChild(addBtn);
   form.appendChild(addRow);
 
-  const save = wikiPillBtn('Gem', 'site-btn-primary');
+  const save = wikiPillBtn('Gem', 'site-btn-success');
   actions.appendChild(save);
 
   save.addEventListener('click', async () => {

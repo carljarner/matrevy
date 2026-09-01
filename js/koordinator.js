@@ -309,7 +309,7 @@ function openKoordYearEditor(existing) {
   const progress = el('div', 'koord-progress');
   form.appendChild(progress);
 
-  const save = koordPillBtn('Gem', 'site-btn-primary');
+  const save = koordPillBtn('Gem', 'site-btn-success');
 
   if (existing) {
     const del = el('button', 'site-btn-danger edit-actions-left', 'Slet');
@@ -531,7 +531,7 @@ function openCloseYearModal(closingFolder) {
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = koordPillBtn('Afslut år og start nyt', 'site-btn-primary');
+  const confirmBtn = koordPillBtn('Afslut år og start nyt', 'site-btn-success');
   confirmBtn.addEventListener('click', async () => {
     error.textContent = '';
     const closingName = nameInput.value.trim();

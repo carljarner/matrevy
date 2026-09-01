@@ -859,7 +859,7 @@ async function renderFormFillIn(root, formId) {
     msg.className = 'forms-msg' + (kind ? ' ' + kind : '');
   }
 
-  const submitBtn = el('button', 'site-btn-primary forms-fillin-submit-btn', 'Indsend');
+  const submitBtn = el('button', 'site-btn-success forms-fillin-submit-btn', 'Indsend');
   submitBtn.type = 'button';
   submitBtn.addEventListener('click', async () => {
     updateDependentVisibility();
@@ -1580,7 +1580,7 @@ function formsOpenDependencyModal(field, draftSections, sectionIdx, fieldIdx, on
     removeBtn.addEventListener('click', () => { close(); onRemove(); });
     actions.appendChild(removeBtn);
   }
-  const saveBtn = formsPillBtn('Gem', 'site-btn-primary');
+  const saveBtn = formsPillBtn('Gem', 'site-btn-success');
   saveBtn.addEventListener('click', () => {
     const values = valuesWrap.formsSelectedValues ? valuesWrap.formsSelectedValues() : [];
     if (!fieldDd || !fieldDd.value) { depError.textContent = 'Vælg et spørgsmål.'; return; }
@@ -1976,7 +1976,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   // Same far-left/true-centered/far-right layout as Budget's own
   // .budget-save-bar (Slet/Rediger/Gem), just with different colors/
-  // actions: green Skabelon, warm Annuller, blue Gem.
+  // actions: green Skabelon, warm Annuller, green Gem.
   const actionsRow = el('div', 'forms-builder-actions');
 
   const saveAsTemplateBtn = el('button', 'site-btn-success', 'Skabelon');
@@ -1997,7 +1997,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   cancelBtn.type = 'button';
   cancelBtn.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'overview' })));
 
-  const saveBtn = el('button', 'site-btn-primary', 'Gem');
+  const saveBtn = el('button', 'site-btn-success', 'Gem');
   saveBtn.type = 'button';
   saveBtn.addEventListener('click', async () => {
     error.textContent = '';
@@ -2347,7 +2347,7 @@ function formsOpenSaveAsTemplateModal(templates, suggestedTitle, sections) {
 
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = formsPillBtn('Opret', 'site-btn-primary');
+  const confirmBtn = formsPillBtn('Opret', 'site-btn-success');
 
   function syncForSelection() {
     const isNew = pickerDd.value === FORMS_NEW_TEMPLATE_VALUE;

@@ -287,7 +287,7 @@ function renderBossesEdit(data) {
 
     const saveBtn = document.createElement('button');
     saveBtn.type = 'button';
-    saveBtn.className = 'site-btn-primary boss-manage-save-btn';
+    saveBtn.className = 'site-btn-success boss-manage-save-btn';
     saveBtn.textContent = 'Gem';
     saveBtn.addEventListener('click', async () => {
       const title = draft.title.trim();

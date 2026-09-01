@@ -736,6 +736,10 @@ tr.budget-row-filler td {
   margin-top: 0.75rem;
 }
 
+.budget-save-bar > button {
+  min-width: 6.5rem;
+}
+
 /* True-centers the Rediger button in the row regardless of the Slet/Gem
    buttons' own widths, since a 3-child space-between row only centers the
    middle child when the outer two are equal width. */

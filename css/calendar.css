@@ -398,6 +398,12 @@
   margin-right: 0.4rem;
 }
 
+/* Event editor's Slet/Gem: matching width so neither corner button reads
+   as more prominent than the other. */
+.cal-event-actions > button {
+  min-width: 6rem;
+}
+
 /* --- Mobile (≤719px, same breakpoint as style.css) ---------- */
 @media (max-width: 719px) {
   /* When the toolbar wraps, push the month switcher onto its own centered
