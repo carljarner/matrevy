@@ -2,10 +2,14 @@
    Matematikrevyen – Schedule Tool Stylesheet (schedule.html only)
    Page-scoped like manus.css/budget.css/calendar.css; shared shell
    styles (fonts, header/nav, .site-footer) live in style.css and
-   are reused as-is. Semantic/status colors (blue accent, green
-   selected, amber conflict, red danger, the priority badges) stay
-   as their own literals rather than the warm chrome tokens below —
-   same convention Kalender's own .cal-cat-* category colors follow.
+   are reused as-is. Semantic/status colors (blue accent, amber
+   conflict, red danger, the priority badges) stay as their own
+   literals rather than the warm chrome tokens below — same
+   convention Kalender's own .cal-cat-* category colors follow.
+   The one exception is .picker-selected, which now reuses the
+   shared --accent-warm-fill/--accent-warm-text tokens directly so a
+   chosen scene/revyst reads as the same warm orange "selected" state
+   used everywhere else on the site, instead of its own green.
    ========================================================= */
 
 /* ── Layout ─────────────────────────────────────────────── */
@@ -575,9 +579,9 @@
 @media (hover: hover) {
   .picker-item:hover { background: var(--surface-2); }
 }
-.picker-item.picker-selected { background: #dcfce7; }
+.picker-item.picker-selected { background: var(--accent-warm-fill); }
 .picker-item.picker-placed { color: #b0b7be; }
-.picker-item.picker-selected.picker-placed { color: #166534; }
+.picker-item.picker-selected.picker-placed { color: var(--accent-warm-text); }
 .picker-item.picker-at-cap { opacity: 0.4; cursor: default; }
 .picker-item.picker-crossed-out { text-decoration: line-through; color: #b0b7be; }
 .picker-pair-row {

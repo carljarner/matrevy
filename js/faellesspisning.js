@@ -453,7 +453,7 @@ function faellesOpenDeleteRowConfirm(row, tr) {
 
   const info = document.createElement('p');
   info.className = 'faelles-confirm-text';
-  info.textContent = `Fjern ${row.answers.navn || 'denne række'} permanent?`;
+  info.textContent = row.answers.navn ? `Fjern "${row.answers.navn}" permanent?` : 'Fjern denne række permanent?';
   form.appendChild(info);
 
   const cancelBtn = faellesPillBtn('Annuller');
@@ -637,21 +637,7 @@ async function faellesOpenConnectModal(root) {
 
   if (currentConnection) {
     const disconnectBtn = faellesPillBtn('Fjern', 'site-btn-danger');
-    disconnectBtn.addEventListener('click', async () => {
-      if (!confirm('Fjern forbindelsen til formularen? Rækker der allerede er hentet ind, bliver ikke slettet.')) return;
-      disconnectBtn.disabled = true;
-      error.textContent = '';
-      const result = await faellesApi('faelles_save_connection', { formId: null });
-      disconnectBtn.disabled = false;
-      if (!result.ok) {
-        error.textContent = result.message || 'Kunne ikke fjerne forbindelsen.';
-        return;
-      }
-      faellesState.connection = null;
-      faellesState.rows = result.data.rows;
-      close();
-      faellesRender(root);
-    });
+    disconnectBtn.addEventListener('click', () => faellesOpenDisconnectConfirm(root, close));
     actions.appendChild(disconnectBtn);
   }
 
@@ -678,6 +664,49 @@ async function faellesOpenConnectModal(root) {
     faellesRender(root);
   });
   actions.appendChild(connectBtn);
+}
+
+// Styled "Er du sikker?" confirm for disconnecting a form, replacing a
+// native confirm() (a plain browser dialog reads as broken next to the
+// rest of the site's own styled modals) — stacks on top of the already-open
+// connect modal, same nested-overlay pattern as budget.js's
+// openExpenseDeleteConfirm(root, exp, payload, closeParent).
+function faellesOpenDisconnectConfirm(root, closeParent) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('faelles-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'faelles-confirm-text';
+  info.textContent = 'Fjern forbindelsen til formularen?';
+  form.appendChild(info);
+
+  const note = document.createElement('p');
+  note.className = 'faelles-confirm-note';
+  note.textContent = 'Rækker der allerede er hentet ind, bliver ikke slettet.';
+  form.appendChild(note);
+
+  const cancelBtn = faellesPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = faellesPillBtn('Fjern', 'site-btn-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await faellesApi('faelles_save_connection', { formId: null });
+    if (!result.ok) {
+      confirmBtn.disabled = false;
+      error.textContent = result.message || 'Kunne ikke fjerne forbindelsen.';
+      return;
+    }
+    faellesState.connection = null;
+    faellesState.rows = result.data.rows;
+    close();
+    closeParent();
+    faellesRender(root);
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // A form's fields can live either directly on the definition or inside its
@@ -754,8 +783,18 @@ function faellesOpenDeleteDayConfirm(col, root) {
   info.className = 'faelles-confirm-text';
   info.textContent = col.extra
     ? `Fjern datoen "${col.title || col.label}"?`
-    : `Fjern "${col.title || col.label}" fra arket? Begivenheden i Kalenderen bliver ikke slettet.`;
+    : `Fjern "${col.title || col.label}" fra arket?`;
   form.appendChild(info);
+
+  // Only a calendar-sourced column can be "removed" without actually
+  // deleting anything (faelles_hide_day just hides it from this sheet) —
+  // an extra column is genuinely deleted, so no such disclaimer applies.
+  if (!col.extra) {
+    const note = document.createElement('p');
+    note.className = 'faelles-confirm-note';
+    note.textContent = 'Begivenheden i Kalenderen bliver ikke slettet.';
+    form.appendChild(note);
+  }
 
   const cancelBtn = faellesPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);

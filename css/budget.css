@@ -740,6 +740,16 @@ tr.budget-row-filler td {
   min-width: 5rem;
 }
 
+/* "Rediger udgift"'s Slet/Gem (and its deleted-expense Fjern/Gendan
+   branch): kept in the corners, mirroring Kalender's own
+   .cal-event-actions — DOM order already puts the destructive action
+   first, so space-between alone puts it left with the positive action
+   right, no reordering needed. Width comes from the shared
+   .login-actions > button floor (style.css). */
+.login-actions.budget-expense-edit-actions {
+  justify-content: space-between;
+}
+
 /* True-centers the Rediger button in the row regardless of the Slet/Gem
    buttons' own widths, since a 3-child space-between row only centers the
    middle child when the outer two are equal width. */
@@ -781,7 +791,7 @@ tr.budget-row-filler td {
   width: 100%;
   padding: 0.15rem 0.3rem;
   margin: -0.15rem -0.3rem;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
   font-size: 0.85rem;
@@ -790,9 +800,20 @@ tr.budget-row-filler td {
   outline: none;
 }
 
+/* Border-on-hover, white background while actively editing — same recipe
+   as Fællesspisning's own field styling (faellesspisning.css); a locked
+   field (below) explicitly opts back out of the hover border. */
+@media (hover: hover) {
+  .budget-manage-text-input:hover {
+    border-color: var(--border);
+  }
+}
+
 .budget-manage-text-input:focus {
   outline: none;
+  border-color: var(--accent-warm);
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  background: var(--input-bg);
 }
 
 .budget-manage-bilag-input {
@@ -802,6 +823,12 @@ tr.budget-row-filler td {
 .budget-manage-input-locked {
   color: var(--text-muted);
   cursor: not-allowed;
+}
+
+@media (hover: hover) {
+  .budget-manage-input-locked:hover {
+    border-color: transparent;
+  }
 }
 
 .budget-manage-remove-btn {

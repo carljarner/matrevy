@@ -243,6 +243,8 @@
 
 .forms-responses-wrap { overflow-x: auto; }
 
+.forms-export-btn { margin-top: 0.75rem; }
+
 /* A response table's columns never wrap onto multiple lines or get
    squeezed to fit — .forms-responses-wrap scrolls horizontally instead
    (min-width:100% keeps it still filling the card when it's narrow

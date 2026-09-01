@@ -166,6 +166,7 @@
 }
 
 .wiki-manage-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -179,8 +180,35 @@
   cursor: grabbing;
 }
 
-.wiki-manage-row.wiki-manage-drop-target {
-  border-color: var(--accent-warm);
+/* Drop-target highlight is a line drawn in the gap *above* the row, not a
+   border-color change on the row itself — a border on a row that already
+   has its own border reads as invisible, same recipe as manus.css's
+   .manus-akt-row::before. */
+.wiki-manage-row::before,
+.wiki-manage-drop-tail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -0.3rem;
+  height: 3px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 0.15s;
+  pointer-events: none;
+}
+
+.wiki-manage-row.wiki-manage-drop-target::before,
+.wiki-manage-drop-tail.wiki-manage-drop-target::before {
+  background: var(--accent-warm);
+}
+
+/* Trailing drop zone below the last row, filling the rest of the list's
+   own space so a drag can land "after the last chapter" — see
+   wiki.js's renderList(). */
+.wiki-manage-drop-tail {
+  position: relative;
+  min-height: 0.75rem;
 }
 
 .wiki-manage-drag-handle {
@@ -201,18 +229,6 @@
 .wiki-manage-add-trigger-wrap {
   display: flex;
   justify-content: center;
-}
-
-.wiki-manage-add-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.wiki-manage-add-row .edit-field {
-  flex: 1;
-  min-width: 0;
-  margin-bottom: 0;
 }
 
 /* --- Right column: selected chapter's content ---------------- */

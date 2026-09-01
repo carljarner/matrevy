@@ -2118,6 +2118,7 @@ function openExpenseAddModal(root) {
 function openExpenseEditModal(root, exp) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger udgift');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
+  actions.classList.add('budget-expense-edit-actions');
 
   const summaryParts = [budgetCategoryLabel(exp.category, budgetState.categories.expense), formatKr(exp.amount), exp.paidBy || '—'];
   if (exp.phone) summaryParts.push(exp.phone);

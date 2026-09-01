@@ -200,16 +200,6 @@ body {
   text-decoration: none;
 }
 
-/* The current-page row is warm/orange, not the shared blue .site-list-selected
-   (reserved for a real primary action) — same override as .site-tp-pop's own
-   selected row above. */
-.site-nav-dropdown .site-list-selected {
-  background: var(--accent-warm-text);
-}
-
-@media (hover: hover) {
-  .site-nav-dropdown .site-list-selected:hover { background: var(--accent-warm-text); }
-}
 
 /* --- Login button / modal --------------------------------- */
 .site-auth {
@@ -350,7 +340,7 @@ body {
 
 .site-btn-primary {
   border-radius: 6px;
-  padding: 0.45rem 1rem;
+  padding: 0.45rem 0.7rem;
   font-size: 0.9rem;
   font-family: inherit;
   cursor: pointer;
@@ -373,7 +363,7 @@ body {
    primary save button (e.g. Budget's "Slet budget" next to "Gem budget"). */
 .site-btn-danger {
   border-radius: 6px;
-  padding: 0.45rem 1rem;
+  padding: 0.45rem 0.7rem;
   font-size: 0.9rem;
   font-family: inherit;
   cursor: pointer;
@@ -396,7 +386,7 @@ body {
    visually equal-weight, e.g. Budget's "Rediger" next to "Slet"/"Gem". */
 .site-btn-warm {
   border-radius: 6px;
-  padding: 0.45rem 1rem;
+  padding: 0.45rem 0.7rem;
   font-size: 0.9rem;
   font-family: inherit;
   cursor: pointer;
@@ -419,7 +409,7 @@ body {
    "Skabelon" beside "Annuller"/"Gem". */
 .site-btn-success {
   border-radius: 6px;
-  padding: 0.45rem 1rem;
+  padding: 0.45rem 0.7rem;
   font-size: 0.9rem;
   font-family: inherit;
   cursor: pointer;
@@ -762,7 +752,7 @@ body.site-menu-open {
   width: 100%;
   padding: 0.15rem 0.3rem;
   margin: -0.15rem -0.3rem;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
   font-family: inherit;
@@ -770,12 +760,24 @@ body.site-menu-open {
   outline: none;
 }
 
+/* Border-on-hover, white background while actively editing — same recipe
+   as Fællesspisning's own field styling (faellesspisning.css). */
+@media (hover: hover) {
+  .boss-manage-text-input:hover {
+    border-color: var(--border);
+  }
+}
+
 .boss-manage-text-input:focus {
   outline: none;
+  border-color: var(--accent-warm);
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  background: var(--input-bg);
 }
 
 .boss-manage-title-input {
+  flex: 1;
+  min-width: 0;
   font-size: inherit;
   font-weight: inherit;
 }
@@ -1237,15 +1239,15 @@ body.site-menu-open {
 }
 
 .site-dp-selected {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-warm-text);
+  border-color: var(--accent-warm-text);
   color: #ffffff;
 }
 
 @media (hover: hover) {
   .site-dp-selected:hover {
-    background: var(--accent);
-    border-color: var(--accent);
+    background: var(--accent-warm-text);
+    border-color: var(--accent-warm-text);
   }
 }
 
@@ -1294,22 +1296,12 @@ body.site-menu-open {
 }
 
 .site-list-selected {
-  background: var(--accent);
+  background: var(--accent-warm-text);
   color: #ffffff;
 }
 
 @media (hover: hover) {
-  .site-list-selected:hover { background: var(--accent); }
-}
-
-/* Time picker's own selected row is warm/orange, not the shared blue,
-   so it doesn't read as "primary action" like a real submit would. */
-.site-tp-pop .site-list-selected {
-  background: var(--accent-warm-text);
-}
-
-@media (hover: hover) {
-  .site-tp-pop .site-list-selected:hover { background: var(--accent-warm-text); }
+  .site-list-selected:hover { background: var(--accent-warm-text); }
 }
 
 /* --- Generic dropdown popup (category-less <select> replacement) --- */
@@ -1393,6 +1385,16 @@ body.site-menu-open {
 
 .card-head h2 {
   margin-bottom: 0;
+}
+
+/* Bosses' own title heading swaps in a width:100% edit input while
+   editing (js/bosses.js) — as a plain flex item with no explicit size, its
+   width would otherwise resolve from the input's own browser-default size
+   rather than the row's actual available space, clipping the real title.
+   flex:1/min-width:0 lets it claim (and the input then fill) the full row. */
+#bosses-title {
+  flex: 1;
+  min-width: 0;
 }
 
 .btn-small {

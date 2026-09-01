@@ -42,8 +42,8 @@
 }
 
 .cal-view-toggle button.active {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-warm-text);
+  border-color: var(--accent-warm-text);
   color: #ffffff;
 }
 
@@ -157,7 +157,7 @@
 
 .cal-today .cal-day-num {
   display: inline-block;
-  background: var(--accent);
+  background: var(--accent-warm-text);
   color: #ffffff;
   border-radius: 999px;
   min-width: 1.4em;
@@ -380,8 +380,8 @@
   gap: 0.5rem;
 }
 
-/* A selected row's own category-coloured dot would otherwise blend into
-   the (also blue, for Deadline) selected-row background. */
+/* A white ring keeps every category dot legible against the selected
+   row's own warm-orange background, regardless of the dot's own color. */
 .site-list-selected .cal-dot {
   border: 1px solid #ffffff;
 }

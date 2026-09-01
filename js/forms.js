@@ -2507,7 +2507,7 @@ async function formsRenderResponsesScreen(root, formId) {
   wrap.appendChild(table);
   body.appendChild(wrap);
 
-  const exportBtn = el('button', 'btn-small', 'Eksportér CSV');
+  const exportBtn = el('button', 'btn-small forms-export-btn', 'Eksportér CSV');
   exportBtn.type = 'button';
   exportBtn.addEventListener('click', () => formsExportCsv(definition, responses));
   body.appendChild(exportBtn);

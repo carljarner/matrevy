@@ -1043,65 +1043,38 @@ function openManageChaptersModal() {
 
       listWrap.appendChild(row);
     });
+
+    // Trailing drop zone filling the rest of the list's own space — without
+    // it, dropping below the last row has nowhere to land (a per-row drop
+    // target can only ever insert *before* that row). Same recipe as
+    // Manus's Aktfordeling .manus-akt-drop-tail (manus.css/js).
+    const tail = document.createElement('div');
+    tail.className = 'wiki-manage-drop-tail';
+    wikiWireDropHighlight(tail, () => {
+      if (dragId) moveDraftItem(dragId, null);
+    }, { stop: true });
+    listWrap.appendChild(tail);
   }
   renderList();
 
-  // ── "+ Ny kapitel" — collapsed behind a centered "+" trigger by default;
-  // the "Nyt kapitel" field only appears once clicked, mirroring posts.js's
-  // comment-trigger reveal pattern (renderCommentForm) rather than sitting
-  // permanently visible next to the drag-and-drop list.
-  const addSlot = document.createElement('div');
-  form.appendChild(addSlot);
-
-  function renderAddTrigger() {
-    addSlot.textContent = '';
-    const wrap = document.createElement('div');
-    wrap.className = 'wiki-manage-add-trigger-wrap';
-    const trigger = document.createElement('button');
-    trigger.type = 'button';
-    trigger.className = 'boss-manage-add-plus';
-    trigger.textContent = '+';
-    trigger.title = 'Tilføj kapitel';
-    trigger.setAttribute('aria-label', 'Tilføj kapitel');
-    trigger.addEventListener('click', renderAddField);
-    wrap.appendChild(trigger);
-    addSlot.appendChild(wrap);
-  }
-
-  function renderAddField() {
-    addSlot.textContent = '';
-
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.placeholder = 'F.eks. Nye traditioner';
-    const nameField = siteEditField('Nyt kapitel', nameInput);
-
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'boss-manage-add-plus';
-    addBtn.textContent = '+';
-    addBtn.title = 'Tilføj kapitel';
-    addBtn.setAttribute('aria-label', 'Tilføj kapitel');
-    addBtn.addEventListener('click', () => {
-      const t = nameInput.value.trim();
-      if (!t) return;
-      draft.push({ id: Date.now().toString(36), title: t });
-      renderList();
-      renderAddTrigger();
-    });
-    nameInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
-    });
-
-    const row = document.createElement('div');
-    row.className = 'wiki-manage-add-row';
-    row.appendChild(nameField);
-    row.appendChild(addBtn);
-    addSlot.appendChild(row);
-    nameInput.focus();
-  }
-
-  renderAddTrigger();
+  // ── "+ Ny kapitel" — clicking it immediately appends a new row to the
+  // draggable list (same look as an existing chapter, no separate input
+  // step); renaming happens afterward via the normal per-chapter edit view,
+  // not here.
+  const addTriggerWrap = document.createElement('div');
+  addTriggerWrap.className = 'wiki-manage-add-trigger-wrap';
+  const addTrigger = document.createElement('button');
+  addTrigger.type = 'button';
+  addTrigger.className = 'boss-manage-add-plus';
+  addTrigger.textContent = '+';
+  addTrigger.title = 'Tilføj kapitel';
+  addTrigger.setAttribute('aria-label', 'Tilføj kapitel');
+  addTrigger.addEventListener('click', () => {
+    draft.push({ id: Date.now().toString(36), title: 'Nyt kapitel' });
+    renderList();
+  });
+  addTriggerWrap.appendChild(addTrigger);
+  form.appendChild(addTriggerWrap);
 
   const save = wikiPillBtn('Gem', 'site-btn-success');
   actions.appendChild(save);
