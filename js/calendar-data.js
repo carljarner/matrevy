@@ -807,16 +807,5 @@ const CALENDAR_DATA = [
     "category": "manus",
     "location": "S01",
     "note": "Kom og skriv manus!"
-  },
-  {
-    "id": "mtilfe5m",
-    "date": "2026-11-10",
-    "endDate": "2026-11-10",
-    "start": "",
-    "end": "",
-    "title": "Test",
-    "category": "ove",
-    "location": "",
-    "note": ""
   }
 ];
