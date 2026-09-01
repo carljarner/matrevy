@@ -182,6 +182,13 @@ $BUDGET_ACTIONS = [
   'budget_set_active_year'  => 'admin', // flip which year new revyst submissions/uploads land in
   'budget_delete_year'      => 'admin', // permanently delete a whole budget year — irreversible
   'budget_rename_year'      => 'admin', // rename/relabel an existing budget year, data carries over unchanged
+  'streg_read'              => 'admin', // stregregnskab: read one budget's bar-tally sheet
+  'streg_upsert_row'        => 'admin', // add/update one name row's tally counts
+  'streg_delete_row'        => 'admin',
+  'streg_add_category'      => 'admin', // add a drink-category column
+  'streg_delete_category'   => 'admin', // remove a drink-category column
+  'streg_save_prices'       => 'admin', // set each category's total INDKØBSPRIS
+  'streg_save_connection'   => 'admin', // connect/disconnect a Formularer form for name rows
 ];
 if (isset($BUDGET_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BUDGET_ACTIONS[$action]]) {
@@ -673,9 +680,17 @@ function budget_normalize_years_shape($json) {
   }
   unset($y);
   $json['years'] = $years;
-  if (!isset($json['activeBudgetId']) || !is_string($json['activeBudgetId']) || $json['activeBudgetId'] === '') {
+  // array_key_exists, not isset: budget_set_active_year's "Intet valgt"
+  // path writes activeBudgetId:null deliberately, and isset() treats a
+  // present-but-null value as absent — which used to send that
+  // deliberate null straight back through the legacy migration below,
+  // reviving a stale activeYear (or an old activeBudgetId) on every
+  // following read/write instead of leaving it cleared.
+  if (!array_key_exists('activeBudgetId', $json)) {
     $legacyActiveYear = $json['activeYear'] ?? null;
     $json['activeBudgetId'] = is_int($legacyActiveYear) ? (string) $legacyActiveYear : null;
+  } elseif ($json['activeBudgetId'] !== null && (!is_string($json['activeBudgetId']) || $json['activeBudgetId'] === '')) {
+    $json['activeBudgetId'] = null;
   }
   return $json;
 }
@@ -766,6 +781,13 @@ function handle_budget($action, $body) {
     case 'budget_set_active_year':  return budget_set_active_year($body);
     case 'budget_delete_year':      return budget_delete_year($body);
     case 'budget_rename_year':      return budget_rename_year($body);
+    case 'streg_read':              return streg_read($body);
+    case 'streg_upsert_row':        return streg_upsert_row($body);
+    case 'streg_delete_row':        return streg_delete_row($body);
+    case 'streg_add_category':      return streg_add_category($body);
+    case 'streg_delete_category':   return streg_delete_category($body);
+    case 'streg_save_prices':       return streg_save_prices($body);
+    case 'streg_save_connection':   return streg_save_connection($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
@@ -1560,6 +1582,327 @@ function budget_rename_year($body) {
       return $json;
     });
   respond(200, ['ok' => true, 'budgetId' => $budgetId, 'year' => $year]);
+}
+
+// ── Stregregnskab (bar tally accounting) — lives inside Budget's own
+// per-budget storage, not a separate datastore: one names × drink-category
+// grid per budget year, `streg.json` sibling to budget.json/requests.json/
+// expenses.json under budget_year_dir($budgetId), read/written via the
+// already-generic budget_load()/budget_mutate() above. Every action here
+// resolves $budgetId via budget_resolve_budget_id($body) exactly like every
+// other admin budget action, so switching "Viser budget for" also switches
+// which year's stregregnskab is shown.
+//
+// STREGPRIS PR STYK (price per tally) and each row's Betaling are derived
+// client-side only from `prices` and `rows[].counts` — never stored here.
+// A category is only ever added/removed, never renamed in place (same
+// posture as Fællesspisning's day columns); deleting one leaves any row's
+// existing counts[key] alone server-side, the client just stops rendering
+// that column.
+function streg_default_doc() {
+  return ['categories' => [], 'prices' => [], 'rows' => [], 'connection' => null, 'updatedAt' => null];
+}
+
+function streg_categories($doc) {
+  return (isset($doc['categories']) && is_array($doc['categories'])) ? $doc['categories'] : [];
+}
+
+function streg_prices($doc) {
+  return (isset($doc['prices']) && is_array($doc['prices'])) ? $doc['prices'] : [];
+}
+
+// rowId/categoryId-agnostic hex id, same generator as every other feature
+// (forms_id()/faelles_id()).
+function streg_valid_id($id) {
+  return is_string($id) && $id !== '' && preg_match('/^[0-9a-f]+$/', $id) === 1;
+}
+
+function streg_id() {
+  return dechex(time()) . bin2hex(random_bytes(4));
+}
+
+function streg_read($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $doc = budget_load($budgetId, 'streg.json', streg_default_doc());
+  $doc = streg_maybe_sync($budgetId, $doc);
+  $prices = streg_prices($doc);
+  respond(200, [
+    'ok'         => true,
+    'budgetId'   => $budgetId,
+    'categories' => streg_categories($doc),
+    'prices'     => empty($prices) ? new stdClass() : $prices,
+    'rows'       => $doc['rows'] ?? [],
+    'connection' => $doc['connection'] ?? null,
+    'updatedAt'  => $doc['updatedAt'] ?? null,
+  ]);
+}
+
+// Create (no rowId) or update (rowId given) one name row. `navn` and
+// `counts` are always sent in full by the client (unlike Fællesspisning's
+// per-field answers merge) — a bartender editing one cell already has the
+// whole row's current state on hand. `counts` is filtered down to this
+// budget's current category keys inside the mutate closure (a stray key
+// from a just-deleted category is silently dropped, never rejected — same
+// "don't lose a submitter's work over a race" posture used throughout this
+// file). A row created/refreshed by a connected form goes through
+// streg_sync_connection() instead, which only ever touches `navn`.
+function streg_upsert_row($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $rowId = $body['rowId'] ?? null;
+  if ($rowId !== null && (!is_string($rowId) || !streg_valid_id($rowId))) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $navn = $body['navn'] ?? '';
+  if (!is_string($navn) || trim($navn) === '' || mb_strlen($navn) > 120) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $navn = trim($navn);
+  $countsIn = $body['counts'] ?? [];
+  if (!is_array($countsIn)) respond(400, ['error' => 'invalid_shape']);
+  foreach ($countsIn as $k => $v) {
+    if (!is_string($k) || $k === '' || !is_numeric($v) || (float) $v < 0) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+  }
+
+  $savedRow = null;
+  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(),
+    function ($json) use ($rowId, $navn, $countsIn, &$savedRow) {
+      $knownKeys = array_column(streg_categories($json), 'key');
+      $counts = [];
+      foreach ($countsIn as $k => $v) {
+        if (in_array($k, $knownKeys, true)) $counts[$k] = (int) round((float) $v);
+      }
+      $now = date('c');
+      $found = false;
+      $json['rows'] = $json['rows'] ?? [];
+      foreach ($json['rows'] as &$row) {
+        if ($rowId !== null && $row['id'] === $rowId) {
+          $row['navn'] = $navn;
+          $row['counts'] = $counts;
+          $row['updatedAt'] = $now;
+          $savedRow = $row;
+          $found = true;
+          break;
+        }
+      }
+      unset($row);
+      if ($rowId !== null && !$found) respond(404, ['error' => 'not_found']);
+      if ($rowId === null) {
+        $savedRow = ['id' => streg_id(), 'navn' => $navn, 'counts' => $counts, 'createdAt' => $now, 'updatedAt' => $now];
+        $json['rows'][] = $savedRow;
+      }
+      $json['updatedAt'] = $now;
+      return $json;
+    });
+  respond(200, ['ok' => true, 'row' => $savedRow, 'updatedAt' => $doc['updatedAt']]);
+}
+
+function streg_delete_row($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $rowId = $body['rowId'] ?? '';
+  if (!streg_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($rowId) {
+    $json['rows'] = array_values(array_filter($json['rows'] ?? [], function ($r) use ($rowId) {
+      return $r['id'] !== $rowId;
+    }));
+    $json['updatedAt'] = date('c');
+    return $json;
+  });
+  respond(200, ['ok' => true]);
+}
+
+// Key is generated server-side via budget_slugify_key() (the same ASCII-
+// folding slug+dedupe helper the expense-category editor already uses),
+// never client-chosen — labels only get added/removed, never renamed.
+function streg_add_category($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $label = $body['label'] ?? '';
+  if (!is_string($label) || trim($label) === '' || mb_strlen($label) > 60) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $label = trim($label);
+  $category = null;
+  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($label, &$category) {
+    $categories = streg_categories($json);
+    $knownKeys = array_fill_keys(array_column($categories, 'key'), true);
+    $key = budget_slugify_key($label, $knownKeys);
+    $category = ['key' => $key, 'label' => $label];
+    $categories[] = $category;
+    $json['categories'] = $categories;
+    $json['updatedAt'] = date('c');
+    return $json;
+  });
+  respond(200, ['ok' => true, 'category' => $category, 'categories' => $doc['categories'], 'updatedAt' => $doc['updatedAt']]);
+}
+
+// Removing a category also drops its own price entry (nothing left to
+// price), but deliberately leaves every row's counts[key] alone — same
+// "don't cross-validate against a removed column" posture as
+// Fællesspisning's day deletion; the client just stops rendering it.
+function streg_delete_category($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $key = $body['key'] ?? '';
+  if (!is_string($key) || $key === '') respond(400, ['error' => 'invalid_shape']);
+  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($key) {
+    $json['categories'] = array_values(array_filter(streg_categories($json), function ($c) use ($key) {
+      return $c['key'] !== $key;
+    }));
+    $prices = streg_prices($json);
+    unset($prices[$key]);
+    $json['prices'] = $prices;
+    $json['updatedAt'] = date('c');
+    return $json;
+  });
+  $prices = streg_prices($doc);
+  respond(200, [
+    'ok' => true, 'categories' => $doc['categories'],
+    'prices' => empty($prices) ? new stdClass() : $prices, 'updatedAt' => $doc['updatedAt'],
+  ]);
+}
+
+// Full replace of the INDKØBSPRIS map (mirrors budget_save_sheet's own
+// full-replace-of-planned-amounts convention) — STREGPRIS PR STYK is
+// derived client-side from this divided by each category's total tally
+// count, never stored. Any key not among this budget's current categories
+// is silently dropped rather than rejected.
+function streg_save_prices($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $pricesIn = $body['prices'] ?? null;
+  if (!is_array($pricesIn)) respond(400, ['error' => 'invalid_shape']);
+  foreach ($pricesIn as $k => $v) {
+    if (!is_string($k) || $k === '' || !is_numeric($v) || (float) $v < 0) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+  }
+  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($pricesIn) {
+    $knownKeys = array_column(streg_categories($json), 'key');
+    $clean = [];
+    foreach ($pricesIn as $k => $v) {
+      if (in_array($k, $knownKeys, true)) $clean[$k] = round((float) $v, 2);
+    }
+    $json['prices'] = $clean;
+    $json['updatedAt'] = date('c');
+    return $json;
+  });
+  $prices = streg_prices($doc);
+  respond(200, ['ok' => true, 'prices' => empty($prices) ? new stdClass() : $prices, 'updatedAt' => $doc['updatedAt']]);
+}
+
+// `formId: null` means "disconnect". Only a Navn-field mapping exists here
+// (unlike Fællesspisning's Navn+Madforbehold pair) — tally counts have no
+// form-field equivalent, they're always typed in directly at the bar.
+function streg_validate_connection($body) {
+  $formId = array_key_exists('formId', $body) ? $body['formId'] : null;
+  if ($formId === null) return ['disconnect' => true];
+  if (!is_string($formId) || !forms_valid_id($formId)) return null;
+  $navnFieldId = $body['navnFieldId'] ?? '';
+  if (!is_string($navnFieldId) || $navnFieldId === '' || mb_strlen($navnFieldId) > 80) return null;
+  $formTitle = $body['formTitle'] ?? '';
+  if (!is_string($formTitle)) $formTitle = '';
+  return ['disconnect' => false, 'connection' => [
+    'formId' => $formId,
+    'navnFieldId' => $navnFieldId,
+    'formTitle' => mb_substr(trim($formTitle), 0, 200),
+    'syncedCount' => 0,
+  ]];
+}
+
+// Pulls every response from the connected form and upserts it into rows by
+// `source.responseId`, exactly mirroring faelles_sync_connection() — except
+// only `navn` is ever written; an existing synced row's `counts` are left
+// untouched on re-sync (the tally counts are this feature's own data, the
+// form is only ever the source of truth for who's on the list). Reuses
+// Forms' own storage (forms_form_dir) and its generic answer-to-string
+// helper (faelles_forms_answer_to_text, despite the name a plain Forms-
+// value stringifier, not Fællesspisning-specific) directly — this is one
+// PHP file, not a per-page-loaded JS file, so there's no duplication
+// convention to honour here.
+function streg_sync_connection($budgetId, $connection) {
+  return budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($doc) use ($connection) {
+    $formId = $connection['formId'] ?? '';
+    if (!forms_valid_id($formId)) return $doc;
+    $navnFieldId = $connection['navnFieldId'] ?? '';
+    $responsesDoc = forms_load(forms_form_dir($formId) . '/responses.json', ['responses' => []]);
+    $responses = is_array($responsesDoc['responses'] ?? null) ? $responsesDoc['responses'] : [];
+
+    $doc['rows'] = $doc['rows'] ?? [];
+    $bySource = [];
+    foreach ($doc['rows'] as $idx => $row) {
+      if (isset($row['source']['formId'], $row['source']['responseId']) && $row['source']['formId'] === $formId) {
+        $bySource[$row['source']['responseId']] = $idx;
+      }
+    }
+
+    $now = date('c');
+    foreach ($responses as $resp) {
+      $rid = $resp['id'] ?? null;
+      if (!is_string($rid) || $rid === '') continue;
+      $answers = is_array($resp['answers'] ?? null) ? $resp['answers'] : [];
+      $navn = trim(faelles_forms_answer_to_text($answers[$navnFieldId] ?? null));
+      if ($navn === '') continue; // nothing meaningful to sync for this response
+      if (isset($bySource[$rid])) {
+        $idx = $bySource[$rid];
+        if ($doc['rows'][$idx]['navn'] !== $navn) {
+          $doc['rows'][$idx]['navn'] = $navn;
+          $doc['rows'][$idx]['updatedAt'] = $now;
+        }
+      } else {
+        $doc['rows'][] = [
+          'id' => streg_id(),
+          'navn' => $navn,
+          'counts' => [],
+          'source' => ['formId' => $formId, 'responseId' => $rid],
+          'createdAt' => $now,
+          'updatedAt' => $now,
+        ];
+      }
+    }
+
+    $connection['syncedCount'] = count($responses);
+    $doc['connection'] = $connection;
+    $doc['updatedAt'] = $now;
+    return $doc;
+  });
+}
+
+// Cheap pre-check (no lock) so an ordinary streg_read doesn't pay for a
+// flock'd write when there's nothing new to sync — mirrors
+// faelles_maybe_sync exactly.
+function streg_maybe_sync($budgetId, $doc) {
+  $connection = $doc['connection'] ?? null;
+  if (!is_array($connection) || !forms_valid_id($connection['formId'] ?? '')) return $doc;
+  $responsesDoc = forms_load(forms_form_dir($connection['formId']) . '/responses.json', ['responses' => []]);
+  $respCount = count(is_array($responsesDoc['responses'] ?? null) ? $responsesDoc['responses'] : []);
+  $syncedCount = is_int($connection['syncedCount'] ?? null) ? $connection['syncedCount'] : -1;
+  if ($respCount === $syncedCount) return $doc;
+  return streg_sync_connection($budgetId, $connection);
+}
+
+// Connecting immediately runs streg_sync_connection() so existing responses
+// land right away, not just on the next streg_read. Disconnecting only
+// clears `connection` — rows already synced in stay.
+function streg_save_connection($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $clean = streg_validate_connection($body);
+  if ($clean === null) respond(400, ['error' => 'invalid_shape']);
+
+  if (!empty($clean['disconnect'])) {
+    $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) {
+      $json['connection'] = null;
+      $json['updatedAt'] = date('c');
+      return $json;
+    });
+    respond(200, ['ok' => true, 'connection' => null, 'rows' => $doc['rows'] ?? [], 'updatedAt' => $doc['updatedAt']]);
+  }
+
+  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($clean) {
+    $json['connection'] = $clean['connection'];
+    $json['updatedAt'] = date('c');
+    return $json;
+  });
+  $doc = streg_sync_connection($budgetId, $doc['connection']);
+  respond(200, ['ok' => true, 'connection' => $doc['connection'], 'rows' => $doc['rows'] ?? [], 'updatedAt' => $doc['updatedAt']]);
 }
 
 // ── Forms datastore (private Simply.com store, same posture as Budget) ──

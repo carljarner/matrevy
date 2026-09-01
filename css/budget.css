@@ -929,6 +929,278 @@ tr.budget-row-filler td {
   color: var(--danger);
 }
 
+/* --- Stregregnskab (bar tally accounting) -------------------------- */
+
+/* The small toggle card sitting between the year toolbar and Afventende
+   udlæg/Pris pr. streg — its own content never changes shape, only the
+   button's label. */
+.budget-streg-toggle .btn-small {
+  display: block;
+  margin: 0.6rem auto 0;
+}
+
+/* Names × drink-category grid (replaces the Budget card while active) —
+   structurally mirrors faellesspisning.css's own table: a sticky Navn
+   column, horizontal scroll at every width (never collapsed to stacked
+   cards like .budget-table below — a many-category grid can't sensibly
+   stack). Duplicated rather than shared since budget.html doesn't load
+   faellesspisning.css, per the site's per-feature-duplication convention. */
+.streg-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.streg-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 1rem;
+}
+
+.streg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.streg-table th,
+.streg-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 0.4rem 0.5rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.streg-table thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.streg-table .streg-col-navn {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 1;
+  text-align: left;
+}
+
+.streg-table thead .streg-col-navn {
+  z-index: 2;
+}
+
+.streg-table .streg-col-navn input[type="text"] {
+  width: 100%;
+  min-width: 8rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.2rem 0.35rem;
+  font: inherit;
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  .streg-table .streg-col-navn input[type="text"]:hover {
+    border-color: var(--border);
+  }
+}
+
+.streg-table .streg-col-navn input[type="text"]:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  background: var(--input-bg);
+}
+
+/* Tally-count columns: a floor wide enough for a two-digit count plus its
+   spinner, so the column never widens (and shifts every column right of
+   it) as counts grow past a single digit. */
+.streg-table .streg-col-count {
+  min-width: 3.75rem;
+}
+
+.streg-table .streg-col-count input[type="number"] {
+  width: 3.2rem;
+  text-align: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.2rem 0.1rem;
+  font: inherit;
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  .streg-table .streg-col-count input[type="number"]:hover {
+    border-color: var(--border);
+  }
+}
+
+.streg-table .streg-col-count input[type="number"]:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  background: var(--input-bg);
+}
+
+.streg-table .streg-col-betaling {
+  font-weight: 600;
+  color: var(--header);
+  white-space: nowrap;
+}
+
+/* Category-column remove "✕", at the bottom of the grid in the same row
+   as "Tilføj række" rather than the header — mirrors
+   faellesspisning.css's .faelles-col-day-remove. */
+.streg-col-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.1rem;
+}
+
+@media (hover: hover) {
+  .streg-col-remove:hover { color: var(--danger); }
+}
+
+.streg-col-remove:focus-visible {
+  outline: none;
+  color: var(--danger);
+}
+
+.streg-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0.2rem 0.35rem;
+}
+
+@media (hover: hover) {
+  .streg-remove-btn:hover { color: var(--danger); }
+}
+
+.streg-remove-btn:focus-visible {
+  outline: none;
+  color: var(--danger);
+}
+
+.streg-add-row td {
+  border-bottom: none;
+  padding-top: 0.6rem;
+}
+
+.streg-add-row-plus-cell {
+  text-align: left;
+}
+
+/* --- Connect-to-formular modal + "Er du sikker?" confirms, mirroring
+   faellesspisning.css's own (not loaded on this page). ---------------- */
+.streg-connect-modal {
+  width: min(90vw, 30rem);
+}
+
+.streg-connect-modal .login-actions {
+  justify-content: space-between;
+}
+
+/* No existing connection means only "Forbind" shows — keep that
+   single-button case centered instead of space-between pinning it left. */
+.streg-connect-modal .login-actions:has(> :only-child) {
+  justify-content: center;
+}
+
+.login-modal .streg-confirm-text {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.streg-confirm-modal {
+  width: min(300px, 85vw);
+}
+
+/* --- Pris pr. streg card (replaces Afventende udlæg while active) --- */
+.streg-price-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.streg-price-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.streg-price-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.streg-price-input {
+  flex: 0 0 6rem;
+  width: 6rem;
+  text-align: right;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+}
+
+.streg-price-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+@media (hover: hover) {
+  .streg-price-input:hover { border-color: var(--accent-warm); }
+}
+
+.streg-price-per-unit {
+  flex: 0 0 auto;
+  min-width: 6.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-align: right;
+}
+
+.streg-price-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  color: var(--header);
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.streg-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.streg-error:empty {
+  display: none;
+}
+
 /* --- Mobile (site-wide 719px convention) ------------------ */
 @media (max-width: 719px) {
   /* Stack the two columns; the pending list flows naturally (no cap). */
