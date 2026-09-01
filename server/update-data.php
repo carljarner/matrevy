@@ -185,9 +185,7 @@ $BUDGET_ACTIONS = [
   'streg_read'              => 'admin', // stregregnskab: read one budget's bar-tally sheet
   'streg_upsert_row'        => 'admin', // add/update one name row's tally counts
   'streg_delete_row'        => 'admin',
-  'streg_add_category'      => 'admin', // add a drink-category column
-  'streg_delete_category'   => 'admin', // remove a drink-category column
-  'streg_save_prices'       => 'admin', // set each category's total INDKØBSPRIS
+  'streg_save_categories'   => 'admin', // replace the drink-category list + prices (add/rename/reorder/remove)
   'streg_save_connection'   => 'admin', // connect/disconnect a Formularer form for name rows
 ];
 if (isset($BUDGET_ACTIONS[$action])) {
@@ -784,9 +782,7 @@ function handle_budget($action, $body) {
     case 'streg_read':              return streg_read($body);
     case 'streg_upsert_row':        return streg_upsert_row($body);
     case 'streg_delete_row':        return streg_delete_row($body);
-    case 'streg_add_category':      return streg_add_category($body);
-    case 'streg_delete_category':   return streg_delete_category($body);
-    case 'streg_save_prices':       return streg_save_prices($body);
+    case 'streg_save_categories':    return streg_save_categories($body);
     case 'streg_save_connection':   return streg_save_connection($body);
   }
   respond(400, ['error' => 'unknown_action']);
@@ -1598,9 +1594,19 @@ function budget_rename_year($body) {
 // A category is only ever added/removed, never renamed in place (same
 // posture as Fællesspisning's day columns); deleting one leaves any row's
 // existing counts[key] alone server-side, the client just stops rendering
-// that column.
+// that column. Seeded with the three drink categories every year starts
+// with in practice (Øl/Cider/Soda) — a brand-new stregregnskab isn't
+// useful with an empty column list, and the admin can rename/reorder/
+// remove/add from there via the Pris pr. streg card same as any other.
 function streg_default_doc() {
-  return ['categories' => [], 'prices' => [], 'rows' => [], 'connection' => null, 'updatedAt' => null];
+  return [
+    'categories' => [
+      ['key' => 'ol', 'label' => 'Øl'],
+      ['key' => 'cider', 'label' => 'Cider'],
+      ['key' => 'soda', 'label' => 'Soda'],
+    ],
+    'prices' => [], 'rows' => [], 'connection' => null, 'updatedAt' => null,
+  ];
 }
 
 function streg_categories($doc) {
@@ -1712,81 +1718,69 @@ function streg_delete_row($body) {
   respond(200, ['ok' => true]);
 }
 
-// Key is generated server-side via budget_slugify_key() (the same ASCII-
-// folding slug+dedupe helper the expense-category editor already uses),
-// never client-chosen — labels only get added/removed, never renamed.
-function streg_add_category($body) {
+// Admin: replaces the whole category list (key/label) + price map in one
+// atomic write, order preserved exactly as given — the save handler behind
+// the Pris pr. streg card's own Gem button (mirrors budget_categories_save's
+// shape/validation almost exactly, simplified: no abbrev/paid-expense-lock
+// concept here, since a streg category never gates a filename the way a
+// budget category's abbrev does). A client-supplied key must already exist
+// in this budget's current list — a stale key means a concurrent edit
+// happened elsewhere; reject the whole save rather than silently inventing
+// a row under an untrusted key, same as budget_categories_save. Omitting
+// `key` creates a new category, slugified via budget_slugify_key() (never
+// client-chosen). Reordering is simply sending the array in the new order —
+// the array order IS the display order, both here and in the stregregnskab
+// grid's own columns. Deleting a category is simply omitting it from the
+// payload; any row's counts[key] for it are left alone server-side (same
+// "don't cross-validate against a removed column" posture as
+// Fællesspisning's day deletion) — the client just stops rendering it.
+function streg_save_categories($body) {
   $budgetId = budget_resolve_budget_id($body);
-  $label = $body['label'] ?? '';
-  if (!is_string($label) || trim($label) === '' || mb_strlen($label) > 60) {
+  $categoriesIn = $body['categories'] ?? null;
+  if (!is_array($categoriesIn) || count($categoriesIn) === 0) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  $label = trim($label);
-  $category = null;
-  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($label, &$category) {
-    $categories = streg_categories($json);
-    $knownKeys = array_fill_keys(array_column($categories, 'key'), true);
-    $key = budget_slugify_key($label, $knownKeys);
-    $category = ['key' => $key, 'label' => $label];
-    $categories[] = $category;
-    $json['categories'] = $categories;
-    $json['updatedAt'] = date('c');
-    return $json;
-  });
-  respond(200, ['ok' => true, 'category' => $category, 'categories' => $doc['categories'], 'updatedAt' => $doc['updatedAt']]);
-}
 
-// Removing a category also drops its own price entry (nothing left to
-// price), but deliberately leaves every row's counts[key] alone — same
-// "don't cross-validate against a removed column" posture as
-// Fællesspisning's day deletion; the client just stops rendering it.
-function streg_delete_category($body) {
-  $budgetId = budget_resolve_budget_id($body);
-  $key = $body['key'] ?? '';
-  if (!is_string($key) || $key === '') respond(400, ['error' => 'invalid_shape']);
-  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($key) {
-    $json['categories'] = array_values(array_filter(streg_categories($json), function ($c) use ($key) {
-      return $c['key'] !== $key;
-    }));
-    $prices = streg_prices($json);
-    unset($prices[$key]);
-    $json['prices'] = $prices;
-    $json['updatedAt'] = date('c');
-    return $json;
-  });
+  $current = budget_load($budgetId, 'streg.json', streg_default_doc());
+  $currentByKey = [];
+  foreach (streg_categories($current) as $c) { $currentByKey[$c['key']] = $c; }
+  $knownKeys = array_fill_keys(array_keys($currentByKey), true);
+
+  $usedKeys = [];
+  $cleanCategories = [];
+  $cleanPrices = [];
+  foreach ($categoriesIn as $item) {
+    if (!is_array($item)
+        || !isset($item['label']) || !is_string($item['label']) || trim($item['label']) === '' || mb_strlen(trim($item['label'])) > 60
+        || !isset($item['price']) || !is_numeric($item['price']) || (float) $item['price'] < 0) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $label = trim($item['label']);
+    $keyIn = (isset($item['key']) && is_string($item['key']) && $item['key'] !== '') ? $item['key'] : null;
+    if ($keyIn !== null) {
+      if (!isset($currentByKey[$keyIn])) respond(409, ['error' => 'stale_categories']);
+      $key = $keyIn;
+    } else {
+      $key = budget_slugify_key($label, $knownKeys);
+    }
+    if (isset($usedKeys[$key])) respond(400, ['error' => 'duplicate_category']);
+    $usedKeys[$key] = true;
+    $cleanCategories[] = ['key' => $key, 'label' => $label];
+    $cleanPrices[$key] = round((float) $item['price'], 2);
+  }
+
+  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(),
+    function ($json) use ($cleanCategories, $cleanPrices) {
+      $json['categories'] = $cleanCategories;
+      $json['prices'] = $cleanPrices;
+      $json['updatedAt'] = date('c');
+      return $json;
+    });
   $prices = streg_prices($doc);
   respond(200, [
     'ok' => true, 'categories' => $doc['categories'],
     'prices' => empty($prices) ? new stdClass() : $prices, 'updatedAt' => $doc['updatedAt'],
   ]);
-}
-
-// Full replace of the INDKØBSPRIS map (mirrors budget_save_sheet's own
-// full-replace-of-planned-amounts convention) — STREGPRIS PR STYK is
-// derived client-side from this divided by each category's total tally
-// count, never stored. Any key not among this budget's current categories
-// is silently dropped rather than rejected.
-function streg_save_prices($body) {
-  $budgetId = budget_resolve_budget_id($body);
-  $pricesIn = $body['prices'] ?? null;
-  if (!is_array($pricesIn)) respond(400, ['error' => 'invalid_shape']);
-  foreach ($pricesIn as $k => $v) {
-    if (!is_string($k) || $k === '' || !is_numeric($v) || (float) $v < 0) {
-      respond(400, ['error' => 'invalid_shape']);
-    }
-  }
-  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($pricesIn) {
-    $knownKeys = array_column(streg_categories($json), 'key');
-    $clean = [];
-    foreach ($pricesIn as $k => $v) {
-      if (in_array($k, $knownKeys, true)) $clean[$k] = round((float) $v, 2);
-    }
-    $json['prices'] = $clean;
-    $json['updatedAt'] = date('c');
-    return $json;
-  });
-  $prices = streg_prices($doc);
-  respond(200, ['ok' => true, 'prices' => empty($prices) ? new stdClass() : $prices, 'updatedAt' => $doc['updatedAt']]);
 }
 
 // `formId: null` means "disconnect". Only a Navn-field mapping exists here

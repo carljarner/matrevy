@@ -951,8 +951,13 @@ tr.budget-row-filler td {
   margin-bottom: 0.75rem;
 }
 
+/* Vertical scroll (max-height set by js/budget.js's budgetSyncPendingColumnHeight
+   — see that function's own comment: the streg grid is capped to match the
+   right column's natural height, since a names list can be arbitrarily
+   long) on top of the horizontal scroll every width already has. */
 .streg-table-wrap {
   overflow-x: auto;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 1rem;
 }
@@ -971,7 +976,15 @@ tr.budget-row-filler td {
   white-space: nowrap;
 }
 
+/* Sticks to the top of .streg-table-wrap's own vertical scroll (see above)
+   so the column headers stay visible while scrolling through many names —
+   needs an opaque background since sticky content still sits above
+   scrolled-under rows. */
 .streg-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
   color: var(--text-muted);
   font-weight: 600;
   font-size: 0.8rem;
@@ -1050,28 +1063,6 @@ tr.budget-row-filler td {
   white-space: nowrap;
 }
 
-/* Category-column remove "✕", at the bottom of the grid in the same row
-   as "Tilføj række" rather than the header — mirrors
-   faellesspisning.css's .faelles-col-day-remove. */
-.streg-col-remove {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-  line-height: 1;
-  padding: 0.1rem;
-}
-
-@media (hover: hover) {
-  .streg-col-remove:hover { color: var(--danger); }
-}
-
-.streg-col-remove:focus-visible {
-  outline: none;
-  color: var(--danger);
-}
-
 .streg-remove-btn {
   background: none;
   border: none;
@@ -1128,26 +1119,39 @@ tr.budget-row-filler td {
   width: min(300px, 85vw);
 }
 
-/* --- Pris pr. streg card (replaces Afventende udlæg while active) --- */
+/* --- Pris pr. streg card (replaces Afventende udlæg while active) ---
+   A Budget-style Gem-batched draft editor (mirrors buildCategoryEditSection's
+   own row styling above) — every row is draggable to reorder, the same
+   .budget-drop-target highlight convention as .budget-manage-tr but drawn
+   on a plain <div> row (top border, not a <td>) since this list isn't a
+   table. */
 .streg-price-list {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.3rem;
 }
 
 .streg-price-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  cursor: grab;
+  border-top: 2px solid transparent;
+  transition: border-top-color 0.15s;
+  padding-top: 0.3rem;
 }
 
-.streg-price-label {
+.streg-price-row:active {
+  cursor: grabbing;
+}
+
+.streg-price-row.budget-drop-target {
+  border-top-color: var(--accent-warm);
+}
+
+.streg-price-label-input {
   flex: 1;
   min-width: 0;
-  font-size: 0.9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .streg-price-input {
@@ -1189,6 +1193,19 @@ tr.budget-row-filler td {
   margin-top: 0.75rem;
   padding-top: 0.6rem;
   border-top: 1px solid var(--border);
+}
+
+/* Single "Gem" button — mirrors .budget-save-bar's spacing but centered,
+   the site-wide default for a lone action (see CLAUDE.md's modal
+   action-button layout convention). */
+.streg-price-save-bar {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.streg-price-save-bar > button {
+  min-width: 5rem;
 }
 
 .streg-error {

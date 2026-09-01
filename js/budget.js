@@ -566,50 +566,59 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
 }
 
 // CSS Grid's align-items:stretch only stretches the *shorter* row item up to
-// the row's own height — it doesn't cap the *taller* one, so with enough
-// pending requests the old plain-CSS approach let Afventende udlæg's own
-// content height dictate the whole row's height, growing past (and dragging
-// along) the Budget card instead of scrolling internally within it.
-//
-// Caps just the flexible card's own .budget-scroll-wrap (never the whole
-// .budget-col-right column): Budget's rendered height, minus whatever the
-// right column's *other* cards already consume above the scroll area (the
-// year toolbar, the Stregregnskab toggle card, and the flexible card's own
-// header), is exactly how tall that scroll area may be before its
-// overflow-y:auto (css/budget.css) kicks in. Forcing the whole column's
-// height instead (the original approach) broke once Stregregnskab added a
-// third stacked card here: with a short Budget card, the fixed cards alone
-// could already exceed the forced height, squeezing the flexible card
-// below its own header's minimum and spilling its content out past the
-// column's box — visually colliding with Betalte udgifter below, since a
-// flex child can't shrink past its own content's intrinsic minimum. The
-// column itself is never height-constrained now, so it can never overflow
-// itself. Skipped below the mobile breakpoint, where .budget-columns
-// collapses to one stacked column and every card sizes to its own content
-// instead (css/budget.css's own mobile block already resets
-// .budget-scroll-wrap's max-height there, but the inline style set here at
-// a wider viewport would otherwise outrank it).
+// the row's own height — it doesn't cap the *taller* one, so an unbounded
+// list on either side would otherwise dictate the whole row's height,
+// growing past (and dragging along) the other column instead of scrolling
+// internally within it. The two columns must always render at the SAME
+// height, in both modes, regardless of row count — so whichever side holds
+// naturally bounded content (a handful of expense categories in normal
+// mode; the year toolbar + Stregregnskab toggle + Pris pr. streg's own
+// small category list in streg mode) is the reference, and the side that
+// can genuinely grow without bound (Afventende udlæg's request list in
+// normal mode; the stregregnskab grid's own row count in streg mode) gets
+// capped via max-height + overflow-y:auto (css/budget.css) to match it
+// exactly. This mode-flips which column is "the reference," since Budget
+// doesn't render at all while in streg mode. Skipped below the mobile
+// breakpoint, where .budget-columns collapses to one stacked column and
+// every card sizes to its own content instead (css/budget.css's own
+// mobile block already resets these elements' max-height there, but the
+// inline style set here at a wider viewport would otherwise outrank it).
 function budgetSyncPendingColumnHeight() {
-  const sheetCard = document.querySelector('.budget-sheet-card');
   const colRight = document.querySelector('.budget-col-right');
-  if (!sheetCard || !colRight) return;
-  const scrollWrap = colRight.querySelector(':scope > .card > .budget-scroll-wrap');
-  if (!scrollWrap || window.innerWidth <= 719) {
-    if (scrollWrap) scrollWrap.style.maxHeight = '';
+  const sheetCard = document.querySelector('.budget-sheet-card'); // Budget, or the streg grid card
+  if (!colRight || !sheetCard) return;
+  const mobile = window.innerWidth <= 719;
+
+  if (budgetStregMode) {
+    // Right column (bounded) is the reference; the grid's own row area is
+    // capped to match it, since a names list can be arbitrarily long.
+    const stregWrap = document.querySelector('.streg-table-wrap');
+    if (!stregWrap) return;
+    if (mobile) { stregWrap.style.maxHeight = ''; return; }
+    const refHeight = colRight.getBoundingClientRect().height;
+    const consumedAbove = stregWrap.getBoundingClientRect().top - sheetCard.getBoundingClientRect().top;
+    // sheetCard's own bottom padding sits *after* stregWrap within the
+    // same card and isn't captured by consumedAbove (which only measures
+    // what's above it) — omitting it here was the earlier version's bug,
+    // consistently undershooting the target height by exactly that padding.
+    const bottomPadding = parseFloat(getComputedStyle(sheetCard).paddingBottom) || 0;
+    stregWrap.style.maxHeight = Math.max(refHeight - consumedAbove - bottomPadding, 0) + 'px';
     return;
   }
+
+  // Budget (bounded) is the reference; Afventende udlæg's own request list
+  // is capped to match it, since that list can be arbitrarily long.
+  const scrollWrap = colRight.querySelector(':scope > .card > .budget-scroll-wrap');
+  if (!scrollWrap) return;
+  if (mobile) { scrollWrap.style.maxHeight = ''; return; }
   const sheetHeight = sheetCard.getBoundingClientRect().height;
   const consumedAbove = scrollWrap.getBoundingClientRect().top - colRight.getBoundingClientRect().top;
-  // Floored well above 0: a very short Budget card (few categories) plus
-  // the year toolbar and Stregregnskab toggle above it can otherwise eat
-  // the whole budget, capping the scroll area down to nothing and hiding
-  // every pending request behind an invisible 0px scrollbar. 8rem (~one
-  // request's worth) keeps at least a little of the list visible — the
-  // right column then simply renders a bit taller than Budget in that
-  // edge case, which reads far better than "Afventende udlæg" appearing
-  // to have silently lost its contents.
-  const minVisible = 128;
-  scrollWrap.style.maxHeight = Math.max(sheetHeight - consumedAbove, minVisible) + 'px';
+  // Same fix as above: the card containing scrollWrap (.budget-col-pending)
+  // has its own bottom padding after it, which colRight's total height
+  // includes but consumedAbove doesn't capture.
+  const parentCard = scrollWrap.parentElement;
+  const bottomPadding = parentCard ? (parseFloat(getComputedStyle(parentCard).paddingBottom) || 0) : 0;
+  scrollWrap.style.maxHeight = Math.max(sheetHeight - consumedAbove - bottomPadding, 0) + 'px';
 }
 
 window.addEventListener('resize', budgetSyncPendingColumnHeight);
@@ -2376,18 +2385,33 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
 }
 
 // ── Admin: Stregregnskab (bar tally accounting) ──────────────
-// Structurally mirrors faellesspisning.js's own grid (rows commit
-// individually on blur, a "+" adds a row/category, a per-column "✕"
-// removes one, "Forbind" syncs names from a Formularer form) — see
-// CLAUDE.md's Budget section for the full design. Two module-level Maps
-// (stregRowBetalingCells / stregPriceUnitCells) let a single row/price
-// edit refresh every derived Betaling/STREGPRIS-PR-STYK display via plain
-// textContent updates (stregRecomputeDisplays) rather than rebuilding the
-// whole grid on every keystroke's blur — rebuilding would steal focus from
-// whatever other cell the bartender is about to click next mid-entry.
-// Structural changes (add/remove a row or category, connect a form)
-// rebuild both cards outright via stregRefreshCards() instead, since
-// those are deliberate one-off actions, not part of the rapid-entry flow.
+// Two areas, deliberately different edit models:
+// - The grid (buildStregSheetCard/stregBuildTable) is names × drink-count
+//   cells only — rows commit individually on blur (mirrors
+//   faellesspisning.js's own grid), "Forbind" syncs names from a
+//   Formularer form. It has no structural controls of its own any more:
+//   column set/order/labels/prices are entirely managed from the Pris pr.
+//   streg card, and the grid just follows whatever stregState.categories
+//   currently is.
+// - The Pris pr. streg card (buildStregPricesCard) is a Budget-style
+//   Gem-batched draft editor (mirrors buildCategoryEditSection above,
+//   reusing its generic budgetWireDropHighlight/budgetMoveDraftItem drag
+//   helpers) — add/rename/reorder/remove a category and set its price, all
+//   client-side until "Gem" writes the whole ordered list back in one
+//   streg_save_categories call. Nothing here auto-saves per keystroke,
+//   unlike the grid's own rows — this was a deliberate fix for structural
+//   category edits interrupting in-progress tally entry elsewhere on the
+//   page.
+// A single module-level Map (stregRowBetalingCells) plus a function
+// reference into the currently-mounted Pris-pr-streg card
+// (stregPriceRefreshComputed) let a grid row edit refresh every derived
+// Betaling/STREGPRIS-PR-STYK display via plain textContent updates
+// (stregRecomputeDisplays) rather than rebuilding the whole grid on every
+// blur — rebuilding would steal focus from whatever cell the bartender is
+// about to click next mid-entry. A row add/remove or a "Forbind"
+// connect/disconnect still rebuilds both cards outright via
+// stregRefreshCards(), since those are deliberate one-off actions, not
+// part of the rapid-entry flow.
 
 function renderStregToggleCard(container) {
   const card = el('section', 'card budget-streg-toggle');
@@ -2410,26 +2434,30 @@ async function budgetToggleStregMode() {
 }
 
 let stregRowBetalingCells = new Map(); // row -> its Betaling <td>, rebuilt whenever the grid itself rebuilds
-let stregPriceUnitCells = new Map();   // categoryKey -> its "kr X pr. streg" <span>, rebuilt with the prices card
-let stregPriceTotalEl = null;          // the prices card's "I alt" value <span>
+// Set by buildStregPricesCard() to its own local refreshComputed closure —
+// lets stregRecomputeDisplays() (fired by a grid tally edit elsewhere)
+// refresh that card's per-unit/total display against its current draft
+// state without either card needing to know the other's internals.
+let stregPriceRefreshComputed = null;
+
+// Total tally count recorded for one category across every row — the
+// shared denominator behind both stregComputePricePerUnit() (saved prices,
+// used by the grid) and the Pris pr. streg card's own live preview of an
+// as-yet-unsaved draft price.
+function stregCategoryTallyTotal(key) {
+  return stregState.rows.reduce((sum, r) => sum + (Number((r.counts || {})[key]) || 0), 0);
+}
 
 // STREGPRIS PR STYK per category — INDKØBSPRIS divided by the total tally
 // count recorded for that category across every row; null (rendered as
 // "—") while either side of that division is zero, so a category with no
 // price yet or no tallies sold yet never divides by zero.
 function stregComputePricePerUnit() {
-  const totals = {};
-  stregState.categories.forEach((c) => { totals[c.key] = 0; });
-  stregState.rows.forEach((r) => {
-    const counts = r.counts || {};
-    Object.keys(counts).forEach((k) => {
-      if (totals[k] != null) totals[k] += Number(counts[k]) || 0;
-    });
-  });
   const perUnit = {};
   stregState.categories.forEach((c) => {
     const price = Number(stregState.prices[c.key]) || 0;
-    perUnit[c.key] = (price > 0 && totals[c.key] > 0) ? price / totals[c.key] : null;
+    const total = stregCategoryTallyTotal(c.key);
+    perUnit[c.key] = (price > 0 && total > 0) ? price / total : null;
   });
   return perUnit;
 }
@@ -2444,20 +2472,17 @@ function stregRowBetaling(row, perUnit) {
 }
 
 // Refreshes only the derived Betaling/pris-pr-styk text, never touching an
-// <input> — see this section's own header comment for why.
+// <input> — see this section's own header comment for why. The Pris pr.
+// streg card's own per-unit preview is driven by its *draft* prices (not
+// yet necessarily saved), so this delegates to that card's own
+// stregPriceRefreshComputed closure (set whenever buildStregPricesCard()
+// runs) rather than recomputing from stregState.prices directly here.
 function stregRecomputeDisplays() {
   const perUnit = stregComputePricePerUnit();
   stregRowBetalingCells.forEach((cell, row) => {
     cell.textContent = formatKr(stregRowBetaling(row, perUnit));
   });
-  stregPriceUnitCells.forEach((span, key) => {
-    const p = perUnit[key];
-    span.textContent = p != null ? `${formatKr(p)} pr. streg` : '—';
-  });
-  if (stregPriceTotalEl) {
-    const total = stregState.categories.reduce((s, c) => s + (Number(stregState.prices[c.key]) || 0), 0);
-    stregPriceTotalEl.textContent = formatKr(total);
-  }
+  if (stregPriceRefreshComputed) stregPriceRefreshComputed();
 }
 
 // Structural change (row/category added or removed, form connected/
@@ -2517,6 +2542,10 @@ function stregAddPlusBtn(title, onClick) {
   return btn;
 }
 
+// Columns are driven entirely by stregState.categories, in its current
+// order — adding/removing/reordering a column happens exclusively in the
+// Pris pr. streg card (buildStregPricesCard) via its own Gem-saved draft,
+// never from the grid itself; this table just follows along.
 function stregBuildTable() {
   stregRowBetalingCells = new Map();
   const perUnit = stregComputePricePerUnit();
@@ -2528,9 +2557,6 @@ function stregBuildTable() {
   stregState.categories.forEach((c) => {
     headRow.appendChild(el('th', 'streg-col-count', c.label));
   });
-  const addCatTh = el('th', 'streg-col-count');
-  addCatTh.appendChild(stregAddPlusBtn('Tilføj kategori', () => stregOpenAddCategoryModal()));
-  headRow.appendChild(addCatTh);
   headRow.appendChild(el('th', 'streg-col-betaling', 'Betaling'));
   headRow.appendChild(el('th', '', ''));
   thead.appendChild(headRow);
@@ -2541,11 +2567,9 @@ function stregBuildTable() {
     .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'da', { sensitivity: 'base' }));
   sortedRows.forEach((row) => tbody.appendChild(stregRenderRow(row, perUnit)));
 
-  // Bottom row: "Tilføj række" plus one "✕" per category column, at the
-  // same row — mirrors Fællesspisning's own add-row/remove-day-column
-  // layout (faellesBuildTable).
   const addRow = el('tr', 'streg-add-row');
   const addCell = el('td', 'streg-add-row-plus-cell');
+  addCell.colSpan = 1 + stregState.categories.length;
   addCell.appendChild(stregAddPlusBtn('Tilføj række', () => {
     const draft = { id: null, navn: '', counts: {} };
     const tr = stregRenderRow(draft, perUnit);
@@ -2554,17 +2578,6 @@ function stregBuildTable() {
     if (firstInput) firstInput.focus();
   }));
   addRow.appendChild(addCell);
-
-  stregState.categories.forEach((c) => {
-    const td = el('td', 'streg-col-count');
-    const removeBtn = el('button', 'streg-col-remove', '✕');
-    removeBtn.type = 'button';
-    removeBtn.title = 'Fjern kategori';
-    removeBtn.addEventListener('click', () => stregOpenDeleteCategoryConfirm(c));
-    td.appendChild(removeBtn);
-    addRow.appendChild(td);
-  });
-  addRow.appendChild(el('td')); // filler under the header's add-category "+" column
   addRow.appendChild(el('td')); // filler under the Betaling column
   addRow.appendChild(el('td')); // filler under the trailing per-row remove column
 
@@ -2610,8 +2623,6 @@ function stregRenderRow(row, perUnit) {
     td.appendChild(input);
     tr.appendChild(td);
   });
-
-  tr.appendChild(el('td')); // filler under the header's add-category "+" column
 
   const betalingTd = el('td', 'streg-col-betaling', formatKr(stregRowBetaling(row, perUnit)));
   stregRowBetalingCells.set(row, betalingTd);
@@ -2688,69 +2699,6 @@ function stregOpenDeleteRowConfirm(row) {
       return;
     }
     stregState.rows = stregState.rows.filter((r) => r !== row);
-    close();
-    stregRefreshCards();
-  });
-  actions.appendChild(cancelBtn);
-  actions.appendChild(confirmBtn);
-}
-
-function stregOpenAddCategoryModal() {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Tilføj kategori');
-  modal.classList.add('streg-category-modal');
-
-  const labelInput = document.createElement('input');
-  labelInput.type = 'text';
-  labelInput.placeholder = 'Fx Øl';
-  form.appendChild(siteEditField('Navn', labelInput));
-
-  const saveBtn = budgetPillBtn('Tilføj', 'site-btn-success');
-  saveBtn.addEventListener('click', async () => {
-    const label = labelInput.value.trim();
-    if (!label) { error.textContent = 'Angiv et navn.'; return; }
-    saveBtn.disabled = true;
-    error.textContent = '';
-    const result = await budgetApi('streg_add_category', { label, budgetId: budgetViewId });
-    saveBtn.disabled = false;
-    if (!result.ok) {
-      if (result.message) error.textContent = result.message;
-      return;
-    }
-    stregState.categories = result.data.categories || [];
-    close();
-    stregRefreshCards();
-  });
-  actions.appendChild(saveBtn);
-  labelInput.focus();
-}
-
-// Removing a category also drops its own price entry server-side, but
-// leaves every row's counts for it alone — the client just stops
-// rendering that column (see the server-side comment for the full
-// rationale, same posture as Fællesspisning's day-column deletion).
-function stregOpenDeleteCategoryConfirm(category) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('streg-confirm-modal');
-  const heading = modal.querySelector('h2');
-  if (heading) heading.remove();
-
-  form.appendChild(el('p', 'streg-confirm-text', `Fjern "${category.label}" fra stregregnskabet?`));
-  form.appendChild(el('p', 'budget-intro', 'Eksisterende streger i denne kategori bliver ikke slettet, men holder op med at blive vist.'));
-
-  const cancelBtn = budgetPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-  const confirmBtn = budgetPillBtn('Fjern', 'site-btn-danger');
-  confirmBtn.addEventListener('click', async () => {
-    confirmBtn.disabled = true;
-    error.textContent = '';
-    const result = await budgetApi('streg_delete_category', { key: category.key, budgetId: budgetViewId });
-    if (!result.ok) {
-      confirmBtn.disabled = false;
-      if (result.message) error.textContent = result.message;
-      return;
-    }
-    stregState.categories = result.data.categories || [];
-    stregState.prices = result.data.prices || {};
     close();
     stregRefreshCards();
   });
@@ -2905,11 +2853,19 @@ function renderStregPricesCard(container) {
   container.appendChild(buildStregPricesCard());
 }
 
-// Replaces Afventende udlæg while in streg mode. One row per category:
-// label, an editable INDKØBSPRIS amount (commits on blur, full-replaces
-// the whole prices map — mirrors budgetSaveSheet's own save-the-whole-
-// sheet convention), and the derived STREGPRIS PR STYK. "I alt" sums every
-// category's INDKØBSPRIS, matching the reference spreadsheet's own summary.
+// Replaces Afventende udlæg while in streg mode — this is where the whole
+// category list is managed (add/rename/reorder/remove + price), exactly
+// mirroring Budget's own "Rediger kategorier" editor (buildCategoryEditSection
+// above): a local draft, draggable rows (reusing that same section's
+// generic budgetWireDropHighlight/budgetMoveDraftItem helpers), a dirty
+// status indicator, and one explicit "Gem" that writes the whole ordered
+// list back in a single atomic streg_save_categories call. Nothing here
+// touches the server until Gem is clicked — the stregregnskab grid itself
+// has no add/remove/reorder controls of its own any more; its columns just
+// follow stregState.categories' current (saved) order. STREGPRIS PR STYK is
+// shown live against each draft row's in-progress (not-yet-saved) price,
+// using the CURRENT saved tally counts — so typing a price previews its
+// effect immediately, without needing to save first.
 // Deliberately no .budget-scroll-wrap here (unlike Afventende udlæg): the
 // category list is small and bounded (a handful of drink types, never the
 // dozens Afventende udlæg's pending-request list can reach), so it isn't
@@ -2920,78 +2876,167 @@ function buildStregPricesCard() {
   const card = el('section', 'card budget-col-pending streg-prices-card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Pris pr. streg'));
+  const status = el('span', 'budget-save-status', 'Gemt');
+  head.appendChild(status);
   card.appendChild(head);
 
-  stregPriceUnitCells = new Map();
-  stregPriceTotalEl = null;
+  // Local to this card (unlike stregRowBetalingCells, nothing outside needs
+  // these directly — stregRecomputeDisplays() reaches this card only via
+  // stregPriceRefreshComputed below).
+  let stregPriceUnitCells = new Map();
+  let stregPriceTotalEl = null;
 
   if (stregState.error) {
+    stregPriceRefreshComputed = null;
     card.appendChild(el('p', 'budget-msg error', stregState.error));
     return card;
   }
 
-  if (stregState.categories.length === 0) {
-    card.appendChild(el('p', 'budget-intro', 'Tilføj en kategori i stregregnskabet for at angive priser.'));
-    return card;
+  const draft = stregState.categories.map((c) => ({
+    key: c.key, label: c.label, price: Number(stregState.prices[c.key]) || 0,
+  }));
+  const snapshot = JSON.stringify(draft);
+  function refreshDirtyStatus() {
+    const dirty = JSON.stringify(draft) !== snapshot;
+    status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+    status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
   }
 
   const list = el('div', 'streg-price-list');
-  const perUnit = stregComputePricePerUnit();
-  let total = 0;
-
-  stregState.categories.forEach((c) => {
-    const price = Number(stregState.prices[c.key]) || 0;
-    total += price;
-
-    const row = el('div', 'streg-price-row');
-    row.appendChild(el('span', 'streg-price-label', c.label));
-
-    const priceInput = document.createElement('input');
-    priceInput.type = 'text';
-    priceInput.inputMode = 'decimal';
-    priceInput.className = 'streg-price-input';
-    priceInput.placeholder = '0,00';
-    priceInput.value = price ? String(price).replace('.', ',') : '';
-    priceInput.addEventListener('blur', () => stregCommitPrice(c.key, priceInput));
-    row.appendChild(priceInput);
-
-    const perUnitVal = perUnit[c.key];
-    const perUnitSpan = el('span', 'streg-price-per-unit',
-      perUnitVal != null ? `${formatKr(perUnitVal)} pr. streg` : '—');
-    stregPriceUnitCells.set(c.key, perUnitSpan);
-    row.appendChild(perUnitSpan);
-
-    list.appendChild(row);
-  });
   card.appendChild(list);
+
+  let dragItem = null;
+
+  function refreshComputed() {
+    let total = 0;
+    draft.forEach((item) => {
+      total += item.price;
+      const tallyTotal = stregCategoryTallyTotal(item.key);
+      const perUnitVal = (item.price > 0 && tallyTotal > 0) ? item.price / tallyTotal : null;
+      const span = stregPriceUnitCells.get(item);
+      if (span) span.textContent = perUnitVal != null ? `${formatKr(perUnitVal)} pr. streg` : '—';
+    });
+    if (stregPriceTotalEl) stregPriceTotalEl.textContent = formatKr(total);
+  }
+  stregPriceRefreshComputed = refreshComputed;
+
+  function renderList() {
+    list.textContent = '';
+    stregPriceUnitCells = new Map();
+    draft.forEach((item) => {
+      const row = el('div', 'streg-price-row');
+      row.draggable = true;
+      row.addEventListener('dragstart', (e) => {
+        dragItem = item;
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => row.classList.remove('budget-drop-target'));
+      budgetWireDropHighlight(row, () => {
+        if (dragItem && dragItem !== item) {
+          budgetMoveDraftItem(draft, dragItem, item, renderList);
+          refreshDirtyStatus();
+        }
+      });
+
+      const labelInput = el('input', 'budget-manage-text-input streg-price-label-input');
+      labelInput.type = 'text';
+      labelInput.value = item.label;
+      labelInput.placeholder = 'Navn';
+      labelInput.addEventListener('input', () => {
+        item.label = labelInput.value;
+        refreshDirtyStatus();
+      });
+      row.appendChild(labelInput);
+
+      const priceInput = document.createElement('input');
+      priceInput.type = 'text';
+      priceInput.inputMode = 'decimal';
+      priceInput.className = 'streg-price-input';
+      priceInput.placeholder = '0,00';
+      priceInput.value = item.price ? String(item.price).replace('.', ',') : '';
+      priceInput.addEventListener('input', () => {
+        item.price = parseAmount(priceInput.value) || 0;
+        refreshDirtyStatus();
+        refreshComputed();
+      });
+      row.appendChild(priceInput);
+
+      const perUnitSpan = el('span', 'streg-price-per-unit', '—');
+      stregPriceUnitCells.set(item, perUnitSpan);
+      row.appendChild(perUnitSpan);
+
+      const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
+      removeBtn.type = 'button';
+      removeBtn.title = 'Fjern kategori';
+      removeBtn.addEventListener('click', () => {
+        const idx = draft.indexOf(item);
+        if (idx !== -1) draft.splice(idx, 1);
+        renderList();
+        refreshDirtyStatus();
+      });
+      row.appendChild(removeBtn);
+
+      list.appendChild(row);
+    });
+    refreshComputed();
+  }
+  renderList();
+
+  const addBtn = el('button', 'budget-manage-add-plus', '+');
+  addBtn.type = 'button';
+  addBtn.title = 'Tilføj kategori';
+  addBtn.addEventListener('click', () => {
+    draft.push({ key: null, label: '', price: 0 });
+    renderList();
+    refreshDirtyStatus();
+    const lastLabel = list.lastElementChild && list.lastElementChild.querySelector('.streg-price-label-input');
+    if (lastLabel) lastLabel.focus();
+  });
+  card.appendChild(addBtn);
 
   const totalRow = el('div', 'streg-price-total');
   totalRow.appendChild(el('span', null, 'I alt'));
-  const totalValueEl = el('span', null, formatKr(total));
+  const totalValueEl = el('span');
   stregPriceTotalEl = totalValueEl;
   totalRow.appendChild(totalValueEl);
   card.appendChild(totalRow);
+  refreshComputed();
 
-  card.appendChild(el('div', 'streg-error'));
+  const saveBar = el('div', 'streg-price-save-bar');
+  const saveBtn = el('button', 'site-btn-success', 'Gem');
+  saveBtn.type = 'button';
+  saveBtn.addEventListener('click', async () => {
+    if (draft.length === 0) {
+      status.textContent = 'Der skal være mindst én kategori.';
+      status.className = 'budget-save-status error';
+      return;
+    }
+    if (draft.some((d) => !d.label.trim())) {
+      status.textContent = 'Udfyld navn for hver kategori.';
+      status.className = 'budget-save-status error';
+      return;
+    }
+    saveBtn.disabled = true;
+    status.textContent = 'Gemmer …';
+    status.className = 'budget-save-status';
+    const result = await budgetApi('streg_save_categories', {
+      budgetId: budgetViewId,
+      categories: draft.map((d) => ({ key: d.key || undefined, label: d.label.trim(), price: d.price })),
+    });
+    saveBtn.disabled = false;
+    if (!result.ok) {
+      status.textContent = result.message || 'Kunne ikke gemme.';
+      status.className = 'budget-save-status error';
+      return;
+    }
+    stregState.categories = result.data.categories || [];
+    stregState.prices = result.data.prices || {};
+    stregRefreshCards();
+  });
+  saveBar.appendChild(saveBtn);
+  card.appendChild(saveBar);
 
   return card;
-}
-
-async function stregCommitPrice(key, inputEl) {
-  const amount = parseAmount(inputEl.value);
-  const clean = Number.isFinite(amount) && amount >= 0 ? amount : 0;
-  inputEl.value = clean ? String(clean).replace('.', ',') : '';
-  if ((Number(stregState.prices[key]) || 0) === clean) return;
-  const nextPrices = { ...stregState.prices, [key]: clean };
-  const result = await budgetApi('streg_save_prices', { prices: nextPrices, budgetId: budgetViewId });
-  const errorBox = document.querySelector('.streg-prices-card .streg-error');
-  if (!result.ok) {
-    if (errorBox && result.message) errorBox.textContent = result.message;
-    return;
-  }
-  if (errorBox) errorBox.textContent = '';
-  stregState.prices = result.data.prices || {};
-  stregRecomputeDisplays();
 }
 
 // ── Init ─────────────────────────────────────────────────────
