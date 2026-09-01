@@ -38,6 +38,11 @@
 .faelles-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  /* Room for the horizontal scrollbar below the table content — without
+     this, an overlay scrollbar (macOS Safari/Chrome with "always show
+     scrollbars" off) floats over the last row (the Madforbehold summary
+     row) instead of sitting in its own space. */
+  padding-bottom: 1rem;
 }
 
 .faelles-table {
@@ -60,18 +65,42 @@
   font-size: 0.8rem;
 }
 
-/* Navn/Madforbehold columns: left-aligned text, kept visible while
-   scrolling through the day columns to the right. */
+/* Navn/Madforbehold columns: left-aligned text. Only Navn stays sticky
+   while scrolling through the day columns to the right — pinning both
+   would eat too much width on a narrow screen, and Navn alone is enough
+   to keep a row identifiable. */
 .faelles-table .faelles-col-field {
   text-align: left;
+}
+
+.faelles-table .faelles-col-navn {
   position: sticky;
   left: 0;
   background: var(--surface);
   z-index: 1;
 }
 
-.faelles-table thead .faelles-col-field {
+.faelles-table thead .faelles-col-navn {
   z-index: 2;
+}
+
+/* Fixed-ish width so a long Madforbehold entry never grows the column —
+   overflow is truncated with an ellipsis instead (faelles-field-tooltip
+   below shows the full text on hover). */
+.faelles-table .faelles-col-madforbehold {
+  max-width: 14rem;
+}
+
+.faelles-table .faelles-col-madforbehold input[type="text"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Day columns: a floor wide enough for a two-digit headcount / "ⓘ 12" /
+   a "31/12" date label, so a column never widens (and shifts every column
+   to its right) as people sign up and the summary counts grow. */
+.faelles-table .faelles-col-day {
+  min-width: 3rem;
 }
 
 .faelles-table .faelles-col-field input[type="text"] {
@@ -133,14 +162,24 @@
   padding-top: 0.6rem;
 }
 
-/* Square-ish "+" affordance (add a row, add a date column) — a .btn-small
-   variant, not the oval .site-pill-btn system (that's reserved for
-   buttons actually inside a modal overlay). */
-.faelles-plus-btn {
-  padding: 0.2rem 0.55rem;
-  font-weight: 600;
-  font-size: 0.95rem;
-  line-height: 1.2;
+/* faellesShowFieldTooltip()'s popup — position:fixed on <body>, clamped
+   on-screen in JS, mirrors forms.css's .forms-response-tooltip (that
+   file isn't loaded on this page, per the per-feature duplication
+   convention documented in CLAUDE.md). */
+.faelles-field-tooltip {
+  position: fixed;
+  z-index: 250;
+  max-width: 320px;
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 /* --- Summary block -------------------------------------------------- */

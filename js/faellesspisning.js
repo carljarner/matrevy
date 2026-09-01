@@ -62,6 +62,44 @@ function faellesPillBtn(label, variant) {
   return btn;
 }
 
+// "+" icon button (add a row, add a date column) — the site-wide
+// .boss-manage-add-plus look (style.css), same as Manus' "add QR-kode"
+// affordance, rather than a labeled .btn-small pill.
+function faellesAddPlusBtn(title) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'boss-manage-add-plus';
+  btn.title = title;
+  btn.setAttribute('aria-label', title);
+  btn.textContent = '+';
+  return btn;
+}
+
+// ── Madforbehold truncation tooltip ──────────────────────────
+// Mirrors forms.js's formsShowResponseTooltip/formsHideResponseTooltip
+// (that file isn't loaded on this page, per the per-feature duplication
+// convention documented in CLAUDE.md): a fixed-position dark box shown
+// only while the field is actually truncated.
+let faellesFieldTooltipEl = null;
+function faellesShowFieldTooltip(anchor, text) {
+  faellesHideFieldTooltip();
+  const tip = el('div', 'faelles-field-tooltip', text);
+  document.body.appendChild(tip);
+  const anchorRect = anchor.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let top = anchorRect.top - tipRect.height - 6;
+  if (top < 4) top = anchorRect.bottom + 6;
+  let left = anchorRect.left;
+  if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - tipRect.width - 4;
+  if (left < 4) left = 4;
+  tip.style.top = `${top}px`;
+  tip.style.left = `${left}px`;
+  faellesFieldTooltipEl = tip;
+}
+function faellesHideFieldTooltip() {
+  if (faellesFieldTooltipEl) { faellesFieldTooltipEl.remove(); faellesFieldTooltipEl = null; }
+}
+
 // ── Authenticated API (mirrors forms.js's formsResolvePassword/formsApi) ──
 function faellesResolvePassword() {
   const auth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
@@ -196,6 +234,9 @@ function faellesRender(root) {
   card.appendChild(el('div', 'faelles-error'));
 
   const wrap = el('div', 'faelles-table-wrap');
+  // A stray mouseenter can leave the fixed tooltip anchored to a field
+  // that's since scrolled out from under it — drop it on any scroll.
+  wrap.addEventListener('scroll', faellesHideFieldTooltip);
   wrap.appendChild(faellesBuildTable(root));
   card.appendChild(wrap);
 
@@ -212,15 +253,14 @@ function faellesBuildTable(root) {
   const thead = el('thead');
   const headRow = el('tr');
   for (const f of FAELLES_FIELDS) {
-    headRow.appendChild(el('th', 'faelles-col-field', f.label));
+    headRow.appendChild(el('th', `faelles-col-field faelles-col-${f.id}`, f.label));
   }
   for (const col of columns) {
     headRow.appendChild(el('th', 'faelles-col-day', col.label));
   }
   if (showAddDate) {
     const addDateTh = el('th', 'faelles-col-day');
-    const addDateBtn = faellesBtn('+', 'faelles-plus-btn');
-    addDateBtn.title = 'Tilføj dato';
+    const addDateBtn = faellesAddPlusBtn('Tilføj dato');
     addDateBtn.addEventListener('click', () => faellesOpenQuickAddDateModal(root));
     addDateTh.appendChild(addDateBtn);
     headRow.appendChild(addDateTh);
@@ -236,8 +276,7 @@ function faellesBuildTable(root) {
   const addRow = el('tr', 'faelles-add-row');
   const addCell = el('td');
   addCell.colSpan = totalCols;
-  const addBtn = faellesBtn('+', 'faelles-plus-btn');
-  addBtn.title = 'Tilføj række';
+  const addBtn = faellesAddPlusBtn('Tilføj række');
   addBtn.addEventListener('click', () => {
     const draft = { id: null, answers: { navn: '', madforbehold: '' }, days: [] };
     const tr = faellesRenderRow(draft, columns, showAddDate);
@@ -260,7 +299,7 @@ function faellesRenderRow(row, columns, showAddDate) {
   const tr = el('tr');
 
   for (const f of FAELLES_FIELDS) {
-    const td = el('td', 'faelles-col-field');
+    const td = el('td', `faelles-col-field faelles-col-${f.id}`);
     const input = document.createElement('input');
     input.type = 'text';
     input.value = row.answers[f.id] || '';
@@ -271,6 +310,17 @@ function faellesRenderRow(row, columns, showAddDate) {
       row.answers[f.id] = value;
       faellesCommitRow(row, tr);
     });
+    if (f.id === 'madforbehold') {
+      // Truncated by CSS (.faelles-col-madforbehold) — show the full
+      // text in a tooltip only while actually overflowing, and never
+      // while the field is focused for editing.
+      input.addEventListener('mouseenter', () => {
+        if (document.activeElement === input) return;
+        if (input.scrollWidth > input.clientWidth && input.value) faellesShowFieldTooltip(input, input.value);
+      });
+      input.addEventListener('mouseleave', faellesHideFieldTooltip);
+      input.addEventListener('focus', faellesHideFieldTooltip);
+    }
     td.appendChild(input);
     tr.appendChild(td);
   }
@@ -510,12 +560,8 @@ async function faellesOpenConnectModal(root) {
   formPicker.addEventListener('change', () => loadFormFields(formPicker.value));
   await loadFormFields(initialFormId);
 
-  const cancelBtn = faellesPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-  actions.appendChild(cancelBtn);
-
   if (currentConnection) {
-    const disconnectBtn = faellesPillBtn('Fjern forbindelse', 'site-pill-danger');
+    const disconnectBtn = faellesPillBtn('Fjern', 'site-pill-danger');
     disconnectBtn.addEventListener('click', async () => {
       if (!confirm('Fjern forbindelsen til formularen? Rækker der allerede er hentet ind, bliver ikke slettet.')) return;
       disconnectBtn.disabled = true;
