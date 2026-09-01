@@ -513,18 +513,13 @@ async function generateQrFiles(workDir, qrCodes) {
 // QR code from) and are ALWAYS run through texEscape() — the opposite
 // convention, and easy to get backwards, so don't "fix" one to match the
 // other.
-// `variant` picks the section order:
-// - 'standard' (default): front cover, Aktoversigt, Medvirkende, Ordliste,
-//   QR-koder, back cover — the original order this function always built.
-// - 'booklet': front cover, Aktoversigt, Ordliste, Medvirkende, a blank
-//   page, QR-koder, back cover — a second requested layout (Manus page's
-//   Program tab offers a choice between the two, mirroring the "Individuelt
-//   Manus" dropdown's per-person picker — see renderManusPdfLinksSection in
-//   js/manus.js). Same content/images either way, just reordered, plus one
-//   inserted blank page — not real print-imposition (folded sheet order for
-//   physical saddle-stitch booklet printing), just this specific section
-//   sequence, which is all that was actually asked for.
-function buildProgramTex(programActs, prodMeta, programData, images, variant = 'standard') {
+// Section order: front cover, Aktoversigt, Medvirkende, Ordliste, QR-koder,
+// back cover — always this order, in normal reading order. ProgramHaefte.pdf
+// (Manus page's "Program" quick-link, see renderManusPdfLinksSection in
+// js/manus.js) is produced from this same reading-order PDF by imposing it
+// two-up onto landscape A4 sheets afterwards (see imposeBooklet, below) —
+// real print imposition, not a reordering of this content.
+function buildProgramTex(programActs, prodMeta, programData, images) {
   const { coverFile, backFile, qrFiles } = images;
 
   // Wrapped in a local \baselineskip bump (scoped to this \begin{center}...
@@ -587,12 +582,6 @@ ${ordBody}
 \\begin{center}
 ${qrBody}\\end{center}`;
 
-  // A genuinely blank page — \clearpage alone wouldn't produce one here,
-  // since a \clearpage immediately following another with no material in
-  // between collapses to nothing; \mbox{} puts an empty-but-real box on the
-  // page so it actually gets flushed.
-  const blankPage = '% Blank page\n\\mbox{}';
-
   const backCover = `% Back cover
 \\begin{center}
 \\vspace*{\\fill}
@@ -600,11 +589,7 @@ ${qrBody}\\end{center}`;
 \\vspace*{\\fill}
 \\end{center}`;
 
-  const middleSections = variant === 'booklet'
-    ? [aktSection, ordSection, medSection, blankPage, qrSection]
-    : [aktSection, medSection, ordSection, qrSection];
-
-  const body = [frontCover, ...middleSections, backCover]
+  const body = [frontCover, aktSection, medSection, ordSection, qrSection, backCover]
     .map((section) => `${section}\n\\clearpage`)
     .join('\n\n')
     // The very last \clearpage before \end{document} is redundant (nothing
@@ -629,6 +614,57 @@ ${body}
 
 \\end{document}
 `;
+}
+
+// Real print imposition: takes the already-compiled, normal-reading-order
+// Program.pdf and lays its pages two-up onto landscape A4 sheets in
+// saddle-stitch booklet order, so that printing double-sided and folding the
+// stack once down the middle reproduces the original reading order (page 1
+// on the front cover, the last page on the back cover, etc.) — the classic
+// psbook/pdfbook algorithm. Page count is padded with blank spreads to a
+// multiple of 4 (every physical sheet carries exactly 4 logical pages, 2 per
+// side) since a booklet can only be folded from whole sheets; the source PDF
+// itself is never padded, padding only affects which slots are left empty in
+// the output.
+async function imposeBooklet(sourcePdfBytes) {
+  const { PDFDocument } = require('pdf-lib');
+  const srcDoc = await PDFDocument.load(sourcePdfBytes);
+  const pageCount = srcDoc.getPageCount();
+  const totalPages = Math.max(4, Math.ceil(pageCount / 4) * 4);
+
+  const outDoc = await PDFDocument.create();
+  const embeddedPages = await outDoc.embedPdf(sourcePdfBytes, Array.from({ length: pageCount }, (_, i) => i));
+  // 1-indexed lookup matching the imposition formula below; out-of-range
+  // (padding) slots resolve to null and are simply left blank.
+  const embeddedAt = (pageNum) => (pageNum >= 1 && pageNum <= pageCount ? embeddedPages[pageNum - 1] : null);
+
+  // Landscape A4: swap portrait width/height, split into two equal halves.
+  const [firstSrcPage] = srcDoc.getPages();
+  const { width: portraitW, height: portraitH } = firstSrcPage.getSize();
+  const sheetW = portraitH;
+  const sheetH = portraitW;
+  const halfW = sheetW / 2;
+
+  const drawHalf = (page, embedded, xOffset) => {
+    if (!embedded) return; // padding slot — leave blank
+    const scale = Math.min(halfW / embedded.width, sheetH / embedded.height);
+    const w = embedded.width * scale;
+    const h = embedded.height * scale;
+    page.drawPage(embedded, { x: xOffset + (halfW - w) / 2, y: (sheetH - h) / 2, width: w, height: h });
+  };
+
+  const sheets = totalPages / 4;
+  for (let s = 0; s < sheets; s++) {
+    const front = outDoc.addPage([sheetW, sheetH]);
+    drawHalf(front, embeddedAt(totalPages - 2 * s), 0);
+    drawHalf(front, embeddedAt(2 * s + 1), halfW);
+
+    const back = outDoc.addPage([sheetW, sheetH]);
+    drawHalf(back, embeddedAt(2 * s + 2), 0);
+    drawHalf(back, embeddedAt(totalPages - 2 * s - 1), halfW);
+  }
+
+  return outDoc.save();
 }
 
 // ── Compiling ────────────────────────────────────────────────
@@ -930,19 +966,21 @@ async function main() {
     fs.copyFileSync(root(backRel), path.join(workDir, backFile));
     const qrFiles = await generateQrFiles(workDir, programJson.qrCodes || []);
     const images = { coverFile, backFile, qrFiles };
-    const programTex = buildProgramTex(programActs, prodMeta, programJson, images, 'standard');
+    const programTex = buildProgramTex(programActs, prodMeta, programJson, images);
     fs.writeFileSync(path.join(workDir, 'Program.tex'), programTex, 'utf8');
     const programPdf = compileTex(workDir, 'Program.tex');
     copyToRepo(programPdf, `archive/${currentFolder}/Program.pdf`);
 
-    // Second layout, same content/images — see buildProgramTex()'s own
-    // comment on the 'booklet' variant and js/manus.js's Program quick-link
-    // picker, which lets a boss choose between the two.
-    console.log('  Compiling ProgramHaefte...');
-    const bookletTex = buildProgramTex(programActs, prodMeta, programJson, images, 'booklet');
-    fs.writeFileSync(path.join(workDir, 'ProgramHaefte.tex'), bookletTex, 'utf8');
-    const bookletPdf = compileTex(workDir, 'ProgramHaefte.tex');
-    copyToRepo(bookletPdf, `archive/${currentFolder}/ProgramHaefte.pdf`);
+    // Second layout, same content — the same PDF just imposed two-up onto
+    // landscape A4 sheets in booklet order (see imposeBooklet, above) so
+    // printing double-sided and folding the stack once produces a real
+    // saddle-stitch booklet. js/manus.js's Program quick-link picker lets a
+    // boss choose between the two.
+    console.log('  Imposing ProgramHaefte...');
+    const bookletBytes = await imposeBooklet(fs.readFileSync(programPdf));
+    const bookletDest = root(`archive/${currentFolder}/ProgramHaefte.pdf`);
+    fs.mkdirSync(path.dirname(bookletDest), { recursive: true });
+    fs.writeFileSync(bookletDest, bookletBytes);
   }
 
   console.log(
@@ -964,5 +1002,5 @@ module.exports = {
   extractTexMelody, extractTexAuthor,
   buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
   buildSangbossManuskript,
-  resolveProgramImages, generateQrFiles, buildProgramTex,
+  resolveProgramImages, generateQrFiles, buildProgramTex, imposeBooklet,
 };

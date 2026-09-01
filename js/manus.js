@@ -202,7 +202,8 @@ let manuscriptsOverride = siteLoadOverride('manuscripts');
 // siteLoadOverride/siteSaveOverride pattern (like Kalender/Wiki/Posts), NOT
 // manusDraft's in-memory-only optimistic shadow, since the Program tab isn't
 // racing scripts/generate-pdfs.js the way Aktfordeling/Rollefordeling's
-// scenes/cast save is (see renderProgramTab/saveProgram below).
+// scenes/cast save is (see renderProgramTab/manusSaveMain below — Program
+// shares manusSaveMain's own "Gem" button rather than having its own).
 let programOverride = siteLoadOverride('program');
 
 function getEffectiveProgram() {
@@ -3108,14 +3109,28 @@ function renderStjerneArkTab() {
 
 // ── Program tab (Medvirkende / Ordliste / QR-koder → Program.pdf) ──
 // Architecturally independent of manusDraft (entirely scene-scoped) — its
-// own resource, own shadow (getEffectiveProgram, above), own "Gem" button.
-// A local mutable clone, built once on first visit to the tab and only
-// reset to null after a successful save — so switching to another Main
-// Manus View tab and back preserves an in-progress edit within the same
-// page session (mirrors manusDraft's "only rebuilt after a successful
-// save" rule, scoped to just this tab).
+// own resource, own shadow (getEffectiveProgram, above) — but shares
+// #manus-main-view-actions' single "Gem" button (manusSaveMain) with the
+// other five tabs rather than having its own save button, since it lives on
+// the same page/section. A local mutable clone, built once on first visit to
+// the tab and only reset to null after a successful save — so switching to
+// another Main Manus View tab and back preserves an in-progress edit within
+// the same page session (mirrors manusDraft's "only rebuilt after a
+// successful save" rule, scoped to just this tab).
 let programDraft = null;
 let programDragId = null;
+
+// Dirty tracking mirrors manusLastSavedSnapshot/manusIsDirty above, scoped to
+// just this tab's own draft — baselined the moment programDraft is (re)built
+// from the current saved data (see renderProgramTab), so an untouched visit
+// to the tab never reads as dirty.
+let programLastSavedSnapshot = null;
+function programSerializeDraft(draft) {
+  return JSON.stringify(draft);
+}
+function programIsDirty() {
+  return !!programDraft && programSerializeDraft(programDraft) !== programLastSavedSnapshot;
+}
 
 function programNextId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -3193,11 +3208,6 @@ function renderProgramMedvirkendeSection() {
   h2.textContent = 'Medvirkende';
   section.appendChild(h2);
 
-  const hint = document.createElement('p');
-  hint.className = 'manus-col-empty';
-  hint.textContent = 'Rå LaTeX, ligesom Manus/Rollefordeling. Brug \\arb{Kategori} til en overskrift, og afslut hvert navn med \\\\.';
-  section.appendChild(hint);
-
   const textarea = document.createElement('textarea');
   textarea.className = 'manus-script-textarea manus-program-textarea';
   textarea.rows = 20;
@@ -3215,11 +3225,6 @@ function renderProgramOrdlisteSection() {
   const h2 = document.createElement('h2');
   h2.textContent = 'Ordliste';
   section.appendChild(h2);
-
-  const hint = document.createElement('p');
-  hint.className = 'manus-col-empty';
-  hint.textContent = 'Rå LaTeX, ligesom Manus/Rollefordeling — fx \\textbf{Ord:} Forklaring \\\\. Rækkefølgen her er også rækkefølgen i Program.pdf.';
-  section.appendChild(hint);
 
   const textarea = document.createElement('textarea');
   textarea.className = 'manus-script-textarea manus-program-textarea';
@@ -3275,7 +3280,7 @@ function renderProgramQrSection() {
 
   const hint = document.createElement('p');
   hint.className = 'manus-col-empty';
-  hint.textContent = 'QR-koden tegnes automatisk ud fra linket, når Program.pdf bygges — der uploades ikke selve billedet.';
+  hint.textContent = 'QR-koden genereres automatisk ud fra linket.';
   section.appendChild(hint);
 
   const list = document.createElement('div');
@@ -3283,15 +3288,20 @@ function renderProgramQrSection() {
   programDraft.qrCodes.forEach((qr) => list.appendChild(renderProgramQrRow(qr)));
   section.appendChild(list);
 
+  const addRow = document.createElement('div');
+  addRow.className = 'manus-program-qr-add';
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'site-pill-btn site-pill-warm';
-  addBtn.textContent = '+ QR-kode';
+  addBtn.className = 'boss-manage-add-plus';
+  addBtn.title = 'Tilføj QR-kode';
+  addBtn.setAttribute('aria-label', 'Tilføj QR-kode');
+  addBtn.textContent = '+';
   addBtn.addEventListener('click', () => {
     programDraft.qrCodes.push({ id: programNextId(), label: '', url: '' });
     renderProgramTab();
   });
-  section.appendChild(addBtn);
+  addRow.appendChild(addBtn);
+  section.appendChild(addRow);
 
   return section;
 }
@@ -3315,58 +3325,17 @@ function programBuildSavePayload() {
   return { medvirkende, ordliste, qrCodes };
 }
 
-async function saveProgram(saveBtn, errorEl) {
-  saveBtn.disabled = true;
-  errorEl.textContent = '';
-  const payload = programBuildSavePayload();
-  const result = await siteSaveResource('program', payload);
-  if (result.ok) {
-    programOverride = payload;
-    siteSaveOverride('program', payload);
-    programDraft = null;
-    renderProgramTab();
-    siteShowToast('Program gemt');
-  } else {
-    saveBtn.disabled = false;
-    errorEl.textContent = result.message;
-  }
-}
-
-function renderProgramSaveRow() {
-  const row = document.createElement('div');
-  row.className = 'manus-program-actions';
-
-  const error = document.createElement('span');
-  error.className = 'manus-main-view-error';
-  row.appendChild(error);
-
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'site-pill-btn site-pill-primary';
-  // "Gem Program", not a bare "Gem" — this sits directly above
-  // #manus-main-view-actions' own "Gem" (the separate scenes/cast save), so
-  // a plain "Gem" here would read as a second, confusingly identical button.
-  saveBtn.textContent = 'Gem Program';
-  saveBtn.addEventListener('click', () => saveProgram(saveBtn, error));
-  row.appendChild(saveBtn);
-
-  return row;
-}
-
 function renderProgramTab() {
   const mount = document.getElementById('manus-tab-program');
   mount.textContent = '';
-  if (!programDraft) programDraft = structuredClone(getEffectiveProgram());
-
-  const hint = document.createElement('p');
-  hint.className = 'manus-col-empty';
-  hint.textContent = 'Gem herunder, og klik derefter "Generér PDF\'er" (i Aktfordeling) for at opdatere Program.pdf.';
-  mount.appendChild(hint);
+  if (!programDraft) {
+    programDraft = structuredClone(getEffectiveProgram());
+    programLastSavedSnapshot = programSerializeDraft(programDraft);
+  }
 
   mount.appendChild(renderProgramMedvirkendeSection());
   mount.appendChild(renderProgramOrdlisteSection());
   mount.appendChild(renderProgramQrSection());
-  mount.appendChild(renderProgramSaveRow());
 }
 
 // ── Tab bar + section chrome ───────────────────────────────────
@@ -3498,6 +3467,12 @@ async function manusSaveMain() {
   const castRoster = manusBuildCastRoster(scenesActs);
   const previousManusOverride = manusSavedOverride;
 
+  // The Program tab shares this button rather than having its own — only
+  // actually written when it's been opened and edited this session, so a
+  // boss who never touches Program never triggers a no-op full-file resave
+  // of program.json on every ordinary scenes/cast Gem.
+  const programPayload = programIsDirty() ? programBuildSavePayload() : null;
+
   setManusSavedOverride({ scenes: manusFlattenActs(scenesActs), cast: castRoster });
   manusDraft = null; // forces a fresh manusInitDraft() next render
   manusResourceSaveInFlight = true;
@@ -3532,8 +3507,8 @@ async function manusSaveMain() {
   }
 
   const result = await siteSaveResource('manus', { scenes: finalScenesActs, cast: castRoster });
-  manusResourceSaveInFlight = false;
   if (!result.ok) {
+    manusResourceSaveInFlight = false;
     setManusSavedOverride(previousManusOverride);
     manusDraft = draftSnapshot;
     renderAll();
@@ -3547,6 +3522,31 @@ async function manusSaveMain() {
   if (finalScenesActs !== scenesActs) {
     setManusSavedOverride({ scenes: manusFlattenActs(finalScenesActs), cast: castRoster });
   }
+
+  // Program, if dirty, saves as its own resource right after — a separate
+  // write (own file, own sha), so a failure here doesn't roll back the
+  // scenes/cast save that already landed; it just leaves programDraft dirty
+  // for the next Gem click to retry. Not optimistic like scenes/cast above
+  // (this only ever ran non-optimistically even back when Program had its
+  // own dedicated save button), so the tab's own UI only updates once this
+  // has actually succeeded.
+  if (programPayload) {
+    const programResult = await siteSaveResource('program', programPayload);
+    if (!programResult.ok) {
+      manusResourceSaveInFlight = false;
+      const errEl = manusMainViewErrorEl();
+      if (errEl) errEl.textContent = programResult.message;
+      siteShowToast('Manus gemt (Program kunne ikke gemmes)');
+      renderMainViewActions();
+      return;
+    }
+    programOverride = programPayload;
+    siteSaveOverride('program', programPayload);
+    programDraft = null;
+    if (manusActiveTab === 'program') renderActiveTabPanel();
+  }
+
+  manusResourceSaveInFlight = false;
   // "Manus gemt" only fires here, once the real GitHub commit has actually
   // landed — the earlier renderAll() above already optimistically shows the
   // saved content (so there's no flash back to stale data, and edits made
@@ -3872,7 +3872,7 @@ function manusSaveStatusEl() {
 function manusUpdateSaveStatus() {
   const el = manusSaveStatusEl();
   if (!el) return;
-  const dirty = manusIsDirty();
+  const dirty = manusIsDirty() || programIsDirty();
   el.textContent = dirty ? 'Ikke gemt' : 'Gemt';
   el.classList.toggle('dirty', dirty);
 }
@@ -3940,7 +3940,6 @@ function renderManusPdfLinksSection() {
   const files = [
     ['Aktfordeling', 'Aktoversigt.pdf'],
     ['Rollefordeling', 'Rolleoversigt.pdf'],
-    ['Manus', 'Manuskript.pdf'],
   ];
   for (const [label, filename] of files) {
     const btn = document.createElement('button');
@@ -3956,10 +3955,11 @@ function renderManusPdfLinksSection() {
     linkRow.appendChild(btn);
   }
 
-  // Program.pdf has two generated layouts (see buildProgramTex()'s
-  // 'standard'/'booklet' variants in scripts/generate-pdfs.js) — a dropdown
-  // picker instead of a direct-open button, same pattern as "Individuelt
-  // Manus" below.
+  // Program.pdf has two generated layouts: the plain reading-order PDF, and
+  // ProgramHaefte.pdf, the same content imposed two-up onto landscape A4
+  // sheets in booklet order (see imposeBooklet() in
+  // scripts/generate-pdfs.js) — a dropdown picker instead of a direct-open
+  // button, same pattern as the combined "Manus" button below.
   const PROGRAM_PDF_VARIANTS = [
     { value: 'Program.pdf', label: 'Standard' },
     { value: 'ProgramHaefte.pdf', label: 'Hæfte' },
@@ -3976,26 +3976,38 @@ function renderManusPdfLinksSection() {
   });
   linkRow.appendChild(programBtn);
 
-  const individualBtn = document.createElement('button');
-  individualBtn.type = 'button';
-  individualBtn.className = 'site-pill-btn site-pill-warm';
-  individualBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
-  individualBtn.textContent = 'Individuelt Manus';
-  individualBtn.addEventListener('click', () => {
+  // Combines the whole-manuscript PDF and every per-person manuscript into
+  // one dropdown, rather than a separate direct-open "Manus" button plus an
+  // "Individuelt Manus" picker — the whole manuscript is just the option
+  // above "Sangboss", both being "manus" in the same sense from a revyst's
+  // point of view.
+  const manusBtn = document.createElement('button');
+  manusBtn.type = 'button';
+  manusBtn.className = 'site-pill-btn site-pill-warm';
+  manusBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
+  manusBtn.textContent = 'Manus';
+  manusBtn.addEventListener('click', () => {
     // "Sangboss" is a fixed pseudo-person (every song, regardless of cast —
-    // see scripts/generate-pdfs.js's buildSangbossManuskript), not a
-    // data/cast.json roster entry, so it's added here rather than sourced
-    // from getEffectiveCastData(); pinned first since it's always relevant.
+    // see scripts/generate-pdfs.js's buildSangbossManuskript), which writes
+    // its file to manuskripter/Sangboss.pdf — so the *slug* has to stay
+    // "Sangboss" even though the label shown in the dropdown reads "Manus
+    // (Sang)"; not a data/cast.json roster entry, so it's added here rather
+    // than sourced from getEffectiveCastData(); pinned first among the
+    // per-person options since it's always relevant.
     const names = getEffectiveCastData()
       .map((c) => c.name)
       .slice()
       .sort((a, b) => a.localeCompare(b, 'da'));
-    const options = ['Sangboss', ...names].map((name) => ({ value: name, label: name }));
-    siteOpenDropdownPicker(individualBtn, options, null, (name) => {
-      openFile(`manuskripter/${manusSlugifyName(name)}.pdf`);
+    const options = [
+      { value: 'Manuskript.pdf', label: 'Manus' },
+      { value: `manuskripter/${manusSlugifyName('Sangboss')}.pdf`, label: 'Manus (Sang)' },
+      ...names.map((name) => ({ value: `manuskripter/${manusSlugifyName(name)}.pdf`, label: name })),
+    ];
+    siteOpenDropdownPicker(manusBtn, options, null, (filename) => {
+      openFile(filename);
     });
   });
-  linkRow.appendChild(individualBtn);
+  linkRow.appendChild(manusBtn);
   section.appendChild(linkRow);
 
   // No pure-CSS way to make flex items match the widest sibling's own
@@ -4098,7 +4110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(manusUpdateSaveStatus, 500);
 
   window.addEventListener('beforeunload', (e) => {
-    if (manusIsDirty()) { e.preventDefault(); e.returnValue = ''; }
+    if (manusIsDirty() || programIsDirty()) { e.preventDefault(); e.returnValue = ''; }
   });
 
   // Intercept clicks on this page's own links while dirty, in favor of the
@@ -4113,7 +4125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!link || link.target === '_blank') return;
     const href = link.getAttribute('href');
     if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-    if (!manusIsDirty()) return;
+    if (!manusIsDirty() && !programIsDirty()) return;
     e.preventDefault();
     confirmLeaveDirtyPage(link.href);
   }, true);

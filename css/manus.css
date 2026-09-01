@@ -1499,15 +1499,12 @@ a.manus-pdf-title:focus-visible {
   flex: 0 1 40%;
 }
 
-/* Mirrors .manus-main-view-actions' own end-aligned error+button pairing,
-   scoped to just this tab's own save (not #manus-main-view-actions, which
-   belongs to the scenes/cast Gem/Generér PDF'er flow). */
-.manus-program-actions {
+/* Centers the "+" add-QR-code control below the list, reusing style.css's
+   site-wide .boss-manage-add-plus icon-button look rather than a pill
+   button — see renderProgramQrSection in js/manus.js. */
+.manus-program-qr-add {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 1rem;
+  justify-content: center;
 }
 
 @media (max-width: 719px) {

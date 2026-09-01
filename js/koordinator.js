@@ -189,7 +189,7 @@ function koordPillBtn(label, variant) {
 
 // ── Arkiv section (add/edit/delete data/archive.json years) ──
 // The card itself only ever shows one button — Rediger, opening a dropdown
-// picker (same primitive as Manus's own "Individuelt Manus" picker) that
+// picker (same primitive as Manus's own "Manus" quick-link picker) that
 // lists every year plus a leading "+ Tilføj" row. No year list is ever
 // shown directly on this page.
 function renderArkivSection() {
@@ -210,7 +210,7 @@ function renderArkivSection() {
 const KOORD_ARKIV_ADD_VALUE = '__add__';
 
 // Dropdown popup listing "+ Tilføj" followed by every year (newest first),
-// same primitive as manus.js's "Individuelt Manus" cast picker
+// same primitive as manus.js's "Manus" quick-link cast picker
 // (siteOpenDropdownPicker). Picking a year opens the editor for that entry;
 // picking "+ Tilføj" opens it blank.
 function openArkivYearPicker(anchor) {
@@ -637,7 +637,7 @@ function renderKoordinator(root) {
   prodCard.appendChild(closeBtn);
 
   // Card 2: Arkiv — a small sidebar card with just Rediger (pick a year from
-  // a dropdown, like Manus's "Individuelt Manus" picker) and Tilføj. No year
+  // a dropdown, like Manus's "Manus" quick-link picker) and Tilføj. No year
   // list is shown directly on this page (archive.js's own openYearEditor()/
   // deleteYear() exist but were never wired to any UI on arkiv.html either).
   const arkivCard = el('section', 'card');
