@@ -6,10 +6,13 @@
    conflict, red danger, the priority badges) stay as their own
    literals rather than the warm chrome tokens below — same
    convention Kalender's own .cal-cat-* category colors follow.
-   The one exception is .picker-selected, which now reuses the
-   shared --accent-warm-fill/--accent-warm-text tokens directly so a
-   chosen scene/revyst reads as the same warm orange "selected" state
-   used everywhere else on the site, instead of its own green.
+   The one exception is .picker-selected, which now reuses the shared
+   --accent-warm-text token as a solid fill (white text) directly, the
+   same bold "selected" treatment as .site-list-selected/.cal-today/
+   .cal-view-toggle button.active elsewhere, so a chosen scene/revyst
+   reads as the same warm orange "selected" state used everywhere else
+   on the site, instead of its own (previously pale-green, then
+   pale-cream) wash.
    ========================================================= */
 
 /* ── Layout ─────────────────────────────────────────────── */
@@ -579,9 +582,9 @@
 @media (hover: hover) {
   .picker-item:hover { background: var(--surface-2); }
 }
-.picker-item.picker-selected { background: var(--accent-warm-fill); }
+.picker-item.picker-selected { background: var(--accent-warm-text); color: #ffffff; }
 .picker-item.picker-placed { color: #b0b7be; }
-.picker-item.picker-selected.picker-placed { color: var(--accent-warm-text); }
+.picker-item.picker-selected.picker-placed { color: #ffffff; }
 .picker-item.picker-at-cap { opacity: 0.4; cursor: default; }
 .picker-item.picker-crossed-out { text-decoration: line-through; color: #b0b7be; }
 .picker-pair-row {
