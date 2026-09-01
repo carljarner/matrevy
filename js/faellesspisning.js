@@ -19,9 +19,10 @@
      field answers Navn, which answers Madforbehold) — once connected,
      every response (existing and future) is synced into the grid
      automatically, no manual re-import needed;
-   - a "+" after the last date column to add a new rehearsal/performance
-     date directly (writes through the public `calendar` resource, same
-     as Kalender's own editor).
+   - a "+" after the last date column to add a Fællesspisning-only day
+     column directly (stored on this page's own private document, via
+     `faelles_add_day` — never the public `calendar` resource, so it does
+     NOT create a Kalender event).
 
    Only two columns exist beyond the day columns — Navn and Madforbehold,
    fixed, not boss-configurable (there used to be an extra-field editor
@@ -156,14 +157,19 @@ const FAELLES_FIELDS = [
   { id: 'madforbehold', label: 'Madforbehold', required: false },
 ];
 
-// ── Rehearsal/performance-day columns, derived live from CALENDAR_DATA ──
-// Never stored — mirrors formsOptionsFromRehearsals in js/forms.js, so a
-// day column always reflects the current calendar. A local override
-// (mirroring calendar.js's own calendarOverride) means a date added via
-// the "+" button here shows up immediately, without waiting for the
-// embed pipeline to regenerate calendar-data.js. Compact d/m label (not
-// formatDaDateShort's weekday-inclusive form) since the header needs many
-// narrow columns — matches the reference spreadsheet's own "8/11" style.
+// ── Day columns: live CALENDAR_DATA events + this document's own private
+// "extra" days ──────────────────────────────────────────────
+// The calendar half is never stored here — mirrors formsOptionsFromRehearsals
+// in js/forms.js, so it always reflects the current public calendar. A
+// local override (mirroring calendar.js's own calendarOverride) means a
+// date added via Kalender elsewhere shows up here immediately, without
+// waiting for the embed pipeline to regenerate calendar-data.js. The extra
+// half (faellesState.extraDays) is Fællesspisning-only — added via the "+"
+// button below, stored on this page's own private document, never written
+// to the public `calendar` resource (so it does NOT create a Kalender
+// event). Compact d/m label (not formatDaDateShort's weekday-inclusive
+// form) since the header needs many narrow columns — matches the reference
+// spreadsheet's own "8/11" style.
 let faellesCalendarOverride = (typeof siteLoadOverride === 'function') ? siteLoadOverride('calendar') : null;
 
 function faellesEffectiveCalendarEvents() {
@@ -172,13 +178,16 @@ function faellesEffectiveCalendarEvents() {
 }
 
 function faellesRehearsalColumns() {
-  return faellesEffectiveCalendarEvents()
+  const fromCalendar = faellesEffectiveCalendarEvents()
     .filter((ev) => ev.category === 'ove' || ev.category === 'forestilling')
-    .slice()
+    .map((ev) => ({ id: ev.id, date: ev.date, title: ev.title || '', extra: false }));
+  const fromExtra = ((faellesState && faellesState.extraDays) || [])
+    .map((d) => ({ id: d.id, date: d.date, title: d.title || '', extra: true }));
+  return fromCalendar.concat(fromExtra)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
-    .map((ev) => {
-      const d = (typeof parseIsoDate === 'function') ? parseIsoDate(ev.date) : new Date(ev.date);
-      return { id: ev.id, label: `${d.getDate()}/${d.getMonth() + 1}`, title: ev.title || '' };
+    .map((c) => {
+      const d = (typeof parseIsoDate === 'function') ? parseIsoDate(c.date) : new Date(c.date);
+      return { id: c.id, label: `${d.getDate()}/${d.getMonth() + 1}`, title: c.title, extra: c.extra };
     });
 }
 
@@ -186,7 +195,7 @@ function faellesRehearsalColumns() {
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { rows, connection, updatedAt } once loaded
+let faellesState = null; // { rows, connection, extraDays, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -204,7 +213,12 @@ async function faellesLoad(root) {
     root.appendChild(card);
     return;
   }
-  faellesState = { rows: result.data.rows || [], connection: result.data.connection || null, updatedAt: result.data.updatedAt || null };
+  faellesState = {
+    rows: result.data.rows || [],
+    connection: result.data.connection || null,
+    extraDays: result.data.extraDays || [],
+    updatedAt: result.data.updatedAt || null,
+  };
   faellesRender(root);
 }
 
@@ -256,10 +270,25 @@ function faellesBuildTable(root) {
     headRow.appendChild(el('th', `faelles-col-field faelles-col-${f.id}`, f.label));
   }
   for (const col of columns) {
-    const th = el('th', 'faelles-col-day', col.label);
+    const th = el('th', 'faelles-col-day' + (col.extra ? ' faelles-col-day-extra' : ''));
+    th.appendChild(document.createTextNode(col.label));
     if (col.title) {
       th.addEventListener('mouseenter', () => faellesShowFieldTooltip(th, col.title));
       th.addEventListener('mouseleave', faellesHideFieldTooltip);
+    }
+    if (col.extra && showAddDate) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'faelles-col-day-remove';
+      removeBtn.title = 'Fjern dato';
+      removeBtn.setAttribute('aria-label', 'Fjern dato');
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        faellesHideFieldTooltip();
+        faellesOpenDeleteDayConfirm(col, root);
+      });
+      th.appendChild(removeBtn);
     }
     headRow.appendChild(th);
   }
@@ -275,7 +304,11 @@ function faellesBuildTable(root) {
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  for (const row of faellesState.rows) {
+  // Alphabetical by Navn (Danish collation — æøå sort after z), not
+  // insertion/signup order.
+  const sortedRows = faellesState.rows.slice()
+    .sort((a, b) => (a.answers.navn || '').localeCompare(b.answers.navn || '', 'da', { sensitivity: 'base' }));
+  for (const row of sortedRows) {
     tbody.appendChild(faellesRenderRow(row, columns, showAddDate));
   }
   const addRow = el('tr', 'faelles-add-row');
@@ -646,10 +679,11 @@ function faellesFormFieldOptions(definition) {
     .map((f) => ({ value: f.id, label: f.label }));
 }
 
-// ── Boss: quick-add a rehearsal/performance date ─────────────
-// Writes through the same public `calendar` resource Kalender itself
-// uses (siteSaveResource) — day columns are never a Fællesspisning-only
-// concept, so a date added here shows up in Kalender too, and vice versa.
+// ── Boss: quick-add a Fællesspisning-only day column ─────────
+// Stored on this page's own private document (faelles_add_day) — never
+// written to the public `calendar` resource, so this does NOT create a
+// Kalender event. No category field either (that's a Kalender-only
+// concept with no meaning for a sheet-private day).
 async function faellesOpenQuickAddDateModal(root) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Tilføj dato');
   modal.classList.add('faelles-quickdate-modal');
@@ -662,13 +696,6 @@ async function faellesOpenQuickAddDateModal(root) {
   const dateInput = siteCreateDateField('');
   form.appendChild(siteEditField('Dato', dateInput));
 
-  const catOptions = [
-    { value: 'ove', label: 'Øvning' },
-    { value: 'forestilling', label: 'Forestilling' },
-  ];
-  const catField = siteCreateDropdownField(catOptions, 'ove');
-  form.appendChild(siteEditField('Kategori', catField));
-
   const cancelBtn = faellesPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
@@ -680,23 +707,16 @@ async function faellesOpenQuickAddDateModal(root) {
       error.textContent = 'Udfyld både titel og dato.';
       return;
     }
-    const item = {
-      id: Date.now().toString(36),
-      date, endDate: date, start: '', end: '',
-      title, category: catField.value, location: '', note: '',
-    };
-    const next = faellesEffectiveCalendarEvents().concat([item]);
 
     saveBtn.disabled = true;
     error.textContent = '';
-    const result = await siteSaveResource('calendar', { events: next });
+    const result = await faellesApi('faelles_add_day', { title, date });
     saveBtn.disabled = false;
     if (!result.ok) {
       if (result.message) error.textContent = result.message;
       return;
     }
-    faellesCalendarOverride = next;
-    if (typeof siteSaveOverride === 'function') siteSaveOverride('calendar', next);
+    faellesState.extraDays = result.data.extraDays;
     close();
     faellesRender(root);
   });
@@ -704,6 +724,41 @@ async function faellesOpenQuickAddDateModal(root) {
   actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
   titleInput.focus();
+}
+
+// Styled "Er du sikker?" overlay for removing a Fællesspisning-only day
+// column — there's no Kalender editor to remove it from instead, since it
+// was never written there. Any row's `days` entry referencing it is left
+// alone server-side (see faelles_delete_day), same as a deleted row.
+function faellesOpenDeleteDayConfirm(col, root) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('faelles-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'faelles-confirm-text';
+  info.textContent = `Fjern datoen "${col.title || col.label}"?`;
+  form.appendChild(info);
+
+  const cancelBtn = faellesPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = faellesPillBtn('Fjern', 'site-pill-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await faellesApi('faelles_delete_day', { dayId: col.id });
+    if (!result.ok) {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+      return;
+    }
+    faellesState.extraDays = result.data.extraDays;
+    close();
+    faellesRender(root);
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Init ─────────────────────────────────────────────────────

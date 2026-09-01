@@ -221,12 +221,15 @@ if (isset($FORMS_ACTIONS[$action])) {
 // Budget/Forms above (never the public repo, since rows carry names/food
 // preferences). A single shared document, fully open at the revyst tier
 // (any logged-in cast/crew member can add/edit/delete any row, like a
-// plain shared spreadsheet) — only the extra-field list is boss-gated.
+// plain shared spreadsheet) — connecting a form and managing day columns
+// are boss-gated.
 $FAELLES_ACTIONS = [
-  'faelles_read'            => 'revyst', // {rows, connection, updatedAt} — also lazily syncs a connected form
+  'faelles_read'            => 'revyst', // {rows, connection, extraDays, updatedAt} — also lazily syncs a connected form
   'faelles_upsert_row'      => 'revyst', // create (no rowId) or update (rowId given) one row
   'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
   'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
+  'faelles_add_day'         => 'boss',   // add a Fællesspisning-only day column (never the public `calendar` resource)
+  'faelles_delete_day'      => 'boss',   // remove one — the only way to correct a mistaken add
 ];
 if (isset($FAELLES_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FAELLES_ACTIONS[$action]]) {
@@ -2299,7 +2302,13 @@ function faelles_doc_path() {
 }
 
 function faelles_default_doc() {
-  return ['rows' => [], 'connection' => null, 'updatedAt' => null];
+  return ['rows' => [], 'connection' => null, 'extraDays' => [], 'updatedAt' => null];
+}
+
+// A document written before extraDays existed has no such key — back-fill
+// rather than migrate on disk, same posture as budget_normalize_years_shape.
+function faelles_extra_days($doc) {
+  return (isset($doc['extraDays']) && is_array($doc['extraDays'])) ? $doc['extraDays'] : [];
 }
 
 // Read-only load, no lock — matches forms_get's own plain-read convention;
@@ -2376,6 +2385,15 @@ function faelles_validate_days($daysIn) {
   }
   if (count($days) > 100) return null;
   return $days;
+}
+
+// title/date for a Fællesspisning-only day column (faelles_add_day).
+function faelles_validate_extra_day($body) {
+  $title = $body['title'] ?? '';
+  $date = $body['date'] ?? '';
+  if (!is_string($title) || trim($title) === '' || mb_strlen($title) > 120) return null;
+  if (!is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) return null;
+  return ['title' => trim($title), 'date' => $date];
 }
 
 // Stringifies a Forms answer value regardless of field type — plain text
@@ -2506,7 +2524,7 @@ function faelles_maybe_sync($doc) {
 function faelles_read($body) {
   $doc = faelles_load();
   $doc = faelles_maybe_sync($doc);
-  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Revyst: create (no rowId) or update (rowId given) one row from an
@@ -2601,12 +2619,50 @@ function faelles_save_connection($body) {
   respond(200, ['ok' => true, 'connection' => $doc['connection'], 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
 }
 
+// Boss: adds a Fællesspisning-only day column — never written to the
+// public `calendar` resource (see the "+" button's own comment in
+// faellesspisning.js), so this does NOT create a Kalender event.
+function faelles_add_day($body) {
+  $clean = faelles_validate_extra_day($body);
+  if ($clean === null) respond(400, ['error' => 'invalid_shape']);
+  $day = null;
+  $doc = faelles_mutate(function ($doc) use ($clean, &$day) {
+    $doc['extraDays'] = faelles_extra_days($doc);
+    $day = ['id' => faelles_id(), 'date' => $clean['date'], 'title' => $clean['title']];
+    $doc['extraDays'][] = $day;
+    $doc['updatedAt'] = date('c');
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'day' => $day, 'extraDays' => $doc['extraDays'], 'updatedAt' => $doc['updatedAt']]);
+}
+
+// Boss: removes a Fællesspisning-only day column — the only way to
+// correct a mistaken add, since it was never written to Kalender. Any
+// row's `days` entry referencing it is left alone (same "don't
+// cross-validate against the live day-id list" posture as
+// faelles_validate_days) — it just becomes an orphaned, invisible id
+// until that row is next edited.
+function faelles_delete_day($body) {
+  $dayId = $body['dayId'] ?? '';
+  if (!faelles_valid_id($dayId)) respond(400, ['error' => 'invalid_shape']);
+  $doc = faelles_mutate(function ($doc) use ($dayId) {
+    $doc['extraDays'] = array_values(array_filter(faelles_extra_days($doc), function ($d) use ($dayId) {
+      return $d['id'] !== $dayId;
+    }));
+    $doc['updatedAt'] = date('c');
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'extraDays' => $doc['extraDays'], 'updatedAt' => $doc['updatedAt']]);
+}
+
 function handle_faelles($action, $body) {
   switch ($action) {
     case 'faelles_read':            return faelles_read($body);
     case 'faelles_upsert_row':      return faelles_upsert_row($body);
     case 'faelles_delete_row':      return faelles_delete_row($body);
     case 'faelles_save_connection': return faelles_save_connection($body);
+    case 'faelles_add_day':         return faelles_add_day($body);
+    case 'faelles_delete_day':      return faelles_delete_day($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }

@@ -105,6 +105,37 @@
   min-width: 3.75rem;
 }
 
+/* A Fællesspisning-only day column (added via the "+" button, never a
+   public calendar event) also gets a small remove "✕" — the only way to
+   correct it, since there's no Kalender editor to remove it from. Stacked
+   under the date label rather than beside it, to fit the same fixed
+   column width as an ordinary date header. */
+.faelles-table th.faelles-col-day-extra {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.faelles-col-day-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 0;
+}
+
+@media (hover: hover) {
+  .faelles-col-day-remove:hover { color: var(--danger); }
+}
+
+.faelles-col-day-remove:focus-visible {
+  outline: none;
+  color: var(--danger);
+}
+
 .faelles-table .faelles-col-field input[type="text"] {
   width: 100%;
   min-width: 8rem;
