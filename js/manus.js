@@ -2012,6 +2012,10 @@ function renderSelectColumn(type) {
 function openManuscriptDeleteWarning(row) {
   const { modal, form, actions, close } = siteOpenModalWithClose('Slet scene?');
   modal.classList.add('manus-delete-warning-modal');
+  // Annuller below already offers a way out — the X reads as a redundant
+  // second "cancel" affordance, so this modal drops it and centers the
+  // title in the space it would have sat in.
+  modal.querySelector('.site-modal-close')?.remove();
 
   const info = document.createElement('p');
   info.textContent = manusRowIsManualMedia(row)
@@ -2703,7 +2707,7 @@ function openRoleSceneModal(row, badge) {
   const updateBtn = document.createElement('button');
   updateBtn.type = 'button';
   updateBtn.className = 'site-btn-success';
-  updateBtn.textContent = 'Opdater roller';
+  updateBtn.textContent = 'Opdater';
   updateBtn.addEventListener('click', () => {
     const isSong = manusRowIsSong(row);
     const isDans = manusRowIsDans(row);
@@ -2944,7 +2948,7 @@ function openVideoBandsangModal(row, { isNew = false } = {}) {
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
   saveBtn.className = 'site-btn-success';
-  saveBtn.textContent = 'Gem';
+  saveBtn.textContent = isNew ? 'Upload' : 'Gem';
   actions.appendChild(saveBtn);
 
   saveBtn.addEventListener('click', () => {
@@ -3195,7 +3199,7 @@ function programDragHandle() {
 // \role{} textarea (openRoleSceneModal) — a plain monospace textarea,
 // live-bound straight into programDraft on every keystroke (no separate
 // "Opdater" step, unlike the roles textarea, since there's no structured
-// row array to re-derive here — the string *is* the data). buildProgramTex
+// row array to re-derive here — the string *is* the data). buildProgramSections
 // wraps this content in \begin{multicols}{2}...\end{multicols} and inserts
 // it verbatim (see that function's own comment on the escaping convention
 // this switches to). \arb{} is a small helper macro (\textbf{#1}\\, matching
@@ -3973,14 +3977,19 @@ function renderManusPdfLinksSection() {
     linkRow.appendChild(btn);
   }
 
-  // Program.pdf has two generated layouts: the plain reading-order PDF, and
-  // ProgramHaefte.pdf, the same content imposed two-up onto landscape A4
-  // sheets in booklet order (see imposeBooklet() in
-  // scripts/generate-pdfs.js) — a dropdown picker instead of a direct-open
-  // button, same pattern as the combined "Manus" button below.
+  // Program.pdf has three generated layouts: the plain reading-order PDF,
+  // and two booklet layouts (ProgramHaefte.pdf/ProgramHaefteHorisontal.pdf)
+  // — the same content reordered and imposed two-up onto landscape A4
+  // sheets in saddle-stitch booklet order (see buildProgramSections()/
+  // imposeBooklet() in scripts/generate-pdfs.js), one per physical printer's
+  // duplex-flip convention (there's no way to detect which one a given
+  // printer uses from here, so both are offered — pick whichever comes out
+  // right-side-up) — a dropdown picker instead of a direct-open button, same
+  // pattern as the combined "Manus" button below.
   const PROGRAM_PDF_VARIANTS = [
     { value: 'Program.pdf', label: 'Standard' },
-    { value: 'ProgramHaefte.pdf', label: 'Hæfte' },
+    { value: 'ProgramHaefte.pdf', label: 'Hæfte (printer flipper vertikalt)' },
+    { value: 'ProgramHaefteHorisontal.pdf', label: 'Hæfte (printer flipper horisontalt)' },
   ];
   const programBtn = document.createElement('button');
   programBtn.type = 'button';

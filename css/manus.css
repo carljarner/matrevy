@@ -305,6 +305,13 @@ a.manus-pdf-title:focus-visible {
   gap: 1rem;
 }
 
+/* The page-wide Gem button follows the same site-wide button-width floor
+   as every other .site-btn-* (style.css's .login-actions > button) even
+   though it isn't a .login-actions descendant. */
+.manus-main-view-buttons .site-btn-success {
+  min-width: 5rem;
+}
+
 /* Mirrors .budget-save-status exactly: neutral grey idle, warm-amber while
    dirty (not red — that's reserved for a genuine save error, see
    .manus-main-view-error above). */
@@ -1188,17 +1195,22 @@ a.manus-pdf-title:focus-visible {
   width: min(720px, 94vw);
 }
 
-/* --- Delete confirmations (video/bandsang Slet, admin pool delete) ---
-   Step 1 of the pool-delete flow (openManuscriptDeleteWarning) keeps its
-   heading but is narrower than the default .edit-modal chrome (480px) it
-   would otherwise inherit. Step 2 (openManuscriptDeleteConfirm) and the
-   video/bandsang delete confirm (openDeleteMediaRowConfirm) both drop the
-   usual h2 heading in favor of one bold centered line — the shared
-   "Er du sikker?" redesign already used by Kalender's .cal-confirm-modal/
-   .cal-confirm-text (calendar.css), Wiki's .wiki-confirm-modal/-text
-   (wiki.css) and Forside's .post-confirm-modal/-text (style.css). */
+/* --- Delete confirmations (scene/sketch/song/video/bandsang, one flow —
+   manusRowIsManualMedia branches step 1's wording, not the flow itself) ---
+   Step 1 (openManuscriptDeleteWarning) keeps a heading — narrower than the
+   default .edit-modal chrome (480px) it would otherwise inherit, centered,
+   and with no X close button (Annuller already offers a way out). Step 2
+   (openManuscriptDeleteConfirm) drops the heading entirely in favor of one
+   bold centered line — the shared "Er du sikker?" redesign already used by
+   Kalender's .cal-confirm-modal/.cal-confirm-text (calendar.css), Wiki's
+   .wiki-confirm-modal/-text (wiki.css) and Forside's .post-confirm-modal/
+   -text (style.css). */
 .manus-delete-warning-modal {
   width: min(380px, 90vw);
+}
+
+.manus-delete-warning-modal h2 {
+  text-align: center;
 }
 
 .manus-confirm-modal {
