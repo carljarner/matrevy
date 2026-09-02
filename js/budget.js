@@ -1704,7 +1704,9 @@ function buildPendingRowContent(root, req) {
   topLeft.appendChild(el('span', 'budget-badge' + (isOrphan ? ' budget-badge-orphan' : ''),
     isOrphan ? '⚠ Ingen kategori' : budgetCategoryLabel(req.category, budgetState.categories.expense)));
   if (breakdownIncomplete && !isOrphan) {
-    topLeft.appendChild(el('span', 'budget-badge budget-badge-orphan', '⚠ Mangler fordeling'));
+    const warnBadge = el('span', 'budget-badge budget-badge-orphan', '⚠');
+    budgetWireIconTooltip(warnBadge, 'Fordeling på stregtyper mangler eller stemmer ikke med beløbet. Vælg "Rediger" for at udfylde den.');
+    topLeft.appendChild(warnBadge);
   }
   topLeft.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
   top.appendChild(topLeft);
@@ -1715,9 +1717,6 @@ function buildPendingRowContent(root, req) {
   if (isOrphan) {
     wrap.appendChild(el('div', 'budget-item-note budget-orphan-note',
       'Kategorien findes ikke længere. Vælg en ny under "Rediger" før dette udlæg kan godkendes.'));
-  } else if (breakdownIncomplete) {
-    wrap.appendChild(el('div', 'budget-item-note budget-orphan-note',
-      'Fordeling på stregtyper mangler eller stemmer ikke med beløbet. Vælg "Rediger" for at udfylde den, før dette udlæg kan godkendes.'));
   }
 
   const actions = el('div', 'budget-item-actions');
