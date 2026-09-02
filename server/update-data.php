@@ -177,6 +177,7 @@ $BUDGET_ACTIONS = [
   'budget_expense_update'   => 'admin', // edit a paid expense (category locked); also toggles `deleted`
   'budget_expense_remove'   => 'admin', // permanently remove an already soft-deleted expense + its receipt
   'budget_request_update'   => 'admin', // edit a pending request
+  'budget_request_split'    => 'admin', // duplicate a pending request (one receipt, multiple expenses)
   'budget_categories_save'  => 'admin', // replace a year's expense/income category lists (add/rename/delete)
   'budget_create_year'      => 'admin', // create a new (inactive) budget year, seeded from the active year's planned amounts
   'budget_set_active_year'  => 'admin', // flip which year new revyst submissions/uploads land in
@@ -773,6 +774,7 @@ function handle_budget($action, $body) {
     case 'budget_expense_update':   return budget_expense_update($body);
     case 'budget_expense_remove':   return budget_expense_remove($body);
     case 'budget_request_update':   return budget_request_update($body);
+    case 'budget_request_split':    return budget_request_split($body);
     case 'budget_categories_save':  return budget_categories_save($body);
     case 'budget_create_year':      return budget_create_year($body);
     case 'budget_set_active_year':  return budget_set_active_year($body);
@@ -1309,6 +1311,84 @@ function budget_request_update($body) {
     });
   if (!$found) respond(404, ['error' => 'not_found']);
   respond(200, ['ok' => true]);
+}
+
+// Computes the "<base> (<n>)" name for a request just split off another one.
+// Strips a trailing " (N)" suffix off the source name to find the shared
+// base first (so splitting an already-split "Navn (2)" again produces
+// "Navn (3)", not "Navn (2) (2)"), then picks one past the highest "(N)"
+// suffix already used among this budget's other pending requests sharing
+// that base name (the original itself counts as an implicit "(1)").
+function budget_split_name($name, $requests) {
+  $base = $name;
+  if (preg_match('/^(.*) \((\d+)\)$/', $name, $m)) {
+    $base = $m[1];
+  }
+  $maxN = 1;
+  foreach ($requests as $r) {
+    $rn = $r['name'] ?? '';
+    if ($rn === $base) continue;
+    if (preg_match('/^' . preg_quote($base, '/') . ' \((\d+)\)$/', $rn, $m2)) {
+      $maxN = max($maxN, (int) $m2[1]);
+    }
+  }
+  return $base . ' (' . ($maxN + 1) . ')';
+}
+
+// Admin: split one pending request into two, for a single receipt that
+// actually covers more than one expense (e.g. two categories on one
+// grocery bill). Duplicates category/phone/comment and the receipt file
+// itself (a fresh copy under pending/, so approving or rejecting either
+// half never touches the other's file) onto a brand-new request right
+// alongside the original — which is left completely untouched — with the
+// name suffixed via budget_split_name() and the amount reset to a nominal
+// 1 kr, since the admin still has to divide the real amount between both
+// before either can be approved. $body['budgetId'] (optional) picks which
+// budget; defaults to the active budget.
+function budget_request_split($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $id = $body['id'] ?? '';
+  if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
+
+  $receiptsDir = budget_receipts_dir($budgetId);
+  $found = false;
+  $created = null;
+  budget_mutate($budgetId, 'requests.json', ['requests' => []],
+    function ($json) use ($id, $receiptsDir, &$found, &$created) {
+      $requests = $json['requests'] ?? [];
+      $original = null;
+      foreach ($requests as $r) {
+        if (($r['id'] ?? null) === $id) { $original = $r; break; }
+      }
+      if ($original === null) return $json;
+      $found = true;
+
+      $newId = dechex(time()) . bin2hex(random_bytes(4));
+      $newReceiptFile = '';
+      $oldPath = $receiptsDir . '/' . ($original['receiptFile'] ?? '');
+      if (preg_match(budget_receipt_re(), $original['receiptFile'] ?? '') && is_file($oldPath)) {
+        $ext = strtolower(pathinfo($original['receiptFile'], PATHINFO_EXTENSION));
+        $candidate = 'pending/' . $newId . '.' . $ext;
+        if (@copy($oldPath, $receiptsDir . '/' . $candidate)) $newReceiptFile = $candidate;
+      }
+
+      $duplicate = [
+        'id'          => $newId,
+        'category'    => $original['category'] ?? '',
+        'amount'      => 1.0,
+        'name'        => budget_split_name($original['name'] ?? '', $requests),
+        'phone'       => $original['phone'] ?? '',
+        'comment'     => $original['comment'] ?? '',
+        'receiptFile' => $newReceiptFile,
+        'createdAt'   => date('c'),
+      ];
+      $created = $duplicate;
+      $requests[] = $duplicate;
+      $json['requests'] = $requests;
+      return $json;
+    });
+  if (!$found) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true, 'request' => $created]);
 }
 
 // Admin: replace a budget's expense + income category lists in one atomic

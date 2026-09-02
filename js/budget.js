@@ -1686,10 +1686,13 @@ function buildPendingRowContent(root, req) {
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
   const editBtn = el('button', 'btn-small budget-act-edit', 'Rediger');
   editBtn.addEventListener('click', () => openRequestEditModal(root, req));
+  const splitBtn = el('button', 'btn-small budget-act-edit', 'Split');
+  splitBtn.addEventListener('click', () => openSplitRequestModal(root, req));
   const rejectBtn = el('button', 'btn-small budget-act-reject', 'Afvis');
   rejectBtn.addEventListener('click', () => rejectRequest(root, req));
   actions.appendChild(approveBtn);
   actions.appendChild(editBtn);
+  actions.appendChild(splitBtn);
   actions.appendChild(rejectBtn);
   wrap.appendChild(actions);
 
@@ -1890,6 +1893,36 @@ function openRequestEditModal(root, req) {
       comment: commentInput.value.trim(),
       budgetId: budgetViewId,
     });
+    if (result.ok) {
+      close();
+      reloadAdmin(root);
+    } else {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+    }
+  });
+  actions.appendChild(confirmBtn);
+}
+
+// Admin: split a pending request into two — for a single receipt that
+// actually covers more than one expense. Duplicates category/phone/
+// comment/receipt onto a brand-new request right alongside this one
+// (which is left completely untouched); the server suffixes the name
+// "(N)" and resets the new copy's amount to a nominal 1 kr, since the
+// real amount still has to be divided between both before either can be
+// approved (done afterward via that new row's own Rediger).
+function openSplitRequestModal(root, req) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Split udlæg');
+  modal.classList.add('budget-confirm-modal');
+
+  form.appendChild(el('p', 'budget-intro',
+    `Opret endnu et udlæg med samme kvittering som ${req.name} (${formatKr(req.amount)})? Beløbet sættes til 1 kr og skal rettes til det korrekte beløb, før det kan godkendes.`));
+
+  const confirmBtn = budgetPillBtn('Split', 'site-btn-warm');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await budgetApi('budget_request_split', { id: req.id, budgetId: budgetViewId });
     if (result.ok) {
       close();
       reloadAdmin(root);
