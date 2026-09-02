@@ -1683,27 +1683,23 @@ function buildPendingRowContent(root, req) {
   const actions = el('div', 'budget-item-actions');
   const approveBtn = el('button', 'budget-icon-btn budget-act-approve');
   approveBtn.type = 'button';
-  approveBtn.title = 'Godkend';
-  approveBtn.setAttribute('aria-label', 'Godkend');
+  budgetWireIconTooltip(approveBtn, 'Godkend');
   approveBtn.disabled = isOrphan;
   approveBtn.appendChild(budgetCheckIcon());
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
   const editBtn = el('button', 'budget-icon-btn budget-act-edit');
   editBtn.type = 'button';
-  editBtn.title = 'Rediger';
-  editBtn.setAttribute('aria-label', 'Rediger');
+  budgetWireIconTooltip(editBtn, 'Rediger');
   editBtn.appendChild(budgetPencilIcon());
   editBtn.addEventListener('click', () => openRequestEditModal(root, req));
   const splitBtn = el('button', 'budget-icon-btn budget-act-edit');
   splitBtn.type = 'button';
-  splitBtn.title = 'Split';
-  splitBtn.setAttribute('aria-label', 'Split');
+  budgetWireIconTooltip(splitBtn, 'Split');
   splitBtn.appendChild(budgetSplitIcon());
   splitBtn.addEventListener('click', () => openSplitRequestModal(root, req));
   const rejectBtn = el('button', 'budget-icon-btn budget-act-reject');
   rejectBtn.type = 'button';
-  rejectBtn.title = 'Afvis';
-  rejectBtn.setAttribute('aria-label', 'Afvis');
+  budgetWireIconTooltip(rejectBtn, 'Afvis');
   rejectBtn.appendChild(budgetXIcon());
   rejectBtn.addEventListener('click', () => rejectRequest(root, req));
   actions.appendChild(approveBtn);
@@ -2727,15 +2723,19 @@ function buildStregSheetCard() {
   return card;
 }
 
-// ── Hover tooltip (truncated Navn cell's full text) ───────────
+// ── Hover tooltip (icon-button labels, truncated Navn cell's full text) ──
 // Mirrors faellesspisning.js's own faellesShowFieldTooltip/
 // faellesHideFieldTooltip (that file isn't loaded on this page, per the
 // per-feature duplication convention documented in CLAUDE.md): a
-// fixed-position dark box.
-let stregFieldTooltipEl = null;
-function stregShowFieldTooltip(anchor, text) {
-  stregHideFieldTooltip();
-  const tip = el('div', 'streg-field-tooltip', text);
+// fixed-position dark box. Originally streg-only (hence the name budging
+// against that convention a little), now also used by the Afventende
+// udlæg action icons — a native title attribute's own tooltip renders
+// inconsistently (slow, sometimes not at all) across browsers, unlike this
+// page-controlled one.
+let budgetFieldTooltipEl = null;
+function budgetShowFieldTooltip(anchor, text) {
+  budgetHideFieldTooltip();
+  const tip = el('div', 'budget-field-tooltip', text);
   document.body.appendChild(tip);
   const anchorRect = anchor.getBoundingClientRect();
   const tipRect = tip.getBoundingClientRect();
@@ -2746,10 +2746,21 @@ function stregShowFieldTooltip(anchor, text) {
   if (left < 4) left = 4;
   tip.style.top = `${top}px`;
   tip.style.left = `${left}px`;
-  stregFieldTooltipEl = tip;
+  budgetFieldTooltipEl = tip;
 }
-function stregHideFieldTooltip() {
-  if (stregFieldTooltipEl) { stregFieldTooltipEl.remove(); stregFieldTooltipEl = null; }
+function budgetHideFieldTooltip() {
+  if (budgetFieldTooltipEl) { budgetFieldTooltipEl.remove(); budgetFieldTooltipEl = null; }
+}
+
+// Wires the tooltip above onto an icon-only button (aria-label doubles as
+// the tooltip text) — used by the Afventende udlæg action icons instead of
+// a plain title attribute. Also hidden on click, since the button's own
+// click handler opens a modal over it.
+function budgetWireIconTooltip(btn, label) {
+  btn.setAttribute('aria-label', label);
+  btn.addEventListener('mouseenter', () => budgetShowFieldTooltip(btn, label));
+  btn.addEventListener('mouseleave', budgetHideFieldTooltip);
+  btn.addEventListener('click', budgetHideFieldTooltip);
 }
 
 function stregAddPlusBtn(title, onClick) {
@@ -2861,11 +2872,11 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   // typing can push a name past the truncation point.
   navnInput.addEventListener('mouseenter', () => {
     if (navnInput.scrollWidth > navnInput.clientWidth && navnInput.value) {
-      stregShowFieldTooltip(navnInput, navnInput.value);
+      budgetShowFieldTooltip(navnInput, navnInput.value);
     }
   });
-  navnInput.addEventListener('mouseleave', stregHideFieldTooltip);
-  navnInput.addEventListener('focus', stregHideFieldTooltip);
+  navnInput.addEventListener('mouseleave', budgetHideFieldTooltip);
+  navnInput.addEventListener('focus', budgetHideFieldTooltip);
   navnWrap.appendChild(navnInput);
   tr.appendChild(navnTd);
 

@@ -1091,7 +1091,7 @@ tr.budget-row-filler td {
    a flex item's default min-width:auto would otherwise refuse to shrink
    past its longest unbroken content, defeating the ellipsis truncation
    below entirely. Truncated names show their full text on hover via
-   stregShowFieldTooltip (mirrors faellesspisning.css's own
+   budgetShowFieldTooltip (mirrors faellesspisning.css's own
    .faelles-field-tooltip treatment of its Madforbehold field). */
 .streg-table .streg-col-navn input[type="text"] {
   flex: 1;
@@ -1164,11 +1164,13 @@ tr.budget-row-filler td {
   text-decoration: line-through;
 }
 
-/* stregShowFieldTooltip()'s popup — position:fixed on <body>, clamped
+/* budgetShowFieldTooltip()'s popup — position:fixed on <body>, clamped
    on-screen in JS, mirrors faellesspisning.css's own .faelles-field-tooltip
    (that file isn't loaded on this page, per the per-feature duplication
-   convention documented in CLAUDE.md). */
-.streg-field-tooltip {
+   convention documented in CLAUDE.md). Named budget- rather than streg-
+   (its original, streg-only home) since it's now also used by the
+   Afventende udlæg action icons' hover tooltip. */
+.budget-field-tooltip {
   position: fixed;
   z-index: 250;
   max-width: 320px;
