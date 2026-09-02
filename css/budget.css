@@ -1187,12 +1187,12 @@ tr.budget-row-filler td {
 }
 
 .streg-price-per-unit {
-  flex: 0 0 auto;
-  min-width: 6.5rem;
+  flex: 0 0 6.5rem;
+  width: 6.5rem;
   font-size: 0.8rem;
   color: var(--text-muted);
   white-space: nowrap;
-  text-align: right;
+  text-align: center;
 }
 
 .streg-price-total {
@@ -1207,9 +1207,14 @@ tr.budget-row-filler td {
 
 /* Column titles above the price list, aligned with each .streg-price-row's
    own flex layout (blank over Navn, "Indkøb" over the price input, "Pr.
-   streg" reusing .streg-price-per-unit's own plain-text sizing since that
+   streg" reusing .streg-price-per-unit's own fixed-width sizing since that
    column is itself just a span already) — centered over their own column
-   width rather than right-aligned like the values below them. Not
+   width. Needs its own trailing blank spacer matching .budget-manage-
+   remove-btn's width even though the header has no remove button of its
+   own: a data row's flex:1 Navn field only grows as wide as the space left
+   over after 4 fixed-width siblings (price/per-unit/remove), so a header
+   row with just 3 would let its own flex:1 spacer over-grow and drag
+   everything after it out of alignment with the row below. Not
    draggable/interactive, so no cursor/border-top rules from
    .streg-price-row apply here. */
 .streg-price-header {
@@ -1228,7 +1233,11 @@ tr.budget-row-filler td {
 
 .streg-price-header .streg-price-per-unit {
   font-weight: 600;
-  text-align: center;
+}
+
+.streg-price-header-spacer {
+  flex: 0 0 1.8rem;
+  width: 1.8rem;
 }
 
 .streg-error {

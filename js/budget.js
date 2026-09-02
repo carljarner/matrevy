@@ -3035,6 +3035,7 @@ function buildStregPricesCard() {
   header.appendChild(el('span', 'streg-price-label-input'));
   header.appendChild(el('span', 'streg-price-col-buy', 'Indkøb'));
   header.appendChild(el('span', 'streg-price-per-unit', 'Pr. streg'));
+  header.appendChild(el('span', 'streg-price-header-spacer')); // matches each row's own trailing remove-button column
   card.appendChild(header);
 
   const list = el('div', 'streg-price-list');
