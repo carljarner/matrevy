@@ -366,16 +366,30 @@ a.manus-pdf-title:focus-visible {
   justify-content: center;
 }
 
-/* --- Tab bar — browser-style folder tabs, filling the row evenly ---
-   Collapses to a single dropdown on mobile (see .manus-tab-select-mobile
-   below) — six folder tabs get too squeezed to read at phone width. */
+/* The boss-only duplicate of the same row (manusAppendPdfLinksToActiveTab),
+   appended at the bottom of whichever Main Manus View tab is active —
+   separated from that tab's own content with a rule line, mirroring
+   .manus-main-view-actions' own top-of-row spacing below. */
+.manus-tab-pdf-links {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Tab bar — styled like Budget's/Formularer's own flat mode-switch tab
+   bars (site-wide convention: budget.css's .budget-mode-tab, forms.css's
+   .forms-admin-tab; duplicated here rather than shared per that same
+   convention, since manus.html loads neither of those stylesheets),
+   replacing the previous browser-style folder tabs. Collapses to a single
+   dropdown on mobile (see .manus-tab-select-mobile below) — six tabs get
+   too squeezed to read at phone width. */
 .manus-tab-bar {
   margin-bottom: 1.25rem;
 }
 
 .manus-tab-btn-bar {
   display: flex;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .manus-tab-select-mobile {
@@ -383,45 +397,33 @@ a.manus-pdf-title:focus-visible {
 }
 
 .manus-tab-btn {
-  flex: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
-  margin-bottom: -2px;
-  padding: 0.65rem 1rem;
+  flex: 1 1 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 1rem;
   font: inherit;
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--text);
+  color: var(--text-muted);
   text-align: center;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.manus-tab-btn + .manus-tab-btn {
-  margin-left: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 @media (hover: hover) {
-  .manus-tab-btn:not(.active):hover { background: var(--accent-warm-fill); }
+  .manus-tab-btn:not(.active):hover { color: var(--text); }
 }
 
 .manus-tab-btn:focus-visible {
   outline: none;
-  z-index: 2;
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  border-radius: 4px;
 }
 
-/* The active tab merges into the panel below it (same background as the
-   surrounding .card, border-bottom painted over the bar's rule line). */
 .manus-tab-btn.active {
-  position: relative;
-  z-index: 1;
-  background: var(--surface);
-  border-color: var(--border);
-  border-bottom: 2px solid var(--surface);
   color: var(--accent-warm-text);
+  border-bottom-color: var(--accent-warm-text);
 }
 
 .manus-tab-panel { min-width: 0; }

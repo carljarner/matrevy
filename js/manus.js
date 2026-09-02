@@ -21,7 +21,8 @@
 
    2. Main Manus View (boss/admin only): a tabbed section below the pool
       — Vælg scener / Aktfordeling / Rollefordeling / Manus / Stjerneark,
-      styled as folder tabs filling the section's top row evenly — all five
+      styled like Budget's/Formularer's own flat tab bar, filling the
+      section's top row evenly — all five
       sharing one flat draft-state row list (manusDraft, built by
       manusInitDraft() from the CURRENT data/scenes.json + not-yet-used
       pool submissions). Vælg scener shows two read-only columns
@@ -3363,9 +3364,10 @@ function manusSetActiveTab(key) {
   renderActiveTabPanel();
 }
 
-// Renders both the desktop folder-tab bar and a mobile dropdown built from
-// the same MANUS_MAIN_TABS list — CSS (≤719px) shows only one of the two,
-// since six folder tabs get too squeezed to read on a phone-width screen.
+// Renders both the desktop flat-tab bar (styled like Budget's/Formularer's
+// own, see manus.css) and a mobile dropdown built from the same
+// MANUS_MAIN_TABS list — CSS (≤719px) shows only one of the two, since six
+// tabs get too squeezed to read on a phone-width screen.
 function renderTabBar() {
   const mount = document.getElementById('manus-tab-bar');
   mount.textContent = '';
@@ -3398,6 +3400,7 @@ function renderActiveTabPanel() {
   }
   const active = MANUS_MAIN_TABS.find(t => t.key === manusActiveTab);
   if (active) active.render();
+  manusAppendPdfLinksToActiveTab();
 }
 
 // Patches getEffectiveManuscripts()'s shadow array with the server-confirmed
@@ -3747,7 +3750,7 @@ function manusPollPdfCompletion(beforeDate, url) {
     if (Date.now() - startedAt > MANUS_PDF_POLL_TIMEOUT_MS) {
       manusPdfGenerating = false;
       manusPdfPollTimedOut = true;
-      renderManusPdfLinksSection();
+      manusRefreshPdfLinks();
       renderMainViewActions();
       siteShowToast('Kunne ikke bekræfte at PDF’erne er opdateret — tjek Koordinator-siden om lidt');
       return;
@@ -3760,7 +3763,7 @@ function manusPollPdfCompletion(beforeDate, url) {
       manusPdfLastGeneratedAt = current.date;
       manusPdfConfirmedAbsent = false;
       manusPdfCheckFailed = false;
-      renderManusPdfLinksSection();
+      manusRefreshPdfLinks();
       renderMainViewActions();
       siteShowToast("PDF'erne er opdateret");
       return;
@@ -3801,7 +3804,7 @@ async function manusRegeneratePdfs() {
 
   manusPdfGenerating = true;
   manusResourceSaveInFlight = true;
-  renderManusPdfLinksSection();
+  manusRefreshPdfLinks();
   renderMainViewActions();
 
   const scenesActs = manusCurrentActsPayload();
@@ -3810,7 +3813,7 @@ async function manusRegeneratePdfs() {
   manusResourceSaveInFlight = false;
   if (!result.ok) {
     manusPdfGenerating = false;
-    renderManusPdfLinksSection();
+    manusRefreshPdfLinks();
     renderMainViewActions();
     const el = manusMainViewErrorEl();
     if (el) el.textContent = result.message;
@@ -3914,25 +3917,18 @@ function manusSlugifyName(name) {
     .replace(/[^A-Za-z0-9_]/g, '');
 }
 
-// Quick-open buttons for the last-generated PDFs, sitting between the pool/
-// guide row and Main Manus View — visible to any revyst+ (everyone benefits
-// from reading these, not just boss), unlike Main Manus View below which
-// stays boss-only. A shortcut to the files scripts/generate-pdfs.js (run via
-// generate-pdfs.yml) already produced, not a trigger to (re)build them
-// ("Generér PDF'er" moved to Main Manus View's own action row, since that's
+// Quick-open buttons for the last-generated PDFs. The revyst+ copy sits
+// between the pool/guide row and Main Manus View (renderManusPdfLinksSection,
+// visible to any revyst+ — everyone benefits from reading these, not just
+// boss); a second, boss-only copy is duplicated at the bottom of whichever
+// Main Manus View tab is currently open (manusAppendPdfLinksToActiveTab),
+// so a boss doesn't have to scroll back to the top of the page to check a
+// generated PDF while working through the tabs. Both build a fresh row via
+// manusBuildPdfLinksRow() — a shortcut to the files scripts/generate-pdfs.js
+// (run via generate-pdfs.yml) already produced, not a trigger to (re)build
+// them ("Generér PDF'er" is Main Manus View's own action row, since that's
 // the one boss-only write action here — see renderMainViewActions).
-function renderManusPdfLinksSection() {
-  const section = document.getElementById('manus-pdf-links');
-  if (!siteHasLevel('revyst')) {
-    section.style.display = 'none';
-    return;
-  }
-  section.style.display = '';
-  section.textContent = '';
-
-  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
-  if (!folder) return;
-
+function manusBuildPdfLinksRow(folder) {
   // GitHub Pages serves everything under archive/ with a 10-minute
   // Cache-Control (confirmed live: max-age=600, via the Fastly CDN in
   // front of Pages). manusFetchPdfStatus's own HEAD check bypasses this
@@ -4036,15 +4032,75 @@ function renderManusPdfLinksSection() {
     });
   });
   linkRow.appendChild(manusBtn);
-  section.appendChild(linkRow);
+  return linkRow;
+}
 
-  // No pure-CSS way to make flex items match the widest sibling's own
-  // content width (flex:1 stretches all to fill the row instead, which read
-  // as "quite ugly" per user feedback) — measured here, once all four
-  // buttons are actually in the live DOM, and applied uniformly.
+// No pure-CSS way to make flex items match the widest sibling's own content
+// width (flex:1 stretches all to fill the row instead, which read as "quite
+// ugly" per user feedback) — measured here, once all four buttons are
+// actually attached to the live DOM (both callers append linkRow to its
+// real container before calling this), and applied uniformly.
+function manusEqualizePdfLinkWidths(linkRow) {
   const rowButtons = Array.from(linkRow.children);
   const maxWidth = Math.max(...rowButtons.map((b) => b.getBoundingClientRect().width));
   rowButtons.forEach((b) => { b.style.minWidth = `${maxWidth}px`; });
+}
+
+function renderManusPdfLinksSection() {
+  const section = document.getElementById('manus-pdf-links');
+  if (!siteHasLevel('revyst')) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  section.textContent = '';
+
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  if (!folder) return;
+
+  const linkRow = manusBuildPdfLinksRow(folder);
+  section.appendChild(linkRow);
+  manusEqualizePdfLinkWidths(linkRow);
+}
+
+// Duplicates the same PDF quick-links row at the bottom of whichever Main
+// Manus View tab is currently active — boss/admin already have the
+// top-of-page revyst+ copy too, but that sits above the six-tab workspace;
+// this keeps the download links at hand without scrolling back up. Rebuilt
+// on every tab render (called from renderActiveTabPanel, right after the
+// active tab's own render() call, since that rebuilds the panel's content
+// from scratch and would otherwise wipe out anything appended before it).
+function manusAppendPdfLinksToActiveTab() {
+  const active = MANUS_MAIN_TABS.find((t) => t.key === manusActiveTab);
+  if (!active) return;
+  const panel = document.getElementById(`manus-tab-${active.key}`);
+  if (!panel) return;
+  // Idempotent: called again whenever manusPdfGenerating/
+  // manusPdfLastGeneratedAt changes (see manusRefreshPdfLinks) without the
+  // panel having been torn down and rebuilt by active.render() in between —
+  // drop any previous copy first so repeated calls don't stack duplicates.
+  const existing = panel.querySelector(':scope > .manus-tab-pdf-links');
+  if (existing) existing.remove();
+
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  if (!folder) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'manus-tab-pdf-links';
+  const linkRow = manusBuildPdfLinksRow(folder);
+  wrap.appendChild(linkRow);
+  panel.appendChild(wrap);
+  manusEqualizePdfLinkWidths(linkRow);
+}
+
+// Refreshes every rendered copy of the PDF quick-links (the revyst+
+// top-of-page one and the boss-only one duplicated under whichever Main
+// Manus View tab is active) — call this, not renderManusPdfLinksSection()
+// alone, wherever manusPdfGenerating/manusPdfLastGeneratedAt changes, so
+// both pulse/unpulse and pick up a fresh cache-busting timestamp together.
+function manusRefreshPdfLinks() {
+  renderManusPdfLinksSection();
+  manusAppendPdfLinksToActiveTab();
 }
 
 function renderMainManusView() {
