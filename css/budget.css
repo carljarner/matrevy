@@ -389,6 +389,65 @@
   margin-top: 0.5rem;
 }
 
+/* --- Stregnskab drink-type breakdown (Rediger udlæg modal) -
+   Only shown while the modal's own Kategori field is set to Stregnskab
+   (see openRequestEditModal); toggled via inline style.display rather than
+   [hidden] since this is plain page JS, not an Artifact. */
+.budget-streg-breakdown {
+  margin-bottom: 1rem;
+}
+
+.budget-streg-breakdown-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0 0 0.4rem;
+}
+
+.budget-streg-breakdown-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.budget-streg-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.budget-streg-breakdown-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  color: var(--header);
+}
+
+.budget-streg-breakdown-row input {
+  flex: 0 0 6rem;
+  width: 6rem;
+  text-align: right;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+}
+
+.budget-streg-breakdown-row input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.budget-streg-breakdown-sum {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  text-align: right;
+}
+
 /* --- Paid browser ----------------------------------------- */
 .budget-filter {
   display: flex;
@@ -952,10 +1011,12 @@ tr.budget-row-filler td {
   font-size: 0.9rem;
 }
 
-/* Warning-tinted variant of .budget-badge for a pending request whose
-   category was deleted after submission — see the race-condition handling
-   in budget_submit/budget_approve (update-data.php) and
-   buildPendingRowContent (budget.js). */
+/* Warning-tinted variant of .budget-badge — used both for a pending
+   request whose category was deleted after submission (see the
+   race-condition handling in budget_submit/budget_approve, update-data.php)
+   and for a Stregnskab request with a missing/incomplete drink-type
+   breakdown (stregBreakdownIsComplete). See buildPendingRowContent
+   (budget.js). */
 .budget-badge-orphan {
   background: var(--danger-bg);
   color: var(--danger);
@@ -1305,6 +1366,19 @@ tr.budget-row-filler td {
 
 @media (hover: hover) {
   .streg-price-input:hover { border-color: var(--accent-warm); }
+}
+
+/* Read-only derived value (see stregComputeIndkobByKey) — same column
+   width as the old .streg-price-input it replaces, styled like
+   .streg-price-per-unit next to it since both are now plain computed
+   value cells. */
+.streg-price-buy-value {
+  flex: 0 0 6rem;
+  width: 6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-align: center;
 }
 
 .streg-price-per-unit {

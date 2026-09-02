@@ -48,6 +48,13 @@ function budgetCategoryIsValid(key, categories) {
   return (categories || []).some((c) => c.key === key);
 }
 
+// The one budget expense category key that gates the stregregnskab
+// breakdown requirement — see server/update-data.php's
+// budget_streg_category_key() (must match exactly).
+function budgetStregCategoryKey() {
+  return 'stregnskab';
+}
+
 // ── Small DOM helper ─────────────────────────────────────────
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -457,18 +464,21 @@ function budgetSetStregMode(on) {
 }
 
 let budgetStregMode = budgetLoadStregMode();
-let stregState = null; // {categories, prices, rows, connection, updatedAt, error?}
+let stregState = null; // {categories, rows, connection, updatedAt, error?}
 let stregLoadedForBudgetId; // budgetId stregState was last fetched for
 
+// Always loaded (not just in Streg mode, see loadAndRenderAdmin) — the
+// Budget-mode pending-request flow needs stregState.categories to render
+// the drink-type breakdown table and to check whether a Stregnskab request
+// is ready to approve (stregBreakdownIsComplete).
 async function stregEnsureLoaded() {
   if (stregLoadedForBudgetId === budgetViewId && stregState) return;
   const result = await budgetApi('streg_read', { budgetId: budgetViewId });
   if (!result.ok) {
-    stregState = { categories: [], prices: {}, rows: [], connection: null, error: result.message || 'Kunne ikke hente stregregnskabet.' };
+    stregState = { categories: [], rows: [], connection: null, error: result.message || 'Kunne ikke hente stregregnskabet.' };
   } else {
     stregState = {
       categories: result.data.categories || [],
-      prices: result.data.prices || {},
       rows: result.data.rows || [],
       connection: result.data.connection || null,
       updatedAt: result.data.updatedAt || null,
@@ -547,7 +557,10 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
     income: Array.isArray(cats.income) ? cats.income : [],
   };
 
-  if (budgetStregMode) await stregEnsureLoaded();
+  // Always loaded, not just in Streg mode: Afventende udlæg (Budget mode)
+  // needs stregState.categories to render/validate a Stregnskab request's
+  // drink-type breakdown (see stregBreakdownIsComplete, openRequestEditModal).
+  await stregEnsureLoaded();
 
   renderBudgetModeTabs(root);
 
@@ -1466,6 +1479,10 @@ function buildCategoryEditSection(card, status) {
       removeBtn.type = 'button';
       removeBtn.title = 'Fjern kategori';
       removeBtn.addEventListener('click', () => {
+        if (item.key === budgetStregCategoryKey()) {
+          siteShowToast('Kategorien "Stregnskab" kan ikke slettes — den er koblet til stregregnskabet.');
+          return;
+        }
         if (item.key && paidCategoryKeys.has(item.key)) {
           siteShowToast('Kan ikke slette kategori — der findes allerede en betalt udgift i denne kategori.');
           return;
@@ -1661,14 +1678,34 @@ function renderPendingSection(container) {
 // is always approvable/editable/rejectable on its own regardless of how
 // many others share its phone number. Name/phone are never repeated per row
 // — the group header above already states them once.
+// True once a Stregnskab-category request's stregBreakdown fully accounts
+// for its amount (all keys still valid current streg categories, sum
+// within 1 øre of req.amount) — gates the Godkend button, mirroring
+// budget_approve's own server-side check. A stale key (a drink type
+// deleted since the breakdown was saved) doesn't count toward the sum,
+// same "orphaned key" posture as the rest of this feature.
+function stregBreakdownIsComplete(req) {
+  const breakdown = req.stregBreakdown || {};
+  const stregKeys = new Set(stregState.categories.map((c) => c.key));
+  const sum = Object.entries(breakdown).reduce(
+    (s, [k, v]) => (stregKeys.has(k) ? s + (Number(v) || 0) : s), 0
+  );
+  return Object.keys(breakdown).length > 0 && Math.abs(sum - (Number(req.amount) || 0)) <= 0.01;
+}
+
 function buildPendingRowContent(root, req) {
   const wrap = el('div', 'budget-item-content');
   const isOrphan = !budgetCategoryIsValid(req.category, budgetState.categories.expense);
+  const isStreg = req.category === budgetStregCategoryKey();
+  const breakdownIncomplete = isStreg && !stregBreakdownIsComplete(req);
 
   const top = el('div', 'budget-item-top');
   const topLeft = el('span', 'budget-item-top-left');
   topLeft.appendChild(el('span', 'budget-badge' + (isOrphan ? ' budget-badge-orphan' : ''),
     isOrphan ? '⚠ Ingen kategori' : budgetCategoryLabel(req.category, budgetState.categories.expense)));
+  if (breakdownIncomplete && !isOrphan) {
+    topLeft.appendChild(el('span', 'budget-badge budget-badge-orphan', '⚠ Mangler fordeling'));
+  }
   topLeft.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
   top.appendChild(topLeft);
   if (req.receiptFile) top.appendChild(budgetReceiptIconBtn(req.receiptFile));
@@ -1678,13 +1715,16 @@ function buildPendingRowContent(root, req) {
   if (isOrphan) {
     wrap.appendChild(el('div', 'budget-item-note budget-orphan-note',
       'Kategorien findes ikke længere. Vælg en ny under "Rediger" før dette udlæg kan godkendes.'));
+  } else if (breakdownIncomplete) {
+    wrap.appendChild(el('div', 'budget-item-note budget-orphan-note',
+      'Fordeling på stregtyper mangler eller stemmer ikke med beløbet. Vælg "Rediger" for at udfylde den, før dette udlæg kan godkendes.'));
   }
 
   const actions = el('div', 'budget-item-actions');
   const approveBtn = el('button', 'budget-icon-btn budget-act-approve');
   approveBtn.type = 'button';
   budgetWireIconTooltip(approveBtn, 'Godkend');
-  approveBtn.disabled = isOrphan;
+  approveBtn.disabled = isOrphan || breakdownIncomplete;
   approveBtn.appendChild(budgetCheckIcon());
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
   const editBtn = el('button', 'budget-icon-btn budget-act-edit');
@@ -1732,11 +1772,14 @@ function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
   header.appendChild(summary);
 
   const approveAllBtn = el('button', 'btn-small budget-act-approve', 'Godkend alle');
-  // Disabled if any member's category has since been deleted — approving
-  // the group would otherwise partially succeed and leave an orphaned
-  // request behind, same as clicking Godkend on it individually would.
-  approveAllBtn.disabled = members.some(
-    (req) => !budgetCategoryIsValid(req.category, budgetState.categories.expense)
+  // Disabled if any member's category has since been deleted, or is a
+  // Stregnskab request with a missing/incomplete drink-type breakdown —
+  // approving the group would otherwise partially succeed and leave an
+  // orphaned/unapprovable request behind, same as clicking Godkend on it
+  // individually would.
+  approveAllBtn.disabled = members.some((req) =>
+    !budgetCategoryIsValid(req.category, budgetState.categories.expense) ||
+    (req.category === budgetStregCategoryKey() && !stregBreakdownIsComplete(req))
   );
   approveAllBtn.addEventListener('click', () => openApproveAllModal(root, members));
   header.appendChild(approveAllBtn);
@@ -1854,7 +1897,12 @@ function openApproveAllModal(root, members) {
 }
 
 // Admin: edit a pending request (category may change; receipt stays put).
-function openRequestEditModal(root, req) {
+async function openRequestEditModal(root, req) {
+  // The modal can be opened from Budget mode without Stregregnskab's own
+  // data ever having loaded — needed below for the drink-type breakdown
+  // table's row list.
+  await stregEnsureLoaded();
+
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger udlæg');
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
 
@@ -1883,6 +1931,58 @@ function openRequestEditModal(root, req) {
   phoneInput.value = req.phone;
   form.appendChild(siteEditField('Telefonnummer', phoneInput));
 
+  // Only meaningful while Kategori is Stregnskab — a request under this
+  // category can't be approved (budget_approve, server-side) until its
+  // amount has been broken down by drink type; that breakdown is what lets
+  // stregregnskab's own Priser card derive "Indkøb" (see
+  // stregComputeIndkobByKey) instead of it being hand-typed. Visibility
+  // toggles live off the Kategori dropdown, since it can be switched to/
+  // from Stregnskab in this same modal before Gem.
+  const breakdownDraft = { ...(req.stregBreakdown || {}) };
+  const breakdownWrap = el('div', 'budget-streg-breakdown');
+  const breakdownSumEl = el('div', 'budget-streg-breakdown-sum');
+
+  function updateBreakdownSum() {
+    const sum = Object.values(breakdownDraft).reduce((s, v) => s + (Number(v) || 0), 0);
+    const amount = parseAmount(amountInput.value) || 0;
+    breakdownSumEl.textContent = `I alt fordelt: ${formatKr(sum)} af ${formatKr(amount)}`;
+    breakdownSumEl.classList.toggle('budget-negative', Math.abs(sum - amount) > 0.01);
+  }
+
+  function renderBreakdownRows() {
+    const rows = el('div', 'budget-streg-breakdown-rows');
+    stregState.categories.forEach((c) => {
+      const row = el('div', 'budget-streg-breakdown-row');
+      row.appendChild(el('span', 'budget-streg-breakdown-label', c.label));
+      const input = el('input');
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      const existing = breakdownDraft[c.key];
+      input.value = existing != null ? String(existing).replace('.', ',') : '';
+      input.addEventListener('input', () => {
+        breakdownDraft[c.key] = parseAmount(input.value) || 0;
+        updateBreakdownSum();
+      });
+      row.appendChild(input);
+      rows.appendChild(row);
+    });
+    breakdownWrap.textContent = '';
+    breakdownWrap.appendChild(el('h3', 'budget-streg-breakdown-title', 'Fordeling på stregtyper'));
+    breakdownWrap.appendChild(rows);
+    breakdownWrap.appendChild(breakdownSumEl);
+    updateBreakdownSum();
+  }
+
+  function updateBreakdownVisibility() {
+    breakdownWrap.style.display = categorySelect.value === budgetStregCategoryKey() ? '' : 'none';
+  }
+
+  renderBreakdownRows();
+  form.appendChild(breakdownWrap);
+  categorySelect.addEventListener('change', updateBreakdownVisibility);
+  amountInput.addEventListener('input', updateBreakdownSum);
+  updateBreakdownVisibility();
+
   const commentInput = el('textarea');
   commentInput.value = req.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
@@ -1904,6 +2004,7 @@ function openRequestEditModal(root, req) {
       phone: phoneInput.value.trim(),
       comment: commentInput.value.trim(),
       budgetId: budgetViewId,
+      ...(categorySelect.value === budgetStregCategoryKey() ? { stregBreakdown: { ...breakdownDraft } } : {}),
     });
     if (result.ok) {
       close();
@@ -2597,14 +2698,35 @@ function stregCategoryTallyTotal(key, rows) {
   return (rows || stregState.rows).reduce((sum, r) => sum + (Number((r.counts || {})[key]) || 0), 0);
 }
 
-// STREGPRIS PR STYK per category — INDKØBSPRIS divided by the total tally
-// count recorded for that category across every row; null (rendered as
-// "—") while either side of that division is zero, so a category with no
-// price yet or no tallies sold yet never divides by zero.
+// "Indkøb" per drink-category key — summed across every non-deleted
+// Stregnskab-category expense's own stregBreakdown (set at approval time,
+// see budget_approve/openRequestEditModal). This is the stregregnskab
+// analogue of Budget's own "brugt" column: always derived from real
+// expenses, never hand-typed or stored. Recomputed fresh on every call
+// rather than cached — cheap given the expected data volume (one revy's
+// worth of bar receipts).
+function stregComputeIndkobByKey() {
+  const map = {};
+  budgetState.expenses.forEach((e) => {
+    if (e.deleted || e.category !== budgetStregCategoryKey()) return;
+    const breakdown = e.stregBreakdown || {};
+    Object.keys(breakdown).forEach((k) => {
+      map[k] = (map[k] || 0) + (Number(breakdown[k]) || 0);
+    });
+  });
+  return map;
+}
+
+// STREGPRIS PR STYK per category — derived Indkøb (see
+// stregComputeIndkobByKey) divided by the total tally count recorded for
+// that category across every row; null (rendered as "—") while either side
+// of that division is zero, so a category with no purchases yet or no
+// tallies sold yet never divides by zero.
 function stregComputePricePerUnit(rows) {
+  const indkob = stregComputeIndkobByKey();
   const perUnit = {};
   stregState.categories.forEach((c) => {
-    const price = Number(stregState.prices[c.key]) || 0;
+    const price = indkob[c.key] || 0;
     const total = stregCategoryTallyTotal(c.key, rows);
     perUnit[c.key] = (price > 0 && total > 0) ? price / total : null;
   });
@@ -3284,8 +3406,12 @@ function buildStregPricesCard() {
     return card;
   }
 
+  // price is a derived snapshot (see stregComputeIndkobByKey), not editable
+  // — it's recomputed fresh on every full admin reload, same as every other
+  // derived value on this page (Pr. streg, Betaling, Brugt, ...).
+  const indkob = stregComputeIndkobByKey();
   const items = stregState.categories.map((c) => ({
-    key: c.key, label: c.label, price: Number(stregState.prices[c.key]) || 0,
+    key: c.key, label: c.label, price: indkob[c.key] || 0,
   }));
 
   const errorEl = el('div', 'streg-error');
@@ -3318,9 +3444,10 @@ function buildStregPricesCard() {
 
   // Resends the whole current items list (minus any still-blank brand-new
   // row — see this section's own header comment). On success, re-syncs
-  // each sent item's key/label/price from the server's own cleaned-up
-  // response (a brand-new item's real key in particular) and refreshes the
-  // grid card, whose columns/Betaling may now be stale.
+  // each sent item's key/label from the server's own cleaned-up response (a
+  // brand-new item's real key in particular) and refreshes the grid card,
+  // whose columns/Betaling may now be stale. price is never sent — it's
+  // derived, not stored (see stregComputeIndkobByKey).
   async function commitAll() {
     const ready = items.filter((d) => !(d.key === null && d.label.trim() === ''));
     if (ready.length === 0) {
@@ -3333,7 +3460,7 @@ function buildStregPricesCard() {
     }
     const result = await budgetApi('streg_save_categories', {
       budgetId: budgetViewId,
-      categories: ready.map((d) => ({ key: d.key || undefined, label: d.label.trim(), price: d.price })),
+      categories: ready.map((d) => ({ key: d.key || undefined, label: d.label.trim() })),
     });
     if (!result.ok) {
       errorEl.textContent = result.message || 'Kunne ikke gemme.';
@@ -3344,10 +3471,8 @@ function buildStregPricesCard() {
       if (!ready[i]) return;
       ready[i].key = c.key;
       ready[i].label = c.label;
-      ready[i].price = Number((result.data.prices || {})[c.key]) || 0;
     });
     stregState.categories = result.data.categories || [];
-    stregState.prices = result.data.prices || {};
     refreshComputed();
     stregRefreshSheetCard();
     return { ok: true };
@@ -3382,22 +3507,11 @@ function buildStregPricesCard() {
       });
       row.appendChild(labelInput);
 
-      const priceInput = document.createElement('input');
-      priceInput.type = 'text';
-      priceInput.inputMode = 'decimal';
-      priceInput.className = 'streg-price-input';
-      priceInput.placeholder = '0,00';
-      priceInput.value = item.price ? String(item.price).replace('.', ',') : '';
-      // Recomputes the per-unit preview instantly on every keystroke (an
-      // in-memory-only update — see refreshComputed) but only actually
-      // saves on blur, same convention as every other text field on this
-      // site (mirrors Fællesspisning's own grid).
-      priceInput.addEventListener('input', () => {
-        item.price = parseAmount(priceInput.value) || 0;
-        refreshComputed();
-      });
-      priceInput.addEventListener('blur', () => commitAll());
-      row.appendChild(priceInput);
+      // Read-only, same treatment as the "Pr. streg" span next to it —
+      // Indkøb is derived from approved Stregnskab expenses' own drink-type
+      // breakdown (stregComputeIndkobByKey), never hand-typed here.
+      const buySpan = el('span', 'streg-price-buy-value', formatKr(item.price));
+      row.appendChild(buySpan);
 
       const perUnitSpan = el('span', 'streg-price-per-unit', '—');
       stregPriceUnitCells.set(item, perUnitSpan);

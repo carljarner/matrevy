@@ -461,6 +461,16 @@ function handle_delete($body) {
 // top-level `const` array declaration (which — unlike a scalar const — is
 // only defined once its line runs), so a const here would be undefined at
 // call time. Functions are hoisted, so this always works.
+// The one budget expense category key that can never be deleted — it's the
+// join point between Afventende udlæg's approval flow (budget_approve
+// requires a drink-type breakdown for a request under this category) and
+// stregregnskab's own derived "Indkøb" column (see stregComputeIndkobByKey
+// client-side). A function, not a bare literal repeated everywhere, so
+// every comparison site agrees even if this key ever needed to change.
+function budget_streg_category_key() {
+  return 'stregnskab';
+}
+
 function budget_default_categories() {
   $expenseLabels = [
     'rekvisitter' => 'Rekvisitter og kostumer', 'makeup' => 'Makeup', 'texnik' => 'TeXnik',
@@ -989,6 +999,41 @@ function budget_approve($body) {
     });
     respond(409, ['error' => 'invalid_category']);
   }
+
+  // A Stregnskab-category request can't be approved until its amount has
+  // been broken down by drink type — that breakdown is what lets
+  // stregregnskab's own Priser card derive "Indkøb" per drink type instead
+  // of it being hand-typed (see stregComputeIndkobByKey client-side).
+  $stregBreakdown = null;
+  if ($category === budget_streg_category_key()) {
+    $stregDoc = budget_load($budgetId, 'streg.json', streg_default_doc());
+    $stregKeys = array_column(streg_categories($stregDoc), 'key');
+    $breakdown = is_array($found['stregBreakdown'] ?? null) ? $found['stregBreakdown'] : [];
+    $sum = 0.0;
+    $allKeysValid = !empty($breakdown);
+    foreach ($breakdown as $k => $v) {
+      if (!in_array($k, $stregKeys, true) || !is_numeric($v)) { $allKeysValid = false; break; }
+      $sum += (float) $v;
+    }
+    $errorCode = null;
+    if (!$allKeysValid) {
+      $errorCode = 'streg_breakdown_required';
+    } elseif (abs($sum - (float) $found['amount']) > 0.01) {
+      $errorCode = 'streg_breakdown_mismatch';
+    }
+    if ($errorCode !== null) {
+      // Same "put it back, refuse to approve" rollback as the invalid_category
+      // check above.
+      budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($found) {
+        if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
+        $json['requests'][] = $found;
+        return $json;
+      });
+      respond(409, ['error' => $errorCode]);
+    }
+    $stregBreakdown = $breakdown;
+  }
+
   $n = budget_next_n($budgetId, $category);
   $abbrev = budget_category_abbrev($categories, $category);
 
@@ -1019,6 +1064,9 @@ function budget_approve($body) {
     'phone'       => $found['phone'] ?? '',
     'receiptFile' => $newRel,
     'approvedAt'  => date('c'),
+    // null for every non-Stregnskab expense — see stregComputeIndkobByKey
+    // client-side, which sums this across expenses.json to derive "Indkøb".
+    'stregBreakdown' => $stregBreakdown,
   ];
   budget_mutate($budgetId, 'expenses.json', ['expenses' => []], function ($json) use ($expense) {
     if (!isset($json['expenses']) || !is_array($json['expenses'])) $json['expenses'] = [];
@@ -1192,6 +1240,13 @@ function budget_expense_update($body) {
   // receipt kept); Gendan sets it back to false. Defaults false so every
   // pre-existing caller of this action is unaffected.
   $deleted  = $body['deleted'] ?? false;
+  // Note: `amount` can be edited here independently of a Stregnskab
+  // expense's own `stregBreakdown` (category is locked post-approval, but
+  // amount isn't) — an edit here doesn't re-validate or adjust the
+  // breakdown against the new amount, same accepted looseness as every
+  // other field here (comment/name/phone are equally editable with no
+  // cross-checks). stregComputeIndkobByKey (budget.js) will simply reflect
+  // whatever stregBreakdown was captured at approval time.
   if (!is_string($id) || $id === ''
       || !is_numeric($amount) || (float) $amount <= 0
       || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
@@ -1270,6 +1325,16 @@ function budget_expense_remove($body) {
 // picks which budget; defaults to the active budget. Since budget_submit no
 // longer validates category, this is the one place that enforces it — the
 // actual reassignment step that clears an "orphaned" (deleted-category) request.
+//
+// Optional `stregBreakdown` ({[stregCategoryKey]: amount}): only meaningful
+// when the (possibly just-changed) category is the Stregnskab one — see
+// budget_streg_category_key(). If the client omits the field entirely, any
+// existing breakdown is left untouched (so fixing e.g. just the phone number
+// doesn't force a breakdown re-submit); if the category is something other
+// than Stregnskab, any breakdown is dropped (meaningless outside it). Not
+// required to sum to `amount` here — budget_approve is what actually
+// enforces completeness, since an admin should be free to save partial
+// progress before the request is ready to approve.
 function budget_request_update($body) {
   $budgetId = budget_resolve_budget_id($body);
   $id       = $body['id'] ?? '';
@@ -1278,6 +1343,7 @@ function budget_request_update($body) {
   $name     = $body['name'] ?? '';
   $phone    = $body['phone'] ?? '';
   $comment  = $body['comment'] ?? '';
+  $breakdownIn = array_key_exists('stregBreakdown', $body) ? $body['stregBreakdown'] : null;
   $validExpenseKeys = array_column(budget_load_categories($budgetId)['expense'] ?? [], 'key');
   if (!is_string($id) || $id === ''
       || !in_array($category, $validExpenseKeys, true)
@@ -1287,9 +1353,24 @@ function budget_request_update($body) {
       || !is_string($comment)) {
     respond(400, ['error' => 'invalid_shape']);
   }
+
+  $cleanBreakdown = null;
+  if ($category === budget_streg_category_key() && $breakdownIn !== null) {
+    if (!is_array($breakdownIn)) respond(400, ['error' => 'invalid_shape']);
+    $stregDoc = budget_load($budgetId, 'streg.json', streg_default_doc());
+    $stregKeys = array_column(streg_categories($stregDoc), 'key');
+    $cleanBreakdown = [];
+    foreach ($breakdownIn as $k => $v) {
+      if (!is_string($k) || !in_array($k, $stregKeys, true) || !is_numeric($v) || (float) $v < 0) {
+        respond(400, ['error' => 'invalid_shape']);
+      }
+      $cleanBreakdown[$k] = round((float) $v, 2);
+    }
+  }
+
   $found = false;
   budget_mutate($budgetId, 'requests.json', ['requests' => []],
-    function ($json) use ($id, $category, $amount, $name, $phone, $comment, &$found) {
+    function ($json) use ($id, $category, $amount, $name, $phone, $comment, $cleanBreakdown, &$found) {
       // Bind &$r to a real variable, not the ($json['requests'] ?? []) expression
       // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
       // edit would silently not persist (handler still returns ok:true).
@@ -1301,6 +1382,11 @@ function budget_request_update($body) {
           $r['name']     = trim($name);
           $r['phone']    = trim($phone);
           $r['comment']  = trim($comment);
+          if ($category !== budget_streg_category_key()) {
+            unset($r['stregBreakdown']);
+          } elseif ($cleanBreakdown !== null) {
+            $r['stregBreakdown'] = $cleanBreakdown;
+          }
           $found = true;
           break;
         }
@@ -1357,6 +1443,11 @@ function budget_request_split($body) {
       $success = true;
 
       $requests[$originalIndex]['amount'] = round((float) $original['amount'] - $amount, 2);
+      // A previously-saved stregBreakdown on the original can no longer sum
+      // correctly against its new, smaller amount — clear it rather than
+      // leave a stale value sitting there (budget_approve's own sum check
+      // would catch it either way, but this avoids a confusing UI state).
+      unset($requests[$originalIndex]['stregBreakdown']);
 
       $newId = dechex(time()) . bin2hex(random_bytes(4));
       $newReceiptFile = '';
@@ -1449,6 +1540,13 @@ function budget_categories_save($body) {
     $usedAbbrevsLower[$abbrevLower] = true;
 
     $cleanExpense[] = ['key' => $key, 'label' => $label, 'abbrev' => $abbrev];
+  }
+
+  // "Stregnskab" is a structural join point with stregregnskab's own
+  // approval-gated Indkøb derivation (see budget_streg_category_key) — it
+  // can be renamed like any other category, but never omitted/deleted.
+  if (isset($currentExpenseByKey[budget_streg_category_key()]) && !isset($usedExpenseKeys[budget_streg_category_key()])) {
+    respond(409, ['error' => 'category_protected', 'category' => budget_streg_category_key()]);
   }
 
   $currentIncomeByKey = [];
@@ -1663,8 +1761,11 @@ function budget_rename_year($body) {
 // other admin budget action, so switching "Viser budget for" also switches
 // which year's stregregnskab is shown.
 //
-// STREGPRIS PR STYK (price per tally) and each row's Betaling are derived
-// client-side only from `prices` and `rows[].counts` — never stored here.
+// "Indkøb" (per-category purchase total), STREGPRIS PR STYK (price per
+// tally), and each row's Betaling are all derived client-side only — never
+// stored here. Indkøb sums approved Stregnskab-category expenses' own
+// stregBreakdown (see budget_approve above and stregComputeIndkobByKey in
+// budget.js); the other two divide/multiply that against `rows[].counts`.
 // A category is only ever added/removed, never renamed in place (same
 // posture as Fællesspisning's day columns); deleting one leaves any row's
 // existing counts[key] alone server-side, the client just stops rendering
@@ -1679,16 +1780,12 @@ function streg_default_doc() {
       ['key' => 'cider', 'label' => 'Cider'],
       ['key' => 'soda', 'label' => 'Soda'],
     ],
-    'prices' => [], 'rows' => [], 'connection' => null, 'updatedAt' => null,
+    'rows' => [], 'connection' => null, 'updatedAt' => null,
   ];
 }
 
 function streg_categories($doc) {
   return (isset($doc['categories']) && is_array($doc['categories'])) ? $doc['categories'] : [];
-}
-
-function streg_prices($doc) {
-  return (isset($doc['prices']) && is_array($doc['prices'])) ? $doc['prices'] : [];
 }
 
 // rowId/categoryId-agnostic hex id, same generator as every other feature
@@ -1705,12 +1802,10 @@ function streg_read($body) {
   $budgetId = budget_resolve_budget_id($body);
   $doc = budget_load($budgetId, 'streg.json', streg_default_doc());
   $doc = streg_maybe_sync($budgetId, $doc);
-  $prices = streg_prices($doc);
   respond(200, [
     'ok'         => true,
     'budgetId'   => $budgetId,
     'categories' => streg_categories($doc),
-    'prices'     => empty($prices) ? new stdClass() : $prices,
     'rows'       => $doc['rows'] ?? [],
     'connection' => $doc['connection'] ?? null,
     'updatedAt'  => $doc['updatedAt'] ?? null,
@@ -1780,10 +1875,10 @@ function streg_save_rows($body) {
   respond(200, ['ok' => true, 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
 }
 
-// Admin: replaces the whole category list (key/label) + price map in one
-// atomic write, order preserved exactly as given — the save handler behind
-// the Pris pr. streg card's own Gem button (mirrors budget_categories_save's
-// shape/validation almost exactly, simplified: no abbrev/paid-expense-lock
+// Admin: replaces the whole category list (key/label) in one atomic write,
+// order preserved exactly as given — the save handler behind the Pris pr.
+// streg card's own Gem button (mirrors budget_categories_save's shape/
+// validation almost exactly, simplified: no abbrev/paid-expense-lock
 // concept here, since a streg category never gates a filename the way a
 // budget category's abbrev does). A client-supplied key must already exist
 // in this budget's current list — a stale key means a concurrent edit
@@ -1796,6 +1891,11 @@ function streg_save_rows($body) {
 // payload; any row's counts[key] for it are left alone server-side (same
 // "don't cross-validate against a removed column" posture as
 // Fællesspisning's day deletion) — the client just stops rendering it.
+//
+// No `price` field any more — "Indkøb" is derived client-side from approved
+// Stregnskab-category expenses' own stregBreakdown (see
+// stregComputeIndkobByKey in budget.js and budget_approve above), never
+// hand-typed or stored here.
 function streg_save_categories($body) {
   $budgetId = budget_resolve_budget_id($body);
   $categoriesIn = $body['categories'] ?? null;
@@ -1810,11 +1910,9 @@ function streg_save_categories($body) {
 
   $usedKeys = [];
   $cleanCategories = [];
-  $cleanPrices = [];
   foreach ($categoriesIn as $item) {
     if (!is_array($item)
-        || !isset($item['label']) || !is_string($item['label']) || trim($item['label']) === '' || mb_strlen(trim($item['label'])) > 60
-        || !isset($item['price']) || !is_numeric($item['price']) || (float) $item['price'] < 0) {
+        || !isset($item['label']) || !is_string($item['label']) || trim($item['label']) === '' || mb_strlen(trim($item['label'])) > 60) {
       respond(400, ['error' => 'invalid_shape']);
     }
     $label = trim($item['label']);
@@ -1828,21 +1926,15 @@ function streg_save_categories($body) {
     if (isset($usedKeys[$key])) respond(400, ['error' => 'duplicate_category']);
     $usedKeys[$key] = true;
     $cleanCategories[] = ['key' => $key, 'label' => $label];
-    $cleanPrices[$key] = round((float) $item['price'], 2);
   }
 
   $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(),
-    function ($json) use ($cleanCategories, $cleanPrices) {
+    function ($json) use ($cleanCategories) {
       $json['categories'] = $cleanCategories;
-      $json['prices'] = $cleanPrices;
       $json['updatedAt'] = date('c');
       return $json;
     });
-  $prices = streg_prices($doc);
-  respond(200, [
-    'ok' => true, 'categories' => $doc['categories'],
-    'prices' => empty($prices) ? new stdClass() : $prices, 'updatedAt' => $doc['updatedAt'],
-  ]);
+  respond(200, ['ok' => true, 'categories' => $doc['categories'], 'updatedAt' => $doc['updatedAt']]);
 }
 
 // `formId: null` means "disconnect". Only a Navn-field mapping exists here
