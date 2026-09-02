@@ -959,17 +959,13 @@ tr.budget-row-filler td {
    cards like .budget-table below — a many-category grid can't sensibly
    stack). Duplicated rather than shared since budget.html doesn't load
    faellesspisning.css, per the site's per-feature-duplication convention. */
-.streg-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.75rem;
-}
-
-/* "Forbind" while the grid is mid-edit (see js/budget.js's own comment on
-   why it's disabled then) — .btn-small has no site-wide :disabled rule of
-   its own (unlike the .site-btn-* family), so it'd otherwise render with no
-   visual difference from an enabled button. */
-.streg-toolbar .btn-small:disabled {
+/* "Forbind" sits in the card-head next to the title (h2 left, button
+   right, via .card-head's own justify-content:space-between — style.css).
+   Disabled while the draft has unsaved changes (see js/budget.js's own
+   comment on buildStregSheetCard for why) — .btn-small has no site-wide
+   :disabled rule of its own (unlike the .site-btn-* family), so it'd
+   otherwise render with no visual difference from an enabled button. */
+.streg-sheet-card .card-head .btn-small:disabled {
   opacity: 0.6;
   cursor: default;
 }

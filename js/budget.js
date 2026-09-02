@@ -2584,14 +2584,12 @@ function buildStregSheetCard() {
     connectBtn.title = dirty ? 'Gem eller nulstil dine ændringer i skemaet først' : '';
   }
 
-  const toolbar = el('div', 'streg-toolbar');
   connectBtn.type = 'button';
   connectBtn.textContent = stregState.connection
     ? `Forbindelse: ${stregState.connection.formTitle || 'formular'}`
     : 'Forbind';
   connectBtn.addEventListener('click', () => stregOpenConnectModal());
-  toolbar.appendChild(connectBtn);
-  card.appendChild(toolbar);
+  head.appendChild(connectBtn);
   refreshDirtyStatus();
 
   card.appendChild(el('div', 'streg-error'));
@@ -2815,8 +2813,10 @@ function stregOpenResetConfirm() {
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'streg-confirm-text',
-    'Nulstil stregregnskabet? Alle navne og streger for dette budget slettes permanent.'));
+  form.appendChild(el('p', 'streg-confirm-text', 'Nulstil stregregnskabet?'));
+  let text = 'Alle navne og streger for dette budget slettes permanent.';
+  if (stregState.connection) text += ' Forbindelsen til formularen fjernes også.';
+  form.appendChild(el('p', 'budget-intro', text));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -2824,6 +2824,18 @@ function stregOpenResetConfirm() {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
+    // Disconnect first: a still-connected form would otherwise re-sync
+    // every past response's name straight back in on its next submission,
+    // silently undoing the reset.
+    if (stregState.connection) {
+      const disconnectResult = await budgetApi('streg_save_connection', { formId: null, budgetId: budgetViewId });
+      if (!disconnectResult.ok) {
+        confirmBtn.disabled = false;
+        if (disconnectResult.message) error.textContent = disconnectResult.message;
+        return;
+      }
+      stregState.connection = null;
+    }
     const result = await budgetApi('streg_save_rows', { budgetId: budgetViewId, rows: [] });
     if (!result.ok) {
       confirmBtn.disabled = false;
