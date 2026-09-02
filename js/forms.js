@@ -1221,14 +1221,14 @@ async function formsRenderOverviewScreen(root) {
       const actionsCell = el('td', 'forms-row-actions');
       const statsBtn = el('button', 'forms-row-icon-btn');
       statsBtn.type = 'button';
-      statsBtn.setAttribute('aria-label', 'Se statistik');
-      statsBtn.setAttribute('data-tooltip', 'Se statistik');
+      statsBtn.setAttribute('aria-label', 'Statistik');
+      statsBtn.setAttribute('data-tooltip', 'Statistik');
       statsBtn.appendChild(formsChartIcon());
       statsBtn.addEventListener('click', () => renderAdminView(root, { name: 'stats', formId: f.id }));
       const respBtn = el('button', 'forms-row-icon-btn');
       respBtn.type = 'button';
-      respBtn.setAttribute('aria-label', 'Se svar');
-      respBtn.setAttribute('data-tooltip', 'Se svar');
+      respBtn.setAttribute('aria-label', 'Svar');
+      respBtn.setAttribute('data-tooltip', 'Svar');
       respBtn.appendChild(formsPaperIcon());
       respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
       const editBtn = el('button', 'forms-row-icon-btn');
