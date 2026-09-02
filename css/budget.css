@@ -18,9 +18,9 @@
      pending list it would inflate this row's own height (and the Budget
      card along with it) to match, rather than capping pending. Budget
      sizes to its own content only; js/budget.js's
-     budgetSyncPendingColumnHeight() then measures that and applies it as
-     an explicit height to .budget-col-right, which is what actually caps
-     Afventende udlæg's list (its .budget-scroll-wrap scrolls internally). */
+     budgetSyncPendingColumnHeight() then measures that and caps Afventende
+     udlæg's own .budget-scroll-wrap to match it (in normal mode only — see
+     that function's own comment for why streg mode does none of this). */
   align-items: start;
   margin-bottom: 1.25rem;
 }
@@ -32,11 +32,10 @@
    to the track's actual width instead. */
 .budget-columns > .card { margin-bottom: 0; min-width: 0; }
 
-/* --- Right column wrapper (year-switcher card + Afventende udlæg) ---- */
-/* The actual grid child in .budget-columns' 1fr track — js/budget.js's
-   budgetSyncPendingColumnHeight() sets this element's height explicitly to
-   match the Budget card's (see .budget-columns above for why that's a JS
-   height, not align-items:stretch); the two cards inside it stack
+/* --- Right column wrapper (year-switcher card + Afventende udlæg/Priser) --- */
+/* The actual grid child in .budget-columns' 1fr track (see .budget-columns
+   above for why its own height, in normal mode, ends up matching the
+   Budget card's without align-items:stretch); the cards inside it stack
    vertically with a gap. */
 .budget-col-right {
   display: flex;
@@ -970,14 +969,11 @@ tr.budget-row-filler td {
   cursor: default;
 }
 
-/* Vertical scroll (max-height set by js/budget.js's budgetSyncPendingColumnHeight
-   — see that function's own comment: the streg grid is capped to match the
-   right column's natural height, since a names list can be arbitrarily
-   long) on top of the horizontal scroll every width already has. */
+/* No vertical scroll/cap by product decision — the grid just grows to fit
+   every row (see js/budget.js's own comment on budgetSyncPendingColumnHeight).
+   Horizontal scroll only, for a wide category list. */
 .streg-table-wrap {
   overflow-x: auto;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   padding-bottom: 1rem;
 }
 
@@ -995,14 +991,7 @@ tr.budget-row-filler td {
   white-space: nowrap;
 }
 
-/* Sticks to the top of .streg-table-wrap's own vertical scroll (see above)
-   so the column headers stay visible while scrolling through many names —
-   needs an opaque background since sticky content still sits above
-   scrolled-under rows. */
 .streg-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   background: var(--surface);
   color: var(--text-muted);
   font-weight: 600;

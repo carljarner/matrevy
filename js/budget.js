@@ -550,10 +550,11 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   if (budgetStregMode) await stregEnsureLoaded();
 
   // Budget + right column (the year toolbar above Afventende udlæg) sit
-  // side by side (Betalte udgifter is full-width below). In streg mode the
-  // Budget card is replaced by the stregregnskab grid, and Afventende
-  // udlæg is replaced by the per-category price card — the year toolbar,
-  // the Stregregnskab toggle card, and Betalte udgifter never change.
+  // side by side. In streg mode the Budget card is replaced by the
+  // stregregnskab grid, Afventende udlæg is replaced by the Priser card,
+  // and Betalte udgifter (irrelevant to bar tallying) is hidden entirely —
+  // the year toolbar and the Stregregnskab toggle card are the only pieces
+  // that never change between modes.
   const cols = el('div', 'budget-columns');
   root.appendChild(cols);
   if (budgetStregMode) renderStregSheetCard(cols);
@@ -564,7 +565,7 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   renderStregToggleCard(rightCol);
   if (budgetStregMode) renderStregPricesCard(rightCol);
   else renderPendingSection(rightCol);
-  renderPaidSection(root);
+  if (!budgetStregMode) renderPaidSection(root);
   budgetSyncPendingColumnHeight();
 }
 
@@ -577,66 +578,24 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
 // to match it via max-height + overflow-y:auto (css/budget.css), since that
 // list can be arbitrarily long.
 //
-// Streg mode doesn't render Budget at all, so it can't use the same
-// live reference — and its own content shape (a handful of price rows vs. a
-// names list that can run long) naturally sizes to something else entirely,
-// which made switching modes visibly resize the whole row. Instead the two
-// boxes there "remember" the row height last measured in normal mode
-// (budgetCachedRowHeight, persisted so it survives a reload straight into
-// streg mode too) and both pin to that fixed value: the grid's own row area
-// is capped to it exactly like Afventende udlæg is in normal mode, and
-// .budget-col-right gets an explicit min-height so its own (usually
-// shorter) content doesn't shrink the row instead. Falls back to the old
-// content-derived height only on a brand new browser that has never
-// rendered normal mode this budget.
+// Streg mode deliberately does none of this — both the grid and Priser
+// just size to their own natural content with no cap/scroll and no attempt
+// to match each other's height, by product decision (there's no Afventende
+// udlæg-style unbounded list on either side worth capping, and no Betalte
+// udgifter row below to make the two columns ending at different heights
+// look inconsistent).
 //
 // Skipped below the mobile breakpoint, where .budget-columns collapses to
 // one stacked column and every card sizes to its own content instead
-// (css/budget.css's own mobile block already resets these elements' own
-// max-height there, but the inline style set here at a wider viewport would
-// otherwise outrank it).
-let budgetCachedRowHeight = null;
-const BUDGET_ROW_HEIGHT_KEY = 'matrevy-budget-row-height';
-try {
-  const storedRowHeight = Number(localStorage.getItem(BUDGET_ROW_HEIGHT_KEY));
-  if (storedRowHeight > 0) budgetCachedRowHeight = storedRowHeight;
-} catch (e) { /* ignore (private browsing, storage disabled, ...) */ }
-
+// (css/budget.css's own mobile block already resets .budget-scroll-wrap's
+// own max-height there, but the inline style set here at a wider viewport
+// would otherwise outrank it).
 function budgetSyncPendingColumnHeight() {
+  if (budgetStregMode) return;
   const colRight = document.querySelector('.budget-col-right');
-  const sheetCard = document.querySelector('.budget-sheet-card'); // Budget, or the streg grid card
+  const sheetCard = document.querySelector('.budget-sheet-card');
   if (!colRight || !sheetCard) return;
   const mobile = window.innerWidth <= 719;
-
-  if (budgetStregMode) {
-    const stregWrap = document.querySelector('.streg-table-wrap');
-    if (!stregWrap) return;
-    if (mobile) { stregWrap.style.maxHeight = ''; colRight.style.minHeight = ''; return; }
-    const cachedHeight = budgetCachedRowHeight != null ? budgetCachedRowHeight : colRight.getBoundingClientRect().height;
-    colRight.style.minHeight = cachedHeight + 'px';
-    // The cached height is a floor, not a hard pin: colRight's own natural
-    // content (year toolbar + toggle + Priser's own category list)
-    // can genuinely need more room than a normal-mode budget with few
-    // categories ever did — min-height can only stretch colRight up to the
-    // cached value, never shrink it back down. Re-measuring after applying
-    // it picks up whichever is actually taller, so the grid is always
-    // capped to match colRight's real rendered height, not a stale number
-    // that would otherwise leave the two boxes visibly mismatched.
-    const refHeight = colRight.getBoundingClientRect().height;
-    const consumedAbove = stregWrap.getBoundingClientRect().top - sheetCard.getBoundingClientRect().top;
-    // Everything below stregWrap within the same card — its own bottom
-    // padding, plus the Nulstil/Rediger/Gem bar the grid renders after it
-    // (which the main Budget sheet's own scrollWrap never has to account
-    // for, since nothing trails Afventende udlæg's list). Measured
-    // directly off stregWrap's own current (pre-cap) height rather than
-    // just reading padding-bottom, which was an earlier version's bug —
-    // that undercounted by exactly the action bar's own height once it was
-    // added, consistently overshooting the target.
-    const belowWrap = Math.max(
-      sheetCard.getBoundingClientRect().height - consumedAbove - stregWrap.getBoundingClientRect().height, 0);
-    stregWrap.style.maxHeight = Math.max(refHeight - consumedAbove - belowWrap, 0) + 'px';
-    return;
-  }
 
   // Budget (bounded) is the reference; Afventende udlæg's own request list
   // is capped to match it, since that list can be arbitrarily long.
@@ -651,11 +610,6 @@ function budgetSyncPendingColumnHeight() {
   const parentCard = scrollWrap.parentElement;
   const bottomPadding = parentCard ? (parseFloat(getComputedStyle(parentCard).paddingBottom) || 0) : 0;
   scrollWrap.style.maxHeight = Math.max(sheetHeight - consumedAbove - bottomPadding, 0) + 'px';
-
-  // Remember this for streg mode (see above) — always the last real
-  // measurement of normal mode's own natural row height, across budgets.
-  budgetCachedRowHeight = sheetHeight;
-  try { localStorage.setItem(BUDGET_ROW_HEIGHT_KEY, String(sheetHeight)); } catch (e) { /* ignore */ }
 }
 
 window.addEventListener('resize', budgetSyncPendingColumnHeight);
@@ -3022,9 +2976,9 @@ function renderStregPricesCard(container) {
 // Deliberately no .budget-scroll-wrap here (unlike Afventende udlæg): the
 // category list is small and bounded (a handful of drink types, never the
 // dozens Afventende udlæg's pending-request list can reach), so it isn't
-// worth capping/scrolling — it just sizes to its own content, and
-// budgetSyncPendingColumnHeight() below no-ops when it finds no scroll-wrap
-// to cap.
+// worth capping/scrolling — it just sizes to its own content (streg mode
+// doesn't run budgetSyncPendingColumnHeight() at all — see that function's
+// own comment).
 function buildStregPricesCard() {
   const card = el('section', 'card budget-col-pending streg-prices-card');
   const head = el('div', 'card-head');
