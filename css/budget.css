@@ -1208,8 +1208,10 @@ tr.budget-row-filler td {
 /* Column titles above the price list, aligned with each .streg-price-row's
    own flex layout (blank over Navn, "Indkøb" over the price input, "Pr.
    streg" reusing .streg-price-per-unit's own plain-text sizing since that
-   column is itself just a span already). Not draggable/interactive, so no
-   cursor/border-top rules from .streg-price-row apply here. */
+   column is itself just a span already) — centered over their own column
+   width rather than right-aligned like the values below them. Not
+   draggable/interactive, so no cursor/border-top rules from
+   .streg-price-row apply here. */
 .streg-price-header {
   cursor: default;
   margin-bottom: 0.2rem;
@@ -1221,11 +1223,12 @@ tr.budget-row-filler td {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-muted);
-  text-align: right;
+  text-align: center;
 }
 
 .streg-price-header .streg-price-per-unit {
   font-weight: 600;
+  text-align: center;
 }
 
 .streg-error {
