@@ -932,7 +932,7 @@ tr.budget-row-filler td {
 /* --- Stregregnskab (bar tally accounting) -------------------------- */
 
 /* The small toggle card sitting between the year toolbar and Afventende
-   udlæg/Pris pr. streg — its own content never changes shape, only the
+   udlæg/Priser — its own content never changes shape, only the
    button's label. */
 .budget-streg-toggle .btn-small {
   display: block;
@@ -1128,12 +1128,13 @@ tr.budget-row-filler td {
   width: min(300px, 85vw);
 }
 
-/* --- Pris pr. streg card (replaces Afventende udlæg while active) ---
-   A Budget-style Gem-batched draft editor (mirrors buildCategoryEditSection's
-   own row styling above) — every row is draggable to reorder, the same
-   .budget-drop-target highlight convention as .budget-manage-tr but drawn
-   on a plain <div> row (top border, not a <td>) since this list isn't a
-   table. */
+/* --- Priser card (replaces Afventende udlæg while active) -----------
+   Live-save, not Gem-batched (see js/budget.js's own comment on
+   buildStregPricesCard for why) — reuses buildCategoryEditSection's own row
+   styling above regardless, since the row shape is identical. Every row is
+   draggable to reorder, the same .budget-drop-target highlight convention
+   as .budget-manage-tr but drawn on a plain <div> row (top border, not a
+   <td>) since this list isn't a table. */
 .streg-price-list {
   display: flex;
   flex-direction: column;
@@ -1204,17 +1205,27 @@ tr.budget-row-filler td {
   border-top: 1px solid var(--border);
 }
 
-/* Single "Gem" button — mirrors .budget-save-bar's spacing but centered,
-   the site-wide default for a lone action (see CLAUDE.md's modal
-   action-button layout convention). */
-.streg-price-save-bar {
-  display: flex;
-  justify-content: center;
-  margin-top: 0.75rem;
+/* Column titles above the price list, aligned with each .streg-price-row's
+   own flex layout (blank over Navn, "Indkøb" over the price input, "Pr.
+   streg" reusing .streg-price-per-unit's own plain-text sizing since that
+   column is itself just a span already). Not draggable/interactive, so no
+   cursor/border-top rules from .streg-price-row apply here. */
+.streg-price-header {
+  cursor: default;
+  margin-bottom: 0.2rem;
 }
 
-.streg-price-save-bar > button {
-  min-width: 5rem;
+.streg-price-col-buy {
+  flex: 0 0 6rem;
+  width: 6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.streg-price-header .streg-price-per-unit {
+  font-weight: 600;
 }
 
 .streg-error {

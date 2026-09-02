@@ -616,7 +616,7 @@ function budgetSyncPendingColumnHeight() {
     const cachedHeight = budgetCachedRowHeight != null ? budgetCachedRowHeight : colRight.getBoundingClientRect().height;
     colRight.style.minHeight = cachedHeight + 'px';
     // The cached height is a floor, not a hard pin: colRight's own natural
-    // content (year toolbar + toggle + Pris pr. streg's own category list)
+    // content (year toolbar + toggle + Priser's own category list)
     // can genuinely need more room than a normal-mode budget with few
     // categories ever did — min-height can only stretch colRight up to the
     // cached value, never shrink it back down. Re-measuring after applying
@@ -2434,24 +2434,24 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
 }
 
 // ── Admin: Stregregnskab (bar tally accounting) ──────────────
-// Two areas, both Budget-style Gem-batched draft editors:
+// Two areas, deliberately different edit models:
 // - The grid (buildStregSheetCard/stregBuildTable) is read-only by
 //   default; its own bottom bar mirrors the main Budget sheet's own
 //   Slet/Rediger/Gem exactly (Nulstil/Rediger/Gem — see stregSheetEditMode
 //   below). "Forbind" (sync names from a Formularer form) is disabled
 //   while editing, since it overwrites stregState.rows outright and would
 //   otherwise silently stomp an in-progress draft. Column set/order/
-//   labels/prices are entirely managed from the Pris pr. streg card; the
-//   grid just follows whatever stregState.categories currently is.
-// - The Pris pr. streg card (buildStregPricesCard) is its own independent
-//   Gem-batched draft editor (mirrors buildCategoryEditSection above,
-//   reusing its generic budgetWireDropHighlight/budgetMoveDraftItem drag
-//   helpers) — add/rename/reorder/remove a category and set its price, all
-//   client-side until "Gem" writes the whole ordered list back in one
-//   streg_save_categories call. Left untouched by the grid's own edit
-//   mode (stregRefreshSheetCard only ever replaces .streg-sheet-card), so
-//   an in-progress category/price draft there survives the admin toggling
-//   Rediger on the grid.
+//   labels/prices are entirely managed from the Priser card; the grid
+//   just follows whatever stregState.categories currently is.
+// - The Priser card (buildStregPricesCard) is live-save, no batching at
+//   all (mirrors budgetWireDropHighlight/budgetMoveDraftItem's generic
+//   drag helpers from buildCategoryEditSection above, but not its
+//   Gem-batched draft model) — label/price commit on blur, reorder commits
+//   on drop, each resending the whole category list via streg_save_categories
+//   immediately, then refreshing the grid card (stregRefreshSheetCard) so
+//   its columns/Betaling never go stale. Safe now that the grid itself no
+//   longer live-saves either (see its own Gem above) — nothing here can
+//   race an in-flight grid save any more.
 
 function renderStregToggleCard(container) {
   const card = el('section', 'card budget-streg-toggle');
@@ -2482,16 +2482,15 @@ let stregSheetEditMode = false;
 let stregSheetDraft = null;
 
 // Set by buildStregPricesCard() to its own local refreshComputed closure —
-// lets a grid save/reset (the only two things that change stregState.rows
-// now that both areas are Gem-batched) refresh the Pris pr. streg card's
-// own per-unit preview against the new saved tally totals, without either
-// card needing to know the other's internals.
+// lets a grid save/reset (the only two things that change stregState.rows)
+// refresh the Priser card's own per-unit preview against the new saved
+// tally totals, without either card needing to know the other's internals.
 let stregPriceRefreshComputed = null;
 
 // Total tally count recorded for one category across every row of the
 // given rows list — the shared denominator behind both
-// stregComputePricePerUnit() and the Pris pr. streg card's own live
-// preview of an as-yet-unsaved draft price. Defaults to the last-saved
+// stregComputePricePerUnit() and the Priser card's own live preview of an
+// as-yet-uncommitted price. Defaults to the last-saved
 // stregState.rows; the grid's own edit-mode table passes its in-progress
 // draft instead, so Betaling recomputes instantly against what's actually
 // being typed rather than stale saved counts.
@@ -2533,8 +2532,10 @@ function stregRefreshCards() {
 }
 
 // Rebuilds only the grid card — used by its own Rediger/Annuller/Gem/
-// Nulstil actions, so an in-progress draft on the separate Pris pr. streg
-// card (which those never touch) survives untouched.
+// Nulstil actions, and by Priser's own live commitAll() (whose column/price
+// changes the grid needs to reflect immediately) — either way, leaving the
+// other card's own DOM alone means neither ever loses focus/gets torn down
+// by the other's edits.
 function stregRefreshSheetCard() {
   const oldSheet = document.querySelector('.streg-sheet-card');
   if (oldSheet) oldSheet.replaceWith(buildStregSheetCard());
@@ -2643,10 +2644,10 @@ function stregAddPlusBtn(title, onClick) {
 
 // Columns are driven entirely by stregState.categories, in its current
 // order — adding/removing/reordering a column happens exclusively in the
-// Pris pr. streg card (buildStregPricesCard) via its own Gem-saved draft,
-// never from the grid itself; this table just follows along. `rows` is
-// either the last-saved stregState.rows (view mode) or the in-progress
-// stregSheetDraft (edit mode); `onDirtyChange` is only passed in edit mode.
+// Priser card (buildStregPricesCard), never from the grid itself; this
+// table just follows along. `rows` is either the last-saved stregState.rows
+// (view mode) or the in-progress stregSheetDraft (edit mode);
+// `onDirtyChange` is only passed in edit mode.
 function stregBuildTable(rows, editable, onDirtyChange) {
   const betalingCells = new Map(); // draft/saved row object -> its Betaling <td>, scoped to this one render
 
@@ -2984,18 +2985,22 @@ function renderStregPricesCard(container) {
 }
 
 // Replaces Afventende udlæg while in streg mode — this is where the whole
-// category list is managed (add/rename/reorder/remove + price), exactly
-// mirroring Budget's own "Rediger kategorier" editor (buildCategoryEditSection
-// above): a local draft, draggable rows (reusing that same section's
-// generic budgetWireDropHighlight/budgetMoveDraftItem helpers), a dirty
-// status indicator, and one explicit "Gem" that writes the whole ordered
-// list back in a single atomic streg_save_categories call. Nothing here
-// touches the server until Gem is clicked — the stregregnskab grid itself
-// has no add/remove/reorder controls of its own any more; its columns just
-// follow stregState.categories' current (saved) order. STREGPRIS PR STYK is
-// shown live against each draft row's in-progress (not-yet-saved) price,
-// using the CURRENT saved tally counts — so typing a price previews its
-// effect immediately, without needing to save first.
+// category list is managed (add/rename/reorder/remove + price). Live-save,
+// same posture as Fællesspisning's own grid: label/price commit on blur,
+// reordering commits on drop, no separate Gem/Gemt status here at all — a
+// commit resends the *whole* ordered list in one atomic streg_save_categories
+// call regardless of which single field changed (mirrors
+// budget_categories_save's own shape), then refreshes the grid card
+// (stregRefreshSheetCard) so its columns/Betaling stay in sync with the
+// change immediately. This was unsafe back when the grid itself also
+// live-saved every tally keystroke (see the git history) — now that the
+// grid is its own Rediger/Gem-batched draft, nothing here can race it, so
+// there's no reason to make the admin remember to click a second Gem.
+// Removing a category asks first (stregOpenDeleteCategoryConfirm, styled
+// like the grid's own Nulstil confirm) since it's otherwise irreversible
+// with no undo. A brand-new local row (key:null) is never sent until its
+// Navn is actually filled in and blurred — an abandoned "+" click leaves
+// nothing behind, same posture as the grid's own abandoned-row handling.
 // Deliberately no .budget-scroll-wrap here (unlike Afventende udlæg): the
 // category list is small and bounded (a handful of drink types, never the
 // dozens Afventende udlæg's pending-request list can reach), so it isn't
@@ -3005,9 +3010,7 @@ function renderStregPricesCard(container) {
 function buildStregPricesCard() {
   const card = el('section', 'card budget-col-pending streg-prices-card');
   const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, 'Pris pr. streg'));
-  const status = el('span', 'budget-save-status', 'Gemt');
-  head.appendChild(status);
+  head.appendChild(el('h2', null, 'Priser'));
   card.appendChild(head);
 
   // Local to this card — nothing outside needs these directly; a grid
@@ -3021,15 +3024,18 @@ function buildStregPricesCard() {
     return card;
   }
 
-  const draft = stregState.categories.map((c) => ({
+  const items = stregState.categories.map((c) => ({
     key: c.key, label: c.label, price: Number(stregState.prices[c.key]) || 0,
   }));
-  const snapshot = JSON.stringify(draft);
-  function refreshDirtyStatus() {
-    const dirty = JSON.stringify(draft) !== snapshot;
-    status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
-    status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
-  }
+
+  const errorEl = el('div', 'streg-error');
+  card.appendChild(errorEl);
+
+  const header = el('div', 'streg-price-row streg-price-header');
+  header.appendChild(el('span', 'streg-price-label-input'));
+  header.appendChild(el('span', 'streg-price-col-buy', 'Indkøb'));
+  header.appendChild(el('span', 'streg-price-per-unit', 'Pr. streg'));
+  card.appendChild(header);
 
   const list = el('div', 'streg-price-list');
   card.appendChild(list);
@@ -3038,21 +3044,58 @@ function buildStregPricesCard() {
 
   function refreshComputed() {
     let total = 0;
-    draft.forEach((item) => {
+    items.forEach((item) => {
       total += item.price;
       const tallyTotal = stregCategoryTallyTotal(item.key);
       const perUnitVal = (item.price > 0 && tallyTotal > 0) ? item.price / tallyTotal : null;
       const span = stregPriceUnitCells.get(item);
-      if (span) span.textContent = perUnitVal != null ? `${formatKr(perUnitVal)} pr. streg` : '—';
+      if (span) span.textContent = perUnitVal != null ? formatKr(perUnitVal) : '—';
     });
     if (stregPriceTotalEl) stregPriceTotalEl.textContent = formatKr(total);
   }
   stregPriceRefreshComputed = refreshComputed;
 
+  // Resends the whole current items list (minus any still-blank brand-new
+  // row — see this section's own header comment). On success, re-syncs
+  // each sent item's key/label/price from the server's own cleaned-up
+  // response (a brand-new item's real key in particular) and refreshes the
+  // grid card, whose columns/Betaling may now be stale.
+  async function commitAll() {
+    const ready = items.filter((d) => !(d.key === null && d.label.trim() === ''));
+    if (ready.length === 0) {
+      errorEl.textContent = 'Der skal være mindst én kategori.';
+      return { ok: false };
+    }
+    if (ready.some((d) => !d.label.trim())) {
+      errorEl.textContent = 'Udfyld navn for hver kategori.';
+      return { ok: false };
+    }
+    const result = await budgetApi('streg_save_categories', {
+      budgetId: budgetViewId,
+      categories: ready.map((d) => ({ key: d.key || undefined, label: d.label.trim(), price: d.price })),
+    });
+    if (!result.ok) {
+      errorEl.textContent = result.message || 'Kunne ikke gemme.';
+      return result;
+    }
+    errorEl.textContent = '';
+    (result.data.categories || []).forEach((c, i) => {
+      if (!ready[i]) return;
+      ready[i].key = c.key;
+      ready[i].label = c.label;
+      ready[i].price = Number((result.data.prices || {})[c.key]) || 0;
+    });
+    stregState.categories = result.data.categories || [];
+    stregState.prices = result.data.prices || {};
+    refreshComputed();
+    stregRefreshSheetCard();
+    return { ok: true };
+  }
+
   function renderList() {
     list.textContent = '';
     stregPriceUnitCells = new Map();
-    draft.forEach((item) => {
+    items.forEach((item) => {
       const row = el('div', 'streg-price-row');
       row.draggable = true;
       row.addEventListener('dragstart', (e) => {
@@ -3062,8 +3105,8 @@ function buildStregPricesCard() {
       row.addEventListener('dragend', () => row.classList.remove('budget-drop-target'));
       budgetWireDropHighlight(row, () => {
         if (dragItem && dragItem !== item) {
-          budgetMoveDraftItem(draft, dragItem, item, renderList);
-          refreshDirtyStatus();
+          budgetMoveDraftItem(items, dragItem, item, renderList);
+          commitAll();
         }
       });
 
@@ -3071,9 +3114,10 @@ function buildStregPricesCard() {
       labelInput.type = 'text';
       labelInput.value = item.label;
       labelInput.placeholder = 'Navn';
-      labelInput.addEventListener('input', () => {
+      labelInput.addEventListener('blur', () => {
+        if (labelInput.value === item.label) return;
         item.label = labelInput.value;
-        refreshDirtyStatus();
+        commitAll();
       });
       row.appendChild(labelInput);
 
@@ -3083,11 +3127,15 @@ function buildStregPricesCard() {
       priceInput.className = 'streg-price-input';
       priceInput.placeholder = '0,00';
       priceInput.value = item.price ? String(item.price).replace('.', ',') : '';
+      // Recomputes the per-unit preview instantly on every keystroke (an
+      // in-memory-only update — see refreshComputed) but only actually
+      // saves on blur, same convention as every other text field on this
+      // site (mirrors Fællesspisning's own grid).
       priceInput.addEventListener('input', () => {
         item.price = parseAmount(priceInput.value) || 0;
-        refreshDirtyStatus();
         refreshComputed();
       });
+      priceInput.addEventListener('blur', () => commitAll());
       row.appendChild(priceInput);
 
       const perUnitSpan = el('span', 'streg-price-per-unit', '—');
@@ -3098,10 +3146,25 @@ function buildStregPricesCard() {
       removeBtn.type = 'button';
       removeBtn.title = 'Fjern kategori';
       removeBtn.addEventListener('click', () => {
-        const idx = draft.indexOf(item);
-        if (idx !== -1) draft.splice(idx, 1);
-        renderList();
-        refreshDirtyStatus();
+        if (item.key === null) {
+          // Never actually saved — just drop it locally, no confirm needed.
+          const idx = items.indexOf(item);
+          if (idx !== -1) items.splice(idx, 1);
+          renderList();
+          return;
+        }
+        if (items.length <= 1) {
+          errorEl.textContent = 'Der skal være mindst én kategori.';
+          return;
+        }
+        stregOpenDeleteCategoryConfirm(item, async () => {
+          const idx = items.indexOf(item);
+          if (idx !== -1) items.splice(idx, 1);
+          const result = await commitAll();
+          if (result.ok) renderList();
+          else if (idx !== -1) items.splice(idx, 0, item); // roll back on failure
+          return result;
+        });
       });
       row.appendChild(removeBtn);
 
@@ -3115,9 +3178,8 @@ function buildStregPricesCard() {
   addBtn.type = 'button';
   addBtn.title = 'Tilføj kategori';
   addBtn.addEventListener('click', () => {
-    draft.push({ key: null, label: '', price: 0 });
+    items.push({ key: null, label: '', price: 0 });
     renderList();
-    refreshDirtyStatus();
     const lastLabel = list.lastElementChild && list.lastElementChild.querySelector('.streg-price-label-input');
     if (lastLabel) lastLabel.focus();
   });
@@ -3131,41 +3193,40 @@ function buildStregPricesCard() {
   card.appendChild(totalRow);
   refreshComputed();
 
-  const saveBar = el('div', 'streg-price-save-bar');
-  const saveBtn = el('button', 'site-btn-success', 'Gem');
-  saveBtn.type = 'button';
-  saveBtn.addEventListener('click', async () => {
-    if (draft.length === 0) {
-      status.textContent = 'Der skal være mindst én kategori.';
-      status.className = 'budget-save-status error';
-      return;
-    }
-    if (draft.some((d) => !d.label.trim())) {
-      status.textContent = 'Udfyld navn for hver kategori.';
-      status.className = 'budget-save-status error';
-      return;
-    }
-    saveBtn.disabled = true;
-    status.textContent = 'Gemmer …';
-    status.className = 'budget-save-status';
-    const result = await budgetApi('streg_save_categories', {
-      budgetId: budgetViewId,
-      categories: draft.map((d) => ({ key: d.key || undefined, label: d.label.trim(), price: d.price })),
-    });
-    saveBtn.disabled = false;
-    if (!result.ok) {
-      status.textContent = result.message || 'Kunne ikke gemme.';
-      status.className = 'budget-save-status error';
-      return;
-    }
-    stregState.categories = result.data.categories || [];
-    stregState.prices = result.data.prices || {};
-    stregRefreshCards();
-  });
-  saveBar.appendChild(saveBtn);
-  card.appendChild(saveBar);
-
   return card;
+}
+
+// Styled "Er du sikker?" overlay, mirrors stregOpenResetConfirm — removing
+// a category is otherwise irreversible with no undo (unlike every other
+// field here, which just resends the whole list on the next edit).
+// `onConfirm` performs the actual removal + commitAll() and returns the
+// commit's own {ok, message} result, so a failure (e.g. network) keeps the
+// modal open with an inline error instead of silently losing the action.
+function stregOpenDeleteCategoryConfirm(item, onConfirm) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('streg-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  form.appendChild(el('p', 'streg-confirm-text',
+    item.label ? `Fjern "${item.label}" permanent?` : 'Fjern denne kategori permanent?'));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = budgetPillBtn('Fjern', 'site-btn-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await onConfirm();
+    if (!result.ok) {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+      return;
+    }
+    close();
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Init ─────────────────────────────────────────────────────
