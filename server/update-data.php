@@ -1641,19 +1641,19 @@ function streg_read($body) {
   ]);
 }
 
-// Admin: replaces the whole rows list (navn + counts per row) in one atomic
-// write — the save handler behind the stregregnskab grid's own Nulstil/
-// Rediger/Gem bar (mirrors streg_save_categories's shape/validation almost
+// Admin: replaces the whole rows list (navn + counts + paid per row) in one
+// atomic write — the save handler behind the stregregnskab grid's own
+// Nulstil/Gem bar (mirrors streg_save_categories's shape/validation almost
 // exactly, and the same "send the full next array" convention used
 // throughout this file). A client-supplied `id` that still matches a
 // currently-existing row keeps that row's identity — `createdAt` and, most
 // importantly, `source` (a row synced in from a connected Formularer form
 // keeps that link, so a later sync still recognizes it as already
-// present) are carried over from the current doc, only `navn`/`counts`
-// actually change. An omitted or stale `id` mints a fresh one via
-// streg_id(). Any row currently on file whose id isn't present in the
-// payload is simply dropped — "Nulstil" (clear the whole sheet) is just
-// this same action called with an empty `rows` array.
+// present) are carried over from the current doc; `navn`/`counts`/`paid`
+// always reflect exactly what the client sent. An omitted or stale `id`
+// mints a fresh one via streg_id(). Any row currently on file whose id
+// isn't present in the payload is simply dropped — "Nulstil" (clear the
+// whole sheet) is just this same action called with an empty `rows` array.
 function streg_save_rows($body) {
   $budgetId = budget_resolve_budget_id($body);
   $rowsIn = $body['rows'] ?? null;
@@ -1685,15 +1685,16 @@ function streg_save_rows($body) {
         }
         $idIn = (isset($item['id']) && is_string($item['id']) && streg_valid_id($item['id'])) ? $item['id'] : null;
         $existing = ($idIn !== null && isset($currentById[$idIn])) ? $currentById[$idIn] : null;
+        $paid = !empty($item['paid']);
         if ($existing) {
           $row = [
-            'id' => $existing['id'], 'navn' => trim($item['navn']), 'counts' => $counts,
+            'id' => $existing['id'], 'navn' => trim($item['navn']), 'counts' => $counts, 'paid' => $paid,
             'createdAt' => $existing['createdAt'] ?? $now, 'updatedAt' => $now,
           ];
           if (isset($existing['source'])) $row['source'] = $existing['source'];
           $nextRows[] = $row;
         } else {
-          $nextRows[] = ['id' => streg_id(), 'navn' => trim($item['navn']), 'counts' => $counts, 'createdAt' => $now, 'updatedAt' => $now];
+          $nextRows[] = ['id' => streg_id(), 'navn' => trim($item['navn']), 'counts' => $counts, 'paid' => $paid, 'createdAt' => $now, 'updatedAt' => $now];
         }
       }
       $json['rows'] = $nextRows;

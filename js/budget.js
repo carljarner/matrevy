@@ -2539,7 +2539,7 @@ function buildStregSheetCard() {
   }
 
   if (!stregSheetDraft) {
-    stregSheetDraft = stregState.rows.map((r) => ({ id: r.id, navn: r.navn || '', counts: { ...(r.counts || {}) } }));
+    stregSheetDraft = stregState.rows.map((r) => ({ id: r.id, navn: r.navn || '', counts: { ...(r.counts || {}) }, paid: !!r.paid }));
   }
   const draft = stregSheetDraft;
   const snapshot = JSON.stringify(draft);
@@ -2687,22 +2687,28 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   const tr = el('tr');
 
   const navnTd = el('td', 'streg-col-navn');
+  // Checkbox+input sit in their own inner flex row rather than making the
+  // <td> itself display:flex — that knocked the cell out of normal
+  // table-cell layout, breaking its row's own border-bottom (its height no
+  // longer matched its siblings', reading as a "break in the line").
+  const navnWrap = el('div', 'streg-navn-wrap');
+  navnTd.appendChild(navnWrap);
 
-  // Marks a row as paid — purely visual (row.paid is never sent to the
-  // server, see stregSaveRows' own payload shape), so it resets to
-  // unchecked the next time the draft is rebuilt from fresh data (a save,
-  // Nulstil, or a Formularer sync). Toggles the Betaling cell's own
-  // strike-through/weight below.
+  // Marks a row as paid — saved like any other field (streg_save_rows'
+  // payload includes it), so it survives a Gem; only reset by Nulstil (a
+  // full clear) or a Formularer sync recreating the row. Toggles the
+  // Betaling cell's own strike-through/weight below.
   const paidCheckbox = document.createElement('input');
   paidCheckbox.type = 'checkbox';
   paidCheckbox.className = 'streg-paid-checkbox';
   paidCheckbox.checked = !!row.paid;
-  paidCheckbox.title = 'Har betalt (kun visuelt, gemmes ikke)';
+  paidCheckbox.title = 'Har betalt';
   paidCheckbox.addEventListener('change', () => {
     row.paid = paidCheckbox.checked;
     betalingTd.classList.toggle('streg-paid', row.paid);
+    if (onDirtyChange) onDirtyChange();
   });
-  navnTd.appendChild(paidCheckbox);
+  navnWrap.appendChild(paidCheckbox);
 
   const navnInput = document.createElement('input');
   navnInput.type = 'text';
@@ -2725,7 +2731,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   });
   navnInput.addEventListener('mouseleave', stregHideFieldTooltip);
   navnInput.addEventListener('focus', stregHideFieldTooltip);
-  navnTd.appendChild(navnInput);
+  navnWrap.appendChild(navnInput);
   tr.appendChild(navnTd);
 
   stregState.categories.forEach((c) => {
@@ -2820,7 +2826,7 @@ async function stregSaveRows(saveBtn, status, draft) {
   status.className = 'budget-save-status';
   const result = await budgetApi('streg_save_rows', {
     budgetId: budgetViewId,
-    rows: cleaned.map((r) => ({ id: r.id || undefined, navn: r.navn.trim(), counts: r.counts || {} })),
+    rows: cleaned.map((r) => ({ id: r.id || undefined, navn: r.navn.trim(), counts: r.counts || {}, paid: !!r.paid })),
   });
   if (!result.ok) {
     saveBtn.disabled = false;

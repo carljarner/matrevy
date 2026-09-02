@@ -1058,18 +1058,21 @@ tr.budget-row-filler td {
   z-index: 2;
 }
 
-/* Only the body cells hold a checkbox alongside the name input — the
-   header cell (plain "Navn" text) stays a normal table cell. */
-.streg-table tbody .streg-col-navn {
+/* Body cells wrap the checkbox+input pair in their own inner flex row
+   (.streg-navn-wrap) rather than making the <td> itself display:flex —
+   that had knocked the cell out of normal table-cell layout entirely,
+   breaking its row's own border-bottom (it no longer matched its
+   siblings' height, reading as a "break in the line"). The header cell
+   (plain "Navn" text) needs no wrapper at all. */
+.streg-navn-wrap {
   display: flex;
   align-items: center;
   gap: 0.4rem;
 }
 
-/* Purely visual "har betalt" marker (js/budget.js's own stregRenderRow) —
-   never saved. Same site-wide checkbox convention as Forms'/
-   Fællesspisning's own (accent-color instead of the browser-default
-   blue). */
+/* "har betalt" marker (js/budget.js's own stregRenderRow) — same site-wide
+   checkbox convention as Forms'/Fællesspisning's own (accent-color instead
+   of the browser-default blue). */
 .streg-paid-checkbox {
   flex: none;
   accent-color: var(--accent-warm-text);
