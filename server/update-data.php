@@ -183,8 +183,7 @@ $BUDGET_ACTIONS = [
   'budget_delete_year'      => 'admin', // permanently delete a whole budget year — irreversible
   'budget_rename_year'      => 'admin', // rename/relabel an existing budget year, data carries over unchanged
   'streg_read'              => 'admin', // stregregnskab: read one budget's bar-tally sheet
-  'streg_upsert_row'        => 'admin', // add/update one name row's tally counts
-  'streg_delete_row'        => 'admin',
+  'streg_save_rows'         => 'admin', // replace the whole name/tally-count rows list (also "Nulstil", with an empty array)
   'streg_save_categories'   => 'admin', // replace the drink-category list + prices (add/rename/reorder/remove)
   'streg_save_connection'   => 'admin', // connect/disconnect a Formularer form for name rows
 ];
@@ -780,8 +779,7 @@ function handle_budget($action, $body) {
     case 'budget_delete_year':      return budget_delete_year($body);
     case 'budget_rename_year':      return budget_rename_year($body);
     case 'streg_read':              return streg_read($body);
-    case 'streg_upsert_row':        return streg_upsert_row($body);
-    case 'streg_delete_row':        return streg_delete_row($body);
+    case 'streg_save_rows':         return streg_save_rows($body);
     case 'streg_save_categories':    return streg_save_categories($body);
     case 'streg_save_connection':   return streg_save_connection($body);
   }
@@ -1643,79 +1641,66 @@ function streg_read($body) {
   ]);
 }
 
-// Create (no rowId) or update (rowId given) one name row. `navn` and
-// `counts` are always sent in full by the client (unlike Fællesspisning's
-// per-field answers merge) — a bartender editing one cell already has the
-// whole row's current state on hand. `counts` is filtered down to this
-// budget's current category keys inside the mutate closure (a stray key
-// from a just-deleted category is silently dropped, never rejected — same
-// "don't lose a submitter's work over a race" posture used throughout this
-// file). A row created/refreshed by a connected form goes through
-// streg_sync_connection() instead, which only ever touches `navn`.
-function streg_upsert_row($body) {
+// Admin: replaces the whole rows list (navn + counts per row) in one atomic
+// write — the save handler behind the stregregnskab grid's own Nulstil/
+// Rediger/Gem bar (mirrors streg_save_categories's shape/validation almost
+// exactly, and the same "send the full next array" convention used
+// throughout this file). A client-supplied `id` that still matches a
+// currently-existing row keeps that row's identity — `createdAt` and, most
+// importantly, `source` (a row synced in from a connected Formularer form
+// keeps that link, so a later sync still recognizes it as already
+// present) are carried over from the current doc, only `navn`/`counts`
+// actually change. An omitted or stale `id` mints a fresh one via
+// streg_id(). Any row currently on file whose id isn't present in the
+// payload is simply dropped — "Nulstil" (clear the whole sheet) is just
+// this same action called with an empty `rows` array.
+function streg_save_rows($body) {
   $budgetId = budget_resolve_budget_id($body);
-  $rowId = $body['rowId'] ?? null;
-  if ($rowId !== null && (!is_string($rowId) || !streg_valid_id($rowId))) {
-    respond(400, ['error' => 'invalid_shape']);
-  }
-  $navn = $body['navn'] ?? '';
-  if (!is_string($navn) || trim($navn) === '' || mb_strlen($navn) > 120) {
-    respond(400, ['error' => 'invalid_shape']);
-  }
-  $navn = trim($navn);
-  $countsIn = $body['counts'] ?? [];
-  if (!is_array($countsIn)) respond(400, ['error' => 'invalid_shape']);
-  foreach ($countsIn as $k => $v) {
-    if (!is_string($k) || $k === '' || !is_numeric($v) || (float) $v < 0) {
+  $rowsIn = $body['rows'] ?? null;
+  if (!is_array($rowsIn)) respond(400, ['error' => 'invalid_shape']);
+  foreach ($rowsIn as $item) {
+    if (!is_array($item)
+        || !isset($item['navn']) || !is_string($item['navn']) || trim($item['navn']) === '' || mb_strlen(trim($item['navn'])) > 120
+        || !isset($item['counts']) || !is_array($item['counts'])) {
       respond(400, ['error' => 'invalid_shape']);
+    }
+    foreach ($item['counts'] as $k => $v) {
+      if (!is_string($k) || $k === '' || !is_numeric($v) || (float) $v < 0) {
+        respond(400, ['error' => 'invalid_shape']);
+      }
     }
   }
 
-  $savedRow = null;
   $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(),
-    function ($json) use ($rowId, $navn, $countsIn, &$savedRow) {
+    function ($json) use ($rowsIn) {
       $knownKeys = array_column(streg_categories($json), 'key');
-      $counts = [];
-      foreach ($countsIn as $k => $v) {
-        if (in_array($k, $knownKeys, true)) $counts[$k] = (int) round((float) $v);
-      }
+      $currentById = [];
+      foreach (($json['rows'] ?? []) as $row) { $currentById[$row['id']] = $row; }
       $now = date('c');
-      $found = false;
-      $json['rows'] = $json['rows'] ?? [];
-      foreach ($json['rows'] as &$row) {
-        if ($rowId !== null && $row['id'] === $rowId) {
-          $row['navn'] = $navn;
-          $row['counts'] = $counts;
-          $row['updatedAt'] = $now;
-          $savedRow = $row;
-          $found = true;
-          break;
+      $nextRows = [];
+      foreach ($rowsIn as $item) {
+        $counts = [];
+        foreach ($item['counts'] as $k => $v) {
+          if (in_array($k, $knownKeys, true)) $counts[$k] = (int) round((float) $v);
+        }
+        $idIn = (isset($item['id']) && is_string($item['id']) && streg_valid_id($item['id'])) ? $item['id'] : null;
+        $existing = ($idIn !== null && isset($currentById[$idIn])) ? $currentById[$idIn] : null;
+        if ($existing) {
+          $row = [
+            'id' => $existing['id'], 'navn' => trim($item['navn']), 'counts' => $counts,
+            'createdAt' => $existing['createdAt'] ?? $now, 'updatedAt' => $now,
+          ];
+          if (isset($existing['source'])) $row['source'] = $existing['source'];
+          $nextRows[] = $row;
+        } else {
+          $nextRows[] = ['id' => streg_id(), 'navn' => trim($item['navn']), 'counts' => $counts, 'createdAt' => $now, 'updatedAt' => $now];
         }
       }
-      unset($row);
-      if ($rowId !== null && !$found) respond(404, ['error' => 'not_found']);
-      if ($rowId === null) {
-        $savedRow = ['id' => streg_id(), 'navn' => $navn, 'counts' => $counts, 'createdAt' => $now, 'updatedAt' => $now];
-        $json['rows'][] = $savedRow;
-      }
+      $json['rows'] = $nextRows;
       $json['updatedAt'] = $now;
       return $json;
     });
-  respond(200, ['ok' => true, 'row' => $savedRow, 'updatedAt' => $doc['updatedAt']]);
-}
-
-function streg_delete_row($body) {
-  $budgetId = budget_resolve_budget_id($body);
-  $rowId = $body['rowId'] ?? '';
-  if (!streg_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
-  budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($rowId) {
-    $json['rows'] = array_values(array_filter($json['rows'] ?? [], function ($r) use ($rowId) {
-      return $r['id'] !== $rowId;
-    }));
-    $json['updatedAt'] = date('c');
-    return $json;
-  });
-  respond(200, ['ok' => true]);
+  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Admin: replaces the whole category list (key/label) + price map in one

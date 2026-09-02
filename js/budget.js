@@ -481,6 +481,10 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   // A full reload (year switch, post-save refresh, ...) always lands back
   // in the normal sheet view, never mid-category-edit.
   budgetCategoriesEditMode = false;
+  // Same for the stregregnskab grid's own Rediger toggle — a fresh load
+  // never opens mid-edit, and any unsaved draft is discarded with it.
+  stregSheetEditMode = false;
+  stregSheetDraft = null;
   if (showLoading) {
     root.replaceChildren();
     const loading = el('p', 'budget-intro', 'Henter budgetdata …');
@@ -569,20 +573,36 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
 // the row's own height — it doesn't cap the *taller* one, so an unbounded
 // list on either side would otherwise dictate the whole row's height,
 // growing past (and dragging along) the other column instead of scrolling
-// internally within it. The two columns must always render at the SAME
-// height, in both modes, regardless of row count — so whichever side holds
-// naturally bounded content (a handful of expense categories in normal
-// mode; the year toolbar + Stregregnskab toggle + Pris pr. streg's own
-// small category list in streg mode) is the reference, and the side that
-// can genuinely grow without bound (Afventende udlæg's request list in
-// normal mode; the stregregnskab grid's own row count in streg mode) gets
-// capped via max-height + overflow-y:auto (css/budget.css) to match it
-// exactly. This mode-flips which column is "the reference," since Budget
-// doesn't render at all while in streg mode. Skipped below the mobile
-// breakpoint, where .budget-columns collapses to one stacked column and
-// every card sizes to its own content instead (css/budget.css's own
-// mobile block already resets these elements' max-height there, but the
-// inline style set here at a wider viewport would otherwise outrank it).
+// internally within it. In normal mode, Budget (bounded by its own category
+// count) is the reference and Afventende udlæg's own request list is capped
+// to match it via max-height + overflow-y:auto (css/budget.css), since that
+// list can be arbitrarily long.
+//
+// Streg mode doesn't render Budget at all, so it can't use the same
+// live reference — and its own content shape (a handful of price rows vs. a
+// names list that can run long) naturally sizes to something else entirely,
+// which made switching modes visibly resize the whole row. Instead the two
+// boxes there "remember" the row height last measured in normal mode
+// (budgetCachedRowHeight, persisted so it survives a reload straight into
+// streg mode too) and both pin to that fixed value: the grid's own row area
+// is capped to it exactly like Afventende udlæg is in normal mode, and
+// .budget-col-right gets an explicit min-height so its own (usually
+// shorter) content doesn't shrink the row instead. Falls back to the old
+// content-derived height only on a brand new browser that has never
+// rendered normal mode this budget.
+//
+// Skipped below the mobile breakpoint, where .budget-columns collapses to
+// one stacked column and every card sizes to its own content instead
+// (css/budget.css's own mobile block already resets these elements' own
+// max-height there, but the inline style set here at a wider viewport would
+// otherwise outrank it).
+let budgetCachedRowHeight = null;
+const BUDGET_ROW_HEIGHT_KEY = 'matrevy-budget-row-height';
+try {
+  const storedRowHeight = Number(localStorage.getItem(BUDGET_ROW_HEIGHT_KEY));
+  if (storedRowHeight > 0) budgetCachedRowHeight = storedRowHeight;
+} catch (e) { /* ignore (private browsing, storage disabled, ...) */ }
+
 function budgetSyncPendingColumnHeight() {
   const colRight = document.querySelector('.budget-col-right');
   const sheetCard = document.querySelector('.budget-sheet-card'); // Budget, or the streg grid card
@@ -590,19 +610,32 @@ function budgetSyncPendingColumnHeight() {
   const mobile = window.innerWidth <= 719;
 
   if (budgetStregMode) {
-    // Right column (bounded) is the reference; the grid's own row area is
-    // capped to match it, since a names list can be arbitrarily long.
     const stregWrap = document.querySelector('.streg-table-wrap');
     if (!stregWrap) return;
-    if (mobile) { stregWrap.style.maxHeight = ''; return; }
+    if (mobile) { stregWrap.style.maxHeight = ''; colRight.style.minHeight = ''; return; }
+    const cachedHeight = budgetCachedRowHeight != null ? budgetCachedRowHeight : colRight.getBoundingClientRect().height;
+    colRight.style.minHeight = cachedHeight + 'px';
+    // The cached height is a floor, not a hard pin: colRight's own natural
+    // content (year toolbar + toggle + Pris pr. streg's own category list)
+    // can genuinely need more room than a normal-mode budget with few
+    // categories ever did — min-height can only stretch colRight up to the
+    // cached value, never shrink it back down. Re-measuring after applying
+    // it picks up whichever is actually taller, so the grid is always
+    // capped to match colRight's real rendered height, not a stale number
+    // that would otherwise leave the two boxes visibly mismatched.
     const refHeight = colRight.getBoundingClientRect().height;
     const consumedAbove = stregWrap.getBoundingClientRect().top - sheetCard.getBoundingClientRect().top;
-    // sheetCard's own bottom padding sits *after* stregWrap within the
-    // same card and isn't captured by consumedAbove (which only measures
-    // what's above it) — omitting it here was the earlier version's bug,
-    // consistently undershooting the target height by exactly that padding.
-    const bottomPadding = parseFloat(getComputedStyle(sheetCard).paddingBottom) || 0;
-    stregWrap.style.maxHeight = Math.max(refHeight - consumedAbove - bottomPadding, 0) + 'px';
+    // Everything below stregWrap within the same card — its own bottom
+    // padding, plus the Nulstil/Rediger/Gem bar the grid renders after it
+    // (which the main Budget sheet's own scrollWrap never has to account
+    // for, since nothing trails Afventende udlæg's list). Measured
+    // directly off stregWrap's own current (pre-cap) height rather than
+    // just reading padding-bottom, which was an earlier version's bug —
+    // that undercounted by exactly the action bar's own height once it was
+    // added, consistently overshooting the target.
+    const belowWrap = Math.max(
+      sheetCard.getBoundingClientRect().height - consumedAbove - stregWrap.getBoundingClientRect().height, 0);
+    stregWrap.style.maxHeight = Math.max(refHeight - consumedAbove - belowWrap, 0) + 'px';
     return;
   }
 
@@ -619,9 +652,25 @@ function budgetSyncPendingColumnHeight() {
   const parentCard = scrollWrap.parentElement;
   const bottomPadding = parentCard ? (parseFloat(getComputedStyle(parentCard).paddingBottom) || 0) : 0;
   scrollWrap.style.maxHeight = Math.max(sheetHeight - consumedAbove - bottomPadding, 0) + 'px';
+
+  // Remember this for streg mode (see above) — always the last real
+  // measurement of normal mode's own natural row height, across budgets.
+  budgetCachedRowHeight = sheetHeight;
+  try { localStorage.setItem(BUDGET_ROW_HEIGHT_KEY, String(sheetHeight)); } catch (e) { /* ignore */ }
 }
 
 window.addEventListener('resize', budgetSyncPendingColumnHeight);
+// A first synchronous measurement, taken right after the admin view's DOM is
+// built, can land before the browser's text/form-control layout has fully
+// settled — even with no custom @font-face, document.fonts.ready still only
+// resolves once that has happened, and re-running the sync then is what
+// site.js's own siteUpdateHeaderFit relies on for the exact same reason.
+// Without this, Afventende udlæg's cap could freeze ~10-20px short of
+// Budget's real height until something else (e.g. a window resize)
+// happened to recompute it.
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => budgetSyncPendingColumnHeight());
+}
 
 // ── Admin: year toolbar (switch/rename which budget is shown) ──
 function budgetYearLabel(budgetId) {
@@ -2385,33 +2434,24 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
 }
 
 // ── Admin: Stregregnskab (bar tally accounting) ──────────────
-// Two areas, deliberately different edit models:
-// - The grid (buildStregSheetCard/stregBuildTable) is names × drink-count
-//   cells only — rows commit individually on blur (mirrors
-//   faellesspisning.js's own grid), "Forbind" syncs names from a
-//   Formularer form. It has no structural controls of its own any more:
-//   column set/order/labels/prices are entirely managed from the Pris pr.
-//   streg card, and the grid just follows whatever stregState.categories
-//   currently is.
-// - The Pris pr. streg card (buildStregPricesCard) is a Budget-style
+// Two areas, both Budget-style Gem-batched draft editors:
+// - The grid (buildStregSheetCard/stregBuildTable) is read-only by
+//   default; its own bottom bar mirrors the main Budget sheet's own
+//   Slet/Rediger/Gem exactly (Nulstil/Rediger/Gem — see stregSheetEditMode
+//   below). "Forbind" (sync names from a Formularer form) is disabled
+//   while editing, since it overwrites stregState.rows outright and would
+//   otherwise silently stomp an in-progress draft. Column set/order/
+//   labels/prices are entirely managed from the Pris pr. streg card; the
+//   grid just follows whatever stregState.categories currently is.
+// - The Pris pr. streg card (buildStregPricesCard) is its own independent
 //   Gem-batched draft editor (mirrors buildCategoryEditSection above,
 //   reusing its generic budgetWireDropHighlight/budgetMoveDraftItem drag
 //   helpers) — add/rename/reorder/remove a category and set its price, all
 //   client-side until "Gem" writes the whole ordered list back in one
-//   streg_save_categories call. Nothing here auto-saves per keystroke,
-//   unlike the grid's own rows — this was a deliberate fix for structural
-//   category edits interrupting in-progress tally entry elsewhere on the
-//   page.
-// A single module-level Map (stregRowBetalingCells) plus a function
-// reference into the currently-mounted Pris-pr-streg card
-// (stregPriceRefreshComputed) let a grid row edit refresh every derived
-// Betaling/STREGPRIS-PR-STYK display via plain textContent updates
-// (stregRecomputeDisplays) rather than rebuilding the whole grid on every
-// blur — rebuilding would steal focus from whatever cell the bartender is
-// about to click next mid-entry. A row add/remove or a "Forbind"
-// connect/disconnect still rebuilds both cards outright via
-// stregRefreshCards(), since those are deliberate one-off actions, not
-// part of the rapid-entry flow.
+//   streg_save_categories call. Left untouched by the grid's own edit
+//   mode (stregRefreshSheetCard only ever replaces .streg-sheet-card), so
+//   an in-progress category/price draft there survives the admin toggling
+//   Rediger on the grid.
 
 function renderStregToggleCard(container) {
   const card = el('section', 'card budget-streg-toggle');
@@ -2433,30 +2473,41 @@ async function budgetToggleStregMode() {
   window.scrollTo(0, scrollY);
 }
 
-let stregRowBetalingCells = new Map(); // row -> its Betaling <td>, rebuilt whenever the grid itself rebuilds
+// Toggled by the grid's own Nulstil/Rediger/Gem bar — mirrors
+// budgetCategoriesEditMode. stregSheetDraft is a deep clone of
+// stregState.rows (each row's own counts object cloned too, so editing a
+// draft cell never mutates the last-saved stregState in place) taken the
+// moment edit mode is entered; discarded on Annuller/Gem/a fresh page load.
+let stregSheetEditMode = false;
+let stregSheetDraft = null;
+
 // Set by buildStregPricesCard() to its own local refreshComputed closure —
-// lets stregRecomputeDisplays() (fired by a grid tally edit elsewhere)
-// refresh that card's per-unit/total display against its current draft
-// state without either card needing to know the other's internals.
+// lets a grid save/reset (the only two things that change stregState.rows
+// now that both areas are Gem-batched) refresh the Pris pr. streg card's
+// own per-unit preview against the new saved tally totals, without either
+// card needing to know the other's internals.
 let stregPriceRefreshComputed = null;
 
-// Total tally count recorded for one category across every row — the
-// shared denominator behind both stregComputePricePerUnit() (saved prices,
-// used by the grid) and the Pris pr. streg card's own live preview of an
-// as-yet-unsaved draft price.
-function stregCategoryTallyTotal(key) {
-  return stregState.rows.reduce((sum, r) => sum + (Number((r.counts || {})[key]) || 0), 0);
+// Total tally count recorded for one category across every row of the
+// given rows list — the shared denominator behind both
+// stregComputePricePerUnit() and the Pris pr. streg card's own live
+// preview of an as-yet-unsaved draft price. Defaults to the last-saved
+// stregState.rows; the grid's own edit-mode table passes its in-progress
+// draft instead, so Betaling recomputes instantly against what's actually
+// being typed rather than stale saved counts.
+function stregCategoryTallyTotal(key, rows) {
+  return (rows || stregState.rows).reduce((sum, r) => sum + (Number((r.counts || {})[key]) || 0), 0);
 }
 
 // STREGPRIS PR STYK per category — INDKØBSPRIS divided by the total tally
 // count recorded for that category across every row; null (rendered as
 // "—") while either side of that division is zero, so a category with no
 // price yet or no tallies sold yet never divides by zero.
-function stregComputePricePerUnit() {
+function stregComputePricePerUnit(rows) {
   const perUnit = {};
   stregState.categories.forEach((c) => {
     const price = Number(stregState.prices[c.key]) || 0;
-    const total = stregCategoryTallyTotal(c.key);
+    const total = stregCategoryTallyTotal(c.key, rows);
     perUnit[c.key] = (price > 0 && total > 0) ? price / total : null;
   });
   return perUnit;
@@ -2471,23 +2522,8 @@ function stregRowBetaling(row, perUnit) {
   }, 0);
 }
 
-// Refreshes only the derived Betaling/pris-pr-styk text, never touching an
-// <input> — see this section's own header comment for why. The Pris pr.
-// streg card's own per-unit preview is driven by its *draft* prices (not
-// yet necessarily saved), so this delegates to that card's own
-// stregPriceRefreshComputed closure (set whenever buildStregPricesCard()
-// runs) rather than recomputing from stregState.prices directly here.
-function stregRecomputeDisplays() {
-  const perUnit = stregComputePricePerUnit();
-  stregRowBetalingCells.forEach((cell, row) => {
-    cell.textContent = formatKr(stregRowBetaling(row, perUnit));
-  });
-  if (stregPriceRefreshComputed) stregPriceRefreshComputed();
-}
-
-// Structural change (row/category added or removed, form connected/
-// disconnected) — rebuilds both cards outright, unlike the lighter
-// stregRecomputeDisplays() used after an ordinary cell edit.
+// Structural change (category add/remove/reorder, form connected/
+// disconnected) — rebuilds both cards outright.
 function stregRefreshCards() {
   const oldSheet = document.querySelector('.streg-sheet-card');
   if (oldSheet) oldSheet.replaceWith(buildStregSheetCard());
@@ -2496,14 +2532,34 @@ function stregRefreshCards() {
   budgetSyncPendingColumnHeight();
 }
 
+// Rebuilds only the grid card — used by its own Rediger/Annuller/Gem/
+// Nulstil actions, so an in-progress draft on the separate Pris pr. streg
+// card (which those never touch) survives untouched.
+function stregRefreshSheetCard() {
+  const oldSheet = document.querySelector('.streg-sheet-card');
+  if (oldSheet) oldSheet.replaceWith(buildStregSheetCard());
+  budgetSyncPendingColumnHeight();
+}
+
 function renderStregSheetCard(container) {
   container.appendChild(buildStregSheetCard());
 }
 
+// Read-only by default; "Rediger" swaps the grid into an editable draft
+// (stregSheetDraft) and reveals the add-row "+"/per-row "✕" controls, with
+// every derived Betaling recomputing instantly (on every keystroke, not
+// just on blur) against that draft — nothing touches the server until
+// "Gem" commits the whole rows array in one atomic streg_save_rows call, at
+// which point edit mode closes back to the read-only view. "Nulstil" is a
+// separate, immediately-confirmed destructive action (mirrors the main
+// Budget sheet's own "Slet") that clears every row outright, in or out of
+// edit mode.
 function buildStregSheetCard() {
   const card = el('section', 'card budget-sheet-card streg-sheet-card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Stregregnskab'));
+  const status = el('span', 'budget-save-status', 'Gemt');
+  head.appendChild(status);
   head.appendChild(el('span', 'budget-count', String(stregState.rows.length)));
   card.appendChild(head);
 
@@ -2518,15 +2574,58 @@ function buildStregSheetCard() {
     : 'Forbind';
   const connectBtn = el('button', 'btn-small', connectLabel);
   connectBtn.type = 'button';
+  connectBtn.disabled = stregSheetEditMode;
+  if (stregSheetEditMode) connectBtn.title = 'Afslut redigeringen af skemaet først';
   connectBtn.addEventListener('click', () => stregOpenConnectModal());
   toolbar.appendChild(connectBtn);
   card.appendChild(toolbar);
 
   card.appendChild(el('div', 'streg-error'));
 
+  let draft = null;
+  let refreshDirtyStatus = null;
+  if (stregSheetEditMode) {
+    if (!stregSheetDraft) {
+      stregSheetDraft = stregState.rows.map((r) => ({ id: r.id, navn: r.navn || '', counts: { ...(r.counts || {}) } }));
+    }
+    draft = stregSheetDraft;
+    const snapshot = JSON.stringify(draft);
+    refreshDirtyStatus = () => {
+      const dirty = JSON.stringify(draft) !== snapshot;
+      status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+      status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
+    };
+  }
+
   const wrap = el('div', 'streg-table-wrap');
-  wrap.appendChild(stregBuildTable());
+  wrap.appendChild(stregBuildTable(draft || stregState.rows, stregSheetEditMode, refreshDirtyStatus));
   card.appendChild(wrap);
+
+  const actions = el('div', 'budget-save-bar');
+
+  const resetBtn = el('button', 'site-btn-danger', 'Nulstil');
+  resetBtn.type = 'button';
+  resetBtn.addEventListener('click', () => stregOpenResetConfirm());
+  actions.appendChild(resetBtn);
+
+  const editBtn = el('button', 'site-btn-warm budget-edit-btn', stregSheetEditMode ? 'Annuller' : 'Rediger');
+  editBtn.type = 'button';
+  editBtn.addEventListener('click', () => {
+    // Toggling off (Annuller) simply discards the draft — nothing was
+    // ever sent to the server until Gem.
+    stregSheetEditMode = !stregSheetEditMode;
+    if (!stregSheetEditMode) stregSheetDraft = null;
+    stregRefreshSheetCard();
+  });
+  actions.appendChild(editBtn);
+
+  const saveBtn = el('button', 'site-btn-success', 'Gem');
+  saveBtn.type = 'button';
+  saveBtn.disabled = !stregSheetEditMode;
+  if (stregSheetEditMode) saveBtn.addEventListener('click', () => stregSaveRows(saveBtn, status, draft));
+  actions.appendChild(saveBtn);
+
+  card.appendChild(actions);
 
   return card;
 }
@@ -2545,10 +2644,19 @@ function stregAddPlusBtn(title, onClick) {
 // Columns are driven entirely by stregState.categories, in its current
 // order — adding/removing/reordering a column happens exclusively in the
 // Pris pr. streg card (buildStregPricesCard) via its own Gem-saved draft,
-// never from the grid itself; this table just follows along.
-function stregBuildTable() {
-  stregRowBetalingCells = new Map();
-  const perUnit = stregComputePricePerUnit();
+// never from the grid itself; this table just follows along. `rows` is
+// either the last-saved stregState.rows (view mode) or the in-progress
+// stregSheetDraft (edit mode); `onDirtyChange` is only passed in edit mode.
+function stregBuildTable(rows, editable, onDirtyChange) {
+  const betalingCells = new Map(); // draft/saved row object -> its Betaling <td>, scoped to this one render
+
+  function recomputeAll() {
+    const perUnit = stregComputePricePerUnit(rows);
+    betalingCells.forEach((cell, row) => {
+      cell.textContent = formatKr(stregRowBetaling(row, perUnit));
+    });
+  }
+
   const table = el('table', 'streg-table');
 
   const thead = el('thead');
@@ -2558,149 +2666,171 @@ function stregBuildTable() {
     headRow.appendChild(el('th', 'streg-col-count', c.label));
   });
   headRow.appendChild(el('th', 'streg-col-betaling', 'Betaling'));
-  headRow.appendChild(el('th', '', ''));
+  if (editable) headRow.appendChild(el('th', '', ''));
   thead.appendChild(headRow);
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  const sortedRows = stregState.rows.slice()
+  const sortedRows = rows.slice()
     .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'da', { sensitivity: 'base' }));
-  sortedRows.forEach((row) => tbody.appendChild(stregRenderRow(row, perUnit)));
+  sortedRows.forEach((row) => tbody.appendChild(
+    stregRenderRow(row, editable, betalingCells, recomputeAll, rows, onDirtyChange)));
 
-  const addRow = el('tr', 'streg-add-row');
-  const addCell = el('td', 'streg-add-row-plus-cell');
-  addCell.colSpan = 1 + stregState.categories.length;
-  addCell.appendChild(stregAddPlusBtn('Tilføj række', () => {
-    const draft = { id: null, navn: '', counts: {} };
-    const tr = stregRenderRow(draft, perUnit);
-    tbody.insertBefore(tr, addRow);
-    const firstInput = tr.querySelector('input[type="text"]');
-    if (firstInput) firstInput.focus();
-  }));
-  addRow.appendChild(addCell);
-  addRow.appendChild(el('td')); // filler under the Betaling column
-  addRow.appendChild(el('td')); // filler under the trailing per-row remove column
-
-  tbody.appendChild(addRow);
+  if (editable) {
+    const addRow = el('tr', 'streg-add-row');
+    const addCell = el('td', 'streg-add-row-plus-cell');
+    addCell.colSpan = 2 + stregState.categories.length;
+    addCell.appendChild(stregAddPlusBtn('Tilføj række', () => {
+      const draftRow = { id: null, navn: '', counts: {} };
+      rows.push(draftRow);
+      const tr = stregRenderRow(draftRow, editable, betalingCells, recomputeAll, rows, onDirtyChange);
+      tbody.insertBefore(tr, addRow);
+      recomputeAll();
+      if (onDirtyChange) onDirtyChange();
+      const firstInput = tr.querySelector('input[type="text"]');
+      if (firstInput) firstInput.focus();
+    }));
+    addRow.appendChild(addCell);
+    addRow.appendChild(el('td')); // filler under the trailing per-row remove column
+    tbody.appendChild(addRow);
+  }
   table.appendChild(tbody);
+  recomputeAll();
   return table;
 }
 
-function stregRenderRow(row, perUnit) {
+function stregRenderRow(row, editable, betalingCells, recomputeAll, rows, onDirtyChange) {
   const tr = el('tr');
 
   const navnTd = el('td', 'streg-col-navn');
-  const navnInput = document.createElement('input');
-  navnInput.type = 'text';
-  navnInput.value = row.navn || '';
-  navnInput.placeholder = 'Påkrævet';
-  navnInput.addEventListener('blur', () => {
-    if (row.navn === navnInput.value && row.id !== null) return;
-    row.navn = navnInput.value;
-    stregCommitRow(row);
-  });
-  navnTd.appendChild(navnInput);
+  if (editable) {
+    const navnInput = document.createElement('input');
+    navnInput.type = 'text';
+    navnInput.value = row.navn || '';
+    navnInput.placeholder = 'Påkrævet';
+    navnInput.addEventListener('input', () => {
+      row.navn = navnInput.value;
+      if (onDirtyChange) onDirtyChange();
+    });
+    navnTd.appendChild(navnInput);
+  } else {
+    navnTd.textContent = row.navn || '';
+  }
   tr.appendChild(navnTd);
 
   stregState.categories.forEach((c) => {
     const td = el('td', 'streg-col-count');
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = '0';
-    input.step = '1';
-    input.inputMode = 'numeric';
     const val = (row.counts || {})[c.key];
-    input.value = val ? String(val) : '';
-    input.addEventListener('blur', () => {
-      const n = Math.max(0, Math.round(Number(input.value) || 0));
-      input.value = n ? String(n) : '';
-      if (!row.counts) row.counts = {};
-      if ((row.counts[c.key] || 0) === n) return;
-      if (n) row.counts[c.key] = n;
-      else delete row.counts[c.key];
-      stregCommitRow(row);
-    });
-    td.appendChild(input);
+    if (editable) {
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = '1';
+      input.inputMode = 'numeric';
+      input.value = val ? String(val) : '';
+      // Recomputes on every keystroke (instant Betaling/STREGPRIS feedback)
+      // without reformatting the field's own live value — only 'blur'
+      // normalizes what's displayed, so typing "10" doesn't get clobbered
+      // mid-entry by a premature round-trip through Math.round.
+      input.addEventListener('input', () => {
+        const n = Math.max(0, Math.round(Number(input.value) || 0));
+        if (!row.counts) row.counts = {};
+        if (n) row.counts[c.key] = n;
+        else delete row.counts[c.key];
+        recomputeAll();
+        if (onDirtyChange) onDirtyChange();
+      });
+      input.addEventListener('blur', () => {
+        const n = (row.counts || {})[c.key] || 0;
+        input.value = n ? String(n) : '';
+      });
+      td.appendChild(input);
+    } else {
+      td.textContent = val ? String(val) : '';
+    }
     tr.appendChild(td);
   });
 
-  const betalingTd = el('td', 'streg-col-betaling', formatKr(stregRowBetaling(row, perUnit)));
-  stregRowBetalingCells.set(row, betalingTd);
+  const betalingTd = el('td', 'streg-col-betaling');
+  betalingCells.set(row, betalingTd);
   tr.appendChild(betalingTd);
 
-  const removeTd = el('td');
-  const removeBtn = el('button', 'streg-remove-btn', '✕');
-  removeBtn.type = 'button';
-  removeBtn.title = 'Fjern række';
-  removeBtn.addEventListener('click', () => stregDeleteRow(row, tr));
-  removeTd.appendChild(removeBtn);
-  tr.appendChild(removeTd);
+  if (editable) {
+    const removeTd = el('td');
+    const removeBtn = el('button', 'streg-remove-btn', '✕');
+    removeBtn.type = 'button';
+    removeBtn.title = 'Fjern række';
+    removeBtn.addEventListener('click', () => {
+      const idx = rows.indexOf(row);
+      if (idx !== -1) rows.splice(idx, 1);
+      betalingCells.delete(row);
+      tr.remove();
+      recomputeAll();
+      if (onDirtyChange) onDirtyChange();
+    });
+    removeTd.appendChild(removeBtn);
+    tr.appendChild(removeTd);
+  }
 
   return tr;
 }
 
-// Commits the row's current in-memory navn/counts to the server. A brand
-// new (id === null) row with an empty Navn is a no-op — an abandoned "+"
-// click must leave nothing behind server-side. Commits on the same row are
-// serialized via row._inFlight (mirrors faellesCommitRow) so blurring two
-// fields on the same still-unsaved row in quick succession can't fire two
-// concurrent "create" requests and produce a duplicate row.
-async function stregCommitRow(row) {
-  if (row.id === null && (row.navn || '').trim() === '') return;
-  if (row._inFlight) await row._inFlight;
-  const body = { navn: row.navn, counts: row.counts || {}, budgetId: budgetViewId };
-  if (row.id !== null) body.rowId = row.id;
-  const promise = budgetApi('streg_upsert_row', body);
-  row._inFlight = promise;
-  const result = await promise;
-  row._inFlight = null;
-  const errorBox = document.querySelector('.streg-sheet-card .streg-error');
+// Commits the whole edit-mode draft in one atomic streg_save_rows call —
+// a draft row with a still-blank Navn (an abandoned "+" click) is silently
+// dropped rather than blocking the save, same posture as the old per-row
+// auto-commit's "a brand new row with an empty Navn is a no-op."
+async function stregSaveRows(saveBtn, status, draft) {
+  const cleaned = draft.filter((r) => (r.navn || '').trim() !== '');
+  saveBtn.disabled = true;
+  status.textContent = 'Gemmer …';
+  status.className = 'budget-save-status';
+  const result = await budgetApi('streg_save_rows', {
+    budgetId: budgetViewId,
+    rows: cleaned.map((r) => ({ id: r.id || undefined, navn: r.navn.trim(), counts: r.counts || {} })),
+  });
   if (!result.ok) {
-    if (errorBox && result.message) errorBox.textContent = result.message;
+    saveBtn.disabled = false;
+    status.textContent = result.message || 'Kunne ikke gemme.';
+    status.className = 'budget-save-status error';
     return;
   }
-  if (errorBox) errorBox.textContent = '';
-  const wasNew = row.id === null;
-  row.id = result.data.row.id;
-  row.navn = result.data.row.navn;
-  row.counts = result.data.row.counts;
-  if (wasNew) stregState.rows.push(row);
-  stregRecomputeDisplays();
+  stregState.rows = result.data.rows || [];
+  stregSheetEditMode = false;
+  stregSheetDraft = null;
+  stregRefreshSheetCard();
+  if (stregPriceRefreshComputed) stregPriceRefreshComputed();
 }
 
-function stregDeleteRow(row, tr) {
-  if (row.id === null) {
-    tr.remove();
-    return;
-  }
-  stregOpenDeleteRowConfirm(row);
-}
-
-// Styled "Er du sikker?" overlay, mirrors faellesOpenDeleteRowConfirm.
-function stregOpenDeleteRowConfirm(row) {
+// Immediate destructive action (its own "Er du sikker?" confirm, mirrors
+// the main Budget sheet's own "Slet") — clears every row in this budget's
+// stregregnskab in one call, whether or not the grid is currently mid-edit.
+function stregOpenResetConfirm() {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
   modal.classList.add('streg-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'streg-confirm-text',
-    row.navn ? `Fjern "${row.navn}" permanent?` : 'Fjern denne række permanent?'));
+    'Nulstil stregregnskabet? Alle navne og streger for dette budget slettes permanent.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = budgetPillBtn('Fjern', 'site-btn-danger');
+  const confirmBtn = budgetPillBtn('Nulstil', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await budgetApi('streg_delete_row', { rowId: row.id, budgetId: budgetViewId });
+    const result = await budgetApi('streg_save_rows', { budgetId: budgetViewId, rows: [] });
     if (!result.ok) {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;
       return;
     }
-    stregState.rows = stregState.rows.filter((r) => r !== row);
+    stregState.rows = result.data.rows || [];
+    stregSheetEditMode = false;
+    stregSheetDraft = null;
     close();
-    stregRefreshCards();
+    stregRefreshSheetCard();
+    if (stregPriceRefreshComputed) stregPriceRefreshComputed();
   });
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
@@ -2880,9 +3010,8 @@ function buildStregPricesCard() {
   head.appendChild(status);
   card.appendChild(head);
 
-  // Local to this card (unlike stregRowBetalingCells, nothing outside needs
-  // these directly — stregRecomputeDisplays() reaches this card only via
-  // stregPriceRefreshComputed below).
+  // Local to this card — nothing outside needs these directly; a grid
+  // save/reset reaches this card only via stregPriceRefreshComputed below.
   let stregPriceUnitCells = new Map();
   let stregPriceTotalEl = null;
 

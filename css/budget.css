@@ -951,6 +951,15 @@ tr.budget-row-filler td {
   margin-bottom: 0.75rem;
 }
 
+/* "Forbind" while the grid is mid-edit (see js/budget.js's own comment on
+   why it's disabled then) — .btn-small has no site-wide :disabled rule of
+   its own (unlike the .site-btn-* family), so it'd otherwise render with no
+   visual difference from an enabled button. */
+.streg-toolbar .btn-small:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* Vertical scroll (max-height set by js/budget.js's budgetSyncPendingColumnHeight
    — see that function's own comment: the streg grid is capped to match the
    right column's natural height, since a names list can be arbitrarily
