@@ -447,6 +447,7 @@
   color: var(--text-muted);
   margin-top: 0.5rem;
   text-align: right;
+  padding: 0 2rem; /* same inset as .budget-streg-breakdown-rows, so this flushes with the amount column above it */
 }
 
 /* --- Paid browser ----------------------------------------- */
