@@ -55,6 +55,16 @@ function budgetStregCategoryKey() {
   return 'stregnskab';
 }
 
+// Expense categories shown in the main Budget sheet (planned/brugt/rest
+// table + its totals) — excludes Stregnskab, which is tracked entirely
+// through stregregnskab's own accounting (see stregComputeIndkobByKey) and
+// isn't meant to be planned/budgeted for like an ordinary category, even
+// though it stays selectable (and non-deletable) everywhere else, e.g. the
+// revyst submit form and "Rediger kategorier".
+function budgetSheetExpenseCategories() {
+  return budgetState.categories.expense.filter((c) => c.key !== budgetStregCategoryKey());
+}
+
 // ── Small DOM helper ─────────────────────────────────────────
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -1124,7 +1134,7 @@ function buildNormalSheetSection(card) {
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  budgetState.categories.expense.forEach((c) => {
+  budgetSheetExpenseCategories().forEach((c) => {
     const tr = el('tr');
     tr.appendChild(el('td', null, c.label));
 
@@ -1218,7 +1228,7 @@ function updateSheetTotals() {
   if (!budgetSheet) return;
   let totalPlanned = 0;
   let totalBrugt = 0;
-  budgetState.categories.expense.forEach((c) => {
+  budgetSheetExpenseCategories().forEach((c) => {
     const planned = parseAmount(budgetSheet.plannedInputs[c.key].value) || 0;
     const brugt = budgetSheet.spent[c.key] || 0;
     const rest = planned - brugt;
@@ -1244,7 +1254,7 @@ function updateSheetTotals() {
 // Collect the current sheet values into the payload shape.
 function collectSheetPayload() {
   const planned = {};
-  budgetState.categories.expense.forEach((c) => {
+  budgetSheetExpenseCategories().forEach((c) => {
     const raw = budgetSheet.plannedInputs[c.key].value.trim();
     if (raw !== '') {
       const v = parseAmount(raw);
