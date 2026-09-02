@@ -481,9 +481,8 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   // A full reload (year switch, post-save refresh, ...) always lands back
   // in the normal sheet view, never mid-category-edit.
   budgetCategoriesEditMode = false;
-  // Same for the stregregnskab grid's own Rediger toggle — a fresh load
-  // never opens mid-edit, and any unsaved draft is discarded with it.
-  stregSheetEditMode = false;
+  // Same for the stregregnskab grid's own draft — a fresh load always
+  // starts from a clean draft matching whatever was actually saved.
   stregSheetDraft = null;
   if (showLoading) {
     root.replaceChildren();
@@ -2435,14 +2434,15 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
 
 // ── Admin: Stregregnskab (bar tally accounting) ──────────────
 // Two areas, deliberately different edit models:
-// - The grid (buildStregSheetCard/stregBuildTable) is read-only by
-//   default; its own bottom bar mirrors the main Budget sheet's own
-//   Slet/Rediger/Gem exactly (Nulstil/Rediger/Gem — see stregSheetEditMode
-//   below). "Forbind" (sync names from a Formularer form) is disabled
-//   while editing, since it overwrites stregState.rows outright and would
-//   otherwise silently stomp an in-progress draft. Column set/order/
-//   labels/prices are entirely managed from the Priser card; the grid
-//   just follows whatever stregState.categories currently is.
+// - The grid (buildStregSheetCard/stregBuildTable) is always editable
+//   (mirrors Fællesspisning's own grid look, no read-only view), backed by
+//   a draft (stregSheetDraft) that only actually reaches the server on its
+//   own bottom-bar Nulstil/Gem (see stregSheetDraft below). "Forbind" (sync
+//   names from a Formularer form) is disabled while the draft has unsaved
+//   changes, since it overwrites stregState.rows outright and would
+//   otherwise silently discard them. Column set/order/labels/prices are
+//   entirely managed from the Priser card; the grid just follows whatever
+//   stregState.categories currently is.
 // - The Priser card (buildStregPricesCard) is live-save, no batching at
 //   all (mirrors budgetWireDropHighlight/budgetMoveDraftItem's generic
 //   drag helpers from buildCategoryEditSection above, but not its
@@ -2473,12 +2473,11 @@ async function budgetToggleStregMode() {
   window.scrollTo(0, scrollY);
 }
 
-// Toggled by the grid's own Nulstil/Rediger/Gem bar — mirrors
-// budgetCategoriesEditMode. stregSheetDraft is a deep clone of
-// stregState.rows (each row's own counts object cloned too, so editing a
-// draft cell never mutates the last-saved stregState in place) taken the
-// moment edit mode is entered; discarded on Annuller/Gem/a fresh page load.
-let stregSheetEditMode = false;
+// A deep clone of stregState.rows (each row's own counts object cloned
+// too, so editing a draft cell never mutates the last-saved stregState in
+// place), (re)built the first time buildStregSheetCard() renders after a
+// fresh load/save/reset/sync — nothing here reaches the server until the
+// grid's own "Gem" is clicked.
 let stregSheetDraft = null;
 
 // Set by buildStregPricesCard() to its own local refreshComputed closure —
@@ -2546,22 +2545,23 @@ function renderStregSheetCard(container) {
   container.appendChild(buildStregSheetCard());
 }
 
-// Read-only by default; "Rediger" swaps the grid into an editable draft
-// (stregSheetDraft) and reveals the add-row "+"/per-row "✕" controls, with
-// every derived Betaling recomputing instantly (on every keystroke, not
-// just on blur) against that draft — nothing touches the server until
-// "Gem" commits the whole rows array in one atomic streg_save_rows call, at
-// which point edit mode closes back to the read-only view. "Nulstil" is a
-// separate, immediately-confirmed destructive action (mirrors the main
-// Budget sheet's own "Slet") that clears every row outright, in or out of
-// edit mode.
+// Always editable (mirrors Fællesspisning's own grid look — no separate
+// read-only view/Rediger toggle at all any more), backed by a draft
+// (stregSheetDraft) that only actually reaches the server on "Gem" — every
+// derived Betaling still recomputes instantly (on every keystroke) against
+// that draft, and the dirty status ("Gemt"/"Ikke gemt") sits right next to
+// the Gem button rather than up in the card head. "Nulstil" is a separate,
+// immediately-confirmed destructive action (mirrors the main Budget
+// sheet's own "Slet") that clears every row outright. Removing a row asks
+// first (stregOpenDeleteGridRowConfirm, styled like Fællesspisning's own
+// row-delete confirm) unless it was never actually saved to begin with (a
+// still-uncommitted "+" row) — nothing to lose there yet. "Forbind" is
+// disabled while the draft has unsaved changes, since a sync overwrites
+// stregState.rows outright and would otherwise silently discard them.
 function buildStregSheetCard() {
   const card = el('section', 'card budget-sheet-card streg-sheet-card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Stregregnskab'));
-  const status = el('span', 'budget-save-status', 'Gemt');
-  head.appendChild(status);
-  head.appendChild(el('span', 'budget-count', String(stregState.rows.length)));
   card.appendChild(head);
 
   if (stregState.error) {
@@ -2569,37 +2569,35 @@ function buildStregSheetCard() {
     return card;
   }
 
+  if (!stregSheetDraft) {
+    stregSheetDraft = stregState.rows.map((r) => ({ id: r.id, navn: r.navn || '', counts: { ...(r.counts || {}) } }));
+  }
+  const draft = stregSheetDraft;
+  const snapshot = JSON.stringify(draft);
+  const status = el('span', 'budget-save-status', 'Gemt');
+  const connectBtn = el('button', 'btn-small');
+  function refreshDirtyStatus() {
+    const dirty = JSON.stringify(draft) !== snapshot;
+    status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+    status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
+    connectBtn.disabled = dirty;
+    connectBtn.title = dirty ? 'Gem eller nulstil dine ændringer i skemaet først' : '';
+  }
+
   const toolbar = el('div', 'streg-toolbar');
-  const connectLabel = stregState.connection
+  connectBtn.type = 'button';
+  connectBtn.textContent = stregState.connection
     ? `Forbindelse: ${stregState.connection.formTitle || 'formular'}`
     : 'Forbind';
-  const connectBtn = el('button', 'btn-small', connectLabel);
-  connectBtn.type = 'button';
-  connectBtn.disabled = stregSheetEditMode;
-  if (stregSheetEditMode) connectBtn.title = 'Afslut redigeringen af skemaet først';
   connectBtn.addEventListener('click', () => stregOpenConnectModal());
   toolbar.appendChild(connectBtn);
   card.appendChild(toolbar);
+  refreshDirtyStatus();
 
   card.appendChild(el('div', 'streg-error'));
 
-  let draft = null;
-  let refreshDirtyStatus = null;
-  if (stregSheetEditMode) {
-    if (!stregSheetDraft) {
-      stregSheetDraft = stregState.rows.map((r) => ({ id: r.id, navn: r.navn || '', counts: { ...(r.counts || {}) } }));
-    }
-    draft = stregSheetDraft;
-    const snapshot = JSON.stringify(draft);
-    refreshDirtyStatus = () => {
-      const dirty = JSON.stringify(draft) !== snapshot;
-      status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
-      status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
-    };
-  }
-
   const wrap = el('div', 'streg-table-wrap');
-  wrap.appendChild(stregBuildTable(draft || stregState.rows, stregSheetEditMode, refreshDirtyStatus));
+  wrap.appendChild(stregBuildTable(draft, refreshDirtyStatus));
   card.appendChild(wrap);
 
   const actions = el('div', 'budget-save-bar');
@@ -2609,22 +2607,13 @@ function buildStregSheetCard() {
   resetBtn.addEventListener('click', () => stregOpenResetConfirm());
   actions.appendChild(resetBtn);
 
-  const editBtn = el('button', 'site-btn-warm budget-edit-btn', stregSheetEditMode ? 'Annuller' : 'Rediger');
-  editBtn.type = 'button';
-  editBtn.addEventListener('click', () => {
-    // Toggling off (Annuller) simply discards the draft — nothing was
-    // ever sent to the server until Gem.
-    stregSheetEditMode = !stregSheetEditMode;
-    if (!stregSheetEditMode) stregSheetDraft = null;
-    stregRefreshSheetCard();
-  });
-  actions.appendChild(editBtn);
-
+  const saveGroup = el('div', 'streg-save-group');
+  saveGroup.appendChild(status);
   const saveBtn = el('button', 'site-btn-success', 'Gem');
   saveBtn.type = 'button';
-  saveBtn.disabled = !stregSheetEditMode;
-  if (stregSheetEditMode) saveBtn.addEventListener('click', () => stregSaveRows(saveBtn, status, draft));
-  actions.appendChild(saveBtn);
+  saveBtn.addEventListener('click', () => stregSaveRows(saveBtn, status, draft));
+  saveGroup.appendChild(saveBtn);
+  actions.appendChild(saveGroup);
 
   card.appendChild(actions);
 
@@ -2645,11 +2634,9 @@ function stregAddPlusBtn(title, onClick) {
 // Columns are driven entirely by stregState.categories, in its current
 // order — adding/removing/reordering a column happens exclusively in the
 // Priser card (buildStregPricesCard), never from the grid itself; this
-// table just follows along. `rows` is either the last-saved stregState.rows
-// (view mode) or the in-progress stregSheetDraft (edit mode);
-// `onDirtyChange` is only passed in edit mode.
-function stregBuildTable(rows, editable, onDirtyChange) {
-  const betalingCells = new Map(); // draft/saved row object -> its Betaling <td>, scoped to this one render
+// table just follows along. `rows` is the in-progress stregSheetDraft.
+function stregBuildTable(rows, onDirtyChange) {
+  const betalingCells = new Map(); // draft row object -> its Betaling <td>, scoped to this one render
 
   function recomputeAll() {
     const perUnit = stregComputePricePerUnit(rows);
@@ -2667,7 +2654,7 @@ function stregBuildTable(rows, editable, onDirtyChange) {
     headRow.appendChild(el('th', 'streg-col-count', c.label));
   });
   headRow.appendChild(el('th', 'streg-col-betaling', 'Betaling'));
-  if (editable) headRow.appendChild(el('th', '', ''));
+  headRow.appendChild(el('th', '', ''));
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -2675,80 +2662,71 @@ function stregBuildTable(rows, editable, onDirtyChange) {
   const sortedRows = rows.slice()
     .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'da', { sensitivity: 'base' }));
   sortedRows.forEach((row) => tbody.appendChild(
-    stregRenderRow(row, editable, betalingCells, recomputeAll, rows, onDirtyChange)));
+    stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange)));
 
-  if (editable) {
-    const addRow = el('tr', 'streg-add-row');
-    const addCell = el('td', 'streg-add-row-plus-cell');
-    addCell.colSpan = 2 + stregState.categories.length;
-    addCell.appendChild(stregAddPlusBtn('Tilføj række', () => {
-      const draftRow = { id: null, navn: '', counts: {} };
-      rows.push(draftRow);
-      const tr = stregRenderRow(draftRow, editable, betalingCells, recomputeAll, rows, onDirtyChange);
-      tbody.insertBefore(tr, addRow);
-      recomputeAll();
-      if (onDirtyChange) onDirtyChange();
-      const firstInput = tr.querySelector('input[type="text"]');
-      if (firstInput) firstInput.focus();
-    }));
-    addRow.appendChild(addCell);
-    addRow.appendChild(el('td')); // filler under the trailing per-row remove column
-    tbody.appendChild(addRow);
-  }
+  const addRow = el('tr', 'streg-add-row');
+  const addCell = el('td', 'streg-add-row-plus-cell');
+  addCell.colSpan = 2 + stregState.categories.length;
+  addCell.appendChild(stregAddPlusBtn('Tilføj række', () => {
+    const draftRow = { id: null, navn: '', counts: {} };
+    rows.push(draftRow);
+    const tr = stregRenderRow(draftRow, betalingCells, recomputeAll, rows, onDirtyChange);
+    tbody.insertBefore(tr, addRow);
+    recomputeAll();
+    if (onDirtyChange) onDirtyChange();
+    const firstInput = tr.querySelector('input[type="text"]');
+    if (firstInput) firstInput.focus();
+  }));
+  addRow.appendChild(addCell);
+  addRow.appendChild(el('td')); // filler under the trailing per-row remove column
+  tbody.appendChild(addRow);
+
   table.appendChild(tbody);
   recomputeAll();
   return table;
 }
 
-function stregRenderRow(row, editable, betalingCells, recomputeAll, rows, onDirtyChange) {
+function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   const tr = el('tr');
 
   const navnTd = el('td', 'streg-col-navn');
-  if (editable) {
-    const navnInput = document.createElement('input');
-    navnInput.type = 'text';
-    navnInput.value = row.navn || '';
-    navnInput.placeholder = 'Påkrævet';
-    navnInput.addEventListener('input', () => {
-      row.navn = navnInput.value;
-      if (onDirtyChange) onDirtyChange();
-    });
-    navnTd.appendChild(navnInput);
-  } else {
-    navnTd.textContent = row.navn || '';
-  }
+  const navnInput = document.createElement('input');
+  navnInput.type = 'text';
+  navnInput.value = row.navn || '';
+  navnInput.placeholder = 'Påkrævet';
+  navnInput.addEventListener('input', () => {
+    row.navn = navnInput.value;
+    if (onDirtyChange) onDirtyChange();
+  });
+  navnTd.appendChild(navnInput);
   tr.appendChild(navnTd);
 
   stregState.categories.forEach((c) => {
     const td = el('td', 'streg-col-count');
     const val = (row.counts || {})[c.key];
-    if (editable) {
-      const input = document.createElement('input');
-      input.type = 'number';
-      input.min = '0';
-      input.step = '1';
-      input.inputMode = 'numeric';
-      input.value = val ? String(val) : '';
-      // Recomputes on every keystroke (instant Betaling/STREGPRIS feedback)
-      // without reformatting the field's own live value — only 'blur'
-      // normalizes what's displayed, so typing "10" doesn't get clobbered
-      // mid-entry by a premature round-trip through Math.round.
-      input.addEventListener('input', () => {
-        const n = Math.max(0, Math.round(Number(input.value) || 0));
-        if (!row.counts) row.counts = {};
-        if (n) row.counts[c.key] = n;
-        else delete row.counts[c.key];
-        recomputeAll();
-        if (onDirtyChange) onDirtyChange();
-      });
-      input.addEventListener('blur', () => {
-        const n = (row.counts || {})[c.key] || 0;
-        input.value = n ? String(n) : '';
-      });
-      td.appendChild(input);
-    } else {
-      td.textContent = val ? String(val) : '';
-    }
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0';
+    input.step = '1';
+    input.inputMode = 'numeric';
+    input.value = val ? String(val) : '';
+    // Recomputes on every keystroke (instant Betaling/STREGPRIS feedback)
+    // without reformatting the field's own live value — only 'blur'
+    // normalizes what's displayed, so typing "10" doesn't get clobbered
+    // mid-entry by a premature round-trip through Math.round.
+    input.addEventListener('input', () => {
+      const n = Math.max(0, Math.round(Number(input.value) || 0));
+      if (!row.counts) row.counts = {};
+      if (n) row.counts[c.key] = n;
+      else delete row.counts[c.key];
+      recomputeAll();
+      if (onDirtyChange) onDirtyChange();
+    });
+    input.addEventListener('blur', () => {
+      const n = (row.counts || {})[c.key] || 0;
+      input.value = n ? String(n) : '';
+    });
+    td.appendChild(input);
     tr.appendChild(td);
   });
 
@@ -2756,29 +2734,56 @@ function stregRenderRow(row, editable, betalingCells, recomputeAll, rows, onDirt
   betalingCells.set(row, betalingTd);
   tr.appendChild(betalingTd);
 
-  if (editable) {
-    const removeTd = el('td');
-    const removeBtn = el('button', 'streg-remove-btn', '✕');
-    removeBtn.type = 'button';
-    removeBtn.title = 'Fjern række';
-    removeBtn.addEventListener('click', () => {
+  const removeTd = el('td');
+  const removeBtn = el('button', 'streg-remove-btn', '✕');
+  removeBtn.type = 'button';
+  removeBtn.title = 'Fjern række';
+  removeBtn.addEventListener('click', () => {
+    const doRemove = () => {
       const idx = rows.indexOf(row);
       if (idx !== -1) rows.splice(idx, 1);
       betalingCells.delete(row);
       tr.remove();
       recomputeAll();
       if (onDirtyChange) onDirtyChange();
-    });
-    removeTd.appendChild(removeBtn);
-    tr.appendChild(removeTd);
-  }
+    };
+    // Never actually saved yet — nothing to lose, so no confirm needed.
+    if (row.id === null) doRemove();
+    else stregOpenDeleteGridRowConfirm(row, doRemove);
+  });
+  removeTd.appendChild(removeBtn);
+  tr.appendChild(removeTd);
 
   return tr;
 }
 
-// Commits the whole edit-mode draft in one atomic streg_save_rows call —
-// a draft row with a still-blank Navn (an abandoned "+" click) is silently
-// dropped rather than blocking the save, same posture as the old per-row
+// Styled "Er du sikker?" overlay, mirrors Fællesspisning's own row-delete
+// confirm — purely local (splicing the not-yet-saved draft), so unlike the
+// other confirms in this file it has no network call/error state of its
+// own to wait on.
+function stregOpenDeleteGridRowConfirm(row, onConfirm) {
+  const { modal, form, actions, close } = siteOpenEditModal('');
+  modal.classList.add('streg-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  form.appendChild(el('p', 'streg-confirm-text',
+    row.navn ? `Fjern "${row.navn}" fra skemaet?` : 'Fjern denne række fra skemaet?'));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = budgetPillBtn('Fjern', 'site-btn-danger');
+  confirmBtn.addEventListener('click', () => {
+    close();
+    onConfirm();
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// Commits the whole draft in one atomic streg_save_rows call — a draft row
+// with a still-blank Navn (an abandoned "+" click) is silently dropped
+// rather than blocking the save, same posture as the old per-row
 // auto-commit's "a brand new row with an empty Navn is a no-op."
 async function stregSaveRows(saveBtn, status, draft) {
   const cleaned = draft.filter((r) => (r.navn || '').trim() !== '');
@@ -2796,7 +2801,6 @@ async function stregSaveRows(saveBtn, status, draft) {
     return;
   }
   stregState.rows = result.data.rows || [];
-  stregSheetEditMode = false;
   stregSheetDraft = null;
   stregRefreshSheetCard();
   if (stregPriceRefreshComputed) stregPriceRefreshComputed();
@@ -2804,7 +2808,7 @@ async function stregSaveRows(saveBtn, status, draft) {
 
 // Immediate destructive action (its own "Er du sikker?" confirm, mirrors
 // the main Budget sheet's own "Slet") — clears every row in this budget's
-// stregregnskab in one call, whether or not the grid is currently mid-edit.
+// stregregnskab in one call.
 function stregOpenResetConfirm() {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
   modal.classList.add('streg-confirm-modal');
@@ -2827,7 +2831,6 @@ function stregOpenResetConfirm() {
       return;
     }
     stregState.rows = result.data.rows || [];
-    stregSheetEditMode = false;
     stregSheetDraft = null;
     close();
     stregRefreshSheetCard();
@@ -2932,6 +2935,7 @@ async function stregOpenConnectModal() {
     }
     stregState.connection = result.data.connection;
     stregState.rows = result.data.rows;
+    stregSheetDraft = null; // discard the (unchanged, since Forbind only enables when clean) draft so the grid rebuilds from the freshly-synced rows
     close();
     stregRefreshCards();
   });
@@ -2972,6 +2976,7 @@ function stregOpenDisconnectConfirm(closeParent) {
     }
     stregState.connection = null;
     stregState.rows = result.data.rows;
+    stregSheetDraft = null;
     close();
     closeParent();
     stregRefreshCards();

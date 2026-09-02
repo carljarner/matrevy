@@ -759,6 +759,20 @@ tr.budget-row-filler td {
   transform: translateX(-50%);
 }
 
+/* The stregregnskab grid's own save-bar right side: "Gemt"/"Ikke gemt"
+   sitting right next to its Gem button, rather than up in the card head
+   like every other sheet's own status (there's no Rediger button any more
+   to make a 3rd .budget-save-bar child, so this is just the 2nd of 2). */
+.streg-save-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.streg-save-group > button {
+  min-width: 5rem;
+}
+
 /* --- Category structure editing (buildCategoryEditSection, the sheet's
    own Rediger/Annuller toggle) --------------------------------------------
    Deliberately kept as close to the normal-mode sheet's own look as
