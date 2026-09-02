@@ -1313,55 +1313,50 @@ function budget_request_update($body) {
   respond(200, ['ok' => true]);
 }
 
-// Computes the "<base> (<n>)" name for a request just split off another one.
-// Strips a trailing " (N)" suffix off the source name to find the shared
-// base first (so splitting an already-split "Navn (2)" again produces
-// "Navn (3)", not "Navn (2) (2)"), then picks one past the highest "(N)"
-// suffix already used among this budget's other pending requests sharing
-// that base name (the original itself counts as an implicit "(1)").
-function budget_split_name($name, $requests) {
-  $base = $name;
-  if (preg_match('/^(.*) \((\d+)\)$/', $name, $m)) {
-    $base = $m[1];
-  }
-  $maxN = 1;
-  foreach ($requests as $r) {
-    $rn = $r['name'] ?? '';
-    if ($rn === $base) continue;
-    if (preg_match('/^' . preg_quote($base, '/') . ' \((\d+)\)$/', $rn, $m2)) {
-      $maxN = max($maxN, (int) $m2[1]);
-    }
-  }
-  return $base . ' (' . ($maxN + 1) . ')';
-}
-
 // Admin: split one pending request into two, for a single receipt that
 // actually covers more than one expense (e.g. two categories on one
-// grocery bill). Duplicates category/phone/comment and the receipt file
-// itself (a fresh copy under pending/, so approving or rejecting either
-// half never touches the other's file) onto a brand-new request right
-// alongside the original — which is left completely untouched — with the
-// name suffixed via budget_split_name() and the amount reset to a nominal
-// 1 kr, since the admin still has to divide the real amount between both
-// before either can be approved. $body['budgetId'] (optional) picks which
-// budget; defaults to the active budget.
+// grocery bill). The admin picks the new expense's own category and how
+// much of the original amount belongs to it; that amount is subtracted
+// from the original request (left otherwise untouched — same name/phone/
+// comment) and a new request is appended for the split-off amount, with
+// its own chosen category and a **copy** of the receipt file (a fresh
+// file under pending/, so approving/rejecting either half never touches
+// the other's file). $body['budgetId'] (optional) picks which budget;
+// defaults to the active budget.
 function budget_request_split($body) {
   $budgetId = budget_resolve_budget_id($body);
-  $id = $body['id'] ?? '';
-  if (!is_string($id) || $id === '') respond(400, ['error' => 'invalid_shape']);
+  $id       = $body['id'] ?? '';
+  $category = $body['category'] ?? '';
+  $amount   = $body['amount'] ?? null;
+  $validExpenseKeys = array_column(budget_load_categories($budgetId)['expense'] ?? [], 'key');
+  if (!is_string($id) || $id === ''
+      || !in_array($category, $validExpenseKeys, true)
+      || !is_numeric($amount) || (float) $amount <= 0) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $amount = round((float) $amount, 2);
 
   $receiptsDir = budget_receipts_dir($budgetId);
-  $found = false;
+  $foundId = false;
+  $success = false;
   $created = null;
   budget_mutate($budgetId, 'requests.json', ['requests' => []],
-    function ($json) use ($id, $receiptsDir, &$found, &$created) {
+    function ($json) use ($id, $category, $amount, $receiptsDir, &$foundId, &$success, &$created) {
       $requests = $json['requests'] ?? [];
-      $original = null;
-      foreach ($requests as $r) {
-        if (($r['id'] ?? null) === $id) { $original = $r; break; }
+      $originalIndex = null;
+      foreach ($requests as $i => $r) {
+        if (($r['id'] ?? null) === $id) { $originalIndex = $i; break; }
       }
-      if ($original === null) return $json;
-      $found = true;
+      if ($originalIndex === null) return $json;
+      $foundId = true;
+      $original = $requests[$originalIndex];
+      // Must leave something behind on the original — otherwise this is
+      // just a disguised category change, which budget_request_update
+      // already covers.
+      if ($amount >= (float) ($original['amount'] ?? 0)) return $json;
+      $success = true;
+
+      $requests[$originalIndex]['amount'] = round((float) $original['amount'] - $amount, 2);
 
       $newId = dechex(time()) . bin2hex(random_bytes(4));
       $newReceiptFile = '';
@@ -1374,9 +1369,9 @@ function budget_request_split($body) {
 
       $duplicate = [
         'id'          => $newId,
-        'category'    => $original['category'] ?? '',
-        'amount'      => 1.0,
-        'name'        => budget_split_name($original['name'] ?? '', $requests),
+        'category'    => $category,
+        'amount'      => $amount,
+        'name'        => $original['name'] ?? '',
         'phone'       => $original['phone'] ?? '',
         'comment'     => $original['comment'] ?? '',
         'receiptFile' => $newReceiptFile,
@@ -1387,7 +1382,8 @@ function budget_request_split($body) {
       $json['requests'] = $requests;
       return $json;
     });
-  if (!$found) respond(404, ['error' => 'not_found']);
+  if (!$foundId) respond(404, ['error' => 'not_found']);
+  if (!$success) respond(400, ['error' => 'invalid_amount']);
   respond(200, ['ok' => true, 'request' => $created]);
 }
 

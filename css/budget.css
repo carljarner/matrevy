@@ -265,11 +265,16 @@
   flex-wrap: nowrap;
 }
 
-/* Each hover-tints in a muted theme-matched shade. */
+/* Each hover-tints in a muted theme-matched shade. Shared min-width keeps
+   Godkend/Rediger/Split/Afvis visually even as a row — "Godkend" is the
+   longest label and sets the floor the shorter ones (Split/Afvis) grow to
+   match; text-align is a button's own default center, so the extra room
+   on those pads out evenly. */
 #budget-root .budget-item-actions .btn-small {
   background: var(--input-bg);
   border-color: var(--border);
   color: var(--text);
+  min-width: 4.6rem;
 }
 
 @media (hover: hover) {
@@ -565,6 +570,15 @@ tr.budget-row-filler td {
 }
 
 .budget-approve-modal .edit-field { margin-bottom: 0.6rem; }
+
+/* Godkend/Godkend alle/Split/Afvis are plain confirm dialogs — center
+   their title and explanatory line. Scoped to exclude .budget-approve-modal
+   (Rediger's own edit-form share of .budget-confirm-modal), which keeps its
+   usual left-aligned title/fields. */
+.budget-confirm-modal:not(.budget-approve-modal) h2,
+.budget-confirm-modal:not(.budget-approve-modal) .budget-intro {
+  text-align: center;
+}
 
 /* Smaller than the .edit-modal (480px) these "are you sure?" dialogs sit on
    top of — mirrors Kalender's .cal-confirm-modal (calendar.css) and

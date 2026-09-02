@@ -1905,24 +1905,46 @@ function openRequestEditModal(root, req) {
 }
 
 // Admin: split a pending request into two — for a single receipt that
-// actually covers more than one expense. Duplicates category/phone/
-// comment/receipt onto a brand-new request right alongside this one
-// (which is left completely untouched); the server suffixes the name
-// "(N)" and resets the new copy's amount to a nominal 1 kr, since the
-// real amount still has to be divided between both before either can be
-// approved (done afterward via that new row's own Rediger).
+// actually covers more than one expense. The admin picks the new expense's
+// own category and how much of the original amount belongs to it; that
+// amount is subtracted from this request (left otherwise untouched — same
+// name/phone/comment/receipt) and a new request is appended for the
+// split-off amount and category, with its own copy of the receipt.
 function openSplitRequestModal(root, req) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Split udlæg');
   modal.classList.add('budget-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
-    `Opret endnu et udlæg med samme kvittering som ${req.name} (${formatKr(req.amount)})? Beløbet sættes til 1 kr og skal rettes til det korrekte beløb, før det kan godkendes.`));
+    `Opret endnu et udlæg med samme kvittering som ${req.name} (${formatKr(req.amount)}).`));
+
+  const categorySelect = siteCreateDropdownField(
+    budgetCategoryOptions(budgetState.categories.expense, true), req.category
+  );
+  const amountInput = el('input');
+  amountInput.type = 'text';
+  amountInput.inputMode = 'decimal';
+
+  const fieldRow = el('div', 'edit-field-row');
+  fieldRow.appendChild(siteEditField('Kategori', categorySelect));
+  fieldRow.appendChild(siteEditField('Beløb (kr)', amountInput));
+  form.appendChild(fieldRow);
 
   const confirmBtn = budgetPillBtn('Split', 'site-btn-warm');
   confirmBtn.addEventListener('click', async () => {
+    const amount = parseAmount(amountInput.value);
+    if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
+    if (!(amount > 0) || amount >= req.amount) {
+      error.textContent = 'Angiv et beløb mellem 0 og det oprindelige beløb.';
+      return;
+    }
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await budgetApi('budget_request_split', { id: req.id, budgetId: budgetViewId });
+    const result = await budgetApi('budget_request_split', {
+      id: req.id,
+      budgetId: budgetViewId,
+      category: categorySelect.value,
+      amount,
+    });
     if (result.ok) {
       close();
       reloadAdmin(root);
