@@ -1138,6 +1138,13 @@ tr.budget-row-filler td {
   width: min(300px, 85vw);
 }
 
+/* .budget-intro (Nulstil's own explanatory line below .streg-confirm-text)
+   is left-aligned by default everywhere else it's used — center it here to
+   match this modal's own narrow, single-column, all-centered layout. */
+.streg-confirm-modal .budget-intro {
+  text-align: center;
+}
+
 /* --- Priser card (replaces Afventende udlæg while active) -----------
    Live-save, not Gem-batched (see js/budget.js's own comment on
    buildStregPricesCard for why) — reuses buildCategoryEditSection's own row

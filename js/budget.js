@@ -2800,6 +2800,7 @@ async function stregSaveRows(saveBtn, status, draft) {
   }
   stregState.rows = result.data.rows || [];
   stregSheetDraft = null;
+  siteShowToast('Stregregnskab gemt');
   stregRefreshSheetCard();
   if (stregPriceRefreshComputed) stregPriceRefreshComputed();
 }
