@@ -817,7 +817,7 @@ const CALENDAR_DATA = [
     "title": "Manusmøde",
     "category": "manus",
     "location": "S01",
-    "note": ""
+    "note": "Kom og skriv manus!"
   },
   {
     "id": "mtk4qfmi",
@@ -828,7 +828,7 @@ const CALENDAR_DATA = [
     "title": "Manusmøde",
     "category": "manus",
     "location": "S01",
-    "note": ""
+    "note": "Kom og skriv manus!"
   },
   {
     "id": "mtk4qz5a",
