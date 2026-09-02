@@ -366,16 +366,6 @@ a.manus-pdf-title:focus-visible {
   justify-content: center;
 }
 
-/* The boss-only duplicate of the same row (manusAppendPdfLinksToActiveTab),
-   appended at the bottom of whichever Main Manus View tab is active —
-   separated from that tab's own content with a rule line, mirroring
-   .manus-main-view-actions' own top-of-row spacing below. */
-.manus-tab-pdf-links {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid var(--border);
-}
-
 /* --- Tab bar — styled like Budget's/Formularer's own flat mode-switch tab
    bars (site-wide convention: budget.css's .budget-mode-tab, forms.css's
    .forms-admin-tab; duplicated here rather than shared per that same
