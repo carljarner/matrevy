@@ -944,12 +944,44 @@ tr.budget-row-filler td {
 
 /* --- Stregregnskab (bar tally accounting) -------------------------- */
 
-/* The small toggle card sitting between the year toolbar and Afventende
-   udlæg/Priser — its own content never changes shape, only the
-   button's label. */
-.budget-streg-toggle .btn-small {
-  display: block;
-  margin: 0.6rem auto 0;
+/* Page-wide Budget/Stregregnskab switcher sitting above .budget-columns —
+   styled identically to Formularer's own Oversigt/Ny-formular tab bar
+   (forms.css's .forms-admin-tabs/.forms-admin-tab), duplicated here rather
+   than shared since budget.html doesn't load forms.css, per the site's
+   per-feature-duplication convention. */
+.budget-mode-tabs {
+  display: flex;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.budget-mode-tab {
+  flex: 1 1 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.budget-mode-tab.active {
+  color: var(--accent-warm-text);
+  border-bottom-color: var(--accent-warm-text);
+}
+
+@media (hover: hover) {
+  .budget-mode-tab:not(.active):hover { color: var(--text); }
+}
+
+.budget-mode-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  border-radius: 4px;
 }
 
 /* Names × drink-category grid (replaces the Budget card while active) —

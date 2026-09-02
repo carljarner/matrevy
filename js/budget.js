@@ -549,12 +549,13 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
 
   if (budgetStregMode) await stregEnsureLoaded();
 
+  renderBudgetModeTabs(root);
+
   // Budget + right column (the year toolbar above Afventende udlæg) sit
   // side by side. In streg mode the Budget card is replaced by the
   // stregregnskab grid, Afventende udlæg is replaced by the Priser card,
   // and Betalte udgifter (irrelevant to bar tallying) is hidden entirely —
-  // the year toolbar and the Stregregnskab toggle card are the only pieces
-  // that never change between modes.
+  // the year toolbar is the only piece that never changes between modes.
   const cols = el('div', 'budget-columns');
   root.appendChild(cols);
   if (budgetStregMode) renderStregSheetCard(cols);
@@ -562,7 +563,6 @@ async function loadAndRenderAdmin(root, { showLoading = true } = {}) {
   const rightCol = el('div', 'budget-col-right');
   cols.appendChild(rightCol);
   renderYearToolbar(rightCol);
-  renderStregToggleCard(rightCol);
   if (budgetStregMode) renderStregPricesCard(rightCol);
   else renderPendingSection(rightCol);
   if (!budgetStregMode) renderPaidSection(root);
@@ -2407,20 +2407,27 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
 //   longer live-saves either (see its own Gem above) — nothing here can
 //   race an in-flight grid save any more.
 
-function renderStregToggleCard(container) {
-  const card = el('section', 'card budget-streg-toggle');
-  card.appendChild(el('h2', null, 'Stregregnskab'));
-  card.appendChild(el('p', 'budget-intro',
-    'Hold styr på bardrikkeri: navne, antal streger pr. drik, og hvad hver enkelt skylder.'));
-  const btn = el('button', 'btn-small', budgetStregMode ? 'Tilbage til budget' : 'Åbn stregregnskab');
-  btn.type = 'button';
-  btn.addEventListener('click', () => budgetToggleStregMode());
-  card.appendChild(btn);
-  container.appendChild(card);
+// Page-wide tab bar switching between the ordinary Budget view and
+// Stregregnskab — styled like Formularer's own Oversigt/Ny-formular tabs
+// (forms.css's .forms-admin-tabs/.forms-admin-tab, duplicated here as
+// .budget-mode-tabs/.budget-mode-tab per the site's per-feature-duplication
+// convention, since budget.html doesn't load forms.css). Replaces the
+// small toggle card that used to sit in the right column.
+function renderBudgetModeTabs(container) {
+  const tabs = el('div', 'budget-mode-tabs');
+  const budgetTab = el('button', 'budget-mode-tab' + (budgetStregMode ? '' : ' active'), 'Budget');
+  budgetTab.type = 'button';
+  budgetTab.addEventListener('click', () => { if (budgetStregMode) budgetSwitchMode(false); });
+  tabs.appendChild(budgetTab);
+  const stregTab = el('button', 'budget-mode-tab' + (budgetStregMode ? ' active' : ''), 'Stregregnskab');
+  stregTab.type = 'button';
+  stregTab.addEventListener('click', () => { if (!budgetStregMode) budgetSwitchMode(true); });
+  tabs.appendChild(stregTab);
+  container.appendChild(tabs);
 }
 
-async function budgetToggleStregMode() {
-  budgetSetStregMode(!budgetStregMode);
+async function budgetSwitchMode(streg) {
+  budgetSetStregMode(streg);
   const root = document.getElementById('budget-root');
   const scrollY = window.scrollY;
   await loadAndRenderAdmin(root, { showLoading: false });
