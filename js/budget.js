@@ -1703,12 +1703,12 @@ function buildPendingRowContent(root, req) {
   const topLeft = el('span', 'budget-item-top-left');
   topLeft.appendChild(el('span', 'budget-badge' + (isOrphan ? ' budget-badge-orphan' : ''),
     isOrphan ? '⚠ Ingen kategori' : budgetCategoryLabel(req.category, budgetState.categories.expense)));
+  topLeft.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
   if (breakdownIncomplete && !isOrphan) {
     const warnBadge = el('span', 'budget-badge budget-badge-orphan', '⚠');
-    budgetWireIconTooltip(warnBadge, 'Fordeling på stregtyper mangler eller stemmer ikke med beløbet. Vælg "Rediger" for at udfylde den.');
+    budgetWireIconTooltip(warnBadge, 'Fordel beløb på drikkevarer');
     topLeft.appendChild(warnBadge);
   }
-  topLeft.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
   top.appendChild(topLeft);
   if (req.receiptFile) top.appendChild(budgetReceiptIconBtn(req.receiptFile));
   wrap.appendChild(top);
@@ -1944,7 +1944,7 @@ async function openRequestEditModal(root, req) {
   function updateBreakdownSum() {
     const sum = Object.values(breakdownDraft).reduce((s, v) => s + (Number(v) || 0), 0);
     const amount = parseAmount(amountInput.value) || 0;
-    breakdownSumEl.textContent = `I alt fordelt: ${formatKr(sum)} af ${formatKr(amount)}`;
+    breakdownSumEl.textContent = `Mangler at fordele: ${formatKr(amount - sum)}`;
     breakdownSumEl.classList.toggle('budget-negative', Math.abs(sum - amount) > 0.01);
   }
 
@@ -1966,7 +1966,7 @@ async function openRequestEditModal(root, req) {
       rows.appendChild(row);
     });
     breakdownWrap.textContent = '';
-    breakdownWrap.appendChild(el('h3', 'budget-streg-breakdown-title', 'Fordeling på stregtyper'));
+    breakdownWrap.appendChild(el('h3', 'budget-streg-breakdown-title', 'Fordeling af beløb'));
     breakdownWrap.appendChild(rows);
     breakdownWrap.appendChild(breakdownSumEl);
     updateBreakdownSum();
@@ -2046,7 +2046,7 @@ function openSplitRequestModal(root, req) {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
     if (!(amount > 0) || amount >= req.amount) {
-      error.textContent = 'Angiv et beløb mellem 0 og det oprindelige beløb.';
+      error.textContent = `Angiv et beløb mindre end ${formatKr(req.amount)}.`;
       return;
     }
     confirmBtn.disabled = true;
