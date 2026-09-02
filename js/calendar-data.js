@@ -572,7 +572,8 @@ const CALENDAR_DATA = [
     "end": "23:59",
     "title": "Tilmelding og Rolleønskning",
     "category": "deadline",
-    "note": "Deadline for at tilmelde sig revyen og (his relevant) ønske roller. Link til tilmeldingsark findes på opslagstavlen"
+    "location": "",
+    "note": "Deadline for at tilmelde sig revyen og (hvis relevant) ønske roller. Link til tilmeldingsark findes på opslagstavlen"
   },
   {
     "id": "mrn7ask1",
