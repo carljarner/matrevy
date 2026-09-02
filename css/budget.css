@@ -265,32 +265,26 @@
   flex-wrap: nowrap;
 }
 
-/* Each hover-tints in a muted theme-matched shade. Shared min-width keeps
-   Godkend/Rediger/Split/Afvis visually even as a row — "Godkend" is the
-   longest label and sets the floor the shorter ones (Split/Afvis) grow to
-   match; text-align is a button's own default center, so the extra room
-   on those pads out evenly. */
-#budget-root .budget-item-actions .btn-small {
-  background: var(--input-bg);
-  border-color: var(--border);
-  color: var(--text);
-  min-width: 4.6rem;
+/* Godkend/Rediger/Split/Afvis as plain icon buttons — reuses the paid-
+   ledger's own .budget-icon-btn chrome (see its own comment below) instead
+   of a second, slightly different icon-button family. Each still hover-
+   tints in its own muted theme-matched shade, same colors as before. */
+#budget-root .budget-item-actions .budget-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 @media (hover: hover) {
-  #budget-root .budget-act-approve:hover {
+  #budget-root .budget-act-approve:not(:disabled):hover {
     background: #e5f2e8;
-    border-color: #9ecaa8;
     color: var(--success);
   }
-  #budget-root .budget-act-edit:hover {
+  #budget-root .budget-act-edit:not(:disabled):hover {
     background: var(--accent-warm-fill);
-    border-color: var(--accent-warm);
     color: var(--accent-warm-text);
   }
-  #budget-root .budget-act-reject:hover {
+  #budget-root .budget-act-reject:not(:disabled):hover {
     background: #f6e3df;
-    border-color: #d8a59c;
     color: var(--danger);
   }
 }

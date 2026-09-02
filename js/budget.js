@@ -1681,14 +1681,26 @@ function buildPendingRowContent(root, req) {
   }
 
   const actions = el('div', 'budget-item-actions');
-  const approveBtn = el('button', 'btn-small budget-act-approve', 'Godkend');
+  const approveBtn = el('button', 'budget-icon-btn budget-act-approve');
+  approveBtn.type = 'button';
+  approveBtn.setAttribute('aria-label', 'Godkend');
   approveBtn.disabled = isOrphan;
+  approveBtn.appendChild(budgetCheckIcon());
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
-  const editBtn = el('button', 'btn-small budget-act-edit', 'Rediger');
+  const editBtn = el('button', 'budget-icon-btn budget-act-edit');
+  editBtn.type = 'button';
+  editBtn.setAttribute('aria-label', 'Rediger');
+  editBtn.appendChild(budgetPencilIcon());
   editBtn.addEventListener('click', () => openRequestEditModal(root, req));
-  const splitBtn = el('button', 'btn-small budget-act-edit', 'Split');
+  const splitBtn = el('button', 'budget-icon-btn budget-act-edit');
+  splitBtn.type = 'button';
+  splitBtn.setAttribute('aria-label', 'Split');
+  splitBtn.appendChild(budgetSplitIcon());
   splitBtn.addEventListener('click', () => openSplitRequestModal(root, req));
-  const rejectBtn = el('button', 'btn-small budget-act-reject', 'Afvis');
+  const rejectBtn = el('button', 'budget-icon-btn budget-act-reject');
+  rejectBtn.type = 'button';
+  rejectBtn.setAttribute('aria-label', 'Afvis');
+  rejectBtn.appendChild(budgetXIcon());
   rejectBtn.addEventListener('click', () => rejectRequest(root, req));
   actions.appendChild(approveBtn);
   actions.appendChild(editBtn);
@@ -2128,9 +2140,10 @@ function renderPaidTable(wrap) {
   }
 }
 
-// Icon-only action buttons for the paid-ledger table (Se/Rediger), matching
-// calendar.js's cal-list-edit-btn pencil convention — see budget.css's
-// .budget-icon-btn for the shared button chrome.
+// Icon-only action buttons — used both by the paid-ledger table (Se/Rediger)
+// and, below, the Afventende udlæg row actions (Godkend/Rediger/Split/
+// Afvis) — matching calendar.js's cal-list-edit-btn pencil convention. See
+// budget.css's .budget-icon-btn for the shared button chrome.
 function budgetPencilIcon() {
   const svgNS = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(svgNS, 'svg');
@@ -2148,6 +2161,69 @@ function budgetPencilIcon() {
   const tip = document.createElementNS(svgNS, 'path');
   tip.setAttribute('d', 'M9 4l3 3');
   svg.appendChild(tip);
+  return svg;
+}
+
+function budgetCheckIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.6');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const check = document.createElementNS(svgNS, 'path');
+  check.setAttribute('d', 'M3 8.5l3.3 3.3L13 4.5');
+  svg.appendChild(check);
+  return svg;
+}
+
+function budgetXIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  const cross = document.createElementNS(svgNS, 'path');
+  cross.setAttribute('d', 'M4 4l8 8M12 4l-8 8');
+  svg.appendChild(cross);
+  return svg;
+}
+
+// A git-branch-style glyph — one trunk forking into two diverging paths as
+// it goes up, with a node dot at the base and at each branch tip — reused
+// here for "split one request into two" since there's no more literal
+// stock icon for that.
+function budgetSplitIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const branches = document.createElementNS(svgNS, 'path');
+  branches.setAttribute('d', 'M8 13.5V9M8 9L3.3 3.3M8 9l4.7-5.7');
+  svg.appendChild(branches);
+  [[8, 13.5], [3.3, 3.3], [12.7, 3.3]].forEach(([cx, cy]) => {
+    const node = document.createElementNS(svgNS, 'circle');
+    node.setAttribute('cx', String(cx));
+    node.setAttribute('cy', String(cy));
+    node.setAttribute('r', '1.2');
+    node.setAttribute('fill', 'currentColor');
+    node.setAttribute('stroke', 'none');
+    svg.appendChild(node);
+  });
   return svg;
 }
 
