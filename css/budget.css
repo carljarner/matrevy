@@ -106,8 +106,14 @@
   min-height: 0;
 }
 
+/* flex-basis:auto (not the shorthand "1", which implies 0%) so the fixed
+   `height` js/budget.js's budgetSyncPendingColumnHeight() sets here is
+   actually respected as this item's own hypothetical size — flex-basis:0%
+   would instead ignore it and size to content, which is exactly what made
+   a short (or empty) Afventende udlæg list collapse instead of padding out
+   to match Budget's own height. */
 .budget-col-pending .budget-scroll-wrap {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
 }
 

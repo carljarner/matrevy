@@ -598,10 +598,16 @@ function budgetSyncPendingColumnHeight() {
   const mobile = window.innerWidth <= 719;
 
   // Budget (bounded) is the reference; Afventende udlæg's own request list
-  // is capped to match it, since that list can be arbitrarily long.
+  // is sized to match it exactly — a fixed height, not just a max-height
+  // cap, so a short (or empty) list still pads out to end flush with
+  // Budget's own bottom edge instead of just being capped-but-shorter; a
+  // genuinely longer list still scrolls internally via the same element's
+  // overflow-y:auto (css/budget.css). renderPendingSection() always wraps
+  // its content in .budget-scroll-wrap, even the empty-state message, so
+  // this always finds one to size.
   const scrollWrap = colRight.querySelector(':scope > .card > .budget-scroll-wrap');
   if (!scrollWrap) return;
-  if (mobile) { scrollWrap.style.maxHeight = ''; return; }
+  if (mobile) { scrollWrap.style.height = ''; return; }
   const sheetHeight = sheetCard.getBoundingClientRect().height;
   const consumedAbove = scrollWrap.getBoundingClientRect().top - colRight.getBoundingClientRect().top;
   // Same fix as above: the card containing scrollWrap (.budget-col-pending)
@@ -609,7 +615,7 @@ function budgetSyncPendingColumnHeight() {
   // includes but consumedAbove doesn't capture.
   const parentCard = scrollWrap.parentElement;
   const bottomPadding = parentCard ? (parseFloat(getComputedStyle(parentCard).paddingBottom) || 0) : 0;
-  scrollWrap.style.maxHeight = Math.max(sheetHeight - consumedAbove - bottomPadding, 0) + 'px';
+  scrollWrap.style.height = Math.max(sheetHeight - consumedAbove - bottomPadding, 0) + 'px';
 }
 
 window.addEventListener('resize', budgetSyncPendingColumnHeight);
@@ -1629,20 +1635,22 @@ function renderPendingSection(container) {
   head.appendChild(el('span', 'budget-count', String(budgetState.requests.length)));
   card.appendChild(head);
 
-  if (budgetState.requests.length === 0) {
-    card.appendChild(el('p', 'budget-intro', 'Ingen afventende udlæg lige nu.'));
-    container.appendChild(card);
-    return;
-  }
-
-  // The list scrolls internally so the column never grows past the Budget card.
-  const root = document.getElementById('budget-root');
+  // Always wrapped in .budget-scroll-wrap, even the empty-state message —
+  // budgetSyncPendingColumnHeight() sizes this element to match Budget's
+  // own height exactly (so the two cards always end flush), and needs one
+  // to find regardless of request count. The list itself scrolls
+  // internally so the column never grows past the Budget card.
   const scrollWrap = el('div', 'budget-scroll-wrap');
-  const list = el('div', 'budget-list');
-  budgetGroupRequestsByPhone(budgetState.requests).forEach((group, index) => {
-    list.appendChild(buildPendingGroup(root, group.members, { defaultOpen: index === 0 }));
-  });
-  scrollWrap.appendChild(list);
+  if (budgetState.requests.length === 0) {
+    scrollWrap.appendChild(el('p', 'budget-intro', 'Ingen afventende udlæg lige nu.'));
+  } else {
+    const root = document.getElementById('budget-root');
+    const list = el('div', 'budget-list');
+    budgetGroupRequestsByPhone(budgetState.requests).forEach((group, index) => {
+      list.appendChild(buildPendingGroup(root, group.members, { defaultOpen: index === 0 }));
+    });
+    scrollWrap.appendChild(list);
+  }
   card.appendChild(scrollWrap);
   container.appendChild(card);
 }
