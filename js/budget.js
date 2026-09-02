@@ -2574,6 +2574,11 @@ function buildStregSheetCard() {
   resetBtn.addEventListener('click', () => stregOpenResetConfirm());
   actions.appendChild(resetBtn);
 
+  const printBtn = el('button', 'site-btn-warm budget-center-btn', 'Udskriv');
+  printBtn.type = 'button';
+  printBtn.addEventListener('click', () => stregOpenPrintSheet(draft));
+  actions.appendChild(printBtn);
+
   const saveGroup = el('div', 'streg-save-group');
   saveGroup.appendChild(status);
   const saveBtn = el('button', 'site-btn-success', 'Gem');
@@ -2585,6 +2590,31 @@ function buildStregSheetCard() {
   card.appendChild(actions);
 
   return card;
+}
+
+// ── Hover tooltip (truncated Navn cell's full text) ───────────
+// Mirrors faellesspisning.js's own faellesShowFieldTooltip/
+// faellesHideFieldTooltip (that file isn't loaded on this page, per the
+// per-feature duplication convention documented in CLAUDE.md): a
+// fixed-position dark box.
+let stregFieldTooltipEl = null;
+function stregShowFieldTooltip(anchor, text) {
+  stregHideFieldTooltip();
+  const tip = el('div', 'streg-field-tooltip', text);
+  document.body.appendChild(tip);
+  const anchorRect = anchor.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let top = anchorRect.top - tipRect.height - 6;
+  if (top < 4) top = anchorRect.bottom + 6;
+  let left = anchorRect.left;
+  if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - tipRect.width - 4;
+  if (left < 4) left = 4;
+  tip.style.top = `${top}px`;
+  tip.style.left = `${left}px`;
+  stregFieldTooltipEl = tip;
+}
+function stregHideFieldTooltip() {
+  if (stregFieldTooltipEl) { stregFieldTooltipEl.remove(); stregFieldTooltipEl = null; }
 }
 
 function stregAddPlusBtn(title, onClick) {
@@ -2657,6 +2687,23 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   const tr = el('tr');
 
   const navnTd = el('td', 'streg-col-navn');
+
+  // Marks a row as paid — purely visual (row.paid is never sent to the
+  // server, see stregSaveRows' own payload shape), so it resets to
+  // unchecked the next time the draft is rebuilt from fresh data (a save,
+  // Nulstil, or a Formularer sync). Toggles the Betaling cell's own
+  // strike-through/weight below.
+  const paidCheckbox = document.createElement('input');
+  paidCheckbox.type = 'checkbox';
+  paidCheckbox.className = 'streg-paid-checkbox';
+  paidCheckbox.checked = !!row.paid;
+  paidCheckbox.title = 'Har betalt (kun visuelt, gemmes ikke)';
+  paidCheckbox.addEventListener('change', () => {
+    row.paid = paidCheckbox.checked;
+    betalingTd.classList.toggle('streg-paid', row.paid);
+  });
+  navnTd.appendChild(paidCheckbox);
+
   const navnInput = document.createElement('input');
   navnInput.type = 'text';
   navnInput.value = row.navn || '';
@@ -2665,6 +2712,19 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
     row.navn = navnInput.value;
     if (onDirtyChange) onDirtyChange();
   });
+  // A name too long for the column is truncated with an ellipsis (CSS) —
+  // show the full text in a hover tooltip, mirroring faellesspisning.js's
+  // own faellesShowFieldTooltip for its truncated Madforbehold field (not
+  // loaded on this page, per the site's per-feature duplication
+  // convention). Re-checked on every keystroke, not just once, since
+  // typing can push a name past the truncation point.
+  navnInput.addEventListener('mouseenter', () => {
+    if (navnInput.scrollWidth > navnInput.clientWidth && navnInput.value) {
+      stregShowFieldTooltip(navnInput, navnInput.value);
+    }
+  });
+  navnInput.addEventListener('mouseleave', stregHideFieldTooltip);
+  navnInput.addEventListener('focus', stregHideFieldTooltip);
   navnTd.appendChild(navnInput);
   tr.appendChild(navnTd);
 
@@ -2698,6 +2758,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   });
 
   const betalingTd = el('td', 'streg-col-betaling');
+  if (row.paid) betalingTd.classList.add('streg-paid');
   betalingCells.set(row, betalingTd);
   tr.appendChild(betalingTd);
 
@@ -2820,6 +2881,66 @@ function stregOpenResetConfirm() {
   });
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
+}
+
+// "Udskriv" — a plain black/white printable version of the grid, to hand to
+// revyster: whatever's on screen right now (the current draft, unsaved
+// edits included — same posture as printing straight from the visible
+// page), same convention as manus.js's own "Hent stemmeark" print sheet —
+// a hidden #budget-print-sheet filled in just before window.print(), shown
+// in place of the whole page via css/budget.css's own @media print block.
+// A row checked off as paid (stregRenderRow's own checkbox, purely visual,
+// never saved — see its own comment) prints with the same strike-through
+// Betaling it shows on screen.
+function stregOpenPrintSheet(draft) {
+  const sheet = document.getElementById('budget-print-sheet');
+  sheet.textContent = '';
+
+  const title = document.createElement('h2');
+  title.className = 'budget-print-title';
+  title.textContent = 'Stregregnskab';
+  sheet.appendChild(title);
+
+  const perUnit = stregComputePricePerUnit(draft);
+  const table = document.createElement('table');
+  table.className = 'budget-print-table';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Navn', ...stregState.categories.map((c) => c.label), 'Betaling'].forEach((label) => {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  draft
+    .filter((r) => (r.navn || '').trim() !== '') // an abandoned "+" row leaves nothing behind, same as Gem
+    .slice()
+    .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'da', { sensitivity: 'base' }))
+    .forEach((row) => {
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td');
+      tdName.textContent = row.navn;
+      tr.appendChild(tdName);
+      stregState.categories.forEach((c) => {
+        const td = document.createElement('td');
+        const n = (row.counts || {})[c.key];
+        td.textContent = n ? String(n) : '';
+        tr.appendChild(td);
+      });
+      const tdBetaling = document.createElement('td');
+      tdBetaling.textContent = formatKr(stregRowBetaling(row, perUnit));
+      if (row.paid) tdBetaling.className = 'budget-print-paid';
+      tr.appendChild(tdBetaling);
+      tbody.appendChild(tr);
+    });
+  table.appendChild(tbody);
+  sheet.appendChild(table);
+
+  window.print();
 }
 
 // ── Boss: connect the names list to a Formularer form ────────

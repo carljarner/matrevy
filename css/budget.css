@@ -764,6 +764,15 @@ tr.budget-row-filler td {
   transform: translateX(-50%);
 }
 
+/* Same centering trick as .budget-edit-btn above, generically named — used
+   by the stregregnskab grid's own "Udskriv" button, which isn't a Rediger
+   toggle. */
+.budget-center-btn {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 /* The stregregnskab grid's own save-bar right side: "Gemt"/"Ikke gemt"
    sitting right next to its Gem button, rather than up in the card head
    like every other sheet's own status (there's no Rediger button any more
@@ -1042,21 +1051,48 @@ tr.budget-row-filler td {
   background: var(--surface);
   z-index: 1;
   text-align: left;
+  max-width: 11rem;
 }
 
 .streg-table thead .streg-col-navn {
   z-index: 2;
 }
 
+/* Only the body cells hold a checkbox alongside the name input — the
+   header cell (plain "Navn" text) stays a normal table cell. */
+.streg-table tbody .streg-col-navn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Purely visual "har betalt" marker (js/budget.js's own stregRenderRow) —
+   never saved. Same site-wide checkbox convention as Forms'/
+   Fællesspisning's own (accent-color instead of the browser-default
+   blue). */
+.streg-paid-checkbox {
+  flex: none;
+  accent-color: var(--accent-warm-text);
+  cursor: pointer;
+}
+
+/* min-width:0 lets the input actually shrink below its own content size —
+   a flex item's default min-width:auto would otherwise refuse to shrink
+   past its longest unbroken content, defeating the ellipsis truncation
+   below entirely. Truncated names show their full text on hover via
+   stregShowFieldTooltip (mirrors faellesspisning.css's own
+   .faelles-field-tooltip treatment of its Madforbehold field). */
 .streg-table .streg-col-navn input[type="text"] {
-  width: 100%;
-  min-width: 8rem;
+  flex: 1;
+  min-width: 0;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
   padding: 0.2rem 0.35rem;
   font: inherit;
   color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 @media (hover: hover) {
@@ -1107,6 +1143,34 @@ tr.budget-row-filler td {
   font-weight: 600;
   color: var(--header);
   white-space: nowrap;
+}
+
+/* Toggled by the row's own paid-checkbox (js/budget.js's stregRenderRow) —
+   drops the bold weight and strikes the amount through, still the same
+   color. */
+.streg-table .streg-col-betaling.streg-paid {
+  font-weight: 400;
+  text-decoration: line-through;
+}
+
+/* stregShowFieldTooltip()'s popup — position:fixed on <body>, clamped
+   on-screen in JS, mirrors faellesspisning.css's own .faelles-field-tooltip
+   (that file isn't loaded on this page, per the per-feature duplication
+   convention documented in CLAUDE.md). */
+.streg-field-tooltip {
+  position: fixed;
+  z-index: 250;
+  max-width: 320px;
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .streg-remove-btn {
@@ -1414,4 +1478,77 @@ tr.budget-row-filler td {
      a phone's width instead of overflowing. */
   .budget-income-name,
   .budget-manage-row .budget-manage-text-input { min-width: 0; }
+}
+
+/* --- Stregregnskab's "Udskriv" print view --------------------
+   Hidden on screen; only shown (and only content shown) when window.print()
+   is invoked — mirrors manus.css's own "Hent stemmeark" print approach:
+   explicit black/white ruling, Courier New, in-flow padding since Safari
+   often ignores @page's margin. */
+.budget-print-only { display: none; }
+
+@media print {
+  @page { size: A4 portrait; margin: 15mm; }
+
+  .site-header, .site-footer, #budget-root, .page-content > h1 {
+    display: none !important;
+  }
+
+  .budget-print-only { display: block !important; }
+
+  body { background: #fff; }
+  html { font-size: 12px; }
+
+  .budget-print-title {
+    font-family: "Courier New", Courier, monospace;
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  .budget-print-table {
+    font-family: "Courier New", Courier, monospace;
+    table-layout: auto;
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .budget-print-table th,
+  .budget-print-table td {
+    border: 1px solid #000;
+    padding: 8px 10px;
+    text-align: left;
+    color: #000;
+    background: #fff;
+    /* Chrome/Firefox/Safari drop background colors when printing unless a
+       page opts in — without this, the alternating row tint below is
+       silently discarded regardless of the browser's "background graphics"
+       print-dialog checkbox. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .budget-print-table td { height: 26pt; }
+
+  /* Name column shrinks to its longest (unwrapped) value; every drink
+     column and Betaling stay centered/right-ish via text-align below. */
+  .budget-print-table th:first-child,
+  .budget-print-table td:first-child {
+    width: 1%;
+    white-space: nowrap;
+  }
+
+  .budget-print-table th:not(:first-child),
+  .budget-print-table td:not(:first-child) {
+    text-align: center;
+  }
+
+  .budget-print-table tbody tr:nth-child(even) td {
+    background: #eee;
+  }
+
+  .budget-print-paid {
+    text-decoration: line-through;
+  }
+
+  .budget-print-table tr { page-break-inside: avoid; }
 }

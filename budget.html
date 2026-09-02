@@ -18,6 +18,11 @@
   <main class="page-content">
     <h1 id="budget-page-title">Budget for MatRevy</h1>
     <div id="budget-root"></div>
+
+    <!-- Stregregnskab's "Udskriv" print target — hidden on screen (see
+         css/budget.css's @media print block), filled in just before
+         window.print() by js/budget.js's stregOpenPrintSheet(). -->
+    <div class="budget-print-only" id="budget-print-sheet"></div>
   </main>
 
   <footer class="site-footer">
