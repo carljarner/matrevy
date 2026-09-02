@@ -829,5 +829,16 @@ const CALENDAR_DATA = [
     "category": "manus",
     "location": "S01",
     "note": ""
+  },
+  {
+    "id": "mtk4qz5a",
+    "date": "2026-09-23",
+    "endDate": "2026-09-23",
+    "start": "15:15",
+    "end": "21:00",
+    "title": "Manusmøde",
+    "category": "manus",
+    "location": "S01",
+    "note": ""
   }
 ];
