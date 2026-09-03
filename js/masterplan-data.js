@@ -8,11 +8,6 @@ const MASTERPLAN_DATA = {
   "tabs": {
     "blok4": [
       {
-        "id": "blok4-g1",
-        "type": "group",
-        "title": ""
-      },
-      {
         "id": "blok4-r1",
         "type": "task",
         "emne": "Praktisk",
