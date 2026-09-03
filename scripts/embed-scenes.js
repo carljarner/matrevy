@@ -107,6 +107,17 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/masterplan-data.js',
+    sources: 'data/masterplan.json',
+    globals: () => {
+      const masterplan = readJson('data/masterplan.json');
+      const tabCount = Object.keys(masterplan.tabs).length;
+      const rowCount = Object.values(masterplan.tabs).reduce((n, rows) => n + rows.length, 0);
+      console.log(`  masterplan: ${tabCount} tabs, ${rowCount} rows`);
+      return { MASTERPLAN_DATA: masterplan };
+    },
+  },
+  {
     // Static .ics feed, served directly by GitHub Pages at
     // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
     // the calendar data is already fully public (see CLAUDE.md's access-level

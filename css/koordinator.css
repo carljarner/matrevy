@@ -16,28 +16,6 @@
   color: var(--text-muted);
 }
 
-/* --- "Vis PDF'er for revyster" toggle, below Trin 1's check row -- */
-.koord-toggle-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-.koord-toggle-row input[type="checkbox"] {
-  accent-color: var(--accent-warm-text);
-}
-
-.koord-toggle-row label {
-  cursor: pointer;
-}
-
-.koord-toggle-status {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
 /* No reserved height while empty (matches archive.js's own .arkiv-edit-
    progress) — otherwise every modal using this pays a permanent gap above
    its button row even when there's nothing to show yet. */
@@ -56,7 +34,9 @@
   margin-bottom: 1rem;
 }
 
-/* Sub-heading for each step inside the merged "Afslut produktionsår" card. */
+/* Sub-heading for each step/section inside a merged card (the Arkivering
+   card's own "Afslut revyen"/"Arkiv" sub-sections, and the same treatment
+   reused inside the Afslut-modal for its Trin 1/Trin 2 split). */
 .koord-step-heading {
   margin: 1.25rem 0 0.4rem;
   padding-top: 1rem;
@@ -65,8 +45,19 @@
   font-weight: 600;
 }
 
-/* --- Two-column layout: production-year card (main) + a small ---
-   Arkiv sidebar card, same pattern as style.css's .dashboard-columns. */
+/* The first such heading in a container has nothing above it to divide
+   from. */
+.koord-step-heading-first {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* --- Two-column layout: wide Masterplan card + a narrow right column, ---
+   same pattern as style.css's .dashboard-columns. Both grid items keep
+   their original 2fr/1fr dimensions — the right column now stacks two
+   cards (Arkivering, Tjeklister & Fællesbeskeder) instead of being one
+   card itself. */
 .koord-columns {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -76,6 +67,13 @@
 
 .koord-columns .card {
   margin-bottom: 0;
+  min-width: 0;
+}
+
+.koord-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
   min-width: 0;
 }
 
@@ -171,6 +169,242 @@
 }
 
 .koord-arkiv-confirm-text {
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0 0 1rem;
+}
+
+/* --- Masterplan (js/koordinator.js's renderMasterplanCard/renderMpGrid) --
+   Tab bar styled like Manus's own flat mode-switch tab bar
+   (manus.css's .manus-tab-btn-bar) — duplicated here since this page
+   doesn't load manus.css. Collapses to a single dropdown on mobile, same
+   ≤719px breakpoint as everywhere else on the site. */
+.koord-mp-tab-bar {
+  margin-bottom: 1rem;
+}
+
+.koord-mp-tab-btn-bar {
+  display: flex;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+}
+
+.koord-mp-tab-select-mobile {
+  display: none;
+}
+
+.koord-mp-tab-btn {
+  flex: 1 1 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .koord-mp-tab-btn:not(.active):hover { color: var(--text); }
+}
+
+.koord-mp-tab-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  border-radius: 4px;
+}
+
+.koord-mp-tab-btn.active {
+  color: var(--accent-warm-text);
+  border-bottom-color: var(--accent-warm-text);
+}
+
+@media (max-width: 719px) {
+  .koord-mp-tab-btn-bar { display: none; }
+  .koord-mp-tab-select-mobile { display: flex; }
+}
+
+/* --- Grid: a flex column of "table-ish" rows rather than a real <table> —
+   drag-reorder's drop-line indicator is a plain border-top swap (mirrors
+   budget.css's .streg-price-row, itself already a duplicate of this same
+   recipe), which is simplest on a plain <div> row. Horizontal scroll only,
+   below a floor width, on narrow screens (mirrors .streg-table-wrap). */
+.koord-mp-grid-wrap {
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.koord-mp-grid {
+  display: flex;
+  flex-direction: column;
+  min-width: 46rem;
+}
+
+.koord-mp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.15rem;
+  border-top: 2px solid transparent;
+  border-bottom: 1px solid var(--border);
+  transition: border-top-color 0.15s;
+}
+
+.koord-mp-row-header {
+  border-bottom-width: 1px;
+  padding-bottom: 0.5rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.koord-mp-row-header > span { padding: 0 0.4rem; }
+
+.koord-mp-row-group {
+  background: var(--accent-warm-fill);
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.koord-mp-row.koord-mp-drop-target {
+  border-top-color: var(--accent-warm);
+}
+
+/* --- Columns — same flex ratios shared by the header row, group rows
+   (title only) and task rows, so everything lines up whether or not a
+   given row actually renders every column. --------------------------- */
+.koord-mp-col-handle {
+  flex: 0 0 1.3rem;
+  text-align: center;
+}
+
+.koord-mp-col-emne { flex: 1.1; min-width: 0; }
+.koord-mp-col-todo { flex: 1.3; min-width: 0; }
+.koord-mp-col-besk { flex: 2.2; min-width: 0; }
+.koord-mp-col-ansvar { flex: 1; min-width: 0; }
+
+.koord-mp-col-status {
+  flex: 0 0 6rem;
+  text-align: center;
+}
+
+.koord-mp-col-remove {
+  flex: 0 0 1.6rem;
+}
+
+.koord-mp-col-group-title {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+}
+
+/* Inline field-editing convention (see CLAUDE.md's site-wide button/field
+   conventions section) — no visible border at rest, a hover border only,
+   a warm focus border + input background while actually editing. */
+.koord-mp-field {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.25rem 0.4rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (hover: hover) {
+  .koord-mp-field:hover { border-color: var(--border); }
+}
+
+.koord-mp-field:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  background: var(--input-bg);
+}
+
+.koord-mp-ansvar-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+/* Status pill — cycles unset/mangler/igang/faerdig on click, same
+   red/amber/green tokens as the site-wide .site-btn-danger/-warm/-success
+   family. */
+.koord-mp-status {
+  flex: 0 0 6rem;
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.koord-mp-status-none {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.koord-mp-status-mangler { background: var(--danger); color: #fff; }
+.koord-mp-status-igang { background: var(--accent-warm-text); color: #fff; }
+.koord-mp-status-faerdig { background: var(--success); color: #fff; }
+
+.koord-mp-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding-left: 1.45rem; /* aligns with the columns after the drag-handle */
+}
+
+/* --- Bottom bar: Nulstil left, Gemt/Ikke gemt + Gem right — mirrors
+   budget.css's .budget-save-bar/.streg-save-group. */
+.koord-mp-save-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.koord-mp-save-bar > button {
+  min-width: 5rem;
+}
+
+.koord-mp-save-group {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.koord-mp-save-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.koord-mp-save-status.dirty {
+  color: var(--accent-warm-text);
+}
+
+/* --- Row-removal confirm popup, mirrors .koord-arkiv-confirm-modal. ---- */
+.koord-mp-confirm-modal {
+  width: min(380px, 90vw);
+}
+
+.koord-mp-confirm-text {
   color: var(--text-muted);
   text-align: center;
   margin: 0 0 1rem;

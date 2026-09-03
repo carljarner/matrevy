@@ -3972,6 +3972,75 @@ function save_program($payload) {
   }, 'Opdater program.json via Manus');
 }
 
+// Admin-only (Koordinator page is admin-gated, same rank as archive/config):
+// full-array replace of the Masterplan checklist — a fixed set of 5 tabs
+// (Blok 4 / August / Blok 1 / Revyen / Efter revyen, keyed by
+// js/koordinator.js's own KOORD_MP_TABS list), each an ordered flat list of
+// rows mixing two kinds: a "group" divider (just a title, may be empty —
+// mirrors the source spreadsheet's blank/labelled blue section rows) and a
+// "task" (Emne/To do/Beskrivelse/two freeform Ansvar fields/a Status enum).
+// ansvarLabels are the two shared, admin-editable Ansvar column headers used
+// across every tab (the source spreadsheet's own per-tab headers were
+// inconsistent year to year — this replaces that with one pair the admin
+// retitles once a year instead of per tab).
+define('MASTERPLAN_TAB_KEYS', ['blok4', 'august', 'blok1', 'revyen', 'efterrevyen']);
+define('MASTERPLAN_STATUSES', ['', 'mangler', 'igang', 'faerdig']);
+
+function save_masterplan($payload) {
+  $ansvarLabels = $payload['ansvarLabels'] ?? null;
+  if (!is_array($ansvarLabels) || count($ansvarLabels) !== 2
+      || !is_string($ansvarLabels[0]) || mb_strlen($ansvarLabels[0]) > 60
+      || !is_string($ansvarLabels[1]) || mb_strlen($ansvarLabels[1]) > 60) {
+    respond(400, ['error' => 'invalid_masterplan_shape']);
+  }
+
+  $tabs = $payload['tabs'] ?? null;
+  if (!is_array($tabs) || array_keys($tabs) !== MASTERPLAN_TAB_KEYS) {
+    respond(400, ['error' => 'invalid_masterplan_shape']);
+  }
+
+  $seenId = [];
+  foreach ($tabs as $rows) {
+    if (!is_array($rows)) {
+      respond(400, ['error' => 'invalid_masterplan_shape']);
+    }
+    foreach ($rows as $r) {
+      if (!is_array($r)
+          || !isset($r['id'], $r['type'])
+          || !is_string($r['id']) || $r['id'] === ''
+          || isset($seenId[$r['id']])
+          || !is_string($r['type']) || !in_array($r['type'], ['group', 'task'], true)) {
+        respond(400, ['error' => 'invalid_masterplan_shape']);
+      }
+      $seenId[$r['id']] = true;
+
+      if ($r['type'] === 'group') {
+        if (!isset($r['title']) || !is_string($r['title']) || mb_strlen($r['title']) > 200) {
+          respond(400, ['error' => 'invalid_masterplan_shape']);
+        }
+        continue;
+      }
+
+      // 'task'
+      if (!isset($r['emne'], $r['todo'], $r['beskrivelse'], $r['ansvarA'], $r['ansvarB'], $r['status'])
+          || !is_string($r['emne']) || mb_strlen($r['emne']) > 200
+          || !is_string($r['todo']) || mb_strlen($r['todo']) > 200
+          || !is_string($r['beskrivelse']) || mb_strlen($r['beskrivelse']) > 2000
+          || !is_string($r['ansvarA']) || mb_strlen($r['ansvarA']) > 100
+          || !is_string($r['ansvarB']) || mb_strlen($r['ansvarB']) > 100
+          || !is_string($r['status']) || !in_array($r['status'], MASTERPLAN_STATUSES, true)) {
+        respond(400, ['error' => 'invalid_masterplan_shape']);
+      }
+    }
+  }
+
+  update_file('data/masterplan.json', function ($json) use ($ansvarLabels, $tabs) {
+    $json['ansvarLabels'] = array_values($ansvarLabels);
+    $json['tabs'] = $tabs;
+    return $json;
+  }, 'Opdater masterplan.json via Koordinator');
+}
+
 $RESOURCES = [
   'manus'         => ['level' => 'boss',  'save' => 'save_manus'],
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
@@ -3982,6 +4051,7 @@ $RESOURCES = [
   'manuscripts'   => ['level' => 'boss',  'save' => 'save_manuscripts'],
   'config'        => ['level' => 'admin', 'save' => 'save_config'],
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
+  'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
 ];
 
 $resource = $body['resource'] ?? '';

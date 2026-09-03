@@ -1548,3 +1548,30 @@ a.manus-pdf-title:focus-visible {
     flex-wrap: wrap;
   }
 }
+
+/* --- Admin settings card (bottom of the page) — currently just the
+   "Vis PDF'er for revyster" toggle, moved here from Koordinator. Same
+   layout/tokens as that card's own former .koord-toggle-row. ----------- */
+#manus-admin-settings {
+  margin-top: 1.5rem;
+}
+
+.manus-admin-toggle-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.manus-admin-toggle-row input[type="checkbox"] {
+  accent-color: var(--accent-warm-text);
+}
+
+.manus-admin-toggle-row label {
+  cursor: pointer;
+}
+
+.manus-admin-toggle-status {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}

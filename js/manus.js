@@ -4097,12 +4097,71 @@ function renderPoolLayoutVisibility() {
   document.querySelector('.manus-layout').style.display = siteHasLevel('boss') ? 'none' : '';
 }
 
+// "Vis PDF'er for revyster" toggle — controls whether
+// renderManusPdfLinksSection's PDF quick-links box (above) is shown to
+// plain revyst-level visitors; boss/admin see it regardless. Off by default
+// each production cycle (Koordinator's own koordCloseYear resets it), so an
+// admin can proof a freshly (re)generated set privately before flipping
+// this on to reveal it. Moved here from Koordinator (its previous home) —
+// this is where it actually takes effect, not Koordinator-specific. Lives
+// at the very bottom of the page, admin-only (hidden entirely, not just
+// collapsed, below that level — unlike the rest of Main Manus View, which
+// is boss-visible).
+function renderAdminSettings() {
+  const section = document.getElementById('manus-admin-settings');
+  if (!siteHasLevel('admin')) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  section.textContent = '';
+
+  const head = document.createElement('div');
+  head.className = 'card-head';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Admin-indstillinger';
+  head.appendChild(h2);
+  section.appendChild(head);
+
+  const row = document.createElement('div');
+  row.className = 'manus-admin-toggle-row';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.id = 'manus-pdf-toggle';
+  input.checked = !!(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.pdfLinksVisibleToRevyst);
+  const label = document.createElement('label');
+  label.htmlFor = 'manus-pdf-toggle';
+  label.textContent = "Vis PDF'er for revyster";
+  const status = document.createElement('span');
+  status.className = 'manus-admin-toggle-status';
+
+  input.addEventListener('change', async () => {
+    const next = input.checked;
+    input.disabled = true;
+    status.textContent = 'Gemmer...';
+    const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
+    input.disabled = false;
+    if (!res.ok) {
+      input.checked = !next;
+      status.textContent = res.message || '';
+      return;
+    }
+    status.textContent = 'Gemt — slår igennem for revyster om ca. 1-2 minutter.';
+  });
+
+  row.appendChild(input);
+  row.appendChild(label);
+  row.appendChild(status);
+  section.appendChild(row);
+}
+
 function renderAll() {
   renderPoolLayoutVisibility();
   renderColumns();
   renderBottomActions();
   renderManusPdfLinksSection();
   renderMainManusView();
+  renderAdminSettings();
   manusStartPendingPoll();
 }
 

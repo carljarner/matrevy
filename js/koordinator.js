@@ -1,9 +1,9 @@
 /* =========================================================
    Matematikrevyen – Koordinator (koordinator.html)
 
-   Admin-only cross-cutting tools. First (and currently only) tool:
-   closing out the current production year in Manus and starting the
-   next one — see "Afslut produktionsår" below. Øveplan (schedule.js)
+   Admin-only cross-cutting tools. First tool: closing out the current
+   production year in Manus and starting the next one — see "Afslut
+   revyen" below. Øveplan (schedule.js)
    has no server-side state of its own to touch (it's purely
    localStorage-based, per schedule.js's own architecture notes), so
    nothing here needs to reach it directly; it just picks up the reset
@@ -27,6 +27,11 @@
    handful of plain, DOM-independent helpers it needs (slug/path
    building, file-to-base64, cover re-encoding) are duplicated here
    too rather than cross-file-reused.
+
+   Third tool: "Masterplan" — a checklist grid (data/masterplan.json)
+   replacing an externally-maintained spreadsheet of recurring
+   production to-dos, grouped into 5 fixed phase-tabs. See the
+   "Masterplan" section below.
 
    Rendering rule (as elsewhere): createElement/textContent only,
    never innerHTML.
@@ -493,7 +498,8 @@ async function koordCloseYear({ closingFolder, closingName, closingYear, newFold
 
   onProgress('Skifter til den nye produktionsmappe...');
   // Resets "Vis PDF'er for revyster" back to hidden in the same write, so a
-  // new production cycle starts private again — see koordRenderPdfToggle.
+  // new production cycle starts private again — see manus.js's own
+  // renderAdminSettings.
   const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
 
@@ -501,10 +507,38 @@ async function koordCloseYear({ closingFolder, closingName, closingYear, newFold
 }
 
 // ── Modal ─────────────────────────────────────────────────────
+// Opened by the right column's single "Afslut" button — merges what used to
+// be two separate inline steps on the page into one modal: a guide for
+// checking the final files are ready (Trin 1: the PDF-generation reminder +
+// "Tjek om klar" freshness check), then the actual archiving action itself
+// (Trin 2: the year-close form below).
 function openCloseYearModal(closingFolder) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut produktionsår');
+  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut revyen');
   modal.classList.add('koord-close-year-modal');
 
+  form.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Trin 1: Klargør de endelige filer'));
+  form.appendChild(el('p', null,
+    'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
+    'endelige tekst og rollebesætning og gemmer dem i arkivet (tager et par minutter). Bekræft herunder, at det er landet, ' +
+    'før du går videre til trin 2.'));
+  const checkRow = el('div', 'koord-check-row');
+  const checkBtn = el('button', 'btn-small', 'Tjek om klar');
+  checkBtn.type = 'button';
+  const statusText = el('span', 'koord-status-value', '');
+  checkBtn.addEventListener('click', async () => {
+    checkBtn.disabled = true;
+    statusText.textContent = 'Tjekker...';
+    const { date, confirmedAbsent, checkFailed } = await koordFetchPdfStatus(koordPdfReferenceUrl());
+    if (date) statusText.textContent = koordFormatGeneratedAt(date);
+    else if (confirmedAbsent) statusText.textContent = 'Endnu ikke genereret';
+    else if (checkFailed) statusText.textContent = 'Sidst genereret: ukendt';
+    checkBtn.disabled = false;
+  });
+  checkRow.appendChild(checkBtn);
+  checkRow.appendChild(statusText);
+  form.appendChild(checkRow);
+
+  form.appendChild(el('h3', 'koord-step-heading', 'Trin 2: Afslut år og start nyt'));
   const intro = el('p', 'koord-modal-intro',
     `Dette nulstiller Manus (scener, rollebesætning, indsendte manuskripter) og gør en ny mappe til den aktive produktion. Den nuværende mappe ("${closingFolder}") ændres ikke og bliver stående i arkivet.`);
   form.appendChild(intro);
@@ -583,43 +617,432 @@ function openCloseYearModal(closingFolder) {
   actions.appendChild(confirmBtn);
 }
 
-// "Vis PDF'er for revyster" toggle — controls whether manus.js's PDF
-// quick-links box (renderManusPdfLinksSection) is shown to plain
-// revyst-level visitors; boss/admin see it there regardless. Off by default
-// each production cycle (koordCloseYear resets it to false), so an admin can
-// proof a freshly (re)generated set privately before flipping this on to
-// reveal it. Live-saves on change straight to the config resource — same
-// "config has no override shadow, takes ~1-2 min to propagate" posture as
-// currentProductionFolder elsewhere on this page.
-function koordRenderPdfToggle(container) {
-  const row = el('div', 'koord-toggle-row');
-  const input = document.createElement('input');
-  input.type = 'checkbox';
-  input.id = 'koord-pdf-toggle';
-  input.checked = !!(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.pdfLinksVisibleToRevyst);
-  const label = document.createElement('label');
-  label.htmlFor = 'koord-pdf-toggle';
-  label.textContent = "Vis PDF'er for revyster";
-  const status = el('span', 'koord-toggle-status', '');
+// Note: the "Vis PDF'er for revyster" toggle that used to live here has
+// moved to the bottom of manus.html (js/manus.js's
+// manusRenderPdfVisibilityToggle, admin-only) — its natural home, since it
+// governs what that page shows revyst-level visitors, not something
+// Koordinator-specific.
 
-  input.addEventListener('change', async () => {
-    const next = input.checked;
-    input.disabled = true;
-    status.textContent = 'Gemmer...';
-    const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
-    input.disabled = false;
-    if (!res.ok) {
-      input.checked = !next;
-      status.textContent = res.message || '';
-      return;
+// ── Masterplan (a checklist grid replacing an externally-maintained
+// spreadsheet of recurring production to-dos, grouped into 5 fixed
+// phase-tabs — Blok 4 / August / Blok 1 / Revyen / Efter revyen). Tab
+// keys/labels are hardcoded here (mirrors manus.js's own MANUS_MAIN_TABS) —
+// only each tab's row content is data (data/masterplan.json). Always
+// editable (mirrors budget.js's Stregregnskab grid): every field writes
+// straight into a local draft, nothing reaches the server until "Gem"
+// commits the whole document in one save. ──────────────────────
+let koordMasterplanOverride = siteLoadOverride('masterplan');
+function getEffectiveMasterplan() {
+  return koordMasterplanOverride || MASTERPLAN_DATA;
+}
+
+const KOORD_MP_TABS = [
+  { key: 'blok4', label: 'Blok 4' },
+  { key: 'august', label: 'August' },
+  { key: 'blok1', label: 'Blok 1' },
+  { key: 'revyen', label: 'Revyen' },
+  { key: 'efterrevyen', label: 'Efter revyen' },
+];
+
+// Cycles unset -> mangler -> igang -> faerdig -> unset on click (red/yellow/
+// green, matching the source spreadsheet's own Status column fills).
+const KOORD_MP_STATUSES = [
+  { value: '', label: '–' },
+  { value: 'mangler', label: 'Mangler' },
+  { value: 'igang', label: 'I gang' },
+  { value: 'faerdig', label: 'Færdig' },
+];
+
+const KOORD_MP_TAB_KEY = 'matrevy-koord-mp-tab';
+const koordMpStoredTab = localStorage.getItem(KOORD_MP_TAB_KEY);
+let koordMpActiveTab = KOORD_MP_TABS.some((t) => t.key === koordMpStoredTab) ? koordMpStoredTab : KOORD_MP_TABS[0].key;
+
+// Built once (from getEffectiveMasterplan()) the first time the card
+// renders after a fresh load/save/reset — mirrors budget.js's own
+// stregSheetDraft lifecycle. masterplanLastSavedSnapshot is the serialized
+// draft at that moment, compared against on every edit to drive the
+// Gemt/Ikke gemt status (see koordMpUpdateSaveStatus).
+let masterplanDraft = null;
+let masterplanLastSavedSnapshot = '';
+let koordMpDragItem = null;
+
+function koordMpNewId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function koordMpEnsureDraft() {
+  if (masterplanDraft) return;
+  masterplanDraft = structuredClone(getEffectiveMasterplan());
+  masterplanLastSavedSnapshot = JSON.stringify(masterplanDraft);
+}
+
+function masterplanIsDirty() {
+  return JSON.stringify(masterplanDraft) !== masterplanLastSavedSnapshot;
+}
+
+// Splices `item` out of `draft` and reinserts it just before `beforeItem`
+// (or at the end if falsy) — duplicated verbatim from budget.js's own
+// budgetMoveDraftItem (see that function's own header comment for the other
+// existing duplicates of this same helper), per this codebase's
+// per-feature duplication convention (koordinator.js doesn't load
+// budget.js).
+function koordMoveDraftItem(draft, item, beforeItem, rerender) {
+  const idx = draft.indexOf(item);
+  if (idx === -1) return;
+  draft.splice(idx, 1);
+  const beforeIdx = beforeItem ? draft.indexOf(beforeItem) : -1;
+  if (beforeIdx === -1) draft.push(item);
+  else draft.splice(beforeIdx, 0, item);
+  rerender();
+}
+
+// Duplicated verbatim from budget.js's own budgetWireDropHighlight.
+function koordWireDropHighlight(rowEl, onDrop) {
+  let depth = 0;
+  rowEl.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    depth++;
+    rowEl.classList.add('koord-mp-drop-target');
+  });
+  rowEl.addEventListener('dragover', (e) => { e.preventDefault(); }); // required for 'drop' to fire
+  rowEl.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) rowEl.classList.remove('koord-mp-drop-target');
+  });
+  rowEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    depth = 0;
+    rowEl.classList.remove('koord-mp-drop-target');
+    onDrop();
+  });
+}
+
+function koordMpStatusMeta(status) {
+  return KOORD_MP_STATUSES.find((s) => s.value === status) || KOORD_MP_STATUSES[0];
+}
+
+function koordMpNextStatus(status) {
+  const idx = KOORD_MP_STATUSES.findIndex((s) => s.value === status);
+  return KOORD_MP_STATUSES[(idx + 1) % KOORD_MP_STATUSES.length].value;
+}
+
+// Small styled "Er du sikker?" confirm (mirrors budget.js's
+// stregOpenDeleteGridRowConfirm) — used for every row removal here (group
+// or task), since unlike Streg's grid a Masterplan row is never a
+// still-uncommitted "+" click with nothing to lose (there's no
+// server-assigned id to distinguish that case by), so it's simplest to
+// always ask.
+function koordMpDeleteConfirm(label, onConfirm) {
+  const { modal, form, actions, close } = siteOpenEditModal('');
+  modal.classList.add('koord-mp-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+  form.appendChild(el('p', 'koord-mp-confirm-text', label));
+  const cancelBtn = koordPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = koordPillBtn('Fjern', 'site-btn-danger');
+  confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// Renders both the desktop flat-tab bar and a mobile dropdown, exact same
+// pattern as manus.js's own renderTabBar/MANUS_MAIN_TABS (duplicated —
+// koordinator.html doesn't load manus.js).
+function renderMpTabBar() {
+  const mount = document.getElementById('koord-mp-tab-bar');
+  mount.textContent = '';
+
+  const btnBar = el('div', 'koord-mp-tab-btn-bar');
+  KOORD_MP_TABS.forEach((tab) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'koord-mp-tab-btn' + (tab.key === koordMpActiveTab ? ' active' : '');
+    btn.textContent = tab.label;
+    btn.addEventListener('click', () => {
+      koordMpActiveTab = tab.key;
+      localStorage.setItem(KOORD_MP_TAB_KEY, koordMpActiveTab);
+      renderMpTabBar();
+      renderMpGrid();
+    });
+    btnBar.appendChild(btn);
+  });
+  mount.appendChild(btnBar);
+
+  const dropdown = siteCreateDropdownField(
+    KOORD_MP_TABS.map((t) => ({ value: t.key, label: t.label })),
+    koordMpActiveTab
+  );
+  dropdown.classList.add('koord-mp-tab-select-mobile');
+  dropdown.setAttribute('aria-label', 'Vælg fane');
+  dropdown.addEventListener('change', () => {
+    koordMpActiveTab = dropdown.value;
+    localStorage.setItem(KOORD_MP_TAB_KEY, koordMpActiveTab);
+    renderMpTabBar();
+    renderMpGrid();
+  });
+  mount.appendChild(dropdown);
+}
+
+// Cheap, called on every keystroke — only touches the Gem button/status
+// text, never rebuilds the grid (rebuilding on every input would steal
+// focus mid-type, same reasoning as budget.js's own onDirtyChange callback
+// passed into stregBuildTable).
+function koordMpUpdateSaveStatus() {
+  const status = document.getElementById('koord-mp-save-status');
+  const saveBtn = document.getElementById('koord-mp-save-btn');
+  if (!status || !saveBtn) return;
+  const dirty = masterplanIsDirty();
+  status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+  status.className = 'koord-mp-save-status' + (dirty ? ' dirty' : '');
+}
+
+function koordMpCreateField(row, key, className) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'koord-mp-field ' + className;
+  input.value = row[key] || '';
+  input.addEventListener('input', () => {
+    row[key] = input.value;
+    koordMpUpdateSaveStatus();
+  });
+  return input;
+}
+
+function koordMpWireRowDrag(rowEl, row, rows) {
+  rowEl.draggable = true;
+  rowEl.addEventListener('dragstart', (e) => {
+    koordMpDragItem = row;
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  rowEl.addEventListener('dragend', () => rowEl.classList.remove('koord-mp-drop-target'));
+  koordWireDropHighlight(rowEl, () => {
+    if (koordMpDragItem && koordMpDragItem !== row) {
+      koordMoveDraftItem(rows, koordMpDragItem, row, renderMpGrid);
+      koordMpUpdateSaveStatus();
     }
-    status.textContent = 'Gemt — slår igennem for revyster om ca. 1-2 minutter.';
+  });
+}
+
+function renderMpGroupRow(row, rows) {
+  const rowEl = el('div', 'koord-mp-row koord-mp-row-group');
+  koordMpWireRowDrag(rowEl, row, rows);
+
+  rowEl.appendChild(el('span', 'koord-mp-col-handle boss-manage-drag-handle', '⠿'));
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.className = 'koord-mp-field koord-mp-col-group-title';
+  titleInput.placeholder = 'Overskrift (kan stå tom)';
+  titleInput.value = row.title || '';
+  titleInput.addEventListener('input', () => {
+    row.title = titleInput.value;
+    koordMpUpdateSaveStatus();
+  });
+  rowEl.appendChild(titleInput);
+
+  const removeBtn = el('button', 'koord-mp-col-remove boss-manage-remove-btn', '✕');
+  removeBtn.type = 'button';
+  removeBtn.title = 'Fjern gruppe';
+  removeBtn.addEventListener('click', () => {
+    koordMpDeleteConfirm('Fjern denne gruppeoverskrift? Opgaverne under den bliver stående.', () => {
+      const idx = rows.indexOf(row);
+      if (idx !== -1) rows.splice(idx, 1);
+      koordMpUpdateSaveStatus();
+      renderMpGrid();
+    });
+  });
+  rowEl.appendChild(removeBtn);
+
+  return rowEl;
+}
+
+function renderMpTaskRow(row, rows) {
+  const rowEl = el('div', 'koord-mp-row koord-mp-row-task');
+  koordMpWireRowDrag(rowEl, row, rows);
+
+  rowEl.appendChild(el('span', 'koord-mp-col-handle boss-manage-drag-handle', '⠿'));
+  rowEl.appendChild(koordMpCreateField(row, 'emne', 'koord-mp-col-emne'));
+  rowEl.appendChild(koordMpCreateField(row, 'todo', 'koord-mp-col-todo'));
+  rowEl.appendChild(koordMpCreateField(row, 'beskrivelse', 'koord-mp-col-besk'));
+  rowEl.appendChild(koordMpCreateField(row, 'ansvarA', 'koord-mp-col-ansvar'));
+  rowEl.appendChild(koordMpCreateField(row, 'ansvarB', 'koord-mp-col-ansvar'));
+
+  const statusBtn = document.createElement('button');
+  statusBtn.type = 'button';
+  function paintStatus() {
+    const meta = koordMpStatusMeta(row.status);
+    statusBtn.textContent = meta.label;
+    statusBtn.className = 'koord-mp-col-status koord-mp-status koord-mp-status-' + (row.status || 'none');
+  }
+  paintStatus();
+  statusBtn.title = 'Klik for at skifte status';
+  statusBtn.addEventListener('click', () => {
+    row.status = koordMpNextStatus(row.status);
+    paintStatus();
+    koordMpUpdateSaveStatus();
+  });
+  rowEl.appendChild(statusBtn);
+
+  const removeBtn = el('button', 'koord-mp-col-remove boss-manage-remove-btn', '✕');
+  removeBtn.type = 'button';
+  removeBtn.title = 'Fjern opgave';
+  removeBtn.addEventListener('click', () => {
+    const label = (row.todo || row.beskrivelse) ? `Fjern "${row.todo || row.beskrivelse}"?` : 'Fjern denne opgave?';
+    koordMpDeleteConfirm(label, () => {
+      const idx = rows.indexOf(row);
+      if (idx !== -1) rows.splice(idx, 1);
+      koordMpUpdateSaveStatus();
+      renderMpGrid();
+    });
+  });
+  rowEl.appendChild(removeBtn);
+
+  return rowEl;
+}
+
+// Structural render — rebuilds every row in the active tab. Called on tab
+// switch, add/remove/drag, save, and reset; never on a plain keystroke (see
+// koordMpCreateField/koordMpUpdateSaveStatus above).
+function renderMpGrid() {
+  const mount = document.getElementById('koord-mp-grid');
+  mount.textContent = '';
+  const rows = masterplanDraft.tabs[koordMpActiveTab];
+
+  // Header row — the two Ansvar columns are live text inputs bound to the
+  // shared masterplanDraft.ansvarLabels (the column header *is* the
+  // editable label, no separate "rename columns" UI needed), so an edit
+  // here is immediately reflected if the admin switches to another tab.
+  const header = el('div', 'koord-mp-row koord-mp-row-header');
+  header.appendChild(el('span', 'koord-mp-col-handle'));
+  header.appendChild(el('span', 'koord-mp-col-emne', 'Emne'));
+  header.appendChild(el('span', 'koord-mp-col-todo', 'To do'));
+  header.appendChild(el('span', 'koord-mp-col-besk', 'Beskrivelse'));
+  const ansvarAInput = document.createElement('input');
+  ansvarAInput.type = 'text';
+  ansvarAInput.className = 'koord-mp-field koord-mp-col-ansvar koord-mp-ansvar-label';
+  ansvarAInput.value = masterplanDraft.ansvarLabels[0];
+  ansvarAInput.addEventListener('input', () => {
+    masterplanDraft.ansvarLabels[0] = ansvarAInput.value;
+    koordMpUpdateSaveStatus();
+  });
+  header.appendChild(ansvarAInput);
+  const ansvarBInput = document.createElement('input');
+  ansvarBInput.type = 'text';
+  ansvarBInput.className = 'koord-mp-field koord-mp-col-ansvar koord-mp-ansvar-label';
+  ansvarBInput.value = masterplanDraft.ansvarLabels[1];
+  ansvarBInput.addEventListener('input', () => {
+    masterplanDraft.ansvarLabels[1] = ansvarBInput.value;
+    koordMpUpdateSaveStatus();
+  });
+  header.appendChild(ansvarBInput);
+  header.appendChild(el('span', 'koord-mp-col-status', 'Status'));
+  header.appendChild(el('span', 'koord-mp-col-remove'));
+  mount.appendChild(header);
+
+  rows.forEach((row) => {
+    mount.appendChild(row.type === 'group' ? renderMpGroupRow(row, rows) : renderMpTaskRow(row, rows));
   });
 
-  row.appendChild(input);
-  row.appendChild(label);
-  row.appendChild(status);
-  container.appendChild(row);
+  const addRow = el('div', 'koord-mp-add-row');
+  const addTaskBtn = el('button', 'btn-small', '+ Tilføj opgave');
+  addTaskBtn.type = 'button';
+  addTaskBtn.addEventListener('click', () => {
+    rows.push({ id: koordMpNewId('r'), type: 'task', emne: '', todo: '', beskrivelse: '', ansvarA: '', ansvarB: '', status: '' });
+    koordMpUpdateSaveStatus();
+    renderMpGrid();
+  });
+  const addGroupBtn = el('button', 'btn-small', '+ Tilføj gruppe');
+  addGroupBtn.type = 'button';
+  addGroupBtn.addEventListener('click', () => {
+    rows.push({ id: koordMpNewId('g'), type: 'group', title: '' });
+    koordMpUpdateSaveStatus();
+    renderMpGrid();
+  });
+  addRow.appendChild(addTaskBtn);
+  addRow.appendChild(addGroupBtn);
+  mount.appendChild(addRow);
+}
+
+async function koordMpSave() {
+  const saveBtn = document.getElementById('koord-mp-save-btn');
+  const status = document.getElementById('koord-mp-save-status');
+  saveBtn.disabled = true;
+  status.textContent = 'Gemmer...';
+  status.className = 'koord-mp-save-status';
+
+  const payload = { ansvarLabels: masterplanDraft.ansvarLabels, tabs: {} };
+  KOORD_MP_TABS.forEach((tab) => { payload.tabs[tab.key] = masterplanDraft.tabs[tab.key]; });
+
+  const result = await siteSaveResource('masterplan', payload);
+  saveBtn.disabled = false;
+  if (result.ok) {
+    koordMasterplanOverride = payload;
+    siteSaveOverride('masterplan', payload);
+    masterplanDraft = null;
+    koordMpEnsureDraft();
+    renderMpGrid();
+    koordMpUpdateSaveStatus();
+  } else {
+    status.textContent = result.message || 'Kunne ikke gemme.';
+    status.className = 'koord-mp-save-status dirty';
+  }
+}
+
+// Discards unsaved edits and rebuilds the draft from the last-loaded/saved
+// data — confirmed first (styled modal, not native confirm()) only when
+// there's actually something to lose.
+function koordMpReset() {
+  if (!masterplanIsDirty()) return;
+  koordMpDeleteConfirm('Kassér alle ugemte ændringer i Masterplan?', () => {
+    masterplanDraft = null;
+    koordMpEnsureDraft();
+    renderMpGrid();
+    koordMpUpdateSaveStatus();
+  });
+}
+
+function renderMasterplanCard(container) {
+  koordMpEnsureDraft();
+
+  const card = el('section', 'card koord-mp-card');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Masterplan'));
+  card.appendChild(head);
+
+  const tabBar = el('nav', 'koord-mp-tab-bar');
+  tabBar.id = 'koord-mp-tab-bar';
+  card.appendChild(tabBar);
+
+  const gridWrap = el('div', 'koord-mp-grid-wrap');
+  const grid = el('div', 'koord-mp-grid');
+  grid.id = 'koord-mp-grid';
+  gridWrap.appendChild(grid);
+  card.appendChild(gridWrap);
+
+  const saveBar = el('div', 'koord-mp-save-bar');
+  const resetBtn = el('button', 'site-btn-danger', 'Nulstil');
+  resetBtn.type = 'button';
+  resetBtn.addEventListener('click', koordMpReset);
+  saveBar.appendChild(resetBtn);
+
+  const saveGroup = el('div', 'koord-mp-save-group');
+  const status = el('span', 'koord-mp-save-status');
+  status.id = 'koord-mp-save-status';
+  const saveBtn = el('button', 'site-btn-success', 'Gem');
+  saveBtn.id = 'koord-mp-save-btn';
+  saveBtn.type = 'button';
+  saveBtn.addEventListener('click', koordMpSave);
+  saveGroup.appendChild(status);
+  saveGroup.appendChild(saveBtn);
+  saveBar.appendChild(saveGroup);
+  card.appendChild(saveBar);
+
+  container.appendChild(card);
+
+  renderMpTabBar();
+  renderMpGrid();
+  koordMpUpdateSaveStatus();
 }
 
 // ── Page render ──────────────────────────────────────────────
@@ -628,74 +1051,58 @@ function renderKoordinator(root) {
 
   const folder = koordCurrentFolder();
 
-  // Card 1: current production status + the two-step year-close workflow —
-  // previously three separate cards, combined into one section per request.
-  const prodCard = el('section', 'card');
-  const prodHead = el('div', 'card-head');
-  prodHead.appendChild(el('h2', null, 'Afslut produktionsår'));
-  prodCard.appendChild(prodHead);
+  // Right column, card 1: "Arkivering" — active-folder status, then the
+  // single "Afslut revyen" action (opens the merged guide+close-year modal,
+  // see openCloseYearModal), then "Arkiv" (unchanged Rediger picker). Three
+  // sub-sections divided by the same .koord-step-heading top-border
+  // treatment used inside the modal itself.
+  const arkiveringCard = el('section', 'card');
+  const arkiveringHead = el('div', 'card-head');
+  arkiveringHead.appendChild(el('h2', null, 'Arkivering'));
+  arkiveringCard.appendChild(arkiveringHead);
 
-  prodCard.appendChild(el('p', null, folder
+  arkiveringCard.appendChild(el('p', null, folder
     ? `Aktiv produktionsmappe: ${folder}`
     : 'Ingen aktiv produktionsmappe fundet (data/config.json).'));
   const manusLink = document.createElement('a');
   manusLink.href = 'manus.html';
   manusLink.textContent = 'Gå til Manus-siden';
   manusLink.className = 'btn-small';
-  prodCard.appendChild(manusLink);
+  arkiveringCard.appendChild(manusLink);
 
-  prodCard.appendChild(el('h3', 'koord-step-heading', 'Trin 1: Klargør de endelige filer'));
-  prodCard.appendChild(el('p', null,
-    'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
-    'endelige tekst og rollebesætning og gemmer dem i arkivet (tager et par minutter). Bekræft herunder, at det er landet, ' +
-    'før du går videre til trin 2.'));
-  const checkRow = el('div', 'koord-check-row');
-  const checkBtn = el('button', 'btn-small', 'Tjek om klar');
-  checkBtn.type = 'button';
-  const statusText = el('span', 'koord-status-value', '');
-  checkBtn.addEventListener('click', async () => {
-    checkBtn.disabled = true;
-    statusText.textContent = 'Tjekker...';
-    const { date, confirmedAbsent, checkFailed } = await koordFetchPdfStatus(koordPdfReferenceUrl());
-    if (date) statusText.textContent = koordFormatGeneratedAt(date);
-    else if (confirmedAbsent) statusText.textContent = 'Endnu ikke genereret';
-    else if (checkFailed) statusText.textContent = 'Sidst genereret: ukendt';
-    checkBtn.disabled = false;
-  });
-  checkRow.appendChild(checkBtn);
-  checkRow.appendChild(statusText);
-  prodCard.appendChild(checkRow);
-
-  koordRenderPdfToggle(prodCard);
-
-  prodCard.appendChild(el('h3', 'koord-step-heading', 'Trin 2: Afslut år og start nyt'));
-  prodCard.appendChild(el('p', null,
+  arkiveringCard.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
+  arkiveringCard.appendChild(el('p', null,
     'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter) til et nyt, tomt produktionsår og gemmer et ' +
-    'snapshot af scenes.json/cast.json i arkivet. Gør dette KUN efter at have bekræftet trin 1 ovenfor — se ' +
-    'beskrivelsen i modalen for detaljer.'));
-  const closeBtn = el('button', 'btn-small', 'Afslut produktionsår');
+    'snapshot af scenes.json/cast.json i arkivet.'));
+  const closeBtn = el('button', 'btn-small', 'Afslut');
   closeBtn.type = 'button';
   closeBtn.disabled = !folder;
   closeBtn.addEventListener('click', () => openCloseYearModal(folder));
-  prodCard.appendChild(closeBtn);
+  arkiveringCard.appendChild(closeBtn);
 
-  // Card 2: Arkiv — a small sidebar card with just Rediger (pick a year from
-  // a dropdown, like Manus's "Manus" quick-link picker) and Tilføj. No year
-  // list is shown directly on this page (archive.js's own openYearEditor()/
-  // deleteYear() exist but were never wired to any UI on arkiv.html either).
-  const arkivCard = el('section', 'card');
-  const arkivHead = el('div', 'card-head');
-  arkivHead.appendChild(el('h2', null, 'Arkiv'));
-  arkivCard.appendChild(arkivHead);
-  arkivCard.appendChild(el('p', null, 'Tilføj eller redigér tidligere års arkivindgange.'));
+  arkiveringCard.appendChild(el('h3', 'koord-step-heading', 'Arkiv'));
   const arkivBody = el('div');
   arkivBody.id = 'koord-arkiv-body';
-  arkivCard.appendChild(arkivBody);
+  arkiveringCard.appendChild(arkivBody);
+
+  // Right column, card 2: placeholder for future checklist/broadcast tools.
+  const tjeklisterCard = el('section', 'card');
+  const tjeklisterHead = el('div', 'card-head');
+  tjeklisterHead.appendChild(el('h2', null, 'Tjeklister & Fællesbeskeder'));
+  tjeklisterCard.appendChild(tjeklisterHead);
+
+  const rightCol = el('div', 'koord-right-col');
+  rightCol.appendChild(arkiveringCard);
+  rightCol.appendChild(tjeklisterCard);
 
   const columns = el('div', 'koord-columns');
-  columns.appendChild(prodCard);
-  columns.appendChild(arkivCard);
+  // Attached to the live document before any of the id-based render calls
+  // below run — renderMasterplanCard/renderArkivSection look their mount
+  // points up via document.getElementById, which only finds elements
+  // already part of the actual document, not a still-detached subtree.
   root.appendChild(columns);
+  renderMasterplanCard(columns);
+  columns.appendChild(rightCol);
 
   renderArkivSection();
 }

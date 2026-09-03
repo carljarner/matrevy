@@ -32,7 +32,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # List every generated *-data.js output here (see scripts/embed-scenes.js's EMBEDS)
-          git add js/scenes-data.js js/calendar-data.js js/archive-data.js js/posts-data.js js/bosses-data.js js/wiki-data.js js/manuscripts-data.js js/config-data.js js/program-data.js calendar.ics
+          git add js/scenes-data.js js/calendar-data.js js/archive-data.js js/posts-data.js js/bosses-data.js js/wiki-data.js js/manuscripts-data.js js/config-data.js js/program-data.js js/masterplan-data.js calendar.ics
           if git diff --staged --quiet; then
             echo "Nothing to commit."
             exit 0

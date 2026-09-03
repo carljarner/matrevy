@@ -71,6 +71,13 @@
     <!-- "Hent stemmeark" print target — hidden on screen (see manus.css's
          @media print block), filled in just before window.print(). -->
     <div class="manus-print-only" id="manus-print-sheet"></div>
+
+    <!-- Admin-only site config that happens to govern this page — the
+         "Vis PDF'er for revyster" toggle (Koordinator-adjacent, but its
+         natural home is here since it controls what Manus shows
+         revyst-level visitors). Rendered by manus.js's own
+         renderAdminSettings, hidden entirely below admin level. -->
+    <div class="card" id="manus-admin-settings" style="display:none"></div>
   </main>
 
   <footer class="site-footer">
