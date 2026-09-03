@@ -762,24 +762,31 @@ function koordMpNextStatus(status) {
   return KOORD_MP_STATUSES[(idx + 1) % KOORD_MP_STATUSES.length].value;
 }
 
-// Small styled "Er du sikker?" confirm (mirrors budget.js's
-// stregOpenDeleteGridRowConfirm) — used for every row removal here (group
-// or task), since unlike Streg's grid a Masterplan row is never a
-// still-uncommitted "+" click with nothing to lose (there's no
-// server-assigned id to distinguish that case by), so it's simplest to
-// always ask.
-function koordMpDeleteConfirm(label, onConfirm) {
-  const { modal, form, actions, close } = siteOpenEditModal('');
+// Small styled "Er du sikker?" confirm (mirrors openDeleteArchiveYearConfirm/
+// openDeleteMasterplanPlanConfirm's own title+description shape) — `title`
+// becomes the modal's real centered heading, `description` (optional) an
+// extra centered/muted line below it. Used for every non-empty row removal
+// here (group or task) — an empty row (see koordMpRowIsEmpty below) skips
+// this entirely and deletes straight away, since there's nothing in it to
+// lose.
+function koordMpDeleteConfirm(title, description, onConfirm) {
+  const { modal, form, actions, close } = siteOpenEditModal(title);
   modal.classList.add('koord-mp-confirm-modal');
-  const heading = modal.querySelector('h2');
-  if (heading) heading.remove();
-  form.appendChild(el('p', 'koord-mp-confirm-text', label));
+  if (description) form.appendChild(el('p', 'koord-mp-confirm-text', description));
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = koordPillBtn('Fjern', 'site-btn-danger');
   confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
+}
+
+// A row with nothing typed into it yet — removing it loses no real content,
+// so the caller skips koordMpDeleteConfirm entirely for these.
+function koordMpRowIsEmpty(row) {
+  if (row.type === 'group') return !row.title || !row.title.trim();
+  return !row.emne?.trim() && !row.todo?.trim() && !row.beskrivelse?.trim()
+    && !row.ansvarA?.trim() && !row.ansvarB?.trim() && !row.status;
 }
 
 // Renders both the desktop flat-tab bar and a mobile dropdown, exact same
@@ -881,12 +888,18 @@ function renderMpGroupRow(row, rows) {
   removeBtn.type = 'button';
   removeBtn.title = 'Fjern gruppe';
   removeBtn.addEventListener('click', () => {
-    koordMpDeleteConfirm('Fjern denne gruppeoverskrift? Opgaverne under den bliver stående.', () => {
+    const remove = () => {
       const idx = rows.indexOf(row);
       if (idx !== -1) rows.splice(idx, 1);
       koordMpUpdateSaveStatus();
       renderMpGrid();
-    });
+    };
+    if (koordMpRowIsEmpty(row)) { remove(); return; }
+    koordMpDeleteConfirm(
+      `Fjern "${row.title}"?`,
+      'Opgaverne under den bliver stående.',
+      remove
+    );
   });
   rowEl.appendChild(removeBtn);
 
@@ -924,13 +937,15 @@ function renderMpTaskRow(row, rows) {
   removeBtn.type = 'button';
   removeBtn.title = 'Fjern opgave';
   removeBtn.addEventListener('click', () => {
-    const label = (row.todo || row.beskrivelse) ? `Fjern "${row.todo || row.beskrivelse}"?` : 'Fjern denne opgave?';
-    koordMpDeleteConfirm(label, () => {
+    const remove = () => {
       const idx = rows.indexOf(row);
       if (idx !== -1) rows.splice(idx, 1);
       koordMpUpdateSaveStatus();
       renderMpGrid();
-    });
+    };
+    if (koordMpRowIsEmpty(row)) { remove(); return; }
+    const title = (row.todo || row.emne) ? `Fjern "${row.todo || row.emne}"?` : 'Fjern denne opgave?';
+    koordMpDeleteConfirm(title, row.beskrivelse?.trim() || null, remove);
   });
   rowEl.appendChild(removeBtn);
 
@@ -945,33 +960,17 @@ function renderMpGrid() {
   mount.textContent = '';
   const rows = masterplanDraft.tabs[koordMpActiveTab];
 
-  // Header row — the two Ansvar columns are live text inputs bound to the
-  // shared masterplanDraft.ansvarLabels (the column header *is* the
-  // editable label, no separate "rename columns" UI needed), so an edit
-  // here is immediately reflected if the admin switches to another tab.
+  // Header row — the two Ansvar columns are fixed labels, not per-plan data
+  // (see koordMpTabsFromPrevious): "Ansvarlig sidste revy" always shows who
+  // held the role last time, "Ansvarlig" who holds it now, so a new plan's
+  // "+ Tilføj" can shift last year's Ansvarlig into this column automatically.
   const header = el('div', 'koord-mp-row koord-mp-row-header');
   header.appendChild(el('span', 'koord-mp-col-handle'));
   header.appendChild(el('span', 'koord-mp-col-emne', 'Emne'));
   header.appendChild(el('span', 'koord-mp-col-todo', 'To do'));
   header.appendChild(el('span', 'koord-mp-col-besk', 'Beskrivelse'));
-  const ansvarAInput = document.createElement('input');
-  ansvarAInput.type = 'text';
-  ansvarAInput.className = 'koord-mp-field koord-mp-col-ansvar koord-mp-ansvar-label';
-  ansvarAInput.value = masterplanDraft.ansvarLabels[0];
-  ansvarAInput.addEventListener('input', () => {
-    masterplanDraft.ansvarLabels[0] = ansvarAInput.value;
-    koordMpUpdateSaveStatus();
-  });
-  header.appendChild(ansvarAInput);
-  const ansvarBInput = document.createElement('input');
-  ansvarBInput.type = 'text';
-  ansvarBInput.className = 'koord-mp-field koord-mp-col-ansvar koord-mp-ansvar-label';
-  ansvarBInput.value = masterplanDraft.ansvarLabels[1];
-  ansvarBInput.addEventListener('input', () => {
-    masterplanDraft.ansvarLabels[1] = ansvarBInput.value;
-    koordMpUpdateSaveStatus();
-  });
-  header.appendChild(ansvarBInput);
+  header.appendChild(el('span', 'koord-mp-col-ansvar', 'Ansvarlig sidste revy'));
+  header.appendChild(el('span', 'koord-mp-col-ansvar', 'Ansvarlig'));
   header.appendChild(el('span', 'koord-mp-col-status', 'Status'));
   header.appendChild(el('span', 'koord-mp-col-remove'));
   mount.appendChild(header);
@@ -1014,7 +1013,6 @@ async function koordMpSave() {
     id: masterplanDraft.id,
     year: masterplanDraft.year,
     label: masterplanDraft.label,
-    ansvarLabels: masterplanDraft.ansvarLabels,
     tabs: {},
   };
   KOORD_MP_TABS.forEach((tab) => { updatedPlan.tabs[tab.key] = masterplanDraft.tabs[tab.key]; });
@@ -1070,21 +1068,49 @@ function koordMpEmptyTabs() {
   return tabs;
 }
 
-// "+ Tilføj" — mirrors openKoordYearEditor's own Navn/Årstal pair and
-// auto-fill-year-from-name behavior. Unlike row edits (batched into the
-// draft), creating a plan is a structural action that saves immediately,
-// same posture as adding an Arkiv year.
+// A new plan starts as a copy of the previous one, not blank: every task
+// row's "Ansvarlig" name shifts left into "Ansvarlig sidste revy" (this
+// year's coordinator becomes next year's point of reference), "Ansvarlig"
+// itself is cleared for the incoming coordinator to fill in, and Status
+// resets since none of last year's to-dos are done yet in the new cycle.
+// Group headings carry over unchanged. Falls back to genuinely empty tabs
+// when there's no previous plan to copy (the very first plan ever).
+function koordMpTabsFromPrevious(prevPlan) {
+  if (!prevPlan) return koordMpEmptyTabs();
+  const tabs = structuredClone(prevPlan.tabs || {});
+  KOORD_MP_TABS.forEach((tab) => {
+    (tabs[tab.key] || []).forEach((row) => {
+      if (row.type !== 'task') return;
+      row.ansvarA = row.ansvarB || '';
+      row.ansvarB = '';
+      row.status = '';
+    });
+  });
+  return tabs;
+}
+
+// "+ Tilføj" — copies the newest existing plan forward (see
+// koordMpTabsFromPrevious), with Navn/Årstal pre-filled as a starting-point
+// guess from it (mirrors koordGuessNameFromFolder/koordSuggestNextFolder's
+// own guess-but-freely-editable posture for Arkiv's close-year flow) —
+// freely editable before saving. Unlike row edits (batched into the draft),
+// creating a plan is a structural action that saves immediately, same
+// posture as adding an Arkiv year.
 function openCreateMasterplanModal() {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Ny plan');
   modal.classList.add('koord-mp-plan-modal');
 
+  const prevPlan = sortedMasterplanPlans()[0] || null;
+
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
   nameInput.placeholder = 'MatRevy 2027';
+  nameInput.value = prevPlan ? koordSuggestNextFolder(prevPlan.label) : '';
   const yearInput = document.createElement('input');
   yearInput.type = 'number';
   yearInput.min = '1900';
   yearInput.max = '2100';
+  yearInput.value = prevPlan ? String(prevPlan.year + 1) : '';
 
   let yearTouched = false;
   yearInput.addEventListener('input', () => { yearTouched = true; });
@@ -1094,6 +1120,10 @@ function openCreateMasterplanModal() {
     if (m) yearInput.value = m[0];
   });
 
+  if (prevPlan) {
+    form.appendChild(el('p', 'koord-modal-intro',
+      `Kopieres fra "${prevPlan.label}" — Ansvarlig flyttes til Ansvarlig sidste revy, og Status nulstilles.`));
+  }
   form.appendChild(siteEditField('Navn', nameInput));
   form.appendChild(siteEditField('Årstal', yearInput));
 
@@ -1111,11 +1141,7 @@ function openCreateMasterplanModal() {
     }
 
     const id = koordMpSlugifyPlanId(label);
-    const newPlan = {
-      id, year, label,
-      ansvarLabels: [`Ansvar ${year}`, `Ansvar ${year + 1}`],
-      tabs: koordMpEmptyTabs(),
-    };
+    const newPlan = { id, year, label, tabs: koordMpTabsFromPrevious(prevPlan) };
     const nextPlans = getMasterplanPlans().concat([newPlan]);
 
     save.disabled = true;

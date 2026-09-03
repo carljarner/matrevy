@@ -405,12 +405,6 @@
   background: var(--input-bg);
 }
 
-.koord-mp-ansvar-label {
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.8rem;
-}
-
 /* Status pill — cycles unset/mangler/igang/faerdig on click, same
    red/amber/green tokens as the site-wide .site-btn-danger/-warm/-success
    family. */
@@ -477,6 +471,10 @@
 /* --- Row-removal confirm popup, mirrors .koord-arkiv-confirm-modal. ---- */
 .koord-mp-confirm-modal {
   width: min(380px, 90vw);
+}
+
+.koord-mp-confirm-modal h2 {
+  text-align: center;
 }
 
 .koord-mp-confirm-text {
