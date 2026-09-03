@@ -2871,19 +2871,41 @@ function faelles_validate_answers($answersIn) {
   return ['navn' => $navn, 'madforbehold' => $madforbehold];
 }
 
-// No cross-check against CALENDAR_DATA (which day ids currently exist) —
-// same "don't validate against a live external list" posture as
+// Opt-out model: a day column defaults to checked (attending) for a row
+// once that row's own createdAt date has passed, and unchecked before it —
+// `dayOverrides` ({dayId: bool}) holds only the explicit deviations from
+// that default (an opted-out future day, or a manually opted-in day
+// predating the row), so a brand-new/legacy row with no overrides at all
+// is exactly "everyone auto-signed-up from the day they filled out the
+// form," with no migration needed for rows that predate this field. No
+// cross-check against CALENDAR_DATA (which day ids currently exist) — same
+// "don't validate against a live external list" posture as
 // forms_submit/budget_submit, since rejecting risks losing a submitter's
 // work over a race between page-load and submit.
-function faelles_validate_days($daysIn) {
-  if (!is_array($daysIn)) return null;
-  $days = [];
-  foreach ($daysIn as $d) {
-    if (!is_string($d) || $d === '' || mb_strlen($d) > 80) return null;
-    if (!in_array($d, $days, true)) $days[] = $d;
+//
+// A key is checked via its string form, not is_string($key) — PHP coerces
+// a purely-numeric array key (e.g. a day id that happens to look like
+// "123") to an int, which is_string() would then wrongly reject.
+function faelles_validate_day_overrides($overridesIn) {
+  if (!is_array($overridesIn)) return null;
+  $overrides = [];
+  $count = 0;
+  foreach ($overridesIn as $key => $value) {
+    $keyStr = (string) $key;
+    if ($keyStr === '' || mb_strlen($keyStr) > 80) return null;
+    if (!is_bool($value)) return null;
+    $overrides[$keyStr] = $value;
+    if (++$count > 100) return null;
   }
-  if (count($days) > 100) return null;
-  return $days;
+  return $overrides;
+}
+
+// Always JSON-object-shaped on the wire (even empty/all-numeric-keyed),
+// never a JSON array — json_encode only emits an object for an array with
+// non-sequential-int keys, so an empty override map, or one that happens
+// to land on keys "0","1",..., would otherwise silently serialize as `[]`.
+function faelles_overrides_for_json($overrides) {
+  return (object) $overrides;
 }
 
 // title/date for a Fællesspisning-only day column (faelles_add_day).
@@ -2986,7 +3008,7 @@ function faelles_sync_connection($connection) {
         $doc['rows'][] = [
           'id' => faelles_id(),
           'answers' => ['navn' => $navn, 'madforbehold' => $madforbehold],
-          'days' => [],
+          'dayOverrides' => faelles_overrides_for_json([]),
           'source' => ['formId' => $formId, 'responseId' => $rid],
           'createdAt' => $now,
           'updatedAt' => $now,
@@ -3028,28 +3050,31 @@ function faelles_read($body) {
 
 // Revyst: create (no rowId) or update (rowId given) one row from an
 // ordinary grid edit. `answers` is merged onto the existing row's answers
-// (only overwriting keys actually sent), `days` is a full replace — a
-// checkbox handler always has the complete current day-set on hand, so
-// that's safe. A row created/refreshed by a connected form goes through
+// (only overwriting keys actually sent), `dayOverrides` is a full replace —
+// a checkbox handler always has the complete current override map on hand,
+// so that's safe. A row created/refreshed by a connected form goes through
 // faelles_sync_connection() instead, which writes rows directly (see
-// there for why `source` tagging happens there, not here).
+// there for why `source` tagging happens there, not here). `createdAt` is
+// left untouched on an update — it's the row's own "day they filled out
+// the form," the anchor the opt-out default is computed from client-side,
+// and must never move just because an existing row was edited later.
 function faelles_upsert_row($body) {
   $rowId = $body['rowId'] ?? null;
   if ($rowId !== null && (!is_string($rowId) || !faelles_valid_id($rowId))) {
     respond(400, ['error' => 'invalid_shape']);
   }
   $answers = faelles_validate_answers($body['answers'] ?? []);
-  $days = faelles_validate_days($body['days'] ?? []);
-  if ($answers === null || $days === null) respond(400, ['error' => 'invalid_shape']);
+  $overrides = faelles_validate_day_overrides($body['dayOverrides'] ?? []);
+  if ($answers === null || $overrides === null) respond(400, ['error' => 'invalid_shape']);
 
   $savedRow = null;
-  $doc = faelles_mutate(function ($doc) use ($rowId, $answers, $days, &$savedRow) {
+  $doc = faelles_mutate(function ($doc) use ($rowId, $answers, $overrides, &$savedRow) {
     $now = date('c');
     $found = false;
     foreach ($doc['rows'] as &$row) {
       if ($rowId !== null && $row['id'] === $rowId) {
         $row['answers'] = array_merge($row['answers'], $answers);
-        $row['days'] = $days;
+        $row['dayOverrides'] = faelles_overrides_for_json($overrides);
         $row['updatedAt'] = $now;
         $savedRow = $row;
         $found = true;
@@ -3062,7 +3087,7 @@ function faelles_upsert_row($body) {
       $savedRow = [
         'id' => faelles_id(),
         'answers' => $answers,
-        'days' => $days,
+        'dayOverrides' => faelles_overrides_for_json($overrides),
         'createdAt' => $now,
         'updatedAt' => $now,
       ];
@@ -3137,10 +3162,10 @@ function faelles_add_day($body) {
 
 // Boss: removes a Fællesspisning-only day column — the only way to
 // correct a mistaken add, since it was never written to Kalender. Any
-// row's `days` entry referencing it is left alone (same "don't
+// row's `dayOverrides` entry referencing it is left alone (same "don't
 // cross-validate against the live day-id list" posture as
-// faelles_validate_days) — it just becomes an orphaned, invisible id
-// until that row is next edited.
+// faelles_validate_day_overrides) — it just becomes an orphaned, invisible
+// id until that row is next edited.
 function faelles_delete_day($body) {
   $dayId = $body['dayId'] ?? '';
   if (!faelles_valid_id($dayId)) respond(400, ['error' => 'invalid_shape']);
@@ -3160,7 +3185,7 @@ function faelles_delete_day($body) {
 // id. Not a `faelles_valid_id()` hex string like a row/extra-day id — a
 // calendar event's id comes from calendar.js's own generator (arbitrary
 // alphanumeric), so this just bounds it as a plain non-empty string, same
-// posture as faelles_validate_days. No cross-check against which day ids
+// posture as faelles_validate_day_overrides. No cross-check against which day ids
 // currently exist in the calendar either — a stale/already-removed id is
 // harmless to hide, same "don't validate against a live external list"
 // posture used throughout this file.

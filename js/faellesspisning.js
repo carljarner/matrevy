@@ -7,6 +7,12 @@
    events), a checkbox marks "eating that day," plus a summary of
    headcount + food preferences per day.
 
+   Opt-out attendance: a day defaults to checked for a row from that row's
+   own createdAt date onward (i.e. everyone is auto-signed-up for every
+   rehearsal from the day they fill out the form) and unchecked before it.
+   `row.dayOverrides` ({dayId: bool}) stores only explicit deviations from
+   that default — see faellesIsDayChecked/faellesRowJoinDate below.
+
    Same privacy posture as Budget/Forms: names and food preferences never
    touch the public repo / embed pipeline, only the private Simply.com
    store (FAELLESSPISNING_DATA_DIR), via authenticated actions on
@@ -193,8 +199,36 @@ function faellesRehearsalColumns() {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .map((c) => {
       const d = (typeof parseIsoDate === 'function') ? parseIsoDate(c.date) : new Date(c.date);
-      return { id: c.id, label: `${d.getDate()}/${d.getMonth() + 1}`, title: c.title, extra: c.extra };
+      // `date` (raw ISO, kept alongside the display `label`) is what the
+      // opt-out default (faellesIsDayChecked) compares against a row's
+      // own createdAt.
+      return { id: c.id, date: c.date, label: `${d.getDate()}/${d.getMonth() + 1}`, title: c.title, extra: c.extra };
     });
+}
+
+// ── Opt-out attendance model ──────────────────────────────────
+// A day column defaults to checked (attending) once a row's own createdAt
+// date has passed — "everyone is automatically signed up for every day,
+// starting the day they fill out the form" — and unchecked before it (a
+// day that already existed before someone signed up isn't retroactively
+// theirs). `row.dayOverrides` ({dayId: bool}) holds only the explicit
+// deviations from that default: an opted-out future day, or a manually
+// opted-in day predating the row. A row with no overrides at all — every
+// legacy row from before this model existed included, since the field is
+// simply absent there — is exactly the "auto-signed-up" default with
+// nothing overridden, so no data migration was needed to introduce this.
+function faellesRowJoinDate(row) {
+  if (row.createdAt) return String(row.createdAt).slice(0, 10);
+  // An unsaved draft row (still being filled in right now) has no
+  // createdAt yet — treat "today" as its eventual join date so the draft
+  // previews the same auto-checked-forward state it'll get once saved.
+  return (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
+}
+
+function faellesIsDayChecked(row, col) {
+  const overrides = row.dayOverrides || {};
+  if (Object.prototype.hasOwnProperty.call(overrides, col.id)) return !!overrides[col.id];
+  return col.date >= faellesRowJoinDate(row);
 }
 
 // ── State ─────────────────────────────────────────────────────
@@ -311,7 +345,7 @@ function faellesBuildTable(root) {
   addCell.colSpan = FAELLES_FIELDS.length;
   const addBtn = faellesAddPlusBtn('Tilføj række');
   addBtn.addEventListener('click', () => {
-    const draft = { id: null, answers: { navn: '', madforbehold: '' }, days: [] };
+    const draft = { id: null, answers: { navn: '', madforbehold: '' }, dayOverrides: {} };
     const tr = faellesRenderRow(draft, columns, showAddDate);
     tbody.insertBefore(tr, addRow);
     const firstInput = tr.querySelector('input[type="text"]');
@@ -380,13 +414,12 @@ function faellesRenderRow(row, columns, showAddDate) {
     const td = el('td', 'faelles-col-day');
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.checked = row.days.includes(col.id);
+    cb.checked = faellesIsDayChecked(row, col);
     cb.addEventListener('change', () => {
-      if (cb.checked) {
-        if (!row.days.includes(col.id)) row.days.push(col.id);
-      } else {
-        row.days = row.days.filter((d) => d !== col.id);
-      }
+      const isDefault = cb.checked === (col.date >= faellesRowJoinDate(row));
+      if (!row.dayOverrides) row.dayOverrides = {};
+      if (isDefault) delete row.dayOverrides[col.id];
+      else row.dayOverrides[col.id] = cb.checked;
       faellesCommitRow(row, tr);
     });
     td.appendChild(cb);
@@ -415,7 +448,7 @@ function faellesRenderRow(row, columns, showAddDate) {
 async function faellesCommitRow(row, tr) {
   if (row.id === null && !faellesRowHasContent(row)) return;
   if (row._inFlight) await row._inFlight;
-  const body = { answers: row.answers, days: row.days };
+  const body = { answers: row.answers, dayOverrides: row.dayOverrides || {} };
   if (row.id !== null) body.rowId = row.id;
   const promise = faellesApi('faelles_upsert_row', body);
   row._inFlight = promise;
@@ -430,7 +463,8 @@ async function faellesCommitRow(row, tr) {
   const wasNew = row.id === null;
   row.id = result.data.row.id;
   row.answers = result.data.row.answers;
-  row.days = result.data.row.days;
+  row.createdAt = result.data.row.createdAt;
+  row.dayOverrides = result.data.row.dayOverrides || {};
   if (wasNew) faellesState.rows.push(row);
   faellesRefreshSummary(tr);
 }
@@ -504,7 +538,7 @@ function faellesBuildSummaryBody(columns, showAddDate) {
   countRow.appendChild(el('th', '', 'Samlet antal i dag'));
   countRow.appendChild(el('td')); // spans the Madforbehold column
   for (const col of columns) {
-    const count = faellesState.rows.filter((r) => r.days.includes(col.id)).length;
+    const count = faellesState.rows.filter((r) => faellesIsDayChecked(r, col)).length;
     countRow.appendChild(el('td', '', String(count)));
   }
   for (let i = 0; i < trailingCols; i++) countRow.appendChild(el('td'));
@@ -514,7 +548,7 @@ function faellesBuildSummaryBody(columns, showAddDate) {
   prefRow.appendChild(el('th', '', 'Madforbehold'));
   prefRow.appendChild(el('td'));
   for (const col of columns) {
-    const attendees = faellesState.rows.filter((r) => r.days.includes(col.id));
+    const attendees = faellesState.rows.filter((r) => faellesIsDayChecked(r, col));
     const withPrefsRows = attendees.filter((r) => (r.answers.madforbehold || '').trim() !== '');
     const cell = el('td', 'faelles-summary-prefs');
     const btn = el('button', 'faelles-prefs-btn', attendees.length ? `ⓘ ${withPrefsRows.length}` : '–');
