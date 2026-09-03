@@ -681,6 +681,31 @@
 .picker-text-editor-row { display: flex; gap: 0.5rem; }
 .picker-text-editor-row .picker-text-editor { flex: 1; min-width: 0; }
 
+/* Merge/split action row in the per-slot time editor (edit-slot-time mode) */
+.sched-slot-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem 0.1rem;
+}
+.sched-slot-actions .btn-secondary {
+  flex: 1;
+  min-width: 0;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+  text-align: center;
+}
+.sched-slot-actions .btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .sched-slot-actions .btn-secondary:disabled:hover {
+    background: var(--input-bg);
+    border-color: var(--border);
+    color: var(--text);
+  }
+}
+
 /* ── Print styles ───────────────────────────────────────── */
 @media print {
   @page { size: A4 landscape; margin: 10mm 20px; }

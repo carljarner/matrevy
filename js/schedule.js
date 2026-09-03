@@ -686,6 +686,82 @@ function renderGrid() {
   });
 }
 
+// ── Merge/split adjacent timeslots ────────────────────────
+// Both actions live inside the per-slot time editor modal (see the "Flet
+// (op)"/"Split"/"Flet (ned)" row in renderSlotTimeEditor below) rather than
+// anywhere on the grid itself.
+//
+// Merging two slots is only allowed when no room holds a placement in both
+// (the merged row would otherwise have nowhere to put two different
+// placements in one cell) — the modal disables the relevant button with an
+// explanatory title when blocked, rather than hiding it.
+function canMergeSlots(si) {
+  if (si < 0 || si + 1 >= state.grid.length) return false;
+  return state.rooms.every((_, ri) => !(state.grid[si][ri] && state.grid[si + 1][ri]));
+}
+
+// Combines slot si and si+1 into one slot spanning the earliest start and
+// latest end of the two (per-room placements carry straight over — at most
+// one of the two slots has one, per canMergeSlots' gate above).
+function mergeSlots(si) {
+  if (!canMergeSlots(si)) return;
+  const rangeA = getSlotRange(si);
+  const rangeB = getSlotRange(si + 1);
+  const start = Math.min(rangeA.start, rangeB.start);
+  const end = Math.max(rangeA.end, rangeB.end);
+  const mergedRow = state.rooms.map((_, ri) => state.grid[si][ri] || state.grid[si + 1][ri]);
+
+  state.slots.splice(si, 2, {
+    startMinutes: start,
+    endMinutes: end,
+    label: minutesToTime(start) + ' – ' + minutesToTime(end),
+  });
+  state.grid.splice(si, 2, mergedRow);
+
+  renderGrid();
+  renderSceneSidebar();
+  saveState();
+}
+
+// Splits slot si into two independently-editable adjacent slots — startA/
+// endA/startB/endB come straight from the modal's own two rows of time
+// fields (see renderSlotTimeEditor's split mode below), so nothing here
+// assumes they're contiguous or evenly divided. Any existing placement
+// stays on the first (earlier) half; the second half starts empty — same
+// "don't leave it silently dropped, but don't guess which half either"
+// posture as mergeSlots' room-carrying.
+function splitSlot(si, startA, endA, startB, endB) {
+  const firstRow = state.grid[si];
+  const secondRow = state.rooms.map(() => null);
+
+  state.slots.splice(si, 1,
+    { startMinutes: startA, endMinutes: endA, label: minutesToTime(startA) + ' – ' + minutesToTime(endA) },
+    { startMinutes: startB, endMinutes: endB, label: minutesToTime(startB) + ' – ' + minutesToTime(endB) },
+  );
+  state.grid.splice(si, 1, firstRow, secondRow);
+
+  renderGrid();
+  renderSceneSidebar();
+  saveState();
+}
+
+function buildMergeButton(si) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'sched-merge-btn';
+  btn.appendChild(schedMergeIcon());
+  if (canMergeSlots(si)) {
+    btn.title = 'Sammenlæg med næste tidsrum';
+    // Sits inside the time cell, which has its own onclick (opens the slot
+    // time editor) — stop the click from bubbling there too.
+    btn.onclick = e => { e.stopPropagation(); mergeSlots(si); };
+  } else {
+    btn.disabled = true;
+    btn.title = 'Kan ikke sammenlægges – mindst ét lokale har en scene i begge tidsrum';
+  }
+  return btn;
+}
+
 function renderCell(td, si, ri) {
   const assignment = state.grid[si][ri];
   td.innerHTML = '';
@@ -1169,6 +1245,9 @@ function closePicker() {
   cellEditCrossedOut = new Set();
   slotTimeStartField = null;
   slotTimeEndField = null;
+  slotTimeMode = 'edit';
+  slotSplitFields = null;
+  slotSplitDefaults = null;
 }
 
 // Collapses any fully-selected dance-split pair into a single merged
@@ -1563,18 +1642,40 @@ function confirmScenemodeTextEditor() {
 
 // ── Per-slot time editor ──────────────────────────────────
 // A manual override of one row's own start/end — no ripple to neighboring
-// slots (each slot carries its own independent startMinutes/endMinutes).
+// slots (each slot carries its own independent startMinutes/endMinutes) —
+// plus, from the same modal, merging this slot into a neighbor or
+// splitting it into two.
 let slotTimeStartField = null;
 let slotTimeEndField = null;
+// Sub-state of pickerMode 'edit-slot-time': 'edit' shows the single
+// Start/Slut row above; 'split' (entered via the "Split" button) replaces
+// it with two independently-editable rows, one per resulting slot —
+// slotSplitFields holds their fields, slotSplitDefaults the minute values
+// each was seeded with (fallback for a field left blank on confirm, same
+// convention as the plain edit row below).
+let slotTimeMode = 'edit';
+let slotSplitFields = null;
+let slotSplitDefaults = null;
 
 function openSlotTimeEditor(si) {
   pickerSlot = si;
   pickerRoom = null;
   pickerMode = 'edit-slot-time';
+  slotTimeMode = 'edit';
+  slotSplitFields = null;
+  slotSplitDefaults = null;
   document.getElementById('picker-title').textContent = 'Rediger tidspunkt';
   _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
   renderSlotTimeEditor();
+}
+
+// A sensible starting split point: the midpoint rounded to the nearest 5
+// minutes, clamped so both halves are at least 1 minute — purely a
+// starting point, every field stays freely editable afterward.
+function defaultSplitMid(start, end) {
+  let mid = Math.round((start + end) / 2 / 5) * 5;
+  return Math.max(start + 1, Math.min(end - 1, mid));
 }
 
 function renderSlotTimeEditor() {
@@ -1585,6 +1686,104 @@ function renderSlotTimeEditor() {
   // time here instead of NaN:NaN — it falls back to deriving the end from
   // the next slot's start / the segment length.
   const range = getSlotRange(pickerSlot);
+
+  // Merge/split action row — hidden once already in split mode (further
+  // merging/splitting before the in-progress split is confirmed would be
+  // ambiguous), replaced there by a "back to editing" link instead.
+  if (slotTimeMode === 'edit') {
+    const actions = document.createElement('div');
+    actions.className = 'sched-slot-actions';
+
+    const mergeUpBtn = document.createElement('button');
+    mergeUpBtn.type = 'button';
+    mergeUpBtn.className = 'btn-secondary';
+    mergeUpBtn.textContent = 'Flet (op)';
+    const canMergeUp = pickerSlot > 0 && canMergeSlots(pickerSlot - 1);
+    if (canMergeUp) {
+      mergeUpBtn.onclick = () => { mergeSlots(pickerSlot - 1); closePicker(); };
+    } else {
+      mergeUpBtn.disabled = true;
+      mergeUpBtn.title = pickerSlot === 0
+        ? 'Der er intet tidsrum før dette.'
+        : 'Kan ikke sammenlægges – mindst ét lokale har en scene i begge tidsrum.';
+    }
+    actions.appendChild(mergeUpBtn);
+
+    const splitBtn = document.createElement('button');
+    splitBtn.type = 'button';
+    splitBtn.className = 'btn-secondary';
+    splitBtn.textContent = 'Split';
+    splitBtn.onclick = () => {
+      slotTimeMode = 'split';
+      const mid = defaultSplitMid(range.start, range.end);
+      slotSplitDefaults = [
+        { start: range.start, end: mid },
+        { start: mid, end: range.end },
+      ];
+      _updatePickerFooter();
+      renderSlotTimeEditor();
+    };
+    actions.appendChild(splitBtn);
+
+    const mergeDownBtn = document.createElement('button');
+    mergeDownBtn.type = 'button';
+    mergeDownBtn.className = 'btn-secondary';
+    mergeDownBtn.textContent = 'Flet (ned)';
+    const canMergeDown = pickerSlot < state.slots.length - 1 && canMergeSlots(pickerSlot);
+    if (canMergeDown) {
+      mergeDownBtn.onclick = () => { mergeSlots(pickerSlot); closePicker(); };
+    } else {
+      mergeDownBtn.disabled = true;
+      mergeDownBtn.title = pickerSlot === state.slots.length - 1
+        ? 'Der er intet tidsrum efter dette.'
+        : 'Kan ikke sammenlægges – mindst ét lokale har en scene i begge tidsrum.';
+    }
+    actions.appendChild(mergeDownBtn);
+
+    container.appendChild(actions);
+  }
+
+  if (slotTimeMode === 'split') {
+    const back = document.createElement('div');
+    back.className = 'picker-back';
+    back.textContent = '← Annuller opdeling';
+    back.onclick = () => {
+      slotTimeMode = 'edit';
+      slotSplitFields = null;
+      slotSplitDefaults = null;
+      _updatePickerFooter();
+      renderSlotTimeEditor();
+    };
+    container.appendChild(back);
+
+    slotSplitFields = slotSplitDefaults.map((defaults, i) => {
+      const label = document.createElement('div');
+      label.className = 'picker-act-label';
+      label.textContent = 'Nyt tidsrum ' + (i + 1);
+      container.appendChild(label);
+
+      const row = document.createElement('div');
+      row.className = 'picker-text-editor-row';
+
+      const startWrap = document.createElement('label');
+      startWrap.className = 'field-label picker-text-editor';
+      startWrap.appendChild(document.createTextNode('Start'));
+      const startField = schedCreateTimeField(minutesToTime(defaults.start));
+      startWrap.appendChild(startField);
+      row.appendChild(startWrap);
+
+      const endWrap = document.createElement('label');
+      endWrap.className = 'field-label picker-text-editor';
+      endWrap.appendChild(document.createTextNode('Slut'));
+      const endField = schedCreateTimeField(minutesToTime(defaults.end));
+      endWrap.appendChild(endField);
+      row.appendChild(endWrap);
+
+      container.appendChild(row);
+      return { startField, endField };
+    });
+    return;
+  }
 
   const row = document.createElement('div');
   row.className = 'picker-text-editor-row';
@@ -1607,6 +1806,21 @@ function renderSlotTimeEditor() {
 }
 
 function confirmSlotTimeEditor() {
+  if (slotTimeMode === 'split') {
+    if (!slotSplitFields) { closePicker(); return; }
+    const [a, b] = slotSplitFields;
+    const [defA, defB] = slotSplitDefaults;
+    const startA = timeToMinutes(a.startField.value || minutesToTime(defA.start));
+    const endA   = timeToMinutes(a.endField.value   || minutesToTime(defA.end));
+    const startB = timeToMinutes(b.startField.value || minutesToTime(defB.start));
+    const endB   = timeToMinutes(b.endField.value   || minutesToTime(defB.end));
+    if (endA <= startA || endB <= startB) { alert('Sluttidspunktet skal være efter starttidspunktet.'); return; }
+    if (startB < endA) { alert('Det andet tidsrum skal starte efter det første slutter.'); return; }
+    splitSlot(pickerSlot, startA, endA, startB, endB);
+    closePicker();
+    return;
+  }
+
   const slot = state.slots[pickerSlot];
   if (!slot || !slotTimeStartField || !slotTimeEndField) { closePicker(); return; }
   const range = getSlotRange(pickerSlot);
@@ -1647,6 +1861,7 @@ function _updatePickerFooter() {
   }
   if (pickerMode === 'edit-slot-time') {
     confirmBtn.disabled = false;
+    confirmBtn.textContent = slotTimeMode === 'split' ? 'Opdel' : 'Opdater';
     return;
   }
   confirmBtn.disabled = pickerSelected.size === 0;
