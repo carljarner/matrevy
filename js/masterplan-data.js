@@ -1818,6 +1818,22 @@ const MASTERPLAN_DATA = {
           }
         ]
       }
+    },
+    {
+      "id": "MatRevy_2027",
+      "year": 2027,
+      "label": "MatRevy 2027",
+      "ansvarLabels": [
+        "Ansvar 2027",
+        "Ansvar 2028"
+      ],
+      "tabs": {
+        "blok4": [],
+        "august": [],
+        "blok1": [],
+        "revyen": [],
+        "efterrevyen": []
+      }
     }
   ]
 };
