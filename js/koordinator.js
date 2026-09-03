@@ -1046,65 +1046,96 @@ function renderMasterplanCard(container) {
 }
 
 // ── Page render ──────────────────────────────────────────────
-function renderKoordinator(root) {
-  root.textContent = '';
+// Three top-level page tabs — Masterplan / Tjeklister & Fællesbeskeder /
+// Arkivering — each getting the full page width to work in, styled like
+// Budget's/Formularer's own mode-switch tab bar (.budget-mode-tabs/-tab,
+// duplicated here as .koord-mode-tabs/-tab per the site's per-feature
+// duplication convention — koordinator.html doesn't load budget.css).
+// Replaces the earlier 2fr/1fr side-by-side layout, which read as
+// cluttered with Masterplan's own grid squeezed into the wide column.
+const KOORD_TABS = [
+  { key: 'masterplan', label: 'Masterplan' },
+  { key: 'tjeklister', label: 'Tjeklister & Fællesbeskeder' },
+  { key: 'arkivering', label: 'Arkivering' },
+];
+const KOORD_TAB_KEY = 'matrevy-koord-tab';
+let koordActiveTab = KOORD_TABS.some((t) => t.key === localStorage.getItem(KOORD_TAB_KEY))
+  ? localStorage.getItem(KOORD_TAB_KEY)
+  : KOORD_TABS[0].key;
 
+function renderKoordModeTabs(root) {
+  const tabs = el('div', 'koord-mode-tabs');
+  KOORD_TABS.forEach((tab) => {
+    const btn = el('button', 'koord-mode-tab' + (tab.key === koordActiveTab ? ' active' : ''), tab.label);
+    btn.type = 'button';
+    btn.addEventListener('click', () => {
+      if (tab.key === koordActiveTab) return;
+      koordActiveTab = tab.key;
+      localStorage.setItem(KOORD_TAB_KEY, koordActiveTab);
+      renderKoordinator(root);
+    });
+    tabs.appendChild(btn);
+  });
+  root.appendChild(tabs);
+}
+
+// "Arkivering" tab: active-folder status, then the single "Afslut revyen"
+// action (opens the merged guide+close-year modal, see openCloseYearModal),
+// then "Arkiv" (unchanged Rediger picker). Sub-sections divided by the
+// same .koord-step-heading top-border treatment used inside the modal
+// itself.
+function renderArkiveringCard(container) {
   const folder = koordCurrentFolder();
 
-  // Right column, card 1: "Arkivering" — active-folder status, then the
-  // single "Afslut revyen" action (opens the merged guide+close-year modal,
-  // see openCloseYearModal), then "Arkiv" (unchanged Rediger picker). Three
-  // sub-sections divided by the same .koord-step-heading top-border
-  // treatment used inside the modal itself.
-  const arkiveringCard = el('section', 'card');
-  const arkiveringHead = el('div', 'card-head');
-  arkiveringHead.appendChild(el('h2', null, 'Arkivering'));
-  arkiveringCard.appendChild(arkiveringHead);
+  const card = el('section', 'card');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Arkivering'));
+  card.appendChild(head);
 
-  arkiveringCard.appendChild(el('p', null, folder
+  card.appendChild(el('p', null, folder
     ? `Aktiv produktionsmappe: ${folder}`
     : 'Ingen aktiv produktionsmappe fundet (data/config.json).'));
   const manusLink = document.createElement('a');
   manusLink.href = 'manus.html';
   manusLink.textContent = 'Gå til Manus-siden';
   manusLink.className = 'btn-small';
-  arkiveringCard.appendChild(manusLink);
+  card.appendChild(manusLink);
 
-  arkiveringCard.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
-  arkiveringCard.appendChild(el('p', null,
+  card.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
+  card.appendChild(el('p', null,
     'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter) til et nyt, tomt produktionsår og gemmer et ' +
     'snapshot af scenes.json/cast.json i arkivet.'));
   const closeBtn = el('button', 'btn-small', 'Afslut');
   closeBtn.type = 'button';
   closeBtn.disabled = !folder;
   closeBtn.addEventListener('click', () => openCloseYearModal(folder));
-  arkiveringCard.appendChild(closeBtn);
+  card.appendChild(closeBtn);
 
-  arkiveringCard.appendChild(el('h3', 'koord-step-heading', 'Arkiv'));
+  card.appendChild(el('h3', 'koord-step-heading', 'Arkiv'));
   const arkivBody = el('div');
   arkivBody.id = 'koord-arkiv-body';
-  arkiveringCard.appendChild(arkivBody);
+  card.appendChild(arkivBody);
 
-  // Right column, card 2: placeholder for future checklist/broadcast tools.
-  const tjeklisterCard = el('section', 'card');
-  const tjeklisterHead = el('div', 'card-head');
-  tjeklisterHead.appendChild(el('h2', null, 'Tjeklister & Fællesbeskeder'));
-  tjeklisterCard.appendChild(tjeklisterHead);
-
-  const rightCol = el('div', 'koord-right-col');
-  rightCol.appendChild(arkiveringCard);
-  rightCol.appendChild(tjeklisterCard);
-
-  const columns = el('div', 'koord-columns');
-  // Attached to the live document before any of the id-based render calls
-  // below run — renderMasterplanCard/renderArkivSection look their mount
-  // points up via document.getElementById, which only finds elements
-  // already part of the actual document, not a still-detached subtree.
-  root.appendChild(columns);
-  renderMasterplanCard(columns);
-  columns.appendChild(rightCol);
-
+  container.appendChild(card);
   renderArkivSection();
+}
+
+// "Tjeklister & Fællesbeskeder" tab: empty placeholder for now.
+function renderTjeklisterCard(container) {
+  const card = el('section', 'card');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Tjeklister & Fællesbeskeder'));
+  card.appendChild(head);
+  container.appendChild(card);
+}
+
+function renderKoordinator(root) {
+  root.textContent = '';
+  renderKoordModeTabs(root);
+
+  if (koordActiveTab === 'masterplan') renderMasterplanCard(root);
+  else if (koordActiveTab === 'tjeklister') renderTjeklisterCard(root);
+  else renderArkiveringCard(root);
 }
 
 // ── Init ─────────────────────────────────────────────────────
