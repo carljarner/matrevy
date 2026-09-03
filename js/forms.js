@@ -84,25 +84,32 @@ const FORMS_DYNAMIC_TEMPLATES = [
 // ── Revy helpers (the form's Revy field, Oversigt year filter) ──────
 // CONFIG_DATA (config-data.js, the same embed manus.js/koordinator.js read
 // currentProductionFolder from) names the year currently in production,
-// e.g. "MatRevy_2026" → 2026 — that's the earliest year a form can ever
-// target, since anything before it is already closed out via Koordinator.
+// e.g. "MatRevy_2026" → 2026 — used as the default selection for a brand
+// new form (below), not as the floor of what's selectable (see
+// FORMS_MIN_PRODUCTION_YEAR).
 function formsCurrentProductionYear() {
   const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
   const m = folder.match(/\d{4}/);
   return m ? parseInt(m[0], 10) : new Date().getFullYear();
 }
 
+// Earliest year a form can target. Fixed at 2025 (MatRevy 2025) rather than
+// derived from the current production year — Arkiv actually goes back to
+// MatRevy 2004, but Formularer only exists to hold 2025 onward: 2025's own
+// old Google Forms/responses get imported in retroactively, years before
+// that don't.
+const FORMS_MIN_PRODUCTION_YEAR = 2025;
+
 // A form's Revy field picks from ARCHIVE_DATA (archive-data.js's embed of
 // data/archive.json) — Arkiv already lists the current, not-yet-closed
 // production ("MatRevy 2026" exists there today), so this is genuinely
 // live: once Koordinator adds a new Arkiv entry for the next production,
-// it shows up here too, with no code change. Only years before the one
-// currently in production are excluded, since a form can never target an
-// already-closed year. `existingYear` (an already-saved form's
-// productionYear) is folded in even if Arkiv doesn't list it, so opening
-// an old form for editing never shows a value the dropdown can't display.
+// it shows up here too, with no code change. `existingYear` (an
+// already-saved form's productionYear) is folded in even if Arkiv doesn't
+// list it, so opening an old form for editing never shows a value the
+// dropdown can't display.
 function formsRevyOptions(existingYear) {
-  const start = formsCurrentProductionYear();
+  const start = FORMS_MIN_PRODUCTION_YEAR;
   const entries = (typeof ARCHIVE_DATA !== 'undefined' && Array.isArray(ARCHIVE_DATA)) ? ARCHIVE_DATA : [];
   const opts = entries
     .filter((e) => typeof e.year === 'number' && e.year >= start)
