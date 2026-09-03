@@ -684,6 +684,8 @@ function renderGrid() {
 
     tbody.appendChild(tr);
   });
+
+  renderAttentionSection();
 }
 
 // ── Merge/split adjacent timeslots ────────────────────────
@@ -1208,6 +1210,96 @@ function removeAbsence(i) {
   renderAbsentList();
   renderGrid();
   saveState();
+}
+
+// ── Attention section: who's missing from today's plan ────
+// Shown below the built grid — flags revyster (from the full state.allCast
+// roster, same list Fravær picks from) who have no placement anywhere in
+// today's schedule, and, among everyone who does, anyone with nothing
+// scheduled on one side of the 13:00 split. Reuses getCellCastNames (the
+// same "who's actually on this placement" resolution conflict detection
+// uses) filtered for crossed-out names, so a crossed-out placement doesn't
+// count as activity — matching what the grid itself visibly shows.
+const SCHED_ATTENTION_SPLIT_MINUTES = 13 * 60;
+
+function computeAttentionLists() {
+  const activeRanges = new Map(); // name -> [{start,end}, ...]
+  state.grid.forEach((row, si) => {
+    const range = getSlotRange(si);
+    if (!range) return;
+    row.forEach(cell => {
+      if (!cell) return;
+      const names = getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell));
+      for (const name of names) {
+        if (!activeRanges.has(name)) activeRanges.set(name, []);
+        activeRanges.get(name).push(range);
+      }
+    });
+  });
+
+  const noActivity = [];
+  const noMorning = [];
+  const noAfternoon = [];
+
+  for (const c of state.allCast) {
+    const ranges = activeRanges.get(c.name);
+    if (!ranges || !ranges.length) { noActivity.push(c.name); continue; }
+    const hasMorning = ranges.some(r => r.start < SCHED_ATTENTION_SPLIT_MINUTES);
+    const hasAfternoon = ranges.some(r => r.end > SCHED_ATTENTION_SPLIT_MINUTES);
+    if (!hasMorning) noMorning.push(c.name);
+    if (!hasAfternoon) noAfternoon.push(c.name);
+  }
+
+  return { noActivity, noMorning, noAfternoon };
+}
+
+function renderAttentionSection() {
+  const container = document.getElementById('sched-attention');
+  if (!container) return;
+  container.innerHTML = '';
+  if (!state.grid.length || !state.allCast.length) return;
+
+  const { noActivity, noMorning, noAfternoon } = computeAttentionLists();
+  const groups = [
+    { title: 'Ingen aktivitet i dag', names: noActivity, danger: true },
+    { title: 'Ingen scener før kl. 13', names: noMorning },
+    { title: 'Ingen scener efter kl. 13', names: noAfternoon },
+  ];
+
+  const heading = document.createElement('div');
+  heading.className = 'sched-attention-heading';
+  heading.textContent = 'Opmærksomhed';
+  container.appendChild(heading);
+
+  if (groups.every(g => !g.names.length)) {
+    const hint = document.createElement('div');
+    hint.className = 'hint';
+    hint.textContent = 'Alle revyster har aktivitet både før og efter kl. 13.';
+    container.appendChild(hint);
+    return;
+  }
+
+  const groupsEl = document.createElement('div');
+  groupsEl.className = 'sched-attention-groups';
+  container.appendChild(groupsEl);
+
+  for (const g of groups) {
+    if (!g.names.length) continue;
+    const box = document.createElement('div');
+    box.className = 'sched-attention-group' + (g.danger ? ' sched-attention-group-danger' : '');
+
+    const title = document.createElement('div');
+    title.className = 'sched-attention-group-title';
+    title.textContent = `${g.title} (${g.names.length})`;
+    box.appendChild(title);
+
+    const names = document.createElement('div');
+    names.className = 'sched-attention-names';
+    names.textContent = [...g.names].sort((a, b) => a.localeCompare(b, 'da')).join(', ');
+    box.appendChild(names);
+
+    groupsEl.appendChild(box);
+  }
 }
 
 // ── Scene picker modal ────────────────────────────────────

@@ -100,6 +100,10 @@ function formsCurrentProductionYear() {
 // that don't.
 const FORMS_MIN_PRODUCTION_YEAR = 2025;
 
+// localStorage key for the Oversigt screen's own year filter (see
+// formsRenderOverviewScreen) — mirrors calendar.js's CAL_VIEW_KEY.
+const FORMS_YEAR_FILTER_KEY = 'matrevy-forms-year-filter';
+
 // A form's Revy field picks from ARCHIVE_DATA (archive-data.js's embed of
 // data/archive.json) — Arkiv already lists the current, not-yet-closed
 // production ("MatRevy 2026" exists there today), so this is genuinely
@@ -113,11 +117,11 @@ function formsRevyOptions(existingYear) {
   const entries = (typeof ARCHIVE_DATA !== 'undefined' && Array.isArray(ARCHIVE_DATA)) ? ARCHIVE_DATA : [];
   const opts = entries
     .filter((e) => typeof e.year === 'number' && e.year >= start)
-    .sort((a, b) => a.year - b.year)
+    .sort((a, b) => b.year - a.year)
     .map((e) => ({ value: String(e.year), label: e.name || String(e.year) }));
   if (existingYear != null && !opts.some((o) => o.value === String(existingYear))) {
     opts.push({ value: String(existingYear), label: String(existingYear) });
-    opts.sort((a, b) => parseInt(a.value, 10) - parseInt(b.value, 10));
+    opts.sort((a, b) => parseInt(b.value, 10) - parseInt(a.value, 10));
   }
   return opts;
 }
@@ -1166,17 +1170,27 @@ async function formsRenderOverviewScreen(root) {
   // Arkiv lookup as the builder's Revy field) rather than a bare year. A
   // form saved before productionYear existed has none at all; treat it as
   // belonging to the current year rather than hiding it under every
-  // other filter.
+  // other filter. Newest year first, same convention as Arkiv/Budget/
+  // Koordinator's own year sorts. The chosen year persists in localStorage
+  // (mirrors calendar.js's CAL_VIEW_KEY) so it survives both a page reload
+  // and this whole screen re-rendering after an in-place action like the
+  // status chip below — without persistence, either would silently reset
+  // the filter back to the current production year.
   const currentYear = formsCurrentProductionYear();
   const formYear = (f) => (f.productionYear != null ? f.productionYear : currentYear);
-  const years = Array.from(new Set([currentYear, ...forms.map(formYear)])).sort((a, b) => a - b);
+  const years = Array.from(new Set([currentYear, ...forms.map(formYear)])).sort((a, b) => b - a);
+  let storedYear = null;
+  try { storedYear = localStorage.getItem(FORMS_YEAR_FILTER_KEY); } catch (e) { /* ignore */ }
+  const initialYear = (storedYear != null && years.some((y) => String(y) === storedYear))
+    ? storedYear : String(currentYear);
   const yearDd = siteCreateDropdownField(
-    years.map((y) => ({ value: String(y), label: formsRevyNameForYear(y) })), String(currentYear));
+    years.map((y) => ({ value: String(y), label: formsRevyNameForYear(y) })), initialYear);
   yearDd.classList.add('forms-year-filter');
   head.appendChild(yearDd);
 
   function renderTable() {
     const filterYear = parseInt(yearDd.value, 10);
+    try { localStorage.setItem(FORMS_YEAR_FILTER_KEY, yearDd.value); } catch (e) { /* ignore */ }
     const filtered = forms.filter((f) => formYear(f) === filterYear);
     tableWrap.replaceChildren();
     if (filtered.length === 0) {

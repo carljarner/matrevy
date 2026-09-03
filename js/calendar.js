@@ -637,24 +637,24 @@ function renderLegend() {
 const CALENDAR_FEED_URL = 'https://matematikrevy.dk/calendar.ics';
 
 function openSubscribeModal() {
-  const { form, actions } = siteOpenModalWithClose('Abonnér på kalenderen');
+  const { form, actions } = siteOpenModalWithClose('Abonner på kalenderen');
 
   const info = document.createElement('p');
-  info.textContent = 'Tilføj linket herunder som et kalenderabonnement, så følger din kalender-app automatisk med i alle begivenheder: Google Kalender ("Fra URL"), Apple Kalender ("Nyt kalenderabonnement") eller Outlook ("Abonnér fra internettet").';
+  info.textContent = 'Tilføj linket herunder som et kalenderabonnement, så følger din kalender-app automatisk med i alle begivenheder: Google Kalender ("Fra URL"), Apple Kalender ("Nyt kalenderabonnement") eller Outlook ("Abonner fra internettet").';
   form.appendChild(info);
 
   const urlInput = document.createElement('input');
   urlInput.type = 'text';
   urlInput.value = CALENDAR_FEED_URL;
   urlInput.readOnly = true;
-  form.appendChild(siteEditField('Link', urlInput));
+  form.appendChild(siteEditField('', urlInput));
 
-  const copyBtn = calPillBtn('Kopiér link', 'site-btn-warm');
+  const copyBtn = calPillBtn('Kopier link', 'site-btn-warm');
   copyBtn.addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(CALENDAR_FEED_URL);
       copyBtn.textContent = 'Kopieret!';
-      setTimeout(() => { copyBtn.textContent = 'Kopiér link'; }, 1500);
+      setTimeout(() => { copyBtn.textContent = 'Kopier link'; }, 1500);
     } catch (e) {
       urlInput.select();
     }

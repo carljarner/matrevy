@@ -382,6 +382,48 @@
   }
 }
 
+/* ── Attention section (below the built grid) ──────────────
+   Flags revyster with no placement anywhere today, or nothing on one side
+   of the 13:00 split — a coordinator utility, not part of the printed
+   schedule (hidden in @media print below, same as .conflict-badge). */
+.sched-attention {
+  margin-top: 1.25rem;
+}
+.sched-attention-heading {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+.sched-attention-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.sched-attention-group {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-warm);
+  border-radius: 5px;
+  background: var(--surface);
+  padding: 0.5rem 0.7rem;
+}
+.sched-attention-group.sched-attention-group-danger {
+  border-left-color: var(--danger);
+}
+.sched-attention-group-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+.sched-attention-names {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 /* ── Cell states ────────────────────────────────────────── */
 .cell-inner {
   width: 100%;
@@ -712,7 +754,7 @@
 
   .site-header, .site-footer, .sched-sidebar, .sched-grid-actions,
   .cell-remove, .cell-empty .cell-plus, .picker-overlay, .login-overlay,
-  .conflict-badge { display: none !important; }
+  .conflict-badge, .sched-attention { display: none !important; }
 
   body { background: #fff; }
 
