@@ -16,6 +16,28 @@
   color: var(--text-muted);
 }
 
+/* --- "Vis PDF'er for revyster" toggle, below Trin 1's check row -- */
+.koord-toggle-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.koord-toggle-row input[type="checkbox"] {
+  accent-color: var(--accent-warm-text);
+}
+
+.koord-toggle-row label {
+  cursor: pointer;
+}
+
+.koord-toggle-status {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* No reserved height while empty (matches archive.js's own .arkiv-edit-
    progress) — otherwise every modal using this pays a permanent gap above
    its button row even when there's nothing to show yet. */

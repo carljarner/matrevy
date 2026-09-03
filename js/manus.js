@@ -3917,15 +3917,19 @@ function manusSlugifyName(name) {
 }
 
 // Quick-open buttons for the last-generated PDFs, sitting between the pool/
-// guide row and Main Manus View — visible to any revyst+ (everyone benefits
-// from reading these, not just boss), unlike Main Manus View below which
-// stays boss-only. A shortcut to the files scripts/generate-pdfs.js (run via
-// generate-pdfs.yml) already produced, not a trigger to (re)build them
-// ("Generér PDF'er" moved to Main Manus View's own action row, since that's
-// the one boss-only write action here — see renderMainViewActions).
+// guide row and Main Manus View — visible to boss/admin always, and to a
+// plain revyst-level visitor only once Koordinator's "Vis PDF'er for
+// revyster" toggle (CONFIG_DATA.pdfLinksVisibleToRevyst) is on, so
+// boss/admin can proof a freshly (re)generated set privately before
+// revealing them. Unlike Main Manus View below (boss-only), this is a
+// shortcut to the files scripts/generate-pdfs.js (run via generate-pdfs.yml)
+// already produced, not a trigger to (re)build them ("Generér PDF'er" moved
+// to Main Manus View's own action row, since that's the one boss-only write
+// action here — see renderMainViewActions).
 function renderManusPdfLinksSection() {
   const section = document.getElementById('manus-pdf-links');
-  if (!siteHasLevel('revyst')) {
+  const revystAllowed = typeof CONFIG_DATA !== 'undefined' && !!CONFIG_DATA.pdfLinksVisibleToRevyst;
+  if (!siteHasLevel('boss') && (!siteHasLevel('revyst') || !revystAllowed)) {
     section.style.display = 'none';
     return;
   }

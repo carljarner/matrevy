@@ -492,7 +492,9 @@ async function koordCloseYear({ closingFolder, closingName, closingYear, newFold
   if (!manuscriptsRes.ok) throw new Error(manuscriptsRes.message || 'Kunne ikke nulstille indsendte manuskripter.');
 
   onProgress('Skifter til den nye produktionsmappe...');
-  const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder });
+  // Resets "Vis PDF'er for revyster" back to hidden in the same write, so a
+  // new production cycle starts private again — see koordRenderPdfToggle.
+  const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
 
   onProgress('Færdig!');
@@ -581,6 +583,45 @@ function openCloseYearModal(closingFolder) {
   actions.appendChild(confirmBtn);
 }
 
+// "Vis PDF'er for revyster" toggle — controls whether manus.js's PDF
+// quick-links box (renderManusPdfLinksSection) is shown to plain
+// revyst-level visitors; boss/admin see it there regardless. Off by default
+// each production cycle (koordCloseYear resets it to false), so an admin can
+// proof a freshly (re)generated set privately before flipping this on to
+// reveal it. Live-saves on change straight to the config resource — same
+// "config has no override shadow, takes ~1-2 min to propagate" posture as
+// currentProductionFolder elsewhere on this page.
+function koordRenderPdfToggle(container) {
+  const row = el('div', 'koord-toggle-row');
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.id = 'koord-pdf-toggle';
+  input.checked = !!(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.pdfLinksVisibleToRevyst);
+  const label = document.createElement('label');
+  label.htmlFor = 'koord-pdf-toggle';
+  label.textContent = "Vis PDF'er for revyster";
+  const status = el('span', 'koord-toggle-status', '');
+
+  input.addEventListener('change', async () => {
+    const next = input.checked;
+    input.disabled = true;
+    status.textContent = 'Gemmer...';
+    const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
+    input.disabled = false;
+    if (!res.ok) {
+      input.checked = !next;
+      status.textContent = res.message || '';
+      return;
+    }
+    status.textContent = 'Gemt — slår igennem for revyster om ca. 1-2 minutter.';
+  });
+
+  row.appendChild(input);
+  row.appendChild(label);
+  row.appendChild(status);
+  container.appendChild(row);
+}
+
 // ── Page render ──────────────────────────────────────────────
 function renderKoordinator(root) {
   root.textContent = '';
@@ -624,6 +665,8 @@ function renderKoordinator(root) {
   checkRow.appendChild(checkBtn);
   checkRow.appendChild(statusText);
   prodCard.appendChild(checkRow);
+
+  koordRenderPdfToggle(prodCard);
 
   prodCard.appendChild(el('h3', 'koord-step-heading', 'Trin 2: Afslut år og start nyt'));
   prodCard.appendChild(el('p', null,

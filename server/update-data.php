@@ -3887,19 +3887,40 @@ function save_wiki($payload) {
   }, 'Opdater wiki.json via wikien');
 }
 
-// Admin-only site-wide setting: which archive/MatRevy_<year> folder is the
+// Admin-only site-wide settings, each sent independently and only applied
+// when its key is present in the payload — a Koordinator toggle save must
+// not silently wipe currentProductionFolder (and vice versa), since
+// update_file() only merges what this callback actually touches.
+//
+// currentProductionFolder: which archive/MatRevy_<year> folder is the
 // active production, used server-side (never a client-supplied value) as the
 // base of every path manuscripts_create/manuscripts_sync_selection build.
 // There's no real "current season" concept yet (see matrevy-plan.md's
 // Phase 13) — this is a small, deliberately minimal stand-in, set by hand
 // once per production cycle via the Manus page.
+//
+// pdfLinksVisibleToRevyst: whether manus.js's PDF quick-links box
+// (renderManusPdfLinksSection) is shown to plain revyst-level visitors —
+// boss/admin always see it regardless. Off by default each production cycle
+// (koordCloseYear resets it) so a coordinator can proof freshly generated
+// PDFs before revealing them; flipped from Koordinator's own toggle.
 function save_config($payload) {
+  $hasFolder = array_key_exists('currentProductionFolder', $payload);
   $folder = $payload['currentProductionFolder'] ?? '';
-  if (!is_string($folder) || ($folder !== '' && !preg_match('#^[A-Za-z0-9_-]+$#', $folder))) {
+  if ($hasFolder && (!is_string($folder) || ($folder !== '' && !preg_match('#^[A-Za-z0-9_-]+$#', $folder)))) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  update_file('data/config.json', function ($json) use ($folder) {
-    $json['currentProductionFolder'] = $folder;
+  $hasPdfFlag = array_key_exists('pdfLinksVisibleToRevyst', $payload);
+  $pdfFlag = $payload['pdfLinksVisibleToRevyst'] ?? false;
+  if ($hasPdfFlag && !is_bool($pdfFlag)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  if (!$hasFolder && !$hasPdfFlag) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag) {
+    if ($hasFolder) $json['currentProductionFolder'] = $folder;
+    if ($hasPdfFlag) $json['pdfLinksVisibleToRevyst'] = $pdfFlag;
     return $json;
   }, 'Opdater config.json');
 }
