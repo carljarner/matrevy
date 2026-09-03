@@ -1186,7 +1186,13 @@ async function formsRenderOverviewScreen(root) {
   const yearDd = siteCreateDropdownField(
     years.map((y) => ({ value: String(y), label: formsRevyNameForYear(y) })), initialYear);
   yearDd.classList.add('forms-year-filter');
-  head.appendChild(yearDd);
+  // Same label + compact site-field-btn look as budget.css's own
+  // "Viser budget for:"/koordinator.css's "Viser plan for:" — one shared
+  // convention for every "which one am I viewing" dropdown site-wide.
+  const yearFilterWrap = el('div', 'forms-year-filter-wrap');
+  yearFilterWrap.appendChild(el('span', 'forms-year-filter-label', 'Viser for:'));
+  yearFilterWrap.appendChild(yearDd);
+  head.appendChild(yearFilterWrap);
 
   function renderTable() {
     const filterYear = parseInt(yearDd.value, 10);

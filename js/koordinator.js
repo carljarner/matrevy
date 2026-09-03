@@ -202,14 +202,12 @@ function renderArkivSection() {
   if (!container) return;
   container.textContent = '';
 
-  const actionsRow = el('div', 'koord-arkiv-actions');
+  container.appendChild(el('span', null, 'Tilføj eller rediger arkivet.'));
 
   const editBtn = el('button', 'btn-small', 'Rediger');
   editBtn.type = 'button';
   editBtn.addEventListener('click', () => openArkivYearPicker(editBtn));
-  actionsRow.appendChild(editBtn);
-
-  container.appendChild(actionsRow);
+  container.appendChild(editBtn);
 }
 
 const KOORD_ARKIV_ADD_VALUE = '__add__';
@@ -506,21 +504,18 @@ async function koordCloseYear({ closingFolder, closingName, closingYear, newFold
   onProgress('Færdig!');
 }
 
-// ── Modal ─────────────────────────────────────────────────────
-// Opened by the right column's single "Afslut" button — merges what used to
-// be two separate inline steps on the page into one modal: a guide for
-// checking the final files are ready (Trin 1: the PDF-generation reminder +
-// "Tjek om klar" freshness check), then the actual archiving action itself
-// (Trin 2: the year-close form below).
-function openCloseYearModal(closingFolder) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut revyen');
-  modal.classList.add('koord-close-year-modal');
-
-  form.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Trin 1: Klargør de endelige filer'));
-  form.appendChild(el('p', null,
+// Trin 1 of the old modal: a guide for checking the final files are ready
+// (the PDF-generation reminder + "Tjek om klar" freshness check) — now
+// rendered directly into the Manus card itself rather than hidden behind
+// the "Afslut" button, since it's just a check, not a destructive action.
+// Only the actual archiving step (openCloseYearModal below) still needs a
+// modal.
+function renderKoordCloseYearGuide(container) {
+  container.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Klargør de endelige filer'));
+  container.appendChild(el('p', null,
     'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
     'endelige tekst og rollebesætning og gemmer dem i arkivet (tager et par minutter). Bekræft herunder, at det er landet, ' +
-    'før du går videre til trin 2.'));
+    'før du afslutter revyen nedenfor.'));
   const checkRow = el('div', 'koord-check-row');
   const checkBtn = el('button', 'btn-small', 'Tjek om klar');
   checkBtn.type = 'button';
@@ -536,9 +531,18 @@ function openCloseYearModal(closingFolder) {
   });
   checkRow.appendChild(checkBtn);
   checkRow.appendChild(statusText);
-  form.appendChild(checkRow);
+  container.appendChild(checkRow);
+}
 
-  form.appendChild(el('h3', 'koord-step-heading', 'Trin 2: Afslut år og start nyt'));
+// ── Modal ─────────────────────────────────────────────────────
+// Opened by the right column's single "Afslut" button — the actual
+// archiving action itself (the guide that used to precede it as this
+// modal's own "Trin 1" now sits inline in the Manus card, see
+// renderKoordCloseYearGuide above).
+function openCloseYearModal(closingFolder) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut år og start nyt');
+  modal.classList.add('koord-close-year-modal');
+
   const intro = el('p', 'koord-modal-intro',
     `Dette nulstiller Manus (scener, rollebesætning, indsendte manuskripter) og gør en ny mappe til den aktive produktion. Den nuværende mappe ("${closingFolder}") ændres ikke og bliver stående i arkivet.`);
   form.appendChild(intro);
@@ -1160,21 +1164,7 @@ function openCreateMasterplanModal() {
   nameInput.focus();
 }
 
-// "Viser plan for: <label> ▾" button in the card head — opens a dropdown
-// listing "+ Tilføj" plus every existing plan (newest first), same
-// siteOpenDropdownPicker primitive as this file's own Arkiv year picker
-// (openArkivYearPicker above). Picking a plan switches the view; picking
-// "+ Tilføj" opens the create modal.
 const KOORD_MP_ADD_VALUE = '__add__';
-function openMasterplanPlanPicker(anchor) {
-  const plans = sortedMasterplanPlans();
-  const options = [{ value: KOORD_MP_ADD_VALUE, label: '+ Tilføj' }]
-    .concat(plans.map((p) => ({ value: p.id, label: p.label })));
-  siteOpenDropdownPicker(anchor, options, resolveMasterplanViewId(), (value) => {
-    if (value === KOORD_MP_ADD_VALUE) { openCreateMasterplanModal(); return; }
-    koordMpSwitchView(value);
-  });
-}
 
 // "Slet" — deletes the plan currently in view. Mirrors
 // openDeleteArchiveYearConfirm's own async-aware shape (keeps the modal
@@ -1231,16 +1221,30 @@ function renderMasterplanCard(container) {
     return;
   }
 
-  const currentPlan = getCurrentMasterplan();
   const pickerWrap = el('div', 'koord-mp-plan-picker');
   pickerWrap.appendChild(el('span', 'koord-mp-plan-picker-label', 'Viser plan for:'));
-  const pickerBtn = el('button', 'btn-small', currentPlan ? currentPlan.label : '–');
-  pickerBtn.type = 'button';
-  pickerBtn.addEventListener('click', () => openMasterplanPlanPicker(pickerBtn));
-  pickerWrap.appendChild(pickerBtn);
+  // Same compact site-field-btn dropdown as Budget's own "Viser budget
+  // for:"/Formularer's "Viser for:" (siteCreateDropdownField), not the
+  // anchored siteOpenDropdownPicker popup this used before — "+ Tilføj"
+  // opens the create modal and reverts the field's own displayed value
+  // right back (it never actually becomes the selected plan).
+  const planOptions = [{ value: KOORD_MP_ADD_VALUE, label: '+ Tilføj' }]
+    .concat(sortedMasterplanPlans().map((p) => ({ value: p.id, label: p.label })));
+  const planDd = siteCreateDropdownField(planOptions, resolveMasterplanViewId());
+  planDd.addEventListener('change', () => {
+    const value = planDd.value;
+    if (value === KOORD_MP_ADD_VALUE) {
+      planDd.value = resolveMasterplanViewId();
+      openCreateMasterplanModal();
+      return;
+    }
+    koordMpSwitchView(value);
+  });
+  pickerWrap.appendChild(planDd);
   head.appendChild(pickerWrap);
   card.appendChild(head);
 
+  const currentPlan = getCurrentMasterplan();
   koordMpEnsureDraft();
 
   const tabBar = el('nav', 'koord-mp-tab-bar');
@@ -1330,13 +1334,15 @@ function renderKoordBudgetSection() {
   container.textContent = '';
 
   if (koordBudgetLoading) {
-    container.appendChild(el('p', 'koord-status-value', 'Indlæser…'));
+    container.appendChild(el('span', 'koord-status-value', 'Indlæser…'));
     return;
   }
 
-  container.appendChild(el('p', null, 'Aktivt budget:'));
-  container.appendChild(el('div', 'koord-budget-active-value',
-    koordBudgetActiveId != null ? koordBudgetLabel(koordBudgetActiveId) : 'Intet valgt'));
+  const label = koordBudgetActiveId != null ? koordBudgetLabel(koordBudgetActiveId) : 'Intet valgt';
+  const text = el('span');
+  text.appendChild(document.createTextNode('Aktivt budget: '));
+  text.appendChild(el('span', 'koord-budget-active-value', label));
+  container.appendChild(text);
 
   const editBtn = el('button', 'btn-small', 'Rediger');
   editBtn.type = 'button';
@@ -1551,7 +1557,9 @@ function renderArkiveringCard(container) {
   manusLink.className = 'btn-small';
   manusCard.appendChild(manusLink);
 
-  manusCard.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Afslut revyen'));
+  renderKoordCloseYearGuide(manusCard);
+
+  manusCard.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
   manusCard.appendChild(el('p', null,
     'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter) til et nyt, tomt produktionsår og gemmer et ' +
     'snapshot af scenes.json/cast.json i arkivet.'));
@@ -1569,7 +1577,7 @@ function renderArkiveringCard(container) {
   const budgetHead = el('div', 'card-head');
   budgetHead.appendChild(el('h2', null, 'Budget'));
   budgetCard.appendChild(budgetHead);
-  const budgetBody = el('div');
+  const budgetBody = el('div', 'koord-arkivering-row');
   budgetBody.id = 'koord-budget-body';
   budgetCard.appendChild(budgetBody);
   rightCol.appendChild(budgetCard);
@@ -1578,8 +1586,7 @@ function renderArkiveringCard(container) {
   const arkivHead = el('div', 'card-head');
   arkivHead.appendChild(el('h2', null, 'Arkiv'));
   arkivCard.appendChild(arkivHead);
-  arkivCard.appendChild(el('p', null, 'Tilføj eller rediger arkivet.'));
-  const arkivBody = el('div');
+  const arkivBody = el('div', 'koord-arkivering-row');
   arkivBody.id = 'koord-arkiv-body';
   arkivCard.appendChild(arkivBody);
   rightCol.appendChild(arkivCard);
