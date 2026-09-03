@@ -13,11 +13,6 @@ const MASTERPLAN_DATA = {
       "tabs": {
         "blok4": [
           {
-            "id": "blok4-g1",
-            "type": "group",
-            "title": ""
-          },
-          {
             "id": "blok4-r1",
             "type": "task",
             "emne": "Praktisk",
@@ -69,11 +64,6 @@ const MASTERPLAN_DATA = {
           }
         ],
         "august": [
-          {
-            "id": "august-g1",
-            "type": "group",
-            "title": ""
-          },
           {
             "id": "august-r1",
             "type": "task",
@@ -840,11 +830,6 @@ const MASTERPLAN_DATA = {
           }
         ],
         "efterrevyen": [
-          {
-            "id": "efterrevyen-g1",
-            "type": "group",
-            "title": ""
-          },
           {
             "id": "efterrevyen-r1",
             "type": "task",
