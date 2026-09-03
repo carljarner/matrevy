@@ -1818,6 +1818,903 @@ const MASTERPLAN_DATA = {
           }
         ]
       }
+    },
+    {
+      "id": "MatRevy_2027",
+      "year": 2027,
+      "label": "MatRevy 2027",
+      "tabs": {
+        "blok4": [
+          {
+            "id": "blok4-r1",
+            "type": "task",
+            "emne": "Praktisk",
+            "todo": "Koordinator",
+            "beskrivelse": "Del Drev med nye bosser",
+            "ansvarA": "Carl",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok4-r2",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Lav ny messengergruppe",
+            "ansvarA": "Thea",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok4-r3",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Læg dato for næste revy",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok4-r4",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Tøm skab",
+            "ansvarA": "-",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok4-r5",
+            "type": "task",
+            "emne": "Lokaler",
+            "todo": "Store UP1",
+            "beskrivelse": "Book Store UP1",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          }
+        ],
+        "august": [
+          {
+            "id": "august-r1",
+            "type": "task",
+            "emne": "Arrangementer",
+            "todo": "Revyvisning",
+            "beskrivelse": "Vælg dag",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r2",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Snak med sammenholdet",
+            "ansvarA": "Carl",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r3",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Skaf film",
+            "ansvarA": "Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r4",
+            "type": "task",
+            "emne": "",
+            "todo": "Infomøde",
+            "beskrivelse": "Opdatér PowerPoint",
+            "ansvarA": "Thea+Carl+Frederikke",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r5",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Find oplægsholdere",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r6",
+            "type": "task",
+            "emne": "Ansvarlige",
+            "todo": "Bosser",
+            "beskrivelse": "Find bosser til alle poster",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r7",
+            "type": "task",
+            "emne": "",
+            "todo": "Instruktører",
+            "beskrivelse": "Find instruktører",
+            "ansvarA": "Frederikke",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r8",
+            "type": "task",
+            "emne": "Lokaler",
+            "todo": "Infomøde",
+            "beskrivelse": "",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r9",
+            "type": "task",
+            "emne": "",
+            "todo": "Revyvisning",
+            "beskrivelse": "",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r10",
+            "type": "task",
+            "emne": "",
+            "todo": "Sangudvælgelse",
+            "beskrivelse": "",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r11",
+            "type": "task",
+            "emne": "",
+            "todo": "Sketchudvælgelse",
+            "beskrivelse": "",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r12",
+            "type": "task",
+            "emne": "Praktisk",
+            "todo": "Facebook",
+            "beskrivelse": "Lav undergrupper og opdater hovedgruppe",
+            "ansvarA": "Linea+Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r13",
+            "type": "task",
+            "emne": "",
+            "todo": "Kalender",
+            "beskrivelse": "Lav kalender (HUSK at dele den)",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r14",
+            "type": "task",
+            "emne": "",
+            "todo": "Evaluering",
+            "beskrivelse": "Gennemgå pointer fra sidste års evaluering",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r15",
+            "type": "task",
+            "emne": "Økonomi",
+            "todo": "Budget",
+            "beskrivelse": "",
+            "ansvarA": "Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "august-r16",
+            "type": "task",
+            "emne": "",
+            "todo": "Billetpris",
+            "beskrivelse": "Fastsæt billetpris på 89,-",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          }
+        ],
+        "blok1": [
+          {
+            "id": "blok1-g1",
+            "type": "group",
+            "title": "Før revystart"
+          },
+          {
+            "id": "blok1-r1",
+            "type": "task",
+            "emne": "Arrangementer",
+            "todo": "Revyvisning",
+            "beskrivelse": "Afhold revyvisning",
+            "ansvarA": "Sammenholdet",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r2",
+            "type": "task",
+            "emne": "",
+            "todo": "Infomøde",
+            "beskrivelse": "Afhold infomøde",
+            "ansvarA": "Carl, Thea, Frederikke",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r3",
+            "type": "task",
+            "emne": "",
+            "todo": "Gennemspilningsdag",
+            "beskrivelse": "Afhold gennemspilningsdag",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r4",
+            "type": "task",
+            "emne": "",
+            "todo": "Revyttetur",
+            "beskrivelse": "Vælg dato og book hytte",
+            "ansvarA": "Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r5",
+            "type": "task",
+            "emne": "Ansvarlige",
+            "todo": "Eksterne",
+            "beskrivelse": "Find eksterne instruktører",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r6",
+            "type": "task",
+            "emne": "",
+            "todo": "T-shirts",
+            "beskrivelse": "Find person til at lave t-shirts",
+            "ansvarA": "Ronja",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r7",
+            "type": "task",
+            "emne": "",
+            "todo": "Film",
+            "beskrivelse": "Skaf filmhold",
+            "ansvarA": "Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r8",
+            "type": "task",
+            "emne": "",
+            "todo": "Billeder",
+            "beskrivelse": "Person til at tage billeder backstage",
+            "ansvarA": "Thea",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r9",
+            "type": "task",
+            "emne": "",
+            "todo": "Efterfest",
+            "beskrivelse": "Aftal med sammenholdet, hvem der står for hvad",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r10",
+            "type": "task",
+            "emne": "Book lokaler",
+            "todo": "Øvelokaler",
+            "beskrivelse": "",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r11",
+            "type": "task",
+            "emne": "",
+            "todo": "DIKU-kantinen",
+            "beskrivelse": "(Supplér med mat-kantinen)",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r12",
+            "type": "task",
+            "emne": "",
+            "todo": "Lille UP1 + DIKU bib",
+            "beskrivelse": "",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r13",
+            "type": "task",
+            "emne": "Praktisk",
+            "todo": "Lokaleadgang",
+            "beskrivelse": "Giv folk adgang til lokaler",
+            "ansvarA": "Frede",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r14",
+            "type": "task",
+            "emne": "",
+            "todo": "Øveplaner",
+            "beskrivelse": "Hvem lægger øveplaner hvornår?",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r15",
+            "type": "task",
+            "emne": "",
+            "todo": "Tilmeldingsark",
+            "beskrivelse": "Lav revytilmelding",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r16",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Få instruktørerne til at lave scenetilmelding",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r17",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Lav madtilmelding (intern)",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r18",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Lav madtilmelding (andre revyer)",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r19",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Lav stregregnskab",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r20",
+            "type": "task",
+            "emne": "",
+            "todo": "HF",
+            "beskrivelse": "Snak med HF om: Soundboks, alkohol, dyrestalden, pant",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r21",
+            "type": "task",
+            "emne": "",
+            "todo": "Messengergrupper",
+            "beskrivelse": "Sammenhold + koordinator",
+            "ansvarA": "Thea",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r22",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Alle bosser",
+            "ansvarA": "Thea",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r23",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Øveplansgang",
+            "ansvarA": "Thea",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r24",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Akt-/rollefordelingsgruppe",
+            "ansvarA": "Thea",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r25",
+            "type": "task",
+            "emne": "",
+            "todo": "Google Keeps",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r26",
+            "type": "task",
+            "emne": "",
+            "todo": "Elektroniktjek",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r27",
+            "type": "task",
+            "emne": "Før første weekend",
+            "todo": "Manus",
+            "beskrivelse": "Print manus",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r28",
+            "type": "task",
+            "emne": "",
+            "todo": "",
+            "beskrivelse": "Skriv opslag om tillidsrepræsentanter",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r29",
+            "type": "task",
+            "emne": "",
+            "todo": "Snacks",
+            "beskrivelse": "Snackhold fra day 1",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r30",
+            "type": "task",
+            "emne": "Biorevy",
+            "todo": "Kontakt",
+            "beskrivelse": "Snak med dem",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r31",
+            "type": "task",
+            "emne": "",
+            "todo": "Sceneopsætning",
+            "beskrivelse": "Aftal med bio hvornår scenen sættes op/tages ned",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r32",
+            "type": "task",
+            "emne": "Økonomi",
+            "todo": "Institutpenge",
+            "beskrivelse": "Skriv til instituttet og få penge",
+            "ansvarA": "Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-g2",
+            "type": "group",
+            "title": "Efter revystart"
+          },
+          {
+            "id": "blok1-r33",
+            "type": "task",
+            "emne": "Billetter",
+            "todo": "Gratis billetter",
+            "beskrivelse": "Snak med sammenholdet",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r34",
+            "type": "task",
+            "emne": "Praktisk",
+            "todo": "Kostume-Tinder",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r35",
+            "type": "task",
+            "emne": "",
+            "todo": "Karma-Kasse",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r36",
+            "type": "task",
+            "emne": "",
+            "todo": "Brandcheck",
+            "beskrivelse": "Bestil fra Campus Service Nørre",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "blok1-r37",
+            "type": "task",
+            "emne": "",
+            "todo": "Billedvæg",
+            "beskrivelse": "Find nogle til at stå for en cute billedvæg <3",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          }
+        ],
+        "revyen": [
+          {
+            "id": "revyen-g1",
+            "type": "group",
+            "title": "Øvedagene"
+          },
+          {
+            "id": "revyen-r1",
+            "type": "task",
+            "emne": "Arrangementer",
+            "todo": "Filmaften",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r2",
+            "type": "task",
+            "emne": "",
+            "todo": "Rekvisitbyggeaften",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r3",
+            "type": "task",
+            "emne": "",
+            "todo": "Jordbærddrinks",
+            "beskrivelse": "Snak med sammenholdet",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r4",
+            "type": "task",
+            "emne": "",
+            "todo": "Filmudvælgelse",
+            "beskrivelse": "Lav opslag med informationer og deadlines. Lav stemmeark",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r5",
+            "type": "task",
+            "emne": "Praktisk",
+            "todo": "Mikrofonplan",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r6",
+            "type": "task",
+            "emne": "",
+            "todo": "Ninjaplan",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r7",
+            "type": "task",
+            "emne": "Billetter",
+            "todo": "Reserverede billetter",
+            "beskrivelse": "Hvor mange billetter der skal reserveres?",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r8",
+            "type": "task",
+            "emne": "",
+            "todo": "Gratis billetter",
+            "beskrivelse": "Hvilke skal være gratis?",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-g2",
+            "type": "group",
+            "title": "Revyugen"
+          },
+          {
+            "id": "revyen-r9",
+            "type": "task",
+            "emne": "Praktisk",
+            "todo": "Brandcheck",
+            "beskrivelse": "De kommer forbi (forhåbentlig)",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r10",
+            "type": "task",
+            "emne": "",
+            "todo": "Elektronikcheck",
+            "beskrivelse": "De kommer forbi (forhåbentlig)",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r11",
+            "type": "task",
+            "emne": "",
+            "todo": "Driftjournaler",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r12",
+            "type": "task",
+            "emne": "Printe",
+            "todo": "Programmer",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r13",
+            "type": "task",
+            "emne": "",
+            "todo": "Billedvæg",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r14",
+            "type": "task",
+            "emne": "",
+            "todo": "Mikrofonplan",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r15",
+            "type": "task",
+            "emne": "",
+            "todo": "Ninjaplan",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r16",
+            "type": "task",
+            "emne": "",
+            "todo": "Aktoversigter",
+            "beskrivelse": "",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r17",
+            "type": "task",
+            "emne": "Backstage",
+            "todo": "Vaskestation",
+            "beskrivelse": "Lav en vaskestation til sko på scenen",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r18",
+            "type": "task",
+            "emne": "",
+            "todo": "Lamper",
+            "beskrivelse": "Sæt sorte plastiksække over lamperne i hesteskoen",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r19",
+            "type": "task",
+            "emne": "",
+            "todo": "Brandveje",
+            "beskrivelse": "Optegn brandveje i hesteskoen, så man ved hvor rekvisitter kan stå",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r20",
+            "type": "task",
+            "emne": "",
+            "todo": "Aktoversigter",
+            "beskrivelse": "Print aktoversigter inkl. film og fisk til alle",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "revyen-r21",
+            "type": "task",
+            "emne": "",
+            "todo": "Mikrofonplan",
+            "beskrivelse": "Find en lille cykellygte eller lignende til mikrofonplanen",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          }
+        ],
+        "efterrevyen": [
+          {
+            "id": "efterrevyen-r1",
+            "type": "task",
+            "emne": "Arrangementer",
+            "todo": "Generalforsamling + evaluering",
+            "beskrivelse": "",
+            "ansvarA": "Fælles",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "efterrevyen-r2",
+            "type": "task",
+            "emne": "",
+            "todo": "Revyttetur",
+            "beskrivelse": "Reklamér",
+            "ansvarA": "Thea",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "efterrevyen-r3",
+            "type": "task",
+            "emne": "SaTyR",
+            "todo": "Kontingent",
+            "beskrivelse": "Send billetsalgsinfo til satyr",
+            "ansvarA": "Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "efterrevyen-r4",
+            "type": "task",
+            "emne": "",
+            "todo": "Betal kontingentet",
+            "beskrivelse": "",
+            "ansvarA": "Louise",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "efterrevyen-r5",
+            "type": "task",
+            "emne": "Praktisk",
+            "todo": "How-to dokumenter",
+            "beskrivelse": "Opdatér",
+            "ansvarA": "",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "efterrevyen-r6",
+            "type": "task",
+            "emne": "",
+            "todo": "Masterplan",
+            "beskrivelse": "Opdatér",
+            "ansvarA": "TL",
+            "ansvarB": "",
+            "status": ""
+          },
+          {
+            "id": "efterrevyen-r7",
+            "type": "task",
+            "emne": "",
+            "todo": "Beskeddokument",
+            "beskrivelse": "Opdatér",
+            "ansvarA": "FT",
+            "ansvarB": "",
+            "status": ""
+          }
+        ]
+      }
     }
   ]
 };
