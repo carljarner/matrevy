@@ -303,27 +303,36 @@ comments.
 
 ```json
 {
-  "ansvarLabels": ["Ansvar 2026", "Ansvar 2027"],
-  "tabs": {
-    "blok4": [
-      { "id": "blok4-g1", "type": "group", "title": "" },
-      { "id": "blok4-r1", "type": "task", "emne": "Praktisk", "todo": "Koordinator",
-        "beskrivelse": "Del Drev med nye bosser", "ansvarA": "Frida", "ansvarB": "Carl",
-        "status": "faerdig" }
-    ],
-    "august": [], "blok1": [], "revyen": [], "efterrevyen": []
-  }
+  "plans": [
+    {
+      "id": "matrevy_2026",
+      "year": 2026,
+      "label": "MatRevy 2026",
+      "ansvarLabels": ["Ansvar 2026", "Ansvar 2027"],
+      "tabs": {
+        "blok4": [
+          { "id": "blok4-g1", "type": "group", "title": "" },
+          { "id": "blok4-r1", "type": "task", "emne": "Praktisk", "todo": "Koordinator",
+            "beskrivelse": "Del Drev med nye bosser", "ansvarA": "Frida", "ansvarB": "Carl",
+            "status": "faerdig" }
+        ],
+        "august": [], "blok1": [], "revyen": [], "efterrevyen": []
+      }
+    }
+  ]
 }
 ```
 
-- Backs the Koordinator page's **Masterplan** card — a checklist grid replacing an externally-maintained spreadsheet of recurring production to-dos, always editable (a local draft, nothing saved until "Gem") via `js/koordinator.js`'s `renderMasterplanCard`/`renderMpGrid`. Edited exclusively there (`server/update-data.php`'s `masterplan` resource, **admin** level — same rank as `archive`/`config`, since Koordinator itself is admin-gated).
-- `tabs` has **exactly** 5 fixed keys — `blok4`/`august`/`blok1`/`revyen`/`efterrevyen` — whose labels ("Blok 4", "August", "Blok 1", "Revyen", "Efter revyen") are hardcoded client-side (`KOORD_MP_TABS` in `koordinator.js`, mirroring `manus.js`'s own `MANUS_MAIN_TABS`); only each tab's row *content* is data. The server rejects a payload whose `tabs` object doesn't have exactly these 5 keys in this order.
+- Backs the Koordinator page's **Masterplan** tab — a checklist grid replacing an externally-maintained spreadsheet of recurring production to-dos, always editable (a local draft, nothing saved until "Gem") via `js/koordinator.js`'s `renderMasterplanCard`/`renderMpGrid`. Edited exclusively there (`server/update-data.php`'s `masterplan` resource, **admin** level — same rank as `archive`/`config`, since Koordinator itself is admin-gated).
+- `plans` is a flat array, **one entry per production year** (e.g. "MatRevy 2026", "MatRevy 2025", ...) — mirrors Budget's multi-year datastore in spirit, though far simpler (no private storage, no per-year directory: every plan just lives in this one public array). The admin switches which plan is being viewed via a "Viser plan for: ..." picker (`js/koordinator.js`'s `masterplanViewId`, persisted in `localStorage`) that also offers "+ Tilføj" to create a new plan and "Slet" to delete the one currently in view — same UI primitive as Arkiv's own year picker on this same page.
+- Each plan: `id` (stable slug, `^[A-Za-z0-9_-]+$`, generated once at creation and never recomputed — same posture as `archive.json`'s `folder`), `year` (int, used to sort the picker newest-first), `label` (free text shown in the picker, e.g. "MatRevy 2026"), `ansvarLabels`, and `tabs`.
+- `tabs` has **exactly** 5 fixed keys — `blok4`/`august`/`blok1`/`revyen`/`efterrevyen` — whose labels ("Blok 4", "August", "Blok 1", "Revyen", "Efter revyen") are hardcoded client-side (`KOORD_MP_TABS` in `koordinator.js`, mirroring `manus.js`'s own `MANUS_MAIN_TABS`); only each tab's row *content* is data. The server rejects a plan whose `tabs` object doesn't have exactly these 5 keys in this order.
 - Each tab's value is a flat, ordered array mixing two row kinds (discriminated by `type`), matching the source spreadsheet's blue section-divider rows plus ordinary rows:
   - `"group"` — just an `id` and a `title` (a section divider; `title` may be an empty string — the spreadsheet had several unlabelled dividers).
-  - `"task"` — `id`, `emne`/`todo`/`beskrivelse` (free text), `ansvarA`/`ansvarB` (free text, labeled by the shared `ansvarLabels` below), and `status` — one of `""` (unset), `"mangler"` (red), `"igang"` (yellow), `"faerdig"` (green), cycled by clicking the row's status pill.
-- `id` must be a non-empty string, unique across the whole document (not just within its own tab).
-- `ansvarLabels` is a shared pair of admin-editable column-header strings (e.g. `["Ansvar 2026", "Ansvar 2027"]`) used across every tab — replaces the source spreadsheet's inconsistent per-tab "Ansvar 2025/2026" vs "Ansvar 2024/2025" headers with one pair retitled once a year, edited directly as the grid's own Ansvar column headers (no separate settings UI).
-- Not reset by Koordinator's `koordCloseYear()` — like `program.json`, this is mostly stable recurring process content (not per-production data), so a new production cycle inherits the previous year's checklist as a starting point; an admin edits/clears it by hand via the Masterplan card like any other year's content.
+  - `"task"` — `id`, `emne`/`todo`/`beskrivelse` (free text), `ansvarA`/`ansvarB` (free text, labeled by that plan's own `ansvarLabels` below), and `status` — one of `""` (unset), `"mangler"` (red), `"igang"` (yellow), `"faerdig"` (green), cycled by clicking the row's status pill.
+- A row `id` must be a non-empty string, unique **within its own plan** (not globally across every plan — the client only ever edits one plan's rows at a time, so cross-plan uniqueness buys nothing).
+- `ansvarLabels` is a pair of admin-editable column-header strings (e.g. `["Ansvar 2026", "Ansvar 2027"]`) shared across that one plan's 5 tabs — replaces the source spreadsheet's inconsistent per-tab "Ansvar 2025/2026" vs "Ansvar 2024/2025" headers with one pair per plan, edited directly as the grid's own Ansvar column headers (no separate settings UI). A past year's plan keeps its own historical labels (e.g. "Ansvar 2024"/"Ansvar 2025") even after a newer plan exists.
+- Not reset by Koordinator's `koordCloseYear()` — a new production cycle doesn't touch `masterplan.json` at all; the admin creates that year's own plan by hand via "+ Tilføj" (typically once the previous year's plan is "done") and fills it in, optionally copying over recurring rows from the previous year's plan by hand.
 
 ## Adding a year to the archive
 

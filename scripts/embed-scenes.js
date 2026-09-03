@@ -111,9 +111,9 @@ const EMBEDS = [
     sources: 'data/masterplan.json',
     globals: () => {
       const masterplan = readJson('data/masterplan.json');
-      const tabCount = Object.keys(masterplan.tabs).length;
-      const rowCount = Object.values(masterplan.tabs).reduce((n, rows) => n + rows.length, 0);
-      console.log(`  masterplan: ${tabCount} tabs, ${rowCount} rows`);
+      const rowCount = masterplan.plans.reduce(
+        (n, plan) => n + Object.values(plan.tabs).reduce((m, rows) => m + rows.length, 0), 0);
+      console.log(`  masterplan: ${masterplan.plans.length} plans, ${rowCount} rows total`);
       return { MASTERPLAN_DATA: masterplan };
     },
   },

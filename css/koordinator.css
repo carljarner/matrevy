@@ -185,6 +185,35 @@
   margin: 0 0 1rem;
 }
 
+/* --- Masterplan: plan picker ("Viser plan for: <label>", top-right of the
+   card head, .card-head is already flex/space-between so this just sits as
+   its 2nd child) + the "Ny plan"/"+ Tilføj" create modal, mirroring
+   .koord-year-edit-modal's own sizing. -------------------------------- */
+.koord-mp-plan-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.koord-mp-plan-picker-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.koord-mp-plan-modal {
+  width: min(420px, 94vw);
+}
+
+/* .card-head is a plain non-wrapping flex row site-wide — scoped override
+   so "Masterplan" + the plan picker don't get squeezed together on a
+   narrow screen. */
+.koord-mp-card .card-head {
+  flex-wrap: wrap;
+  row-gap: 0.5rem;
+}
+
 /* --- Masterplan (js/koordinator.js's renderMasterplanCard/renderMpGrid) --
    Tab bar styled like Manus's own flat mode-switch tab bar
    (manus.css's .manus-tab-btn-bar) — duplicated here since this page

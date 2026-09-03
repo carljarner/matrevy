@@ -627,13 +627,24 @@ function openCloseYearModal(closingFolder) {
 // spreadsheet of recurring production to-dos, grouped into 5 fixed
 // phase-tabs — Blok 4 / August / Blok 1 / Revyen / Efter revyen). Tab
 // keys/labels are hardcoded here (mirrors manus.js's own MANUS_MAIN_TABS) —
-// only each tab's row content is data (data/masterplan.json). Always
-// editable (mirrors budget.js's Stregregnskab grid): every field writes
-// straight into a local draft, nothing reaches the server until "Gem"
-// commits the whole document in one save. ──────────────────────
+// only each tab's row content is data (data/masterplan.json). One
+// checklist is called a "plan" — one per production year (e.g. "MatRevy
+// 2026", "MatRevy 2025", ...); the admin switches which plan is being
+// viewed via a small "Viser plan for:" picker (same siteOpenDropdownPicker
+// primitive as this file's own Arkiv year picker above), which also offers
+// "+ Tilføj" to create a new plan. Always editable (mirrors budget.js's
+// Stregregnskab grid): every field writes straight into a local draft of
+// the *currently viewed plan only*, nothing reaches the server until "Gem"
+// re-saves the whole plans array with that one entry replaced. ──────
 let koordMasterplanOverride = siteLoadOverride('masterplan');
-function getEffectiveMasterplan() {
+function getEffectiveMasterplanDoc() {
   return koordMasterplanOverride || MASTERPLAN_DATA;
+}
+function getMasterplanPlans() {
+  return getEffectiveMasterplanDoc().plans || [];
+}
+function sortedMasterplanPlans() {
+  return getMasterplanPlans().slice().sort((a, b) => b.year - a.year || b.label.localeCompare(a.label, 'da'));
 }
 
 const KOORD_MP_TABS = [
@@ -657,11 +668,35 @@ const KOORD_MP_TAB_KEY = 'matrevy-koord-mp-tab';
 const koordMpStoredTab = localStorage.getItem(KOORD_MP_TAB_KEY);
 let koordMpActiveTab = KOORD_MP_TABS.some((t) => t.key === koordMpStoredTab) ? koordMpStoredTab : KOORD_MP_TABS[0].key;
 
-// Built once (from getEffectiveMasterplan()) the first time the card
-// renders after a fresh load/save/reset — mirrors budget.js's own
-// stregSheetDraft lifecycle. masterplanLastSavedSnapshot is the serialized
-// draft at that moment, compared against on every edit to drive the
-// Gemt/Ikke gemt status (see koordMpUpdateSaveStatus).
+// Which plan is currently being viewed/edited — persisted in localStorage
+// like budget.js's own budgetViewId, but with no "active" concept
+// alongside it (unlike Budget, Masterplan has no revyst-facing submission
+// flow that needs a single designated target — every plan is just an
+// admin-viewed document).
+const KOORD_MP_VIEW_KEY = 'matrevy-koord-mp-view';
+let masterplanViewId = localStorage.getItem(KOORD_MP_VIEW_KEY);
+
+// Resolves masterplanViewId against the real plan list — falls back to the
+// newest plan (by year) if the stored id is missing/stale (a plan deleted
+// elsewhere, or the very first load).
+function resolveMasterplanViewId() {
+  const plans = getMasterplanPlans();
+  if (plans.some((p) => p.id === masterplanViewId)) return masterplanViewId;
+  const newest = sortedMasterplanPlans()[0];
+  return newest ? newest.id : null;
+}
+
+function getCurrentMasterplan() {
+  const id = resolveMasterplanViewId();
+  return getMasterplanPlans().find((p) => p.id === id) || null;
+}
+
+// Built once (a clone of getCurrentMasterplan(), i.e. just the single
+// currently-viewed plan — not the whole multi-plan document) the first
+// time the card renders after a fresh load/save/switch — mirrors
+// budget.js's own stregSheetDraft lifecycle. masterplanLastSavedSnapshot is
+// the serialized draft at that moment, compared against on every edit to
+// drive the Gemt/Ikke gemt status (see koordMpUpdateSaveStatus).
 let masterplanDraft = null;
 let masterplanLastSavedSnapshot = '';
 let koordMpDragItem = null;
@@ -672,7 +707,8 @@ function koordMpNewId(prefix) {
 
 function koordMpEnsureDraft() {
   if (masterplanDraft) return;
-  masterplanDraft = structuredClone(getEffectiveMasterplan());
+  const plan = getCurrentMasterplan();
+  masterplanDraft = plan ? structuredClone(plan) : null;
   masterplanLastSavedSnapshot = JSON.stringify(masterplanDraft);
 }
 
@@ -964,6 +1000,9 @@ function renderMpGrid() {
   mount.appendChild(addRow);
 }
 
+// Saves the whole plans array with the currently-viewed plan's entry
+// replaced by the draft (full-array-replace, same convention as every
+// other resource on this site).
 async function koordMpSave() {
   const saveBtn = document.getElementById('koord-mp-save-btn');
   const status = document.getElementById('koord-mp-save-status');
@@ -971,14 +1010,21 @@ async function koordMpSave() {
   status.textContent = 'Gemmer...';
   status.className = 'koord-mp-save-status';
 
-  const payload = { ansvarLabels: masterplanDraft.ansvarLabels, tabs: {} };
-  KOORD_MP_TABS.forEach((tab) => { payload.tabs[tab.key] = masterplanDraft.tabs[tab.key]; });
+  const updatedPlan = {
+    id: masterplanDraft.id,
+    year: masterplanDraft.year,
+    label: masterplanDraft.label,
+    ansvarLabels: masterplanDraft.ansvarLabels,
+    tabs: {},
+  };
+  KOORD_MP_TABS.forEach((tab) => { updatedPlan.tabs[tab.key] = masterplanDraft.tabs[tab.key]; });
+  const nextPlans = getMasterplanPlans().map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
 
-  const result = await siteSaveResource('masterplan', payload);
+  const result = await siteSaveResource('masterplan', { plans: nextPlans });
   saveBtn.disabled = false;
   if (result.ok) {
-    koordMasterplanOverride = payload;
-    siteSaveOverride('masterplan', payload);
+    koordMasterplanOverride = { plans: nextPlans };
+    siteSaveOverride('masterplan', koordMasterplanOverride);
     masterplanDraft = null;
     koordMpEnsureDraft();
     renderMpGrid();
@@ -989,26 +1035,187 @@ async function koordMpSave() {
   }
 }
 
-// Discards unsaved edits and rebuilds the draft from the last-loaded/saved
-// data — confirmed first (styled modal, not native confirm()) only when
-// there's actually something to lose.
-function koordMpReset() {
-  if (!masterplanIsDirty()) return;
-  koordMpDeleteConfirm('Kassér alle ugemte ændringer i Masterplan?', () => {
-    masterplanDraft = null;
-    koordMpEnsureDraft();
-    renderMpGrid();
-    koordMpUpdateSaveStatus();
+// Full top-level re-render — cheap (everything renders from local state),
+// mirrors budget.js's own loadAndRenderAdmin() re-invocation on year
+// switch. Used whenever which plan is being viewed changes.
+function koordMpRerenderPage() {
+  const root = document.getElementById('koordinator-root');
+  if (root) renderKoordinator(root);
+}
+
+function koordMpSwitchView(id) {
+  if (id === masterplanViewId) return;
+  masterplanViewId = id;
+  if (id) localStorage.setItem(KOORD_MP_VIEW_KEY, id);
+  else localStorage.removeItem(KOORD_MP_VIEW_KEY);
+  masterplanDraft = null;
+  koordMpRerenderPage();
+}
+
+// Mirrors archive.js's own folder-slug dedupe loop (see openKoordYearEditor
+// above) — reuses slugifyFolderName (already duplicated in this file for
+// Arkiv) since a plan id has the exact same shape requirements.
+function koordMpSlugifyPlanId(label) {
+  const existing = new Set(getMasterplanPlans().map((p) => p.id));
+  const base = slugifyFolderName(label) || 'plan';
+  let id = base;
+  let n = 2;
+  while (existing.has(id)) { id = `${base}-${n}`; n++; }
+  return id;
+}
+
+function koordMpEmptyTabs() {
+  const tabs = {};
+  KOORD_MP_TABS.forEach((t) => { tabs[t.key] = []; });
+  return tabs;
+}
+
+// "+ Tilføj" — mirrors openKoordYearEditor's own Navn/Årstal pair and
+// auto-fill-year-from-name behavior. Unlike row edits (batched into the
+// draft), creating a plan is a structural action that saves immediately,
+// same posture as adding an Arkiv year.
+function openCreateMasterplanModal() {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Ny plan');
+  modal.classList.add('koord-mp-plan-modal');
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'MatRevy 2027';
+  const yearInput = document.createElement('input');
+  yearInput.type = 'number';
+  yearInput.min = '1900';
+  yearInput.max = '2100';
+
+  let yearTouched = false;
+  yearInput.addEventListener('input', () => { yearTouched = true; });
+  nameInput.addEventListener('input', () => {
+    if (yearTouched) return;
+    const m = nameInput.value.match(/\b(19|20)\d{2}\b/);
+    if (m) yearInput.value = m[0];
+  });
+
+  form.appendChild(siteEditField('Navn', nameInput));
+  form.appendChild(siteEditField('Årstal', yearInput));
+
+  const save = koordPillBtn('Gem', 'site-btn-success');
+  actions.appendChild(save);
+
+  save.addEventListener('click', async () => {
+    error.textContent = '';
+    const label = nameInput.value.trim();
+    if (!label) { error.textContent = 'Navnet er påkrævet.'; return; }
+    const year = parseInt(yearInput.value, 10);
+    if (!Number.isInteger(year) || year < 1900 || year > 2100) {
+      error.textContent = 'Angiv et gyldigt årstal (1900–2100).';
+      return;
+    }
+
+    const id = koordMpSlugifyPlanId(label);
+    const newPlan = {
+      id, year, label,
+      ansvarLabels: [`Ansvar ${year}`, `Ansvar ${year + 1}`],
+      tabs: koordMpEmptyTabs(),
+    };
+    const nextPlans = getMasterplanPlans().concat([newPlan]);
+
+    save.disabled = true;
+    const result = await siteSaveResource('masterplan', { plans: nextPlans });
+    if (result.ok) {
+      koordMasterplanOverride = { plans: nextPlans };
+      siteSaveOverride('masterplan', koordMasterplanOverride);
+      close();
+      koordMpSwitchView(id);
+    } else {
+      save.disabled = false;
+      error.textContent = result.message || 'Kunne ikke oprette planen.';
+    }
+  });
+
+  nameInput.focus();
+}
+
+// "Viser plan for: <label> ▾" button in the card head — opens a dropdown
+// listing "+ Tilføj" plus every existing plan (newest first), same
+// siteOpenDropdownPicker primitive as this file's own Arkiv year picker
+// (openArkivYearPicker above). Picking a plan switches the view; picking
+// "+ Tilføj" opens the create modal.
+const KOORD_MP_ADD_VALUE = '__add__';
+function openMasterplanPlanPicker(anchor) {
+  const plans = sortedMasterplanPlans();
+  const options = [{ value: KOORD_MP_ADD_VALUE, label: '+ Tilføj' }]
+    .concat(plans.map((p) => ({ value: p.id, label: p.label })));
+  siteOpenDropdownPicker(anchor, options, resolveMasterplanViewId(), (value) => {
+    if (value === KOORD_MP_ADD_VALUE) { openCreateMasterplanModal(); return; }
+    koordMpSwitchView(value);
   });
 }
 
-function renderMasterplanCard(container) {
-  koordMpEnsureDraft();
+// "Slet" — deletes the plan currently in view. Mirrors
+// openDeleteArchiveYearConfirm's own async-aware shape (keeps the modal
+// open and shows an error on failure) rather than the quick-fire
+// koordMpDeleteConfirm used for row-level draft edits above, since this is
+// a real, immediate server delete of a whole plan's content.
+function openDeleteMasterplanPlanConfirm(plan) {
+  const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${plan.label}"?`);
+  modal.classList.add('koord-mp-confirm-modal');
+  form.appendChild(el('p', 'koord-mp-confirm-text', 'Planen og alle dens opgaver slettes permanent. Dette kan ikke fortrydes.'));
 
+  const cancelBtn = koordPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = koordPillBtn('Slet', 'site-btn-danger');
+  confirmBtn.addEventListener('click', async () => {
+    cancelBtn.disabled = true;
+    confirmBtn.disabled = true;
+    const nextPlans = getMasterplanPlans().filter((p) => p.id !== plan.id);
+    const result = await siteSaveResource('masterplan', { plans: nextPlans });
+    if (result.ok) {
+      koordMasterplanOverride = { plans: nextPlans };
+      siteSaveOverride('masterplan', koordMasterplanOverride);
+      close();
+      koordMpSwitchView(null);
+    } else {
+      error.textContent = result.message || 'Kunne ikke slette planen.';
+      cancelBtn.disabled = false;
+      confirmBtn.disabled = false;
+    }
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+function renderMasterplanCard(container) {
   const card = el('section', 'card koord-mp-card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Masterplan'));
+
+  const plans = getMasterplanPlans();
+  if (plans.length === 0) {
+    // Brand-new deploy / every plan deleted — nothing to view/edit yet,
+    // same "empty" posture as budget.js's own renderYearToolbar when
+    // budgetYearsList is empty.
+    card.appendChild(head);
+    card.appendChild(el('p', null, 'Ingen planer oprettet endnu.'));
+    const addBtn = el('button', 'btn-small', '+ Tilføj plan');
+    addBtn.type = 'button';
+    addBtn.addEventListener('click', openCreateMasterplanModal);
+    card.appendChild(addBtn);
+    container.appendChild(card);
+    return;
+  }
+
+  const currentPlan = getCurrentMasterplan();
+  const pickerWrap = el('div', 'koord-mp-plan-picker');
+  pickerWrap.appendChild(el('span', 'koord-mp-plan-picker-label', 'Viser plan for:'));
+  const pickerBtn = el('button', 'btn-small', currentPlan ? currentPlan.label : '–');
+  pickerBtn.type = 'button';
+  pickerBtn.addEventListener('click', () => openMasterplanPlanPicker(pickerBtn));
+  pickerWrap.appendChild(pickerBtn);
+  head.appendChild(pickerWrap);
   card.appendChild(head);
+
+  koordMpEnsureDraft();
 
   const tabBar = el('nav', 'koord-mp-tab-bar');
   tabBar.id = 'koord-mp-tab-bar';
@@ -1021,10 +1228,10 @@ function renderMasterplanCard(container) {
   card.appendChild(gridWrap);
 
   const saveBar = el('div', 'koord-mp-save-bar');
-  const resetBtn = el('button', 'site-btn-danger', 'Nulstil');
-  resetBtn.type = 'button';
-  resetBtn.addEventListener('click', koordMpReset);
-  saveBar.appendChild(resetBtn);
+  const deleteBtn = el('button', 'site-btn-danger', 'Slet');
+  deleteBtn.type = 'button';
+  deleteBtn.addEventListener('click', () => openDeleteMasterplanPlanConfirm(currentPlan));
+  saveBar.appendChild(deleteBtn);
 
   const saveGroup = el('div', 'koord-mp-save-group');
   const status = el('span', 'koord-mp-save-status');
