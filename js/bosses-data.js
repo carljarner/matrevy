@@ -20,6 +20,10 @@ const BOSSES_DATA = {
       "role": "Bandboss"
     },
     {
+      "names": "Thea Deleuran Christensen",
+      "role": "Sangboss"
+    },
+    {
       "names": "Frida Nøhr Larsen, Rune Steffensen, Oscar Keiding",
       "role": "Rekvisitbosser"
     },
