@@ -25,7 +25,7 @@ const MASTERPLAN_DATA = {
         "beskrivelse": "Lav ny messengergruppe",
         "ansvarA": "Carl J",
         "ansvarB": "Thea",
-        "status": "igang"
+        "status": "faerdig"
       },
       {
         "id": "blok4-r3",
@@ -59,11 +59,6 @@ const MASTERPLAN_DATA = {
       }
     ],
     "august": [
-      {
-        "id": "august-g1",
-        "type": "group",
-        "title": ""
-      },
       {
         "id": "august-r1",
         "type": "task",
@@ -830,11 +825,6 @@ const MASTERPLAN_DATA = {
       }
     ],
     "efterrevyen": [
-      {
-        "id": "efterrevyen-g1",
-        "type": "group",
-        "title": ""
-      },
       {
         "id": "efterrevyen-r1",
         "type": "task",
