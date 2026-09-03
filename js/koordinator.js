@@ -1122,7 +1122,7 @@ function openCreateMasterplanModal() {
 
   if (prevPlan) {
     form.appendChild(el('p', 'koord-modal-intro',
-      `Kopieres fra "${prevPlan.label}" — Ansvarlig flyttes til Ansvarlig sidste revy, og Status nulstilles.`));
+      `Kopieres fra "${prevPlan.label}" (Ansvarlig flyttes til Ansvarlig sidste revy)`));
   }
   form.appendChild(siteEditField('Navn', nameInput));
   form.appendChild(siteEditField('Årstal', yearInput));

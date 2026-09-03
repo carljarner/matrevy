@@ -3982,11 +3982,10 @@ function save_program($payload) {
 // flat list of rows mixing two kinds: a "group" divider (just a title, may
 // be empty — mirrors the source spreadsheet's blank/labelled blue section
 // rows) and a "task" (Emne/To do/Beskrivelse/two freeform Ansvar fields/a
-// Status enum). Each plan carries its own ansvarLabels — the two
-// admin-editable Ansvar column headers shared across that plan's 5 tabs
-// (the source spreadsheet's own per-tab headers were inconsistent year to
-// year — this replaces that with one pair per plan, retitled once a year
-// instead of per tab, and frozen as history once a year is done).
+// Status enum). The two Ansvar columns ("Ansvarlig sidste revy"/
+// "Ansvarlig") are fixed UI labels, not per-plan data — js/koordinator.js's
+// "+ Tilføj" copies a new plan forward from the previous one, shifting each
+// task's ansvarB into ansvarA and clearing ansvarB/status for the new cycle.
 define('MASTERPLAN_TAB_KEYS', ['blok4', 'august', 'blok1', 'revyen', 'efterrevyen']);
 define('MASTERPLAN_STATUSES', ['', 'mangler', 'igang', 'faerdig']);
 
@@ -3999,7 +3998,7 @@ function save_masterplan($payload) {
   $seenPlanId = [];
   foreach ($plans as $plan) {
     if (!is_array($plan)
-        || !isset($plan['id'], $plan['year'], $plan['label'], $plan['ansvarLabels'], $plan['tabs'])
+        || !isset($plan['id'], $plan['year'], $plan['label'], $plan['tabs'])
         || !is_string($plan['id']) || !preg_match('#^[A-Za-z0-9_-]+$#', $plan['id'])
         || isset($seenPlanId[$plan['id']])
         || !is_int($plan['year']) || $plan['year'] < 1900 || $plan['year'] > 2100
@@ -4007,13 +4006,6 @@ function save_masterplan($payload) {
       respond(400, ['error' => 'invalid_masterplan_shape']);
     }
     $seenPlanId[$plan['id']] = true;
-
-    $ansvarLabels = $plan['ansvarLabels'];
-    if (!is_array($ansvarLabels) || count($ansvarLabels) !== 2
-        || !is_string($ansvarLabels[0]) || mb_strlen($ansvarLabels[0]) > 60
-        || !is_string($ansvarLabels[1]) || mb_strlen($ansvarLabels[1]) > 60) {
-      respond(400, ['error' => 'invalid_masterplan_shape']);
-    }
 
     $tabs = $plan['tabs'];
     if (!is_array($tabs) || array_keys($tabs) !== MASTERPLAN_TAB_KEYS) {
