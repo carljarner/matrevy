@@ -525,6 +525,89 @@ const SCENES_DATA = [
   {
     "id": "1-10",
     "number": 10,
+    "name": "Matrevy Sound",
+    "types": [
+      "sang"
+    ],
+    "schedulable": true,
+    "cast": [
+      {
+        "name": "Nadja",
+        "role": "Instruktør",
+        "roleCode": "I",
+        "description": "Instruktør",
+        "tags": [
+          "Instruktør"
+        ]
+      },
+      {
+        "name": "Thais",
+        "role": "Sang/Rap",
+        "roleCode": "S",
+        "description": "Rapper",
+        "tags": [
+          "Sang/Rap"
+        ]
+      },
+      {
+        "name": "Johan",
+        "role": "Sang/Rap",
+        "roleCode": "B",
+        "description": "Rapper",
+        "tags": [
+          "Sang/Rap"
+        ]
+      },
+      {
+        "name": "Lea",
+        "role": "Koreograf",
+        "roleCode": "YD",
+        "description": "Koreograf og danser",
+        "tags": [
+          "Koreograf"
+        ]
+      },
+      {
+        "name": "Emma",
+        "role": "Dans",
+        "roleCode": "D1",
+        "description": "Danser",
+        "tags": [
+          "Dans"
+        ]
+      },
+      {
+        "name": "Sara",
+        "role": "Dans",
+        "roleCode": "D2",
+        "description": "Danser",
+        "tags": [
+          "Dans"
+        ]
+      },
+      {
+        "name": "Nadja",
+        "role": "Dans",
+        "roleCode": "D3",
+        "description": "Danser",
+        "tags": [
+          "Dans"
+        ]
+      }
+    ],
+    "sourcePdf": "archive/MatRevy_2026/songs/Matrevy_Sound.pdf",
+    "sourceTex": "archive/MatRevy_2026/songs/Matrevy_Sound.tex",
+    "priority": 0,
+    "repeat": false,
+    "duration": 2.5,
+    "scriptBody": "\\sings{S}[Omkvæd] Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n  \\sings{B}[Vers 1] Året det er gået, men nu er matrevy tilbage\nVi ved hvad der skal gøres, giver dem alt hvad de vil have\nHar skrevet hele dagen, ingen skriftlig eksamen\nManuskript fyldt med rap, det her track er lige sagen\nDet her track er lige sagen\nDer er ikke så mange jokes, det er bare træ, træ, træ\nOg banger efter banger fra det band, band, band\nGi-giv den lige op for mit matrevy gang\n\n   \\sings{S}[Omkvæd]  Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n \\sings{S}[Vers 2] Jeg er tre bajere inde, men - giv mig lige en til\nFjern den der pilsner, jeg skal have GT\nMatrevy er bedst, og hele SCIENCE ved det\nIkke tid til at læse, jeg skal på scenen\nSt-stilen den er lagt, ordet i min magt\nHele salen råber stadig: \"Fuck campusvagt!\"\nOg beatet er banger allerede i første akt\nVores fest kan ikke lukke, luk munden blev der sagt\n(brr-brr, ey)\nSe, vi flækker beats og giver verbale tæsk i teksten\nI flækker af grin når I ser de bedste sketches\nSå flækker vi floor, når vi rammer efterfesten\n\n\\sings{S}[Omkvæd] Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n  \\sings{B}[C-stykke] Hele holdet omme backstaaaaage\nHar drip i deres rekvisitkasse\n300 i det publikuuuuum\nDet betyder, vi skal give den gas (gang-gang-gang)\nBare bund tre bajer i første akt\nDu ved at vi har bars lige fra første takt\nRevyen går i gang, ja vi gør det straks\nBare bund tre bajer i hver fucking akt\n\n \\sings{S}[Outro] Matrevy sound",
+    "melody": "MellemFingaMuzik: “AMG”",
+    "writtenBy": "Johan '19",
+    "actLabel": "Akt 1"
+  },
+  {
+    "id": "1-11",
+    "number": 11,
     "name": "Whist",
     "types": [
       "sang"
@@ -628,8 +711,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-11",
-    "number": 11,
+    "id": "1-12",
+    "number": 12,
     "name": "Hvorfor Er Der To Af Dem",
     "types": [
       "sketch"
@@ -685,8 +768,8 @@ const SCENES_DATA = [
     "actLabel": "Akt 1"
   },
   {
-    "id": "1-12",
-    "number": 12,
+    "id": "1-13",
+    "number": 13,
     "name": "IT Konsulent Baby",
     "types": [
       "sang"
@@ -859,6 +942,15 @@ const SCENES_DATA = [
         "role": "Dans",
         "roleCode": "D4",
         "description": "Danser i konstruktionstøj",
+        "tags": [
+          "Dans"
+        ]
+      },
+      {
+        "name": "Carl",
+        "role": "Dans",
+        "roleCode": "D5",
+        "description": "Danser",
         "tags": [
           "Dans"
         ]
@@ -2582,7 +2674,7 @@ const SCENES_DATA = [
     ],
     "sourcePdf": "archive/MatRevy_2026/songs/Venter_Til_I_Morgen.pdf",
     "sourceTex": "archive/MatRevy_2026/songs/Venter_Til_I_Morgen.tex",
-    "priority": 0,
+    "priority": 2,
     "repeat": false,
     "scriptBody": "\\sings{K}[Intro] Du-du-duuu-dududu (x7)\n\n\n\\sings{R (K)}[Omkvæd] Opgaverne er hårde, venter til i morgen\n117 spørgsmål, men ikke nogen som jeg forstår\nOg jeg tror måske jeg skulle være gået i gang i går\nMon ikke det går, så må vi se om jeg består\nVenter til i morgen (du-du-duuu-dududu)\nVenter til i morgen (du-du-duuu-dududu)\nOg jeg tror måske jeg skulle være gået i gang i går\nMen jeg venter til i morgen\n\n\\sings{R}[Vers 1] Klokken er fem, har aflevering igen\nBurde bare tage hjem\nSå hører jeg venners stemme\n\n\\sings{R} Øl på Caféen?\n\\sings{K} Øl på Caféen?\n\\sings{R} Bare en enkelt en\n\\sings{K} Bare en enkelt en\n\\sings{R} Ikke noget problem\n\\sings{K} Ikke noget problem\n\\sings{R} Det bliver ikke sent\n\\sings{K} Det bliver ikke sent\n\n\\sings{R}[Bro] Jeg tager på Caféen lige hurtigt før jeg texxer\nAflevering, den kan vente til bagefter\nVi har fri lige nu så fjern alle de der lektier\nTager lige én til øl, bare én til\n\n\n\\sings{R (K)}[Omkvæd] Opgaverne er hårde, venter til i morgen\n117 spørgsmål, men ikke nogen som jeg forstår\nOg jeg tror måske jeg skulle være gået i gang i går\nMon ikke det går, så må vi se om jeg består\nVenter til i morgen (du-du-duuu-dududu)\nVenter til i morgen (du-du-duuu-dududu)\nOg jeg tror måske jeg skulle være gået i gang i går\nMen jeg venter til i morgen\n\n\\sings{R}[Vers 2] Venter til i morgen\nVi tager lige en til tår\nDer ’ fucking varmt på floor\nDerfor jeg aldrig går\nOg det ’ ikke så vigtigt hvilken karakter jeg får\nJeg dumpede sidste år\nGør det nok også i år\n\n\\sings{R}[Bro] Jeg tager på Caféen lige hurtigt før jeg texxer\nAflevering, den kan vente til bagefter\nVi har fri lige nu så fjern alle de der lektier\nTager lige én til øl, bare én til\n\n\\sings{R}[Omkvæd] Opgaverne er hårde, venter til i morgen\n117 spørgsmål, men ikke nogen som jeg forstår\nOg jeg tror måske jeg skulle være gået i gang i går\nMon ikke det går, så må vi se om jeg består\nVenter til i morgen\nVenter til i morgen\nOg jeg tror måske jeg skulle være gået i gang i går\nMen jeg venter til i morgen",
     "dansPriority": 0,
@@ -2734,5 +2826,9 @@ const CAST_DATA = [
   {
     "name": "Thor",
     "index": 34
+  },
+  {
+    "name": "Carl",
+    "index": 35
   }
 ];
