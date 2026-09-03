@@ -164,7 +164,8 @@ const FAELLES_FIELDS = [
 ];
 
 // ── Day columns: live CALENDAR_DATA events + this document's own private
-// "extra" days, minus whichever are hidden ────────────────────
+// "extra" days, minus whichever are hidden, narrowed to the current
+// rolling half-year ─────────────────────────────────────────────
 // The calendar half is never stored here — mirrors formsOptionsFromRehearsals
 // in js/forms.js, so it always reflects the current public calendar. A
 // local override (mirroring calendar.js's own calendarOverride) means a
@@ -180,6 +181,24 @@ const FAELLES_FIELDS = [
 // references it. Compact d/m label (not formatDaDateShort's
 // weekday-inclusive form) since the header needs many narrow columns —
 // matches the reference spreadsheet's own "8/11" style.
+//
+// Half-year window: Kalender never clears out a finished production's own
+// rehearsal/performance days, so without a cutoff this sheet would
+// accumulate every past production's columns forever. Rather than key off
+// `currentProductionFolder` (which only tracks one active production and
+// wouldn't naturally cover a jubilee revy running alongside a regular one),
+// the window is a plain rolling calendar half — H1 Jan-Jun or H2 Jul-Dec of
+// whichever half "today" falls in — recomputed fresh on every render, no
+// stored state. A jubilee production's rehearsals just need to fall in the
+// same half as the regular one to show up automatically, same as any other
+// production.
+function faellesCurrentHalfYearRange() {
+  const today = (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
+  const year = today.slice(0, 4);
+  const isH1 = Number(today.slice(5, 7)) <= 6;
+  return isH1 ? { start: `${year}-01-01`, end: `${year}-06-30` } : { start: `${year}-07-01`, end: `${year}-12-31` };
+}
+
 let faellesCalendarOverride = (typeof siteLoadOverride === 'function') ? siteLoadOverride('calendar') : null;
 
 function faellesEffectiveCalendarEvents() {
@@ -189,11 +208,15 @@ function faellesEffectiveCalendarEvents() {
 
 function faellesRehearsalColumns() {
   const hidden = (faellesState && faellesState.hiddenDays) || [];
+  const range = faellesCurrentHalfYearRange();
+  const inRange = (date) => date >= range.start && date <= range.end;
   const fromCalendar = faellesEffectiveCalendarEvents()
     .filter((ev) => ev.category === 'ove' || ev.category === 'forestilling')
     .filter((ev) => !hidden.includes(ev.id))
+    .filter((ev) => inRange(ev.date))
     .map((ev) => ({ id: ev.id, date: ev.date, title: ev.title || '', extra: false }));
   const fromExtra = ((faellesState && faellesState.extraDays) || [])
+    .filter((d) => inRange(d.date))
     .map((d) => ({ id: d.id, date: d.date, title: d.title || '', extra: true }));
   return fromCalendar.concat(fromExtra)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
