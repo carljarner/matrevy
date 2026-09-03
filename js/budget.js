@@ -654,7 +654,7 @@ if (document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => budgetSyncPendingColumnHeight());
 }
 
-// ── Admin: year toolbar (switch/rename which budget is shown) ──
+// ── Admin: year toolbar (which budget is shown/active) ──
 function budgetYearLabel(budgetId) {
   const entry = budgetYearsList.find((y) => y.budgetId === budgetId);
   return entry ? entry.label : String(budgetId);
@@ -663,20 +663,16 @@ function budgetYearLabel(budgetId) {
 function renderYearToolbar(container) {
   const card = el('section', 'card budget-year-toolbar');
 
-  // No budget exists yet at all (brand-new deploy) — nothing to view/switch
-  // between; "Skift" below still works, it just opens straight into
-  // "create a budget" since budgetYearsList is empty. Deliberately keyed off
-  // budgetYearsList, not budgetActiveId — the latter can legitimately be
-  // null while budgets still exist (the active one was just deleted), in
-  // which case the full toolbar below should render, just showing "Intet
-  // valgt" for Aktivt budget rather than collapsing to this reduced view.
+  // No budget exists yet at all (brand-new deploy) — nothing to view yet.
+  // Creating/activating the first budget now happens from Koordinator's own
+  // Budget card (js/koordinator.js's openKoordBudgetEditor), not here.
+  // Deliberately keyed off budgetYearsList, not budgetActiveId — the latter
+  // can legitimately be null while budgets still exist (the active one was
+  // just deleted), in which case the full toolbar below should render, just
+  // showing "Intet valgt" for Aktivt budget rather than collapsing to this
+  // reduced view.
   if (budgetYearsList.length === 0) {
-    const row = el('div', 'budget-year-btn-row');
-    const switchBtn = el('button', 'btn-small', 'Skift');
-    switchBtn.type = 'button';
-    switchBtn.addEventListener('click', () => openSwitchActiveYearModal(document.getElementById('budget-root')));
-    row.appendChild(switchBtn);
-    card.appendChild(row);
+    card.appendChild(el('p', 'budget-intro', 'Intet budget oprettet endnu.'));
     container.appendChild(card);
     return;
   }
@@ -708,211 +704,7 @@ function renderYearToolbar(container) {
 
   card.appendChild(row);
 
-  const btnRow = el('div', 'budget-year-btn-row');
-  const renameBtn = el('button', 'btn-small', 'Omdøb');
-  renameBtn.type = 'button';
-  renameBtn.addEventListener('click', () => openRenameYearModal(document.getElementById('budget-root')));
-  btnRow.appendChild(renameBtn);
-
-  const switchBtn = el('button', 'btn-small', 'Skift');
-  switchBtn.type = 'button';
-  switchBtn.addEventListener('click', () => openSwitchActiveYearModal(document.getElementById('budget-root')));
-  btnRow.appendChild(switchBtn);
-  card.appendChild(btnRow);
-
   container.appendChild(card);
-}
-
-// Changes which budget is active (where new revyst uploads/receipts land) —
-// either by picking an existing budget (budget_set_active_year), creating
-// and immediately activating a brand new one (budget_create_year then
-// budget_set_active_year, the same two-call sequence the old standalone
-// "Start nyt budgetår" modal used), or deliberately clearing it (also
-// budget_set_active_year, with budgetId:null) via the dropdown's own
-// trailing "Intet valgt" option — blocks revyst submissions without
-// deleting or hiding anything; every budget, including whichever was just
-// cleared, stays fully browsable via the "Viser budget for" dropdown. The
-// confirm button reads "Vælg" or "Opret" depending on which path is
-// currently shown; the dropdown's own "+ Tilføj" option (listed first)
-// switches the modal into the create path, and when no budget exists yet
-// at all the create fields are the only thing shown (there's nothing to
-// clear either, in that case).
-function openSwitchActiveYearModal(root) {
-  const hasYears = budgetYearsList.length > 0;
-  const NEW_YEAR_VALUE = '__new__';
-  const NONE_YEAR_VALUE = '__none__';
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Skift aktivt budget');
-  modal.classList.add('budget-approve-modal');
-
-  let yearSelect = null;
-  const newYearFields = el('div');
-  const yearInput = el('input');
-  yearInput.type = 'number';
-  yearInput.min = '2000';
-  yearInput.max = '2100';
-  const activeEntry = budgetActiveId != null ? budgetYearsList.find((y) => y.budgetId === budgetActiveId) : null;
-  yearInput.value = String(activeEntry ? activeEntry.year + 1 : new Date().getFullYear());
-
-  const labelInput = el('input');
-  labelInput.type = 'text';
-  labelInput.value = `MatRevy ${yearInput.value}`;
-
-  const newYearFieldRow = el('div');
-  newYearFieldRow.className = 'edit-field-row';
-  newYearFieldRow.appendChild(siteEditField('Label', labelInput));
-  newYearFieldRow.appendChild(siteEditField('Årstal', yearInput));
-  newYearFields.appendChild(newYearFieldRow);
-
-  function isCreatingNew() {
-    return !hasYears || yearSelect.value === NEW_YEAR_VALUE;
-  }
-
-  function updateNewYearFieldsVisibility() {
-    const showNewFields = isCreatingNew();
-    newYearFields.style.display = showNewFields ? '' : 'none';
-    confirmBtn.textContent = showNewFields ? 'Opret' : 'Vælg';
-  }
-
-  if (hasYears) {
-    form.appendChild(el('p', 'budget-intro',
-      'Vælg et eksisterende budget, eller opret et nyt.'));
-    const yearOptions = [{ value: NEW_YEAR_VALUE, label: '+ Tilføj' }];
-    yearOptions.push(...budgetYearsList
-      .slice()
-      .sort((a, b) => b.year - a.year || String(b.createdAt).localeCompare(String(a.createdAt)))
-      .map((y) => ({ value: y.budgetId, label: y.label })));
-    yearOptions.push({ value: NONE_YEAR_VALUE, label: 'Intet valgt' });
-    const defaultValue = budgetActiveId != null ? budgetActiveId : NONE_YEAR_VALUE;
-    yearSelect = siteCreateDropdownField(yearOptions, defaultValue);
-    yearSelect.addEventListener('change', updateNewYearFieldsVisibility);
-    form.appendChild(siteEditField('Aktivt budget', yearSelect));
-  } else {
-    form.appendChild(el('p', 'budget-intro',
-      'Opretter et nyt, tomt budget og gør det til det aktive år, som nye udlæg fra revyster sendes ind til.'));
-  }
-
-  form.appendChild(newYearFields);
-
-  const confirmBtn = budgetPillBtn('Vælg', 'site-btn-success');
-  updateNewYearFieldsVisibility();
-  confirmBtn.addEventListener('click', async () => {
-    const creatingNew = isCreatingNew();
-    error.textContent = '';
-
-    if (creatingNew) {
-      const year = Number(yearInput.value);
-      const label = labelInput.value.trim();
-      if (!Number.isInteger(year) || year < 2000 || year > 2100) { error.textContent = 'Angiv et gyldigt årstal.'; return; }
-      if (!label) { error.textContent = 'Angiv en label.'; return; }
-      confirmBtn.disabled = true;
-      const createResult = await budgetApi('budget_create_year', { year, label });
-      if (!createResult.ok) {
-        confirmBtn.disabled = false;
-        if (createResult.message) error.textContent = createResult.message;
-        return;
-      }
-      const newBudgetId = createResult.data.budgetId;
-      const activateResult = await budgetApi('budget_set_active_year', { budgetId: newBudgetId });
-      if (!activateResult.ok) {
-        confirmBtn.disabled = false;
-        if (activateResult.message) error.textContent = activateResult.message;
-        return;
-      }
-      budgetSetViewId(newBudgetId);
-      close();
-      loadAndRenderAdmin(root);
-      return;
-    }
-
-    if (yearSelect.value === NONE_YEAR_VALUE) {
-      confirmBtn.disabled = true;
-      // If the view was only ever implicitly tracking "whatever's active"
-      // (budgetViewId null), pin it to that budget explicitly before
-      // clearing active — otherwise the next load re-resolves budgetId:null
-      // against the now-inactive state and loadAndRenderAdmin's
-      // deleted-budget fallback silently jumps the view to the newest
-      // budget instead of staying put.
-      if (budgetViewId == null && budgetActiveId != null) budgetSetViewId(budgetActiveId);
-      const result = await budgetApi('budget_set_active_year', { budgetId: null });
-      if (result.ok) {
-        close();
-        loadAndRenderAdmin(root);
-      } else {
-        confirmBtn.disabled = false;
-        if (result.message) error.textContent = result.message;
-      }
-      return;
-    }
-
-    const id = yearSelect.value;
-    if (!id) { error.textContent = 'Vælg et budget.'; return; }
-    confirmBtn.disabled = true;
-    const result = await budgetApi('budget_set_active_year', { budgetId: id });
-    if (result.ok) {
-      budgetSetViewId(id);
-      close();
-      loadAndRenderAdmin(root);
-    } else {
-      confirmBtn.disabled = false;
-      if (result.message) error.textContent = result.message;
-    }
-  });
-  actions.appendChild(confirmBtn);
-}
-
-// Renames/relabels the currently-*viewed* budget (budgetViewId) — every
-// existing request/expense/receipt for that budget carries over unchanged,
-// since renaming is now a pure metadata edit (budgetId is the stable
-// storage key, fully decoupled from year/label), not a directory move.
-// Useful for correcting a mistaken year number/label without losing real
-// data (e.g. test data accidentally created under the wrong year).
-function openRenameYearModal(root) {
-  const id = budgetViewId;
-  const entry = budgetYearsList.find((y) => y.budgetId === id);
-  const currentYear = entry ? entry.year : null;
-  const { modal, form, error, actions, close } = siteOpenModalWithClose(
-    `Omdøb det viste budget ("${budgetYearLabel(id)}", ${currentYear})`);
-  modal.classList.add('budget-approve-modal');
-
-  form.appendChild(el('p', 'budget-intro',
-    'Alle data (planlagte beløb, udlæg, kvitteringer) følger med uændret.'));
-
-  const yearInput = el('input');
-  yearInput.type = 'number';
-  yearInput.min = '2000';
-  yearInput.max = '2100';
-  yearInput.value = String(currentYear);
-
-  const labelInput = el('input');
-  labelInput.type = 'text';
-  labelInput.value = budgetYearLabel(id);
-
-  const fieldRow = el('div');
-  fieldRow.className = 'edit-field-row';
-  fieldRow.appendChild(siteEditField('Ny label', labelInput));
-  fieldRow.appendChild(siteEditField('Nyt årstal', yearInput));
-  form.appendChild(fieldRow);
-
-  const confirmBtn = budgetPillBtn('Omdøb', 'site-btn-warm');
-  confirmBtn.addEventListener('click', async () => {
-    const newYear = Number(yearInput.value);
-    const newLabel = labelInput.value.trim();
-    if (!Number.isInteger(newYear) || newYear < 2000 || newYear > 2100) { error.textContent = 'Angiv et gyldigt årstal.'; return; }
-    if (!newLabel) { error.textContent = 'Angiv en label.'; return; }
-    confirmBtn.disabled = true;
-    error.textContent = '';
-    const result = await budgetApi('budget_rename_year', { budgetId: id, year: newYear, label: newLabel });
-    if (result.ok) {
-      // budgetId never changes on rename, so budgetViewId is already
-      // correct — no need to reassign it.
-      close();
-      loadAndRenderAdmin(root);
-    } else {
-      confirmBtn.disabled = false;
-      if (result.message) error.textContent = result.message;
-    }
-  });
-  actions.appendChild(confirmBtn);
 }
 
 // ── Admin: delete an entire budget (irreversible) ────────

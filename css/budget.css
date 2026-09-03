@@ -84,19 +84,6 @@
   color: var(--text);
 }
 
-/* Third line: Omdøb / Skift, equal width, centered as a pair. */
-.budget-year-btn-row {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  margin-top: 0.4rem;
-}
-
-.budget-year-btn-row .btn-small {
-  min-width: 7rem;
-  text-align: center;
-}
-
 /* Afventende udlæg fills the remaining height of .budget-col-right; its
    list scrolls internally instead of lengthening the column. */
 .budget-col-pending {

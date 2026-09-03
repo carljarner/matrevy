@@ -1252,6 +1252,220 @@ function renderMasterplanCard(container) {
   koordMpUpdateSaveStatus();
 }
 
+// ── Budget section (Arkivering tab: which budget is active, rename it) ──
+// koordinator.html doesn't load js/budget.js (wired to budget.html's own
+// DOM), so the tiny bits it needs — the authenticated POST helper and the
+// active-budget label — are duplicated here, same rationale as every other
+// page-scoped duplication in this file (see the file header). Only the
+// three budget actions this card actually needs are used:
+// budget_read/budget_create_year/budget_set_active_year/budget_rename_year.
+let koordBudgetYearsList = []; // [{budgetId, year, label, createdAt}]
+let koordBudgetActiveId = null;
+let koordBudgetLoading = false;
+
+// Mirrors budget.js's own budgetApi() byte-for-byte (see that file's own
+// comment) — a 2xx response with an HTML body (PHP fatal, or a Simply WAF
+// challenge page) must never be mistaken for success.
+async function koordBudgetApi(action, body) {
+  const auth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
+  const password = auth && auth.password ? auth.password : null;
+  if (!password) return { ok: false, message: '' };
+  let res;
+  try {
+    res = await fetch(SITE_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, password, ...body }),
+    });
+  } catch (e) {
+    return { ok: false, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok) {
+    const detail = data && typeof data.error === 'string' ? data.error : '';
+    return { ok: false, message: detail ? `Der opstod en serverfejl. (${detail})` : 'Der opstod en serverfejl. Prøv igen senere.' };
+  }
+  if (!data || data.ok !== true) {
+    const detail = data && typeof data.error === 'string' ? data.error : '';
+    return { ok: false, message: detail ? `Serverfejl: ${detail}` : 'Uventet svar fra serveren. Prøv igen senere.' };
+  }
+  return { ok: true, data };
+}
+
+function koordBudgetLabel(budgetId) {
+  const entry = koordBudgetYearsList.find((y) => y.budgetId === budgetId);
+  return entry ? entry.label : String(budgetId);
+}
+
+function renderKoordBudgetSection() {
+  const container = document.getElementById('koord-budget-body');
+  if (!container) return;
+  container.textContent = '';
+
+  if (koordBudgetLoading) {
+    container.appendChild(el('p', 'koord-status-value', 'Indlæser…'));
+    return;
+  }
+
+  container.appendChild(el('p', null, 'Aktivt budget:'));
+  container.appendChild(el('div', 'koord-budget-active-value',
+    koordBudgetActiveId != null ? koordBudgetLabel(koordBudgetActiveId) : 'Intet valgt'));
+
+  const editBtn = el('button', 'btn-small', 'Rediger');
+  editBtn.type = 'button';
+  editBtn.addEventListener('click', () => openKoordBudgetEditor());
+  container.appendChild(editBtn);
+}
+
+// Loads years.json's manifest (activeBudgetId + years list) fresh every
+// time the Arkivering tab renders — this card only ever shows/edits the
+// active budget, so there's no view-state worth caching across visits.
+async function koordLoadBudgetYears() {
+  koordBudgetLoading = true;
+  renderKoordBudgetSection();
+  const result = await koordBudgetApi('budget_read', {});
+  koordBudgetLoading = false;
+  if (result.ok) {
+    koordBudgetActiveId = result.data.activeBudgetId;
+    koordBudgetYearsList = Array.isArray(result.data.years) ? result.data.years : [];
+  }
+  renderKoordBudgetSection();
+}
+
+// Merges Budget's own former "Omdøb"/"Skift" pair into one flow: pick a
+// budget (or "+ Opret nyt" / "Intet valgt") from the same dropdown Budget's
+// old "Skift aktivt budget" modal used, optionally fix its label/year in
+// the same step, and Gem both renames it (if changed) and makes it the
+// active budget (if it wasn't already) — see openSwitchActiveYearModal/
+// openRenameYearModal in budget.js for the two flows this replaces.
+function openKoordBudgetEditor() {
+  const hasYears = koordBudgetYearsList.length > 0;
+  const NEW_VALUE = '__new__';
+  const NONE_VALUE = '__none__';
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger budgetår');
+  modal.classList.add('koord-year-edit-modal');
+
+  const group = el('div', 'koord-year-edit-group');
+
+  let yearSelect = null;
+  if (hasYears) {
+    const options = [{ value: NEW_VALUE, label: '+ Opret nyt' }]
+      .concat(koordBudgetYearsList
+        .slice()
+        .sort((a, b) => b.year - a.year || String(b.createdAt).localeCompare(String(a.createdAt)))
+        .map((y) => ({ value: y.budgetId, label: y.label })))
+      .concat([{ value: NONE_VALUE, label: 'Intet valgt' }]);
+    const defaultValue = koordBudgetActiveId != null ? koordBudgetActiveId : NONE_VALUE;
+    yearSelect = siteCreateDropdownField(options, defaultValue);
+    group.appendChild(siteEditField('Aktivt budget', yearSelect));
+  }
+
+  const nameYearRow = el('div', 'koord-year-edit-row');
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text';
+  const yearInput = document.createElement('input');
+  yearInput.type = 'number';
+  yearInput.min = '2000';
+  yearInput.max = '2100';
+  nameYearRow.appendChild(siteEditField('Label', labelInput));
+  nameYearRow.appendChild(siteEditField('Årstal', yearInput));
+  group.appendChild(nameYearRow);
+  form.appendChild(group);
+
+  function selectedValue() {
+    return yearSelect ? yearSelect.value : NEW_VALUE;
+  }
+
+  function updateFields() {
+    const val = selectedValue();
+    if (val === NONE_VALUE) {
+      nameYearRow.style.display = 'none';
+      confirmBtn.textContent = 'Vælg';
+      return;
+    }
+    nameYearRow.style.display = '';
+    if (val === NEW_VALUE) {
+      const activeEntry = koordBudgetActiveId != null
+        ? koordBudgetYearsList.find((y) => y.budgetId === koordBudgetActiveId) : null;
+      const year = activeEntry ? activeEntry.year + 1 : new Date().getFullYear();
+      yearInput.value = String(year);
+      labelInput.value = `MatRevy ${year}`;
+      confirmBtn.textContent = 'Opret';
+    } else {
+      const entry = koordBudgetYearsList.find((y) => y.budgetId === val);
+      yearInput.value = String(entry ? entry.year : '');
+      labelInput.value = entry ? entry.label : '';
+      confirmBtn.textContent = 'Gem';
+    }
+  }
+
+  const confirmBtn = koordPillBtn('Gem', 'site-btn-success');
+  actions.appendChild(confirmBtn);
+  if (yearSelect) yearSelect.addEventListener('change', updateFields);
+  updateFields();
+
+  confirmBtn.addEventListener('click', async () => {
+    error.textContent = '';
+    const val = selectedValue();
+
+    if (val === NONE_VALUE) {
+      confirmBtn.disabled = true;
+      const result = await koordBudgetApi('budget_set_active_year', { budgetId: null });
+      confirmBtn.disabled = false;
+      if (!result.ok) { if (result.message) error.textContent = result.message; return; }
+      close();
+      koordLoadBudgetYears();
+      return;
+    }
+
+    const year = Number(yearInput.value);
+    const label = labelInput.value.trim();
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) { error.textContent = 'Angiv et gyldigt årstal.'; return; }
+    if (!label) { error.textContent = 'Angiv en label.'; return; }
+
+    if (val === NEW_VALUE) {
+      confirmBtn.disabled = true;
+      const createResult = await koordBudgetApi('budget_create_year', { year, label });
+      if (!createResult.ok) {
+        confirmBtn.disabled = false;
+        if (createResult.message) error.textContent = createResult.message;
+        return;
+      }
+      const activateResult = await koordBudgetApi('budget_set_active_year', { budgetId: createResult.data.budgetId });
+      confirmBtn.disabled = false;
+      if (!activateResult.ok) { if (activateResult.message) error.textContent = activateResult.message; return; }
+      close();
+      koordLoadBudgetYears();
+      return;
+    }
+
+    // An existing budget was picked: rename it if its label/year changed,
+    // then switch active to it if it isn't already.
+    const entry = koordBudgetYearsList.find((y) => y.budgetId === val);
+    confirmBtn.disabled = true;
+    if (entry && (entry.year !== year || entry.label !== label)) {
+      const renameResult = await koordBudgetApi('budget_rename_year', { budgetId: val, year, label });
+      if (!renameResult.ok) {
+        confirmBtn.disabled = false;
+        if (renameResult.message) error.textContent = renameResult.message;
+        return;
+      }
+    }
+    if (val !== koordBudgetActiveId) {
+      const activateResult = await koordBudgetApi('budget_set_active_year', { budgetId: val });
+      if (!activateResult.ok) {
+        confirmBtn.disabled = false;
+        if (activateResult.message) error.textContent = activateResult.message;
+        return;
+      }
+    }
+    confirmBtn.disabled = false;
+    close();
+    koordLoadBudgetYears();
+  });
+}
+
 // ── Page render ──────────────────────────────────────────────
 // Three top-level page tabs — Masterplan / Tjeklister & Fællesbeskeder /
 // Arkivering — each getting the full page width to work in, styled like
@@ -1286,45 +1500,69 @@ function renderKoordModeTabs(root) {
   root.appendChild(tabs);
 }
 
-// "Arkivering" tab: active-folder status, then the single "Afslut revyen"
-// action (opens the merged guide+close-year modal, see openCloseYearModal),
-// then "Arkiv" (unchanged Rediger picker). Sub-sections divided by the
-// same .koord-step-heading top-border treatment used inside the modal
-// itself.
+// "Arkivering" tab: a wide left "Manus" card (active-folder status + the
+// "Afslut revyen" close-year guide, see openCloseYearModal) and a narrow
+// right column stacking "Budget" (which budget is active, see
+// openKoordBudgetEditor) and "Arkiv" (unchanged Rediger picker) — same
+// 2fr/1fr layout as style.css's .dashboard-columns, page-scoped as
+// .koord-columns since it only applies within this one tab.
 function renderArkiveringCard(container) {
   const folder = koordCurrentFolder();
 
-  const card = el('section', 'card');
-  const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, 'Arkivering'));
-  card.appendChild(head);
+  const layout = el('div', 'koord-columns');
 
-  card.appendChild(el('p', null, folder
+  const manusCard = el('section', 'card');
+  const manusHead = el('div', 'card-head');
+  manusHead.appendChild(el('h2', null, 'Manus'));
+  manusCard.appendChild(manusHead);
+
+  manusCard.appendChild(el('p', null, folder
     ? `Aktiv produktionsmappe: ${folder}`
     : 'Ingen aktiv produktionsmappe fundet (data/config.json).'));
   const manusLink = document.createElement('a');
   manusLink.href = 'manus.html';
   manusLink.textContent = 'Gå til Manus-siden';
   manusLink.className = 'btn-small';
-  card.appendChild(manusLink);
+  manusCard.appendChild(manusLink);
 
-  card.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
-  card.appendChild(el('p', null,
+  manusCard.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Afslut revyen'));
+  manusCard.appendChild(el('p', null,
     'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter) til et nyt, tomt produktionsår og gemmer et ' +
     'snapshot af scenes.json/cast.json i arkivet.'));
   const closeBtn = el('button', 'btn-small', 'Afslut');
   closeBtn.type = 'button';
   closeBtn.disabled = !folder;
   closeBtn.addEventListener('click', () => openCloseYearModal(folder));
-  card.appendChild(closeBtn);
+  manusCard.appendChild(closeBtn);
 
-  card.appendChild(el('h3', 'koord-step-heading', 'Arkiv'));
+  layout.appendChild(manusCard);
+
+  const rightCol = el('div', 'koord-right-col');
+
+  const budgetCard = el('section', 'card');
+  const budgetHead = el('div', 'card-head');
+  budgetHead.appendChild(el('h2', null, 'Budget'));
+  budgetCard.appendChild(budgetHead);
+  const budgetBody = el('div');
+  budgetBody.id = 'koord-budget-body';
+  budgetCard.appendChild(budgetBody);
+  rightCol.appendChild(budgetCard);
+
+  const arkivCard = el('section', 'card');
+  const arkivHead = el('div', 'card-head');
+  arkivHead.appendChild(el('h2', null, 'Arkiv'));
+  arkivCard.appendChild(arkivHead);
+  arkivCard.appendChild(el('p', null, 'Tilføj eller rediger arkivet.'));
   const arkivBody = el('div');
   arkivBody.id = 'koord-arkiv-body';
-  card.appendChild(arkivBody);
+  arkivCard.appendChild(arkivBody);
+  rightCol.appendChild(arkivCard);
 
-  container.appendChild(card);
+  layout.appendChild(rightCol);
+
+  container.appendChild(layout);
   renderArkivSection();
+  koordLoadBudgetYears();
 }
 
 // "Tjeklister & Fællesbeskeder" tab: empty placeholder for now.

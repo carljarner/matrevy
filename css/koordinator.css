@@ -94,6 +94,41 @@
   border-radius: 4px;
 }
 
+/* --- Arkivering tab: wide Manus card + a narrow right column stacking
+   Budget/Arkiv, same 2fr/1fr pattern as style.css's own .dashboard-
+   columns — scoped to this one tab, unlike the page-wide layout it
+   replaced (see "Koordinator: switch to three full-width page tabs"). */
+.koord-columns {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.koord-columns .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.koord-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+@media (max-width: 719px) {
+  .koord-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Budget card: "Aktivt budget: <label>" + a single Rediger button -- */
+.koord-budget-active-value {
+  font-weight: 600;
+  margin: 0.2rem 0 0.75rem;
+}
+
 /* --- Arkiv card: just the Rediger/Tilføj buttons, no year list -- */
 .koord-arkiv-actions {
   display: flex;
