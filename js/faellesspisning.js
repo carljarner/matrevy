@@ -296,9 +296,10 @@ function faellesRender(root) {
   toolbar.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
   const actions = el('div', 'faelles-toolbar-actions');
   if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
-    const connectLabel = faellesState.connection
-      ? `Forbindelse: ${faellesState.connection.formTitle || 'formular'}`
-      : 'Forbind';
+    // Just "Forbind"/"Forbundet" at every width — the connected form's own
+    // title (however long) now shows inside the connect modal instead (see
+    // faellesOpenConnectModal's own "Forbundet til: …" line below).
+    const connectLabel = faellesState.connection ? 'Forbundet' : 'Forbind';
     const connectBtn = faellesBtn(connectLabel);
     connectBtn.addEventListener('click', () => faellesOpenConnectModal(root));
     actions.appendChild(connectBtn);
@@ -648,6 +649,15 @@ async function faellesOpenConnectModal(root) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Forbind til formular');
   modal.classList.add('faelles-connect-modal');
 
+  // The connect button itself only ever says "Forbind"/"Forbundet" now (see
+  // faellesRender above) — the connected form's own (possibly long) title
+  // shows here instead, right under the modal's title.
+  const currentConnection = faellesState.connection;
+  if (currentConnection) {
+    form.appendChild(el('p', 'faelles-connect-current',
+      `Forbundet til: ${currentConnection.formTitle || 'formular'}`));
+  }
+
   const status = el('p', 'faelles-summary-note', 'Indlæser formularer…');
   form.appendChild(status);
 
@@ -663,7 +673,6 @@ async function faellesOpenConnectModal(root) {
     return;
   }
 
-  const currentConnection = faellesState.connection;
   const currentYear = faellesCurrentProductionYear();
   const connectedForm = currentConnection ? forms.find((f) => f.id === currentConnection.formId) : null;
   // Revy filter defaults to the current production year — unless a form is

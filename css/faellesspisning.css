@@ -346,6 +346,15 @@
   width: min(90vw, 30rem);
 }
 
+/* Sits directly under the modal's own h2 (siteOpenModalWithClose) — shows
+   the connected form's own title, however long, now that the toolbar
+   button itself just says "Forbind"/"Forbundet" regardless of connection
+   state (see faellesRender). */
+.faelles-connect-current {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
 .faelles-connect-modal .login-actions {
   justify-content: space-between;
 }

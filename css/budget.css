@@ -1123,15 +1123,25 @@ tr.budget-row-filler td {
   padding-bottom: 1rem;
 }
 
+/* border-spacing:0 (not border-collapse:collapse) + box-shadow instead of a
+   real border-bottom on every cell — same fix as faellesspisning.css's own
+   table (not loaded on this page): WebKit doesn't collapse a sticky cell's
+   border consistently with its non-sticky neighbours under
+   border-collapse:collapse (the sticky Navn column and header row both use
+   position:sticky below), so the row separator line visibly changed width/
+   thickness at the sticky column's edge. box-shadow paints per-cell and
+   isn't part of border collapsing, so every column's line renders
+   identically regardless of which cells are sticky. */
 .streg-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.85rem;
 }
 
 .streg-table th,
 .streg-table td {
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px 0 0 var(--border);
   padding: 0.4rem 0.5rem;
   text-align: center;
   white-space: nowrap;
@@ -1297,7 +1307,7 @@ tr.budget-row-filler td {
 }
 
 .streg-add-row td {
-  border-bottom: none;
+  box-shadow: none;
   padding-top: 0.6rem;
 }
 
@@ -1305,10 +1315,32 @@ tr.budget-row-filler td {
   text-align: left;
 }
 
+/* --- Mobile (≤719px, site-wide breakpoint) ---------------------------
+   Grid stays a horizontally-scrolled table at every width (like
+   faellesspisning.css's own, not loaded on this page — a many-category
+   grid can't sensibly stack) — this only shrinks the sticky Navn column,
+   which otherwise eats too much of a phone's limited width before the
+   drink-tally columns even start. */
+@media (max-width: 719px) {
+  .streg-table { font-size: 0.78rem; }
+  .streg-table th,
+  .streg-table td { padding: 0.3rem 0.4rem; }
+  .streg-table .streg-col-navn { max-width: 6rem; }
+}
+
 /* --- Connect-to-formular modal + "Er du sikker?" confirms, mirroring
    faellesspisning.css's own (not loaded on this page). ---------------- */
 .streg-connect-modal {
   width: min(90vw, 30rem);
+}
+
+/* Sits directly under the modal's own h2 (siteOpenModalWithClose) — shows
+   the connected form's own title, however long, now that the toolbar
+   button itself just says "Forbind"/"Forbundet" regardless of connection
+   state (see buildStregSheetCard). */
+.streg-connect-current {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .streg-connect-modal .login-actions {

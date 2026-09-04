@@ -2646,10 +2646,11 @@ function buildStregSheetCard() {
     connectBtn.title = dirty ? 'Gem eller nulstil dine ændringer i skemaet først' : '';
   }
 
+  // Just "Forbind"/"Forbundet" at every width — the connected form's own
+  // title (however long) now shows inside the connect modal instead (see
+  // stregOpenConnectModal's own "Forbundet til: …" line below).
   connectBtn.type = 'button';
-  connectBtn.textContent = stregState.connection
-    ? `Forbindelse: ${stregState.connection.formTitle || 'formular'}`
-    : 'Forbind';
+  connectBtn.textContent = stregState.connection ? 'Forbundet' : 'Forbind';
   connectBtn.addEventListener('click', () => stregOpenConnectModal());
   head.appendChild(connectBtn);
   refreshDirtyStatus();
@@ -3075,6 +3076,15 @@ async function stregOpenConnectModal() {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Forbind til formular');
   modal.classList.add('streg-connect-modal');
 
+  // The connect button itself only ever says "Forbind"/"Forbundet" now (see
+  // buildStregSheetCard above) — the connected form's own (possibly long)
+  // title shows here instead, right under the modal's title.
+  const currentConnection = stregState.connection;
+  if (currentConnection) {
+    form.appendChild(el('p', 'streg-connect-current',
+      `Forbundet til: ${currentConnection.formTitle || 'formular'}`));
+  }
+
   const status = el('p', 'budget-intro', 'Indlæser formularer…');
   form.appendChild(status);
 
@@ -3090,7 +3100,6 @@ async function stregOpenConnectModal() {
     return;
   }
 
-  const currentConnection = stregState.connection;
   // Defaults to the currently *viewed* budget's own year (not necessarily
   // the current production year — Stregregnskab's toolbar can be viewing
   // any past budget), same "which one am I looking at" convention as the
