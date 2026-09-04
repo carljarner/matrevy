@@ -227,13 +227,15 @@ if (isset($FORMS_ACTIONS[$action])) {
 // Budget/Forms above (never the public repo, since rows carry names/food
 // preferences). A single shared document, fully open at the revyst tier
 // (any logged-in cast/crew member can add/edit/delete any row, like a
-// plain shared spreadsheet) — connecting a form and managing day columns
-// are boss-gated.
+// plain shared spreadsheet) — managing day columns is boss-gated;
+// connecting a Formularer form is admin-only (not even visible to boss —
+// see faellesRender's own siteHasLevel('admin') check in
+// faellesspisning.js).
 $FAELLES_ACTIONS = [
   'faelles_read'            => 'revyst', // {rows, connection, extraDays, hiddenDays, updatedAt} — also lazily syncs a connected form
   'faelles_upsert_row'      => 'revyst', // create (no rowId) or update (rowId given) one row
   'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
-  'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
+  'faelles_save_connection' => 'admin',  // connect (formId given) or disconnect (formId: null) a Formularer form
   'faelles_add_day'         => 'boss',   // add a Fællesspisning-only day column (never the public `calendar` resource)
   'faelles_delete_day'      => 'boss',   // remove one — the only way to correct a mistaken add
   'faelles_hide_day'        => 'boss',   // hide a real calendar-sourced day column from this sheet only — the event itself is untouched

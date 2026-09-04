@@ -21,14 +21,15 @@
    One audience for the grid itself (any revyst+ visitor can add/edit/
    delete any row — a fully open shared spreadsheet, no per-row
    ownership). Boss additionally gets:
-   - a "Forbind" button to connect the sheet to a Formularer form (which
-     field answers Navn, which answers Madforbehold) — once connected,
-     every response (existing and future) is synced into the grid
-     automatically, no manual re-import needed;
    - a "+" after the last date column to add a Fællesspisning-only day
      column directly (stored on this page's own private document, via
      `faelles_add_day` — never the public `calendar` resource, so it does
      NOT create a Kalender event).
+   Admin (not boss) additionally gets:
+   - a "Forbind" button to connect the sheet to a Formularer form (which
+     field answers Navn, which answers Madforbehold) — once connected,
+     every response (existing and future) is synced into the grid
+     automatically, no manual re-import needed.
 
    Only two columns exist beyond the day columns — Navn and Madforbehold,
    fixed, not boss-configurable (there used to be an extra-field editor
@@ -295,7 +296,7 @@ function faellesRender(root) {
   const toolbar = el('div', 'faelles-toolbar');
   toolbar.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
   const actions = el('div', 'faelles-toolbar-actions');
-  if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
+  if (typeof siteHasLevel === 'function' && siteHasLevel('admin')) {
     // Just "Forbind"/"Forbundet" at every width — the connected form's own
     // title (however long) now shows inside the connect modal instead (see
     // faellesOpenConnectModal's own "Forbundet til: …" line below).
