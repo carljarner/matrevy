@@ -1022,23 +1022,37 @@ function renderMpGrid() {
   });
   mount.appendChild(tailRow);
 
+  // Two plain icon "+" buttons (style.css's site-wide .boss-manage-add-plus,
+  // same as Program's/Wiki's own add-row controls) instead of labelled
+  // pills — Tilføj gruppe sits under the Emne column (koord-mp-add-row's own
+  // padding-left matches the header row's post-handle offset), Tilføj
+  // opgave is centered on the row as a whole (position:absolute — see CSS)
+  // regardless of where the group button sits.
   const addRow = el('div', 'koord-mp-add-row');
-  const addTaskBtn = el('button', 'btn-small', '+ Tilføj opgave');
-  addTaskBtn.type = 'button';
-  addTaskBtn.addEventListener('click', () => {
-    rows.push({ id: koordMpNewId('r'), type: 'task', emne: '', todo: '', beskrivelse: '', ansvarA: '', ansvarB: '', status: '' });
-    koordMpUpdateSaveStatus();
-    renderMpGrid();
-  });
-  const addGroupBtn = el('button', 'btn-small', '+ Tilføj gruppe');
+  const addGroupBtn = document.createElement('button');
   addGroupBtn.type = 'button';
+  addGroupBtn.className = 'boss-manage-add-plus koord-mp-add-group-btn';
+  addGroupBtn.title = 'Tilføj gruppe';
+  addGroupBtn.setAttribute('aria-label', 'Tilføj gruppe');
+  addGroupBtn.textContent = '+';
   addGroupBtn.addEventListener('click', () => {
     rows.push({ id: koordMpNewId('g'), type: 'group', title: '' });
     koordMpUpdateSaveStatus();
     renderMpGrid();
   });
-  addRow.appendChild(addTaskBtn);
+  const addTaskBtn = document.createElement('button');
+  addTaskBtn.type = 'button';
+  addTaskBtn.className = 'boss-manage-add-plus koord-mp-add-task-btn';
+  addTaskBtn.title = 'Tilføj opgave';
+  addTaskBtn.setAttribute('aria-label', 'Tilføj opgave');
+  addTaskBtn.textContent = '+';
+  addTaskBtn.addEventListener('click', () => {
+    rows.push({ id: koordMpNewId('r'), type: 'task', emne: '', todo: '', beskrivelse: '', ansvarA: '', ansvarB: '', status: '' });
+    koordMpUpdateSaveStatus();
+    renderMpGrid();
+  });
   addRow.appendChild(addGroupBtn);
+  addRow.appendChild(addTaskBtn);
   mount.appendChild(addRow);
 }
 

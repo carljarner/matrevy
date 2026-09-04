@@ -526,12 +526,26 @@
 .koord-mp-status-igang { background: var(--accent-warm-text); color: #fff; }
 .koord-mp-status-faerdig { background: var(--success); color: #fff; }
 
+/* Two plain "+" icon buttons (js/koordinator.js) rather than the labelled
+   pills this replaced. position:relative lets the "Tilføj opgave" button
+   center on the row as a whole via absolute positioning (below),
+   independent of "Tilføj gruppe" — which instead sits in normal flow,
+   aligned under the Emne column via the same 1.45rem offset the header row
+   itself uses after the drag-handle. */
 .koord-mp-add-row {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  align-items: center;
+  min-height: 1.6rem;
   margin-top: 0.75rem;
-  padding-left: 1.45rem; /* aligns with the columns after the drag-handle */
+  padding-left: 1.45rem;
+}
+
+.koord-mp-add-task-btn {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 /* --- Bottom bar: Nulstil left, Gemt/Ikke gemt + Gem right — mirrors
@@ -545,7 +559,12 @@
   margin-top: 1rem;
 }
 
-.koord-mp-save-bar > button {
+/* Not `> button` — Gem sits one level deeper, inside .koord-mp-save-group
+   alongside the status text (see renderMasterplanCard), so a direct-child
+   selector floored Slet (a direct child) to the site-wide 5rem width but
+   silently missed Gem entirely, leaving it narrower than every other
+   .site-btn-* button on the site. */
+.koord-mp-save-bar button {
   min-width: 5rem;
 }
 
