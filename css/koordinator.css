@@ -260,7 +260,8 @@
    on a narrow screen — but a wrapped picker read as its own orphaned row,
    not "still the top row, just shorter" (the actual ask: the picker must
    always stay top-right). Below the width where it would otherwise wrap
-   (≤719px, the site-wide breakpoint), the "Viser plan for:" label is
+   (≤300px — see the comment on the Blok tab bar's own matching breakpoint
+   below for how that number was picked), the "Viser plan for:" label is
    dropped entirely (see .koord-mp-plan-picker-label below) — the dropdown
    alone is narrow enough to always fit next to the title, so the row simply
    never needs to wrap in the first place. */
@@ -268,15 +269,22 @@
   flex-wrap: nowrap;
 }
 
-@media (max-width: 719px) {
+@media (max-width: 300px) {
   .koord-mp-plan-picker-label { display: none; }
 }
 
 /* --- Masterplan (js/koordinator.js's renderMasterplanCard/renderMpGrid) --
    Tab bar styled like Manus's own flat mode-switch tab bar
    (manus.css's .manus-tab-btn-bar) — duplicated here since this page
-   doesn't load manus.css. Collapses to a single dropdown on mobile, same
-   ≤719px breakpoint as everywhere else on the site. */
+   doesn't load manus.css. Collapses to a single dropdown on mobile, but
+   much narrower than the site-wide ≤719px breakpoint used everywhere
+   else: with only 5 short-ish labels (the longest, "Efter revyen", is 12
+   characters), a smaller font + tighter padding + nowrap (below) lets the
+   whole row still fit on one line all the way down to a real phone's
+   narrowest realistic width (measured empirically — every current phone
+   viewport, 320px and up, fits with room to spare; only an unrealistic
+   ~300px-or-narrower viewport actually needs the fallback), so the
+   dropdown swap only kicks in at ≤300px instead. */
 .koord-mp-tab-bar {
   margin-bottom: 1rem;
 }
@@ -303,6 +311,12 @@
   color: var(--text-muted);
   text-align: center;
   cursor: pointer;
+  /* nowrap keeps a label to one line — without it, a narrow equal-share
+     flex-basis:0 button wraps its own label mid-word ("Blok" over "4") well
+     before the row as a whole runs out of room; .koord-mp-tab-btn-bar's own
+     flex-wrap:wrap is what still catches a genuinely too-narrow row,
+     dropping the last tab onto its own second line instead. */
+  white-space: nowrap;
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -322,6 +336,13 @@
 }
 
 @media (max-width: 719px) {
+  .koord-mp-tab-btn {
+    font-size: 0.72rem;
+    padding: 0.5rem 0.3rem;
+  }
+}
+
+@media (max-width: 300px) {
   .koord-mp-tab-btn-bar { display: none; }
   .koord-mp-tab-select-mobile { display: flex; }
 }
