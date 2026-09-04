@@ -266,17 +266,21 @@
 
 /* Oversigt rows are draggable to reorder (see forms.js's formsWireDropHighlight/
    formsMoveListItem, duplicated from budget.js's own category-table drag-
-   and-drop) — same "top-edge insertion line" treatment as .budget-manage-tr,
-   a transparent 2px top border at rest (reserving the space so nothing
-   shifts) that animates to accent-warm on drag-over. */
+   and-drop) — a top-edge insertion line on drag-over, like .budget-manage-tr,
+   but via an inset box-shadow rather than a border: this table's cells
+   already carry border-bottom (above), and under border-collapse:collapse a
+   competing border-top of a different width wins the whole shared edge
+   between rows (widest border wins the collapse) — it silently ate every
+   row's own separator line, not just during a drag. box-shadow doesn't
+   participate in border collapsing, so it can't do that. */
 .forms-dashboard-row { cursor: grab; }
 .forms-dashboard-row:active { cursor: grabbing; }
 .forms-dashboard-row td {
-  border-top: 2px solid transparent;
-  transition: border-top-color 0.15s;
+  box-shadow: inset 0 2px 0 0 transparent;
+  transition: box-shadow 0.15s;
 }
 .forms-dashboard-row.forms-drop-target td {
-  border-top-color: var(--accent-warm);
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
 }
 
 .forms-responses-wrap { overflow-x: auto; }
