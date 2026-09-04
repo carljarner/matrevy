@@ -959,6 +959,25 @@ function openDeleteChapterConfirm(existing) {
   actions.appendChild(confirmBtn);
 }
 
+// A native drag lets the browser snapshot the dragged element itself as the
+// drag image, which for a chapter row (icon handle + title, live page
+// styling and all) reads as a messy oversized preview rather than a clean
+// one. Routes through one shared, off-screen (not display:none — that
+// would keep it from being paintable) <div> instead, restyled with just
+// the dragged chapter's own title right before dragstart calls
+// setDragImage on it — see forms.js's formsGetDragImageEl for the page
+// this pattern originated on.
+function wikiGetDragImageEl() {
+  let ghost = document.getElementById('wiki-drag-image');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'wiki-drag-image';
+    ghost.className = 'wiki-drag-image';
+    document.body.appendChild(ghost);
+  }
+  return ghost;
+}
+
 // Robust dragenter/dragleave pairing via a nesting counter — duplicated from
 // manus.js's identically-named helper (Aktfordeling's drag-and-drop), since
 // wiki.js doesn't load manus.js. Plain dragover-driven highlighting re-fires
@@ -1030,6 +1049,9 @@ function openManageChaptersModal() {
       row.addEventListener('dragstart', (e) => {
         dragId = item.id;
         e.dataTransfer.effectAllowed = 'move';
+        const ghost = wikiGetDragImageEl();
+        ghost.textContent = item.title;
+        e.dataTransfer.setDragImage(ghost, 12, 16);
       });
       row.addEventListener('dragend', () => row.classList.remove('wiki-manage-drop-target'));
       wikiWireDropHighlight(row, () => {

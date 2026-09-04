@@ -1002,6 +1002,25 @@ a.manus-pdf-title:focus-visible {
   flex: none;
 }
 
+/* manusGetDragImageEl()'s shared, reused drag-image element (js/manus.js) —
+   see forms.js's formsGetDragImageEl for the full rationale. Positioned
+   off-screen (not display:none, which some browsers refuse to snapshot)
+   so it never actually appears in the page's own layout. */
+.manus-drag-image {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: var(--modal-shadow);
+}
+
 .manus-akt-row:active .manus-akt-drag-handle { cursor: grabbing; }
 
 .manus-akt-row-title {

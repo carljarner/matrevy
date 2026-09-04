@@ -1103,6 +1103,26 @@ function ensureBudgetSheetTimers(root) {
   });
 }
 
+// A native drag lets the browser snapshot the dragged element itself as
+// the drag image, which for a <tr> (buildCategoryEditSection's rows) can't
+// be rasterized outside its <table> at all, and even for a plain row reads
+// as "the whole row, inputs and all" rather than a clean preview. Every
+// draggable list on the site now routes through one shared, off-screen
+// (not display:none — that would keep it from being paintable) <div>
+// instead, restyled with just the dragged item's own label right before
+// dragstart calls setDragImage on it — see forms.js's formsGetDragImageEl
+// for the page this pattern originated on.
+function budgetGetDragImageEl() {
+  let ghost = document.getElementById('budget-drag-image');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'budget-drag-image';
+    ghost.className = 'budget-drag-image';
+    document.body.appendChild(ghost);
+  }
+  return ghost;
+}
+
 // Mirrors wiki.js's wikiWireDropHighlight / manus.js's wireDropHighlight —
 // duplicated here per the site's per-page convention (see CLAUDE.md):
 // counting dragenter/dragleave pairs (rather than toggling straight off
@@ -1226,6 +1246,9 @@ function buildCategoryEditSection(card, status) {
       tr.addEventListener('dragstart', (e) => {
         dragItem = item;
         e.dataTransfer.effectAllowed = 'move';
+        const ghost = budgetGetDragImageEl();
+        ghost.textContent = item.label;
+        e.dataTransfer.setDragImage(ghost, 12, 16);
       });
       tr.addEventListener('dragend', () => tr.classList.remove('budget-drop-target'));
       budgetWireDropHighlight(tr, () => {
@@ -3287,6 +3310,9 @@ function buildStregPricesCard() {
       row.addEventListener('dragstart', (e) => {
         dragItem = item;
         e.dataTransfer.effectAllowed = 'move';
+        const ghost = budgetGetDragImageEl();
+        ghost.textContent = item.label;
+        e.dataTransfer.setDragImage(ghost, 12, 16);
       });
       row.addEventListener('dragend', () => row.classList.remove('budget-drop-target'));
       budgetWireDropHighlight(row, () => {

@@ -857,17 +857,42 @@ tr.budget-row-filler td {
 .budget-manage-tr:active { cursor: grabbing; }
 
 /* Drop-target highlight shows only the row's top edge (the insertion
-   point), not a full box around it — a transparent 2px top border at rest
-   (reserving the space so nothing shifts) that animates to accent-warm on
-   drag-over, mirroring manus.css's/wiki.css's border-color transition on
-   .manus-akt-row/.wiki-manage-row but limited to one side. */
+   point), not a full box around it — an inset box-shadow (not a border:
+   .budget-table's own base rule already puts a real border-bottom on
+   every td, and under border-collapse:collapse a competing border-top of
+   a different width wins the *entire* shared edge between rows — it was
+   silently eating every row's own separator line, not just during a drag.
+   box-shadow doesn't participate in border collapsing, so it can't do
+   that; see forms.css's identical fix for the full story), mirroring
+   manus.css's/wiki.css's border-color transition on .manus-akt-row/
+   .wiki-manage-row but limited to one side. */
 .budget-manage-tr td {
-  border-top: 2px solid transparent;
-  transition: border-top-color 0.15s;
+  box-shadow: inset 0 2px 0 0 transparent;
+  transition: box-shadow 0.15s;
 }
 
 .budget-manage-tr.budget-drop-target td {
-  border-top-color: var(--accent-warm);
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
+}
+
+/* budgetGetDragImageEl()'s shared, reused drag-image element (js/budget.js)
+   — see forms.js's formsGetDragImageEl for why a native drag needs this
+   instead of letting the browser snapshot the dragged row/card itself.
+   Positioned off-screen (not display:none, which some browsers refuse to
+   snapshot) so it never actually appears in the page's own layout. */
+.budget-drag-image {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: var(--modal-shadow);
 }
 
 .budget-manage-text-input {

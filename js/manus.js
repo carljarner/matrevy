@@ -1714,6 +1714,25 @@ function manusMoveRow(key, targetLane, beforeKey) {
   renderAktfordelingTab();
 }
 
+// A native drag lets the browser snapshot the dragged element itself as the
+// drag image, which for an Aktfordeling card (handle + title + remove
+// button, live page styling and all) reads as a messy oversized preview
+// rather than a clean one. Routes through one shared, off-screen (not
+// display:none — that would keep it from being paintable) <div> instead,
+// restyled with just the dragged scene's own title right before dragstart
+// calls setDragImage on it — see forms.js's formsGetDragImageEl for the
+// page this pattern originated on.
+function manusGetDragImageEl() {
+  let ghost = document.getElementById('manus-drag-image');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'manus-drag-image';
+    ghost.className = 'manus-drag-image';
+    document.body.appendChild(ghost);
+  }
+  return ghost;
+}
+
 // Robust dragenter/dragleave pairing via a nesting counter, shared by a whole
 // lane container (wireLaneDropZone) and a single draggable card
 // (renderDraftRowCard) — plain dragover-driven highlighting (the old
@@ -1913,6 +1932,9 @@ function renderDraftRowCard(row) {
   el.addEventListener('dragstart', (e) => {
     manusDragKey = row.key;
     e.dataTransfer.effectAllowed = 'move';
+    const ghost = manusGetDragImageEl();
+    ghost.textContent = manusRowTitle(row);
+    e.dataTransfer.setDragImage(ghost, 12, 16);
   });
   el.addEventListener('dragend', () => el.classList.remove('manus-drop-target'));
   // stop:true so hovering a card doesn't also light up its containing
