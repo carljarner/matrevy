@@ -3932,7 +3932,7 @@ async function manusRegeneratePdfs() {
   // since that phase does no further writes and other saves are meant to
   // stay possible while PDFs regenerate in the background.
   renderMainViewActions();
-  siteShowToast('PDF-generering startet (Aktoversigt, Rolleoversigt, Manuskript) – tager et par minutter');
+  siteShowToast('PDF-generering startet. Det tager et par minutter');
   manusPollPdfCompletion(before, referenceUrl);
 }
 
@@ -4264,7 +4264,22 @@ function renderAdminSettings() {
   section.appendChild(row);
 }
 
+// "Manus" -> "Manus for MatRevy 2026" once an active production folder is
+// known ("MatRevy_2026" -> "MatRevy 2026" — same underscore-to-space guess
+// koordinator.js's own koordGuessNameFromFolder makes for the closing
+// year's archive-entry name, duplicated here per this codebase's
+// per-feature convention). Falls back to the plain "Manus" heading when no
+// production is currently active (e.g. right after Koordinator's "Afslut
+// revyen" and before "Start ny revy").
+function renderPageTitle() {
+  const heading = document.getElementById('manus-page-title');
+  if (!heading) return;
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  heading.textContent = folder ? `Manus for ${folder.replace(/_/g, ' ').trim()}` : 'Manus';
+}
+
 function renderAll() {
+  renderPageTitle();
   renderPoolLayoutVisibility();
   renderColumns();
   renderBottomActions();
