@@ -3903,6 +3903,8 @@ function save_archive($payload) {
 // is a sanitized HTML string produced client-side (see wiki.js's
 // sanitizeHtmlString), stored as-is; there is no server-side HTML
 // sanitization since this is already a boss-level-only, trusted-caller write.
+// `published` (optional bool, defaults to not-published if omitted) gates
+// whether a revyst-level visitor can open the chapter — see wiki.js.
 // `attachments` (optional, defaults to none) is a list of pdf/tex files
 // uploaded separately via the generic 'upload' action (see
 // WIKI_ATTACHMENT_PATH_RE) before this save — each entry just references
@@ -3921,6 +3923,9 @@ function save_wiki($payload) {
         || isset($seenId[$c['id']])
         || !is_string($c['title']) || trim($c['title']) === ''
         || !is_string($c['body'])) {
+      respond(400, ['error' => 'invalid_wiki_shape']);
+    }
+    if (isset($c['published']) && !is_bool($c['published'])) {
       respond(400, ['error' => 'invalid_wiki_shape']);
     }
     if (isset($c['attachments'])) {

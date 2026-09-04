@@ -82,8 +82,17 @@
   opacity: 0.55;
 }
 
+/* Revyst-level view: an unpublished chapter (js/wiki.js's `locked`) —
+   greyed the same way as :disabled above, but deliberately NOT the
+   disabled attribute itself, since the button stays clickable (it shows
+   a "not written yet" toast instead of opening the chapter). */
+.wiki-chapter-btn.wiki-chapter-locked {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 @media (hover: hover) {
-  .wiki-chapter-btn:hover:not(:disabled) {
+  .wiki-chapter-btn:hover:not(:disabled):not(.wiki-chapter-locked) {
     background: var(--surface-2);
   }
 }
@@ -270,6 +279,17 @@
 .wiki-manage-publish-toggle input[type="checkbox"] {
   accent-color: var(--accent-warm-text);
   cursor: pointer;
+}
+
+/* Boss (not admin) still sees each chapter's publish state but can't
+   change it — see openManageChaptersModal's canPublish. */
+.wiki-manage-publish-toggle-readonly {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.wiki-manage-publish-toggle-readonly input[type="checkbox"] {
+  cursor: not-allowed;
 }
 
 .wiki-manage-add-trigger-wrap {

@@ -21,10 +21,11 @@
    and publishing are separate steps. Boss/admin always see every chapter
    regardless of `published`. A revyst-level visitor sees the full chapter
    list (so they know what exists) but can only open a published one —
-   unpublished titles render greyed-out/disabled, same visual treatment
-   as a locked nav item. If nothing is published yet, the revyst-level
-   view collapses to a single banner card instead of the two-column
-   layout (renderWikiNoPublishedChapters).
+   unpublished titles render greyed-out (same visual treatment as a
+   locked nav item) and, since they're still clickable, show a brief
+   "not written yet" toast instead of opening. If nothing is published
+   yet, the revyst-level view collapses to a single banner card instead
+   of the two-column layout (renderWikiNoPublishedChapters).
 
    Metadata saves globally via siteSaveResource ('wiki' resource,
    whole-array replace like every other data-driven page).
@@ -116,22 +117,28 @@ function wikiChapterIsPublished(chapter) {
 
 // Shown to a revyst-level visitor in place of the two-column layout when
 // no chapter is published yet — mirrors site.js's own applyPageGate()
-// login-gate card styling.
+// login-gate card styling. Reuses (hides/clears) the existing #wiki-
+// chapter-list/#wiki-content-body/#wiki-chapter-actions nodes rather than
+// removing them from the DOM, so a later renderWiki() call (e.g. once a
+// coordinator publishes something and this same tab re-renders) can
+// rebuild the real layout without needing a page reload.
 function renderWikiNoPublishedChapters() {
   const columns = document.querySelector('.wiki-columns');
-  if (!columns) return;
-  columns.textContent = '';
-  columns.classList.add('wiki-columns-construction');
+  const chaptersCard = document.querySelector('.wiki-chapters');
+  const contentBody = document.getElementById('wiki-content-body');
+  if (!columns || !chaptersCard || !contentBody) return;
 
-  const card = document.createElement('section');
-  card.className = 'card site-gate-card';
+  columns.classList.add('wiki-columns-construction');
+  chaptersCard.hidden = true;
+
+  contentBody.classList.add('site-gate-card');
+  contentBody.textContent = '';
   const h = document.createElement('h2');
   h.textContent = 'Siden er under opbygning';
   const p = document.createElement('p');
   p.textContent = 'Wikien er ved at blive skrevet og er endnu ikke offentliggjort for revyster.';
-  card.appendChild(h);
-  card.appendChild(p);
-  columns.appendChild(card);
+  contentBody.appendChild(h);
+  contentBody.appendChild(p);
 }
 
 function renderWiki() {
@@ -147,7 +154,13 @@ function renderWiki() {
     renderWikiNoPublishedChapters();
     return;
   }
+
+  // Restore the normal two-column layout in case a previous render left it
+  // in the "no published chapters yet" banner state above.
   document.querySelector('.wiki-columns')?.classList.remove('wiki-columns-construction');
+  const chaptersCard = document.querySelector('.wiki-chapters');
+  if (chaptersCard) chaptersCard.hidden = false;
+  contentBody.classList.remove('site-gate-card');
 
   chapterList.textContent = '';
   contentBody.textContent = '';
@@ -177,14 +190,17 @@ function renderWiki() {
     for (const chapter of chapters) {
       const published = wikiChapterIsPublished(chapter);
       // A revyst-level visitor sees every chapter's title (so they know
-      // what exists) but can't open an unpublished one — greyed/disabled,
-      // same look as switching mid-edit below.
+      // what exists) but can't open an unpublished one — greyed via its
+      // own class (not the disabled attribute, which would swallow the
+      // click) so it can still respond with the "not written yet" toast
+      // below.
       const locked = !canEdit && !published;
 
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'wiki-chapter-btn';
       if (chapter.id === wikiSelectedChapterId) btn.classList.add('wiki-chapter-active');
+      if (locked) btn.classList.add('wiki-chapter-locked');
       btn.textContent = chapter.title;
       if (canEdit && !published) {
         const tag = document.createElement('span');
@@ -192,15 +208,17 @@ function renderWiki() {
         tag.textContent = ' (skjult)';
         btn.appendChild(tag);
       }
-      btn.disabled = locked || !!wikiEditingChapterId;
-      if (!locked) {
-        btn.addEventListener('click', () => {
-          if (chapter.id === wikiSelectedChapterId) return;
-          wikiSelectedChapterId = chapter.id;
-          renderWiki();
-          scrollWikiContentToSidebarTop();
-        });
-      }
+      btn.disabled = !!wikiEditingChapterId;
+      btn.addEventListener('click', () => {
+        if (locked) {
+          siteShowToast('Dette kapitel er ikke færdigskrevet endnu');
+          return;
+        }
+        if (chapter.id === wikiSelectedChapterId) return;
+        wikiSelectedChapterId = chapter.id;
+        renderWiki();
+        scrollWikiContentToSidebarTop();
+      });
       chapterList.appendChild(btn);
 
       if (chapter.id === wikiSelectedChapterId) {
@@ -1051,6 +1069,11 @@ function wikiWireDropHighlight(el, onDrop, { stop = false } = {}) {
 function openManageChaptersModal() {
   const { form, error, actions, close } = siteOpenModalWithClose('Rediger kapitler');
 
+  // Boss can write/reorder/delete every chapter but not decide what's
+  // published to revyster — that stays admin-only (see the publish toggle
+  // below).
+  const canPublish = siteHasLevel('admin');
+
   // Local draft of {id, title, published} only — body/attachments are
   // never touched here, only reattached from the current saved chapters at
   // save time, so a reorder/add/publish-toggle can never lose a chapter's
@@ -1106,14 +1129,18 @@ function openManageChaptersModal() {
       title.textContent = item.title;
       row.appendChild(title);
 
-      // Publish toggle — mutates the draft item directly (no re-render
-      // needed, unlike a reorder, since nothing else on screen depends on
-      // this value).
+      // Publish toggle — admin-only (boss can write/reorder/delete every
+      // chapter but not decide what's visible to revyster); boss still
+      // sees the current state, just can't touch it. Mutates the draft
+      // item directly (no re-render needed, unlike a reorder, since
+      // nothing else on screen depends on this value).
       const publishLabel = document.createElement('label');
       publishLabel.className = 'wiki-manage-publish-toggle';
+      if (!canPublish) publishLabel.classList.add('wiki-manage-publish-toggle-readonly');
       const publishCheckbox = document.createElement('input');
       publishCheckbox.type = 'checkbox';
       publishCheckbox.checked = item.published === true;
+      publishCheckbox.disabled = !canPublish;
       publishCheckbox.addEventListener('change', () => {
         item.published = publishCheckbox.checked;
       });
