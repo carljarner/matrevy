@@ -622,9 +622,9 @@
 @media (hover: hover) {
   .picker-item:hover { background: var(--surface-2); }
 }
-.picker-item.picker-selected { background: #d8b879; color: var(--accent-warm-text); }
+.picker-item.picker-selected { background: #d8b879; color: #000; }
 .picker-item.picker-placed { color: #b0b7be; }
-.picker-item.picker-selected.picker-placed { color: var(--accent-warm-text); }
+.picker-item.picker-selected.picker-placed { color: #000; }
 .picker-item.picker-at-cap { opacity: 0.4; cursor: default; }
 .picker-item.picker-crossed-out { text-decoration: line-through; color: #b0b7be; }
 .picker-pair-row {
