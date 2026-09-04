@@ -3073,7 +3073,7 @@ function renderStarRow(row, entry) {
   repeatBtn.type = 'button';
   repeatBtn.className = 'manus-repeat-circle';
   repeatBtn.textContent = '↻';
-  repeatBtn.title = 'Skal øves igen dagen efter';
+  repeatBtn.title = 'Dobbeltsegment';
   function updateRepeatBtn() {
     const active = isDanceHalf ? !!row.dansRepeat : !!row.repeat;
     repeatBtn.classList.toggle('manus-repeat-active', active);
