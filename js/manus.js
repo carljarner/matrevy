@@ -4194,9 +4194,14 @@ function renderAll() {
 // The native beforeunload dialog below still covers tab close/refresh/back/
 // typed-URL, which browsers deliberately never let a page restyle.
 function confirmLeaveDirtyPage(href) {
-  const { form, actions, close } = siteOpenEditModal('Forlad siden');
+  const { modal, form, actions, close } = siteOpenEditModal('Forlad siden');
+  // Same narrower-centered shape as openManuscriptDeleteWarning's step 1
+  // (manus.css .manus-delete-warning-modal/-text) — a real heading plus one
+  // line of body text, rather than the plain 480px .edit-modal default.
+  modal.classList.add('manus-delete-warning-modal');
 
   const info = document.createElement('p');
+  info.className = 'manus-delete-warning-text';
   info.textContent = 'Du har ændringer, der ikke er gemt endnu. Vil du forlade siden alligevel?';
   form.appendChild(info);
 
