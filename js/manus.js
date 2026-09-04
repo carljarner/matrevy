@@ -4405,7 +4405,17 @@ function renderPageTitle() {
   const heading = document.getElementById('manus-page-title');
   if (!heading) return;
   const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
-  heading.textContent = folder ? `Manus for ${folder.replace(/_/g, ' ').trim()}` : 'Manus';
+  if (!folder) { heading.textContent = 'Manus'; return; }
+  // Prefers Arkiv's own editable name for the active production (its
+  // "source of truth" display name, e.g. a jubilee year renamed to
+  // "JubiRevy 2026") over the folder-slug guess, so renaming the Arkiv
+  // entry updates this heading too — falls back to the folder-derived
+  // guess only when Arkiv has no matching entry yet (koordStartNewYear
+  // normally creates one immediately, but nothing enforces it server-side).
+  const entries = (typeof ARCHIVE_DATA !== 'undefined' && Array.isArray(ARCHIVE_DATA)) ? ARCHIVE_DATA : [];
+  const entry = entries.find((e) => e.folder === folder);
+  const name = (entry && entry.name) || folder.replace(/_/g, ' ').trim();
+  heading.textContent = `Manus for ${name}`;
 }
 
 function renderAll() {
