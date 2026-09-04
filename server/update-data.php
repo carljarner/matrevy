@@ -208,6 +208,7 @@ $FORMS_ACTIONS = [
   'forms_admin_list' => 'boss',   // all forms (any status), summary + response count
   'forms_admin_read' => 'boss',   // one form's full definition + all responses
   'forms_save'       => 'boss',   // create (no id) or update (id given) a form
+  'forms_reorder'    => 'boss',   // Oversigt's drag-and-drop row order
   'forms_delete'     => 'boss',
   'forms_delete_response' => 'boss', // remove one response, not the whole form
   'templates_list'   => 'boss',
@@ -2532,9 +2533,38 @@ function forms_admin_list($body) {
       'fieldCount' => count($def['fields'] ?? []),
       'responseCount' => count($responses['responses'] ?? []),
       'updatedAt' => $def['updatedAt'] ?? null,
+      'order' => array_key_exists('order', $def) ? $def['order'] : null,
     ];
   }
   respond(200, ['ok' => true, 'forms' => $out]);
+}
+
+// Boss: persists Oversigt's drag-and-drop row order. `formIds` is the
+// client's own current (year-filtered) view, already in its new order —
+// order is only ever compared between forms shown in the same filtered
+// table, so this never needs to touch a form from another year. Stamps
+// 0..N-1 straight into each form's own definition.json; forms_save (see
+// below) carries the existing value through on every future edit so a
+// builder save can't silently wipe a manual reorder.
+function forms_reorder($body) {
+  $formIds = $body['formIds'] ?? null;
+  if (!is_array($formIds) || count($formIds) === 0 || count($formIds) > 500) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $seen = [];
+  foreach ($formIds as $id) {
+    if (!is_string($id) || !forms_valid_id($id) || isset($seen[$id])) respond(400, ['error' => 'invalid_shape']);
+    $seen[$id] = true;
+    if (!is_file(forms_form_dir($id) . '/definition.json')) respond(404, ['error' => 'not_found']);
+  }
+  foreach (array_values($formIds) as $index => $id) {
+    forms_mutate(forms_form_dir($id) . '/definition.json', [], function ($json) use ($index) {
+      if (!is_array($json) || empty($json)) return $json; // shouldn't happen, existence checked above
+      $json['order'] = $index;
+      return $json;
+    });
+  }
+  respond(200, ['ok' => true]);
 }
 
 // A form's Synlighed — 'boss' (default, every management-level visitor can
@@ -2622,9 +2652,14 @@ function forms_save($body) {
     $existing = forms_load(forms_form_dir($id) . '/definition.json', null);
     if (!is_array($existing)) respond(404, ['error' => 'not_found']);
     $createdAt = $existing['createdAt'] ?? $now;
+    // Oversigt's own drag-and-drop reorder (forms_reorder) is the only
+    // writer of this field — carry it through unchanged on every ordinary
+    // edit save, or a Rediger click on the builder would silently wipe it.
+    $order = array_key_exists('order', $existing) ? $existing['order'] : null;
   } else {
     $id = forms_id();
     $createdAt = $now;
+    $order = null; // unordered — sorts after every manually-ordered form, in creation order
   }
 
   $definition = [
@@ -2639,6 +2674,7 @@ function forms_save($body) {
     'sections' => $sections,
     'createdAt' => $createdAt,
     'updatedAt' => $now,
+    'order' => $order,
   ];
 
   $formDir = forms_form_dir($id);
@@ -2781,6 +2817,7 @@ function handle_forms($action, $body, $level) {
     case 'forms_admin_list': return forms_admin_list($body);
     case 'forms_admin_read': return forms_admin_read($body, $level);
     case 'forms_save':       return forms_save($body);
+    case 'forms_reorder':    return forms_reorder($body);
     case 'forms_delete':     return forms_delete($body);
     case 'forms_delete_response': return forms_delete_response($body);
     case 'templates_list':   return templates_list($body);

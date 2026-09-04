@@ -1142,6 +1142,55 @@ function formsChartIcon() {
   return svg;
 }
 
+// Mirrors budget.js's budgetWireDropHighlight — duplicated here per the
+// site's per-page convention (see CLAUDE.md): counting dragenter/dragleave
+// pairs (rather than toggling straight off dragover/dragleave) avoids the
+// highlight flickering as the pointer crosses child elements (Oversigt's
+// own status chip/action buttons sit inside each row).
+function formsWireDropHighlight(rowEl, onDrop) {
+  let depth = 0;
+  rowEl.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    depth++;
+    rowEl.classList.add('forms-drop-target');
+  });
+  rowEl.addEventListener('dragover', (e) => { e.preventDefault(); }); // required for 'drop' to fire
+  rowEl.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) rowEl.classList.remove('forms-drop-target');
+  });
+  rowEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    depth = 0;
+    rowEl.classList.remove('forms-drop-target');
+    onDrop();
+  });
+}
+
+// Splices `item` out of `list` and reinserts it just before `beforeItem`
+// (or at the end if falsy) — mirrors budget.js's budgetMoveDraftItem.
+function formsMoveListItem(list, item, beforeItem) {
+  const idx = list.indexOf(item);
+  if (idx === -1) return;
+  list.splice(idx, 1);
+  const beforeIdx = beforeItem ? list.indexOf(beforeItem) : -1;
+  if (beforeIdx === -1) list.push(item);
+  else list.splice(beforeIdx, 0, item);
+}
+
+// Oversigt's row sort: manually-ordered forms (an explicit `order`, set by
+// dragging a row — see forms_reorder) come first, ascending; anything
+// without one yet (a legacy form, or a brand-new one) falls back to id
+// order, which is effectively creation order since forms_id() prefixes a
+// hex timestamp.
+function formsCompareOrder(a, b) {
+  const ao = a.order, bo = b.order;
+  if (ao != null && bo != null) return ao - bo;
+  if (ao != null) return -1;
+  if (bo != null) return 1;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
 async function formsRenderOverviewScreen(root) {
   const card = el('section', 'card forms-overview-card');
   const head = el('div', 'forms-builder-head');
@@ -1198,10 +1247,26 @@ async function formsRenderOverviewScreen(root) {
     const filterYear = parseInt(yearDd.value, 10);
     try { localStorage.setItem(FORMS_YEAR_FILTER_KEY, yearDd.value); } catch (e) { /* ignore */ }
     const filtered = forms.filter((f) => formYear(f) === filterYear);
+    filtered.sort(formsCompareOrder);
     tableWrap.replaceChildren();
     if (filtered.length === 0) {
       tableWrap.appendChild(el('p', 'forms-intro', 'Ingen formularer for dette år.'));
       return;
+    }
+
+    // Drag-and-drop row reorder, scoped to this year-filtered view (see
+    // forms_reorder server-side) — reorders `filtered` in place, stamps
+    // the resulting 0..N-1 order onto every affected form so an immediate
+    // re-render (below) already reflects it without waiting on the network,
+    // then persists it. Same optimistic-first, network-catches-up posture
+    // as the status chip's own click handler above.
+    function reorderRow(dragged, target) {
+      formsMoveListItem(filtered, dragged, target);
+      filtered.forEach((item, i) => { item.order = i; });
+      renderTable();
+      formsApi('forms_reorder', { formIds: filtered.map((item) => item.id) }).then((result) => {
+        if (!result.ok && result.message) siteShowToast(result.message);
+      });
     }
 
     const table = el('table', 'forms-dashboard-table');
@@ -1211,8 +1276,18 @@ async function formsRenderOverviewScreen(root) {
     thead.appendChild(headRow);
     table.appendChild(thead);
     const tbody = el('tbody');
+    let dragItem = null;
     for (const f of filtered) {
-      const row = el('tr');
+      const row = el('tr', 'forms-dashboard-row');
+      row.draggable = true;
+      row.addEventListener('dragstart', (e) => {
+        dragItem = f;
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      row.addEventListener('dragend', () => row.classList.remove('forms-drop-target'));
+      formsWireDropHighlight(row, () => {
+        if (dragItem && dragItem !== f) reorderRow(dragItem, f);
+      });
       row.appendChild(el('td', null, f.title));
 
       const statusCell = el('td');

@@ -264,6 +264,21 @@
   vertical-align: top;
 }
 
+/* Oversigt rows are draggable to reorder (see forms.js's formsWireDropHighlight/
+   formsMoveListItem, duplicated from budget.js's own category-table drag-
+   and-drop) — same "top-edge insertion line" treatment as .budget-manage-tr,
+   a transparent 2px top border at rest (reserving the space so nothing
+   shifts) that animates to accent-warm on drag-over. */
+.forms-dashboard-row { cursor: grab; }
+.forms-dashboard-row:active { cursor: grabbing; }
+.forms-dashboard-row td {
+  border-top: 2px solid transparent;
+  transition: border-top-color 0.15s;
+}
+.forms-dashboard-row.forms-drop-target td {
+  border-top-color: var(--accent-warm);
+}
+
 .forms-responses-wrap { overflow-x: auto; }
 
 .forms-export-btn { margin-top: 0.75rem; }
