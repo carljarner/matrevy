@@ -2,23 +2,6 @@
 // Run scripts/embed-scenes.js to regenerate after editing the source file(s)
 const POSTS_DATA = [
   {
-    "id": "6a58e735af93939f",
-    "pinned": false,
-    "date": "2026-07-16T13:15:00",
-    "author": "Carl",
-    "title": "Tester",
-    "text": "Hvad sker der her?\n\nKan jeg skrive en lang besked med mellemrum og \n\nLinks : https://www.facebook.com/groups/1334272084959429",
-    "image": "",
-    "comments": [
-      {
-        "id": "6a8583c4f3f3298f",
-        "author": "Carl",
-        "text": "Virkelige nice!",
-        "date": "2026-08-19T12:21:56"
-      }
-    ]
-  },
-  {
     "id": "6a6de6ef49e6b0bd",
     "pinned": false,
     "date": "2026-08-01T14:30:39",
