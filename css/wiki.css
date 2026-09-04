@@ -510,10 +510,13 @@
    Mirrors Kalender's .cal-confirm-modal/.cal-confirm-text (calendar.css)
    and Forside's .post-confirm-modal/.post-confirm-text (style.css) — the
    shared "Er du sikker?" redesign: openDeleteChapterConfirm drops the
-   usual h2 heading in favor of this one bold centered line, in a modal
-   narrower than the edit view it sits on top of. */
+   usual h2 heading in favor of this one bold centered line. Width is the
+   shared one-liner delete-confirm formula — see .post-confirm-modal
+   (style.css) for the full rationale. */
 .wiki-confirm-modal {
-  width: min(300px, 85vw);
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(480px, 92vw);
 }
 
 .login-modal .wiki-confirm-text {

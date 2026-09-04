@@ -347,8 +347,12 @@
   margin-bottom: 0.5rem;
 }
 
+/* Shared one-liner delete-confirm width formula — see .post-confirm-modal
+   (style.css) for the full rationale. */
 .faelles-confirm-modal {
-  width: min(300px, 85vw);
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(480px, 92vw);
 }
 
 /* faellesOpenDeleteRowConfirm keeps a real h2 title ("Slet "X"?") instead

@@ -206,9 +206,12 @@
   text-decoration: none;
 }
 
-/* --- Delete-year confirm popup: narrower than the standard edit-modal -- */
+/* --- Delete-year confirm popup: shared one-liner delete-confirm width
+   formula — see .post-confirm-modal (style.css) for the full rationale. */
 .koord-arkiv-confirm-modal {
-  width: min(360px, 90vw);
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(480px, 92vw);
 }
 
 .koord-arkiv-confirm-modal h2 {
@@ -479,9 +482,13 @@
   color: var(--accent-warm-text);
 }
 
-/* --- Row-removal confirm popup, mirrors .koord-arkiv-confirm-modal. ---- */
+/* --- Row-removal confirm popup, mirrors .koord-arkiv-confirm-modal. Shared
+   one-liner delete-confirm width formula — see .post-confirm-modal
+   (style.css) for the full rationale. ---- */
 .koord-mp-confirm-modal {
-  width: min(380px, 90vw);
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(480px, 92vw);
 }
 
 .koord-mp-confirm-modal h2 {

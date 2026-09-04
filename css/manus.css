@@ -1209,8 +1209,12 @@ a.manus-pdf-title:focus-visible {
   text-align: center;
 }
 
+/* Shared one-liner delete-confirm width formula — see .post-confirm-modal
+   (style.css) for the full rationale. */
 .manus-confirm-modal {
-  width: min(300px, 85vw);
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(480px, 92vw);
 }
 
 .login-modal .manus-confirm-text {

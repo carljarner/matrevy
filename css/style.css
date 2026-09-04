@@ -1896,10 +1896,31 @@ body.site-menu-open {
   margin-top: 0.4rem;
 }
 
-/* Smaller than the .edit-modal (480px) confirmation dialogs sit on top of —
-   mirrors Kalender's .cal-confirm-modal (calendar.css). */
+/* Canonical definition of the site-wide "one-liner delete confirm" width
+   formula — every other feature's own *-confirm-modal class (Kalender's
+   .cal-confirm-modal, Wiki's .wiki-confirm-modal, Manus's
+   .manus-confirm-modal, Fællesspisning's .faelles-confirm-modal, Budget's
+   .budget-confirm-narrow/.streg-confirm-modal, Formularer's
+   .forms-leave-modal/.forms-narrow-modal/.forms-section-delete-modal/
+   .forms-response-delete-modal, Koordinator's .koord-arkiv-confirm-modal/
+   .koord-mp-confirm-modal) duplicates this exact declaration rather than
+   sharing a class, per this codebase's per-feature-duplication convention.
+   fit-content shrink-wraps the modal to its widest actual line of content —
+   this title if it's short, same title once it's long, or an explanatory
+   note line below it if that happens to run longer than the title — so a
+   short "Slet opslag?" still renders at this floor while a modal whose
+   title/note is long (e.g. a quoted event/form name) grows just enough to
+   keep that line on one row, up to the .edit-modal's own 480px ceiling
+   (beyond which it wraps rather than overflows). No white-space: nowrap
+   needed: block shrink-to-fit sizing already avoids an unnecessary wrap
+   under max-width on its own. Deliberately excludes the handful of
+   two-step "warning" delete confirms whose dynamic content lives in a
+   longer wrappable body paragraph, not the title (Manus/Budget/Formularer's
+   own step-1 warnings) — those keep the plain 480px .edit-modal default. */
 .post-confirm-modal {
-  width: min(300px, 85vw);
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(480px, 92vw);
 }
 
 /* Reads as the modal's title, since deletePost/deleteComment drop the usual
