@@ -250,5 +250,15 @@ const ARCHIVE_DATA = [
     "spotifyUrl": "",
     "driveUrl": "https://drive.google.com/drive/folders/16CR5evUJuXUStN09cMpGGNIw1rh6HzY2?usp=drive_link",
     "manusPdf": "archive/MatRevy_2026/Manuskript.pdf"
+  },
+  {
+    "year": 2027,
+    "name": "MatRevy 2027",
+    "folder": "MatRevy_2027",
+    "coverImage": "",
+    "youtubeUrl": "",
+    "spotifyUrl": "",
+    "driveUrl": "",
+    "manusPdf": "archive/MatRevy_2027/Manuskript.pdf"
   }
 ];

@@ -562,6 +562,37 @@ async function koordStartNewYear(newFolder, productionName, productionYear, onPr
   const prodRes = await siteSaveResource('production', { name: productionName, year: String(productionYear) });
   if (!prodRes.ok) throw new Error(prodRes.message || 'Kunne ikke opdatere produktionsnavnet.');
 
+  // Formularer's own "Revy" field (and its Oversigt year filter's label)
+  // sources its option list from Arkiv (ARCHIVE_DATA) — see
+  // formsRevyOptions()'s own comment there, which assumes "the current
+  // production always has an Arkiv entry." That used to hold automatically
+  // (a folder was always hand-seeded into Arkiv before anything targeted
+  // it), but koordCloseYear only ever creates an Arkiv entry for the
+  // folder it's *closing*, not the one being started here — so without
+  // this, a brand-new production had no Arkiv entry until it was archived
+  // in turn, and nothing could target it from Formularer in the meantime
+  // (confirmed live: MatRevy 2027 was unselectable in the form builder,
+  // and showed as a bare "2027" — no Arkiv name to look up — in Oversigt's
+  // own year filter). Guarded exactly like koordCloseYear's own
+  // idempotent create, reusing the same productionName/productionYear
+  // this step already collected.
+  const currentYears = getEffectiveArchiveYears();
+  if (!currentYears.some((y) => y.folder === newFolder)) {
+    onProgress('Opretter arkiv-indgang for den nye produktion...');
+    const nextYears = currentYears.concat([{
+      year: productionYear,
+      name: productionName,
+      folder: newFolder,
+      coverImage: '',
+      youtubeUrl: '',
+      spotifyUrl: '',
+      driveUrl: '',
+      manusPdf: `archive/${newFolder}/Manuskript.pdf`,
+    }]);
+    const archiveRes = await saveArchiveYears(nextYears);
+    if (!archiveRes.ok) throw new Error(archiveRes.message || 'Kunne ikke oprette arkiv-indgangen.');
+  }
+
   onProgress('Skifter til den nye produktionsmappe...');
   const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
