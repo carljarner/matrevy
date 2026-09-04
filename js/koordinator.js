@@ -694,19 +694,23 @@ function openStartNewYearModal(currentFolder) {
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
-  // "Matematikrevyen" is the name every historical scenes.json production
-  // string actually uses (a jubilee year wants something else — freely
-  // editable, same "guess but let the admin override" posture as every
-  // other guessed field on this page).
-  nameInput.value = 'Matematikrevyen';
-  form.appendChild(siteEditField('Revyens navn', nameInput));
-
+  // "MatRevy" matches archive.json's own naming convention for every
+  // historical entry ("MatRevy 2026", "MatRevy 2025", ...) — a jubilee year
+  // wants something else, freely editable like every other guessed field
+  // on this page.
+  nameInput.value = 'MatRevy';
   const yearInput = document.createElement('input');
   yearInput.type = 'number';
   yearInput.min = '1900';
   yearInput.max = '2100';
   yearInput.value = guessedYearMatch ? guessedYearMatch[0] : '';
-  form.appendChild(siteEditField('Revyens årstal', yearInput));
+  // Same 2:1 side-by-side row as openKoordYearEditor's own Navn/Årstal
+  // pair (koord-year-edit-row, reused verbatim — already exactly this
+  // ratio, collapsing to stacked on mobile).
+  const nameYearRow = el('div', 'koord-year-edit-row');
+  nameYearRow.appendChild(siteEditField('Navn', nameInput));
+  nameYearRow.appendChild(siteEditField('Årstal', yearInput));
+  form.appendChild(nameYearRow);
 
   const newFolderInput = document.createElement('input');
   newFolderInput.type = 'text';
