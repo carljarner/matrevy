@@ -1,16 +1,6 @@
 {
     "posts": [
         {
-            "id": "6a6de6ef49e6b0bd",
-            "pinned": false,
-            "date": "2026-08-01T14:30:39",
-            "author": "Carl J",
-            "title": "Wup",
-            "text": "Teste test",
-            "image": "",
-            "comments": []
-        },
-        {
             "id": "6a9ae58e507692c1",
             "pinned": true,
             "date": "2026-09-04T17:36:47",
@@ -23,14 +13,14 @@
                     "id": "6a9ae5e57d450235",
                     "author": "Carl J",
                     "text": "Man kan også kommenterer:))",
-                    "date": "2026-09-04T17:38:13"
+                    "date": "2026-09-04T17:38:15"
                 }
             ]
         },
         {
             "id": "6a9ae62787136a9a",
             "pinned": false,
-            "date": "2026-09-04T17:39:19",
+            "date": "2026-09-04T17:39:20",
             "author": "Carl J",
             "title": "",
             "text": "Opslag, der ikke er <em>pinned</em>&nbsp;dukker op hernede.",
