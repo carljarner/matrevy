@@ -361,6 +361,14 @@
   margin-bottom: 0.5rem;
 }
 
+/* The explanatory line below the title. */
+.login-modal .cal-confirm-sub {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  margin-bottom: 0.75rem;
+}
+
 /* Smaller than the 480px editor it sits on top of (see openDeleteConfirm in
    calendar.js — it no longer closes the editor first). */
 .cal-confirm-modal {

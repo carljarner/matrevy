@@ -1003,8 +1003,13 @@ function deleteComment(post, comment, closeDetailModal) {
 
   const info = document.createElement('p');
   info.className = 'post-confirm-text';
-  info.textContent = 'Slet denne kommentar?';
+  info.textContent = 'Slet kommentar?';
   form.appendChild(info);
+
+  const sub = document.createElement('p');
+  sub.className = 'post-confirm-sub';
+  sub.textContent = 'Dette kan ikke fortrydes.';
+  form.appendChild(sub);
 
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'site-btn-warm';
@@ -1217,8 +1222,13 @@ function deletePost(post, onDeleted) {
 
   const info = document.createElement('p');
   info.className = 'post-confirm-text';
-  info.textContent = 'Slet dette opslag?';
+  info.textContent = 'Slet opslag?';
   form.appendChild(info);
+
+  const sub = document.createElement('p');
+  sub.className = 'post-confirm-sub';
+  sub.textContent = 'Dette kan ikke fortrydes.';
+  form.appendChild(sub);
 
   const cancelBtn = document.createElement('button');
   cancelBtn.className = 'site-btn-warm';

@@ -932,8 +932,13 @@ function openDeleteChapterConfirm(existing) {
 
   const info = document.createElement('p');
   info.className = 'wiki-confirm-text';
-  info.textContent = `Slet kapitlet "${existing.title}"?`;
+  info.textContent = `Slet "${existing.title}"?`;
   form.appendChild(info);
+
+  const sub = document.createElement('p');
+  sub.className = 'wiki-confirm-sub';
+  sub.textContent = 'Dette kan ikke fortrydes.';
+  form.appendChild(sub);
 
   const cancelBtn = wikiPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);

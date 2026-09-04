@@ -622,9 +622,10 @@ tr.budget-row-filler td {
   text-align: center;
 }
 
-/* Smaller than the .edit-modal (480px) these "are you sure?" dialogs sit on
-   top of — mirrors Kalender's .cal-confirm-modal (calendar.css) and
-   Forside's .post-confirm-modal (style.css). Kept distinct from the
+/* Smaller than the .edit-modal (480px) these confirm dialogs — Godkend/
+   Godkend alle/Afvis/Split plus the "are you sure?" ones below — sit on top
+   of, mirroring Kalender's .cal-confirm-modal (calendar.css) and Forside's
+   .post-confirm-modal (style.css). Kept distinct from the
    .budget-confirm-modal marker class, which is also applied to this page's
    wider edit forms and must stay unstyled. Wide enough that the longer of
    the two explanatory sentences below the heading (measured ~291px at this
@@ -647,10 +648,10 @@ tr.budget-row-filler td {
   margin-bottom: 0.5rem;
 }
 
-/* The explanatory line below the title, in these same two dialogs only —
-   .budget-intro is reused elsewhere (approve/reject modals) as a normal
-   left-aligned line, so the centering is scoped to .budget-confirm-narrow
-   rather than changing .budget-intro itself. */
+/* The explanatory line below the title, in these narrow confirm dialogs
+   only — .budget-intro is reused elsewhere (e.g. Rediger udlæg's Kategori
+   description) as a normal left-aligned line, so the centering is scoped to
+   .budget-confirm-narrow rather than changing .budget-intro itself. */
 .budget-confirm-narrow .budget-intro {
   text-align: center;
 }

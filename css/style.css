@@ -1916,6 +1916,14 @@ body.site-menu-open {
   margin-bottom: 0.5rem;
 }
 
+/* The explanatory line below the title, in these same two dialogs. */
+.login-modal .post-confirm-sub {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  margin-bottom: 0.75rem;
+}
+
 /* --- Footer ---------------------------------------------- */
 .site-footer {
   text-align: center;

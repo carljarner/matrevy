@@ -592,8 +592,13 @@ function openDeleteConfirm(ev, onDeleted) {
 
   const info = document.createElement('p');
   info.className = 'cal-confirm-text';
-  info.textContent = `Slet begivenheden "${ev.title}"?`;
+  info.textContent = `Slet "${ev.title}"?`;
   form.appendChild(info);
+
+  const sub = document.createElement('p');
+  sub.className = 'cal-confirm-sub';
+  sub.textContent = 'Dette kan ikke fortrydes.';
+  form.appendChild(sub);
 
   const cancelBtn = calPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);

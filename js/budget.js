@@ -285,7 +285,7 @@ function renderRevystForm(root) {
       // option) — not a fetch failure, so it gets its own honest message
       // instead of "kunne ikke hente kategorier".
       categoryOptions.push({ value: '', label: 'Intet aktivt budgetår' });
-      setMsg('Der er i øjeblikket intet aktivt budgetår — der kan ikke indsendes udlæg lige nu.', 'error');
+      setMsg('Der er i øjeblikket intet aktivt budgetår. Der kan ikke indsendes udlæg lige nu.', 'error');
       submitBtn.disabled = true;
     } else if (result.ok && result.data && Array.isArray(result.data.expense)) {
       categoryOptions.push(
@@ -723,7 +723,7 @@ function openDeleteYearWarning(root) {
   let text = `Dette sletter budgettet "${budgetYearLabel(id)}" (${year}) permanent: alle planlagte beløb, ` +
     'afventende udlæg, betalte udgifter og kvitteringsbilleder for dette budget går tabt og kan ikke gendannes.';
   if (id === budgetActiveId) {
-    text += ' Dette er det AKTIVE budget; slettes det, kan revyster ikke indsende udlæg, før et nyt budget oprettes og aktiveres.';
+    text += ' Dette er det AKTIVE budget; slettes det, kan revyster ikke indsende udlæg, før et nyt budget aktiveres.';
   }
   form.appendChild(el('p', 'budget-intro', text));
 
@@ -1253,9 +1253,9 @@ function buildCategoryEditSection(card, status) {
       if (locked) {
         bilagInput.readOnly = true;
         bilagInput.classList.add('budget-manage-input-locked');
-        bilagInput.title = 'Låst — der findes allerede en betalt udgift i denne kategori';
+        bilagInput.title = 'Låst. Der findes allerede en betalt udgift i denne kategori';
         bilagInput.addEventListener('click', () => {
-          siteShowToast('Kan ikke ændre bilagslabel — der findes allerede en betalt udgift i denne kategori.');
+          siteShowToast('Kan ikke ændre bilagslabel. Der findes allerede en betalt udgift i denne kategori.');
         });
       } else {
         bilagInput.addEventListener('input', () => {
@@ -1282,11 +1282,11 @@ function buildCategoryEditSection(card, status) {
       removeBtn.title = 'Fjern kategori';
       removeBtn.addEventListener('click', () => {
         if (item.key === budgetStregCategoryKey()) {
-          siteShowToast('Kategorien "Stregnskab" kan ikke slettes — den er koblet til stregregnskabet.');
+          siteShowToast('Kategorien "Stregnskab" kan ikke slettes. Den er koblet til stregregnskabet.');
           return;
         }
         if (item.key && paidCategoryKeys.has(item.key)) {
-          siteShowToast('Kan ikke slette kategori — der findes allerede en betalt udgift i denne kategori.');
+          siteShowToast('Kan ikke slette kategori. Der findes allerede en betalt udgift i denne kategori.');
           return;
         }
         const idx = draftExpense.indexOf(item);
@@ -1342,7 +1342,7 @@ function buildCategoryEditSection(card, status) {
       removeBtn.title = 'Fjern indtægt';
       removeBtn.addEventListener('click', () => {
         if (amount) {
-          siteShowToast('Kan ikke slette indtægt — der er allerede angivet et beløb.');
+          siteShowToast('Kan ikke slette indtægt. Der er allerede angivet et beløb.');
           return;
         }
         const idx = draftIncome.indexOf(item);
@@ -1611,7 +1611,7 @@ function budgetPillBtn(label, variant) {
 // the submitter, and the expense date is the submission date.
 function openApproveModal(root, req) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Godkend udlæg');
-  modal.classList.add('budget-confirm-modal');
+  modal.classList.add('budget-confirm-modal', 'budget-confirm-narrow');
 
   form.appendChild(el('p', 'budget-intro',
     `${budgetCategoryLabel(req.category, budgetState.categories.expense)} · ${formatKr(req.amount)} · ${req.name} · ${req.phone}`));
@@ -1655,7 +1655,7 @@ function openApproveModal(root, req) {
 // than the stale pre-batch one.
 function openApproveAllModal(root, members) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Godkend alle udlæg');
-  modal.classList.add('budget-confirm-modal');
+  modal.classList.add('budget-confirm-modal', 'budget-confirm-narrow');
 
   form.appendChild(el('p', 'budget-intro', `${members[0].name} · ${members[0].phone}`));
 
@@ -1871,11 +1871,10 @@ function openSplitRequestModal(root, req) {
 }
 
 function rejectRequest(root, req) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Afvis udlæg');
-  modal.classList.add('budget-confirm-modal');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose(`Afvis ${req.name} (${formatKr(req.amount)})?`);
+  modal.classList.add('budget-confirm-modal', 'budget-confirm-narrow');
 
-  form.appendChild(el('p', 'budget-intro',
-    `Afvis udlægget fra ${req.name} (${formatKr(req.amount)})? Kvitteringen slettes.`));
+  form.appendChild(el('p', 'budget-intro', 'Kvitteringen slettes.'));
 
   const confirmBtn = budgetPillBtn('Afvis', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
@@ -2871,7 +2870,8 @@ function stregOpenDeleteGridRowConfirm(row, onConfirm) {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'streg-confirm-text',
-    row.navn ? `Fjern "${row.navn}" fra skemaet?` : 'Fjern denne række fra skemaet?'));
+    row.navn ? `Fjern "${row.navn}"?` : 'Fjern denne række?'));
+  form.appendChild(el('p', 'budget-intro', 'Dette kan ikke fortrydes.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -2920,8 +2920,7 @@ function stregOpenResetConfirm() {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'streg-confirm-text', 'Nulstil stregregnskabet?'));
-  let text = 'Alle navne og streger for dette budget slettes permanent.';
-  if (stregState.connection) text += ' Forbindelsen til formularen fjernes også.';
+  let text = 'Dette kan ikke fortrydes.';
   form.appendChild(el('p', 'budget-intro', text));
 
   const cancelBtn = budgetPillBtn('Annuller');
@@ -3082,7 +3081,7 @@ async function stregOpenConnectModal() {
     navnPicker = siteCreateDropdownField(fieldOpts, initialNavn);
     fieldsContainer.appendChild(siteEditField('Navn-felt', navnPicker));
     fieldsContainer.appendChild(el('p', 'budget-intro',
-      'Alle nuværende og fremtidige navne bliver automatisk tilføjet til stregregnskabet — antal streger indtastes altid manuelt.'));
+      'Alle nuværende og fremtidige svar bliver automatisk tilføjet til arket.'));
   }
 
   formPicker.addEventListener('change', () => loadFormFields(formPicker.value));
@@ -3138,7 +3137,7 @@ function stregOpenDisconnectConfirm(closeParent) {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'streg-confirm-text', 'Fjern forbindelsen til formularen?'));
-  form.appendChild(el('p', 'budget-intro', 'Rækker der allerede er hentet ind, bliver ikke slettet.'));
+  form.appendChild(el('p', 'budget-intro', 'Rækker der er hentet ind, bliver ikke slettet.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -3385,7 +3384,8 @@ function stregOpenDeleteCategoryConfirm(item, onConfirm) {
   if (heading) heading.remove();
 
   form.appendChild(el('p', 'streg-confirm-text',
-    item.label ? `Fjern "${item.label}" permanent?` : 'Fjern denne kategori permanent?'));
+    item.label ? `Fjern "${item.label}"?` : 'Fjern denne kategori?'));
+  form.appendChild(el('p', 'budget-intro', 'Dette kan ikke fortrydes.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
