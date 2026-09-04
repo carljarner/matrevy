@@ -455,7 +455,17 @@ function renderBottomActions() {
   btn.type = 'button';
   btn.className = 'site-btn-warm';
   btn.textContent = 'Upload';
-  btn.addEventListener('click', openUploadModal);
+  btn.addEventListener('click', () => {
+    // manuscripts_create rejects with no_production_folder server-side
+    // once there's no active production (manus_current_production_folder()
+    // in update-data.php) — checked here too so a revyst-level uploader
+    // never even sees the modal, rather than filling it in and hitting a
+    // generic "Der opstod en serverfejl" only on submit. Same toast/message
+    // as the boss-only PDF actions' own "Ingen aktiv produktion" gate.
+    const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+    if (!folder) { siteShowToast('Ingen aktiv produktion'); return; }
+    openUploadModal();
+  });
   mount.appendChild(btn);
 }
 
