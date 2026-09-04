@@ -618,6 +618,23 @@ function faellesOpenPreferencesModal(col, attendees) {
   actions.appendChild(closeBtn);
 }
 
+// The current production year, for the connect modal's Revy filter's
+// default selection — duplicates forms.js's own formsCurrentProductionYear
+// (that file isn't loaded here, per the site's per-feature-duplication
+// convention). Needs config-data.js loaded on this page purely for this.
+function faellesCurrentProductionYear() {
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  const m = folder.match(/\d{4}/);
+  return m ? parseInt(m[0], 10) : new Date().getFullYear();
+}
+
+// A form's own Revy year, falling back to the current production year for
+// a form saved before productionYear existed — mirrors forms.js's own
+// Oversigt year-filter fallback.
+function faellesFormYear(f, currentYear) {
+  return f.productionYear != null ? f.productionYear : currentYear;
+}
+
 // ── Boss: connect the sheet to a Formularer form ─────────────
 // Pick a form (e.g. "Tilmelding 2026"), then which of its fields answers
 // Navn and which answers Madforbehold. Reuses Forms' own boss-level
@@ -647,14 +664,40 @@ async function faellesOpenConnectModal(root) {
   }
 
   const currentConnection = faellesState.connection;
-  const formOptions = forms.map((f) => ({
-    value: f.id,
-    label: `${f.title || '(uden titel)'} (${f.responseCount} svar)`,
-  }));
-  const initialFormId = (currentConnection && forms.some((f) => f.id === currentConnection.formId))
-    ? currentConnection.formId : formOptions[0].value;
+  const currentYear = faellesCurrentProductionYear();
+  const connectedForm = currentConnection ? forms.find((f) => f.id === currentConnection.formId) : null;
+  // Revy filter defaults to the current production year — unless a form is
+  // already connected, in which case it defaults to *that* form's own Revy
+  // year instead, so the connected form is always the one shown selected
+  // when the modal opens (even if it belongs to an older Revy).
+  const initialYear = connectedForm ? faellesFormYear(connectedForm, currentYear) : currentYear;
+  const years = Array.from(new Set([
+    currentYear,
+    ...(connectedForm ? [faellesFormYear(connectedForm, currentYear)] : []),
+    ...forms.map((f) => faellesFormYear(f, currentYear)),
+  ])).sort((a, b) => b - a);
+  const yearOptions = years.map((y) => ({ value: String(y), label: String(y) }));
+
+  const formOptions = [];
+  function formsForYear(year) {
+    return forms.filter((f) => faellesFormYear(f, currentYear) === year);
+  }
+  function buildFormOption(f) {
+    return { value: f.id, label: `${f.title || '(uden titel)'}\n(${f.responseCount} svar)` };
+  }
+
+  const initialFormsForYear = formsForYear(initialYear);
+  for (const f of initialFormsForYear) formOptions.push(buildFormOption(f));
+  const initialFormId = (connectedForm && initialFormsForYear.some((f) => f.id === connectedForm.id))
+    ? connectedForm.id : (initialFormsForYear[0] ? initialFormsForYear[0].id : null);
+
   const formPicker = siteCreateDropdownField(formOptions, initialFormId);
-  form.appendChild(siteEditField('Formular', formPicker));
+  const yearPicker = siteCreateDropdownField(yearOptions, String(initialYear));
+
+  const topRow = el('div', 'edit-field-row');
+  topRow.appendChild(siteEditField('Formular', formPicker));
+  topRow.appendChild(siteEditField('Revy', yearPicker));
+  form.appendChild(topRow);
 
   const fieldsContainer = el('div');
   form.appendChild(fieldsContainer);
@@ -668,6 +711,10 @@ async function faellesOpenConnectModal(root) {
     navnPicker = null;
     madforboholdPicker = null;
     fieldsContainer.replaceChildren();
+    if (!formId) {
+      fieldsContainer.appendChild(el('p', 'faelles-summary-note', 'Ingen formularer for denne revy.'));
+      return;
+    }
     fieldsContainer.appendChild(el('p', 'faelles-summary-note', 'Indlæser felter…'));
     const readResult = await faellesApi('forms_admin_read', { formId });
     fieldsContainer.replaceChildren();
@@ -694,6 +741,14 @@ async function faellesOpenConnectModal(root) {
   }
 
   formPicker.addEventListener('change', () => loadFormFields(formPicker.value));
+  yearPicker.addEventListener('change', () => {
+    const yearForms = formsForYear(parseInt(yearPicker.value, 10));
+    formOptions.length = 0;
+    for (const f of yearForms) formOptions.push(buildFormOption(f));
+    const nextFormId = yearForms[0] ? yearForms[0].id : null;
+    formPicker.value = nextFormId;
+    loadFormFields(nextFormId);
+  });
   await loadFormFields(initialFormId);
 
   if (currentConnection) {

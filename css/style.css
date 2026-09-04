@@ -1294,6 +1294,10 @@ body.site-menu-open {
   color: var(--text);
   cursor: pointer;
   transition: background 0.15s ease;
+  /* Renders an explicit \n (e.g. Formularer's connect-modal "Title\n(N svar)"
+     labels) as a real line break; a no-\n label is unaffected since a run of
+     ordinary whitespace still collapses to one space either way. */
+  white-space: pre-line;
 }
 
 @media (hover: hover) {

@@ -3064,6 +3064,13 @@ function stregOpenPrintSheet(draft) {
 // actions (forms_admin_list/forms_admin_read) via budgetApi the same way
 // faellesApi does — the shared password/level model doesn't care which
 // page a request came from.
+// A form's own Revy year, falling back to `fallbackYear` for a form saved
+// before productionYear existed — mirrors faellesspisning.js's own
+// faellesFormYear.
+function stregFormYear(f, fallbackYear) {
+  return f.productionYear != null ? f.productionYear : fallbackYear;
+}
+
 async function stregOpenConnectModal() {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Forbind til formular');
   modal.classList.add('streg-connect-modal');
@@ -3084,14 +3091,46 @@ async function stregOpenConnectModal() {
   }
 
   const currentConnection = stregState.connection;
-  const formOptions = forms.map((f) => ({
-    value: f.id,
-    label: `${f.title || '(uden titel)'} (${f.responseCount} svar)`,
-  }));
-  const initialFormId = (currentConnection && forms.some((f) => f.id === currentConnection.formId))
-    ? currentConnection.formId : formOptions[0].value;
+  // Defaults to the currently *viewed* budget's own year (not necessarily
+  // the current production year — Stregregnskab's toolbar can be viewing
+  // any past budget), same "which one am I looking at" convention as the
+  // rest of this page. Falls back to this calendar year if that budget's
+  // entry isn't found for some reason (shouldn't happen once loaded).
+  const viewedEntry = budgetYearsList.find((y) => y.budgetId === budgetViewId);
+  const viewedYear = viewedEntry ? viewedEntry.year : new Date().getFullYear();
+  const connectedForm = currentConnection ? forms.find((f) => f.id === currentConnection.formId) : null;
+  // Revy filter defaults to the viewed budget's year — unless a form is
+  // already connected, in which case it defaults to *that* form's own Revy
+  // year instead, so the connected form is always the one shown selected
+  // when the modal opens (even if it belongs to a different Revy).
+  const initialYear = connectedForm ? stregFormYear(connectedForm, viewedYear) : viewedYear;
+  const years = Array.from(new Set([
+    viewedYear,
+    ...(connectedForm ? [stregFormYear(connectedForm, viewedYear)] : []),
+    ...forms.map((f) => stregFormYear(f, viewedYear)),
+  ])).sort((a, b) => b - a);
+  const yearOptions = years.map((y) => ({ value: String(y), label: String(y) }));
+
+  const formOptions = [];
+  function formsForYear(year) {
+    return forms.filter((f) => stregFormYear(f, viewedYear) === year);
+  }
+  function buildFormOption(f) {
+    return { value: f.id, label: `${f.title || '(uden titel)'}\n(${f.responseCount} svar)` };
+  }
+
+  const initialFormsForYear = formsForYear(initialYear);
+  for (const f of initialFormsForYear) formOptions.push(buildFormOption(f));
+  const initialFormId = (connectedForm && initialFormsForYear.some((f) => f.id === connectedForm.id))
+    ? connectedForm.id : (initialFormsForYear[0] ? initialFormsForYear[0].id : null);
+
   const formPicker = siteCreateDropdownField(formOptions, initialFormId);
-  form.appendChild(siteEditField('Formular', formPicker));
+  const yearPicker = siteCreateDropdownField(yearOptions, String(initialYear));
+
+  const topRow = el('div', 'edit-field-row');
+  topRow.appendChild(siteEditField('Formular', formPicker));
+  topRow.appendChild(siteEditField('Revy', yearPicker));
+  form.appendChild(topRow);
 
   const fieldsContainer = el('div');
   form.appendChild(fieldsContainer);
@@ -3103,6 +3142,10 @@ async function stregOpenConnectModal() {
     currentFormId = formId;
     navnPicker = null;
     fieldsContainer.replaceChildren();
+    if (!formId) {
+      fieldsContainer.appendChild(el('p', 'budget-intro', 'Ingen formularer for denne revy.'));
+      return;
+    }
     fieldsContainer.appendChild(el('p', 'budget-intro', 'Indlæser felter…'));
     const readResult = await budgetApi('forms_admin_read', { formId });
     fieldsContainer.replaceChildren();
@@ -3125,6 +3168,14 @@ async function stregOpenConnectModal() {
   }
 
   formPicker.addEventListener('change', () => loadFormFields(formPicker.value));
+  yearPicker.addEventListener('change', () => {
+    const yearForms = formsForYear(parseInt(yearPicker.value, 10));
+    formOptions.length = 0;
+    for (const f of yearForms) formOptions.push(buildFormOption(f));
+    const nextFormId = yearForms[0] ? yearForms[0].id : null;
+    formPicker.value = nextFormId;
+    loadFormFields(nextFormId);
+  });
   await loadFormFields(initialFormId);
 
   if (currentConnection) {
