@@ -218,7 +218,7 @@ if (isset($FORMS_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FORMS_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
-  handle_forms($action, $body);
+  handle_forms($action, $body, $level);
 }
 
 // ── Fællesspisning actions (private Simply.com datastore) ──
@@ -2528,6 +2528,7 @@ function forms_admin_list($body) {
       'status' => $def['status'] ?? 'closed',
       'deadline' => $def['deadline'] ?? null,
       'productionYear' => $def['productionYear'] ?? null,
+      'visibility' => forms_visibility($def),
       'fieldCount' => count($def['fields'] ?? []),
       'responseCount' => count($responses['responses'] ?? []),
       'updatedAt' => $def['updatedAt'] ?? null,
@@ -2536,18 +2537,37 @@ function forms_admin_list($body) {
   respond(200, ['ok' => true, 'forms' => $out]);
 }
 
+// A form's Synlighed — 'boss' (default, every management-level visitor can
+// see its responses) or 'admin' (responses restricted to admin login only;
+// the form's own definition stays boss-editable regardless — see
+// forms_admin_read below). Normalizes anything else (missing, or a stale/
+// invalid value) back to 'boss', same defensive posture as forms_save's
+// own validation.
+function forms_visibility($def) {
+  $v = $def['visibility'] ?? 'boss';
+  return in_array($v, ['boss', 'admin'], true) ? $v : 'boss';
+}
+
 // Boss: everything needed to render the management view for one form (full
 // definition + every response) in one round trip, mirrors budget_read.
-function forms_admin_read($body) {
+// `$level` is the caller's own resolved level (always 'boss' or 'admin'
+// here, per $FORMS_ACTIONS' own boss-minimum gate) — a boss-level caller
+// still gets the definition back (so Rediger/the status-toggle chip keep
+// working on any form), but `responses` is withheld when the form's own
+// Synlighed restricts it to admin, and `responsesRestricted:true` tells the
+// client to show that explicitly rather than reading as "no responses yet".
+function forms_admin_read($body, $level) {
   $id = $body['formId'] ?? '';
   if (!forms_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
   $def = forms_load(forms_form_dir($id) . '/definition.json', null);
   if (!is_array($def)) respond(404, ['error' => 'not_found']);
-  $responses = forms_load(forms_form_dir($id) . '/responses.json', ['responses' => []]);
+  $restricted = forms_visibility($def) === 'admin' && $level !== 'admin';
+  $responses = $restricted ? [] : (forms_load(forms_form_dir($id) . '/responses.json', ['responses' => []])['responses'] ?? []);
   respond(200, [
     'ok' => true,
     'definition' => array_merge(['id' => $id], $def),
-    'responses' => $responses['responses'] ?? [],
+    'responses' => $responses,
+    'responsesRestricted' => $restricted,
   ]);
 }
 
@@ -2561,6 +2581,7 @@ function forms_save($body) {
   $title = $body['title'] ?? '';
   $description = $body['description'] ?? '';
   $status = $body['status'] ?? 'closed';
+  $visibility = $body['visibility'] ?? 'boss';
   $deadline = array_key_exists('deadline', $body) ? $body['deadline'] : null;
   $productionYear = array_key_exists('productionYear', $body) ? $body['productionYear'] : null;
   $fromTemplateId = array_key_exists('fromTemplateId', $body) ? $body['fromTemplateId'] : null;
@@ -2570,7 +2591,10 @@ function forms_save($body) {
   if (!is_string($title) || trim($title) === '' || mb_strlen($title) > 120
       || !is_string($description) || mb_strlen($description) > 2000
       || !in_array($status, ['open', 'closed'], true)
-      || ($deadline !== null && (!is_string($deadline) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $deadline)))
+      || !in_array($visibility, ['boss', 'admin'], true)
+      // Deadline is a bare date, or a date+time pair (siteCreateDateTimeField's
+      // own 'YYYY-MM-DDTHH:MM' shape) — the time half is always optional.
+      || ($deadline !== null && (!is_string($deadline) || !preg_match('/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/', $deadline)))
       || ($productionYear !== null && !is_int($productionYear))
       || ($fromTemplateId !== null && !forms_valid_id($fromTemplateId))
       || !is_array($fieldsIn) || !is_array($sectionsIn)) {
@@ -2607,6 +2631,7 @@ function forms_save($body) {
     'title' => trim($title),
     'description' => $description,
     'status' => $status,
+    'visibility' => $visibility,
     'deadline' => $deadline,
     'productionYear' => $productionYear,
     'fromTemplateId' => $fromTemplateId,
@@ -2748,13 +2773,13 @@ function templates_delete($body) {
   respond(200, ['ok' => true]);
 }
 
-function handle_forms($action, $body) {
+function handle_forms($action, $body, $level) {
   switch ($action) {
     case 'forms_list_open':  return forms_list_open($body);
     case 'forms_get':        return forms_get($body);
     case 'forms_submit':     return forms_submit($body);
     case 'forms_admin_list': return forms_admin_list($body);
-    case 'forms_admin_read': return forms_admin_read($body);
+    case 'forms_admin_read': return forms_admin_read($body, $level);
     case 'forms_save':       return forms_save($body);
     case 'forms_delete':     return forms_delete($body);
     case 'forms_delete_response': return forms_delete_response($body);

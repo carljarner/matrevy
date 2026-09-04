@@ -67,6 +67,14 @@ function formatDaDateTime(iso) {
   return `${formatDaDate(datePart)} kl. ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Like formatDaDateTime, but tolerates a bare date (no `T` suffix) instead
+// of defaulting the missing time to midnight — for a field like Formularer's
+// deadline, where a time is optional and "kl. 00:00" would misread as a
+// real deadline time rather than "no time set".
+function formatDaDateMaybeTime(iso) {
+  return iso.includes('T') ? formatDaDateTime(iso) : formatDaDate(iso);
+}
+
 // ── Toast (brief bottom-of-page confirmation) ─────────────────
 let siteToastEl = null;
 let siteToastTimer = null;
@@ -673,6 +681,61 @@ function siteCreateTimeField(initialValue) {
   });
 
   return wrap;
+}
+
+// A date field that folds a deadline's optional time into the same button
+// (Formularer's "Frist") rather than a separate field: picking a day
+// re-opens the SAME popup one step further, as a time list — "Ingen tid"
+// there keeps it a date-only deadline, any other row appends a time.
+// Value is a bare 'YYYY-MM-DD' or a 'YYYY-MM-DDTHH:MM' pair, matching
+// parseIsoDateTime's own format. The date is applied (and 'change' fires)
+// as soon as a day is picked, before the time step even opens, so
+// dismissing the time step (Escape/outside click) still keeps that date —
+// it only refines an already-committed pick, never gates it.
+function siteCreateDateTimeField(initialValue) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-field-btn';
+  const text = document.createElement('span');
+  text.className = 'site-field-text';
+  const chevron = document.createElement('span');
+  chevron.className = 'site-field-chevron';
+  chevron.textContent = '▾';
+  btn.appendChild(text);
+  btn.appendChild(chevron);
+
+  let _value = initialValue || '';
+  function render() {
+    if (!_value) {
+      text.textContent = 'Vælg dato';
+      text.classList.add('site-field-placeholder');
+      return;
+    }
+    text.classList.remove('site-field-placeholder');
+    text.textContent = formatDaDateMaybeTime(_value);
+  }
+  Object.defineProperty(btn, 'value', {
+    get() { return _value; },
+    set(v) { _value = v || ''; render(); },
+  });
+  render();
+
+  btn.addEventListener('click', () => {
+    siteToggleFieldPopup(btn, () => {
+      const [currentDate, currentTime] = _value.split('T');
+      siteOpenDatePicker(btn, currentDate || '', (iso) => {
+        _value = currentTime ? `${iso}T${currentTime}` : iso;
+        render();
+        btn.dispatchEvent(new Event('change'));
+        siteOpenTimePicker(btn, currentTime || '', (t) => {
+          _value = t ? `${iso}T${t}` : iso;
+          render();
+          btn.dispatchEvent(new Event('change'));
+        });
+      });
+    });
+  });
+  return btn;
 }
 
 // Generic dropdown popup: `options` is [{value, label}]. For a plain

@@ -75,6 +75,15 @@
   width: min(300px, 85vw);
 }
 
+/* Delete-section confirm (formsOpenDeleteSectionConfirm) — its whole
+   message now lives in the title ("Slet Sektion N: <title>?"), so it reads
+   better a little narrower than the default .edit-modal (480px), though
+   not as narrow as .forms-leave-modal's own one-liner since a section
+   title can run long. */
+.forms-narrow-modal {
+  width: min(400px, 90vw);
+}
+
 .forms-msg {
   font-size: 0.85rem;
   min-height: 1.2rem;
@@ -322,6 +331,20 @@
   outline: none;
   background: var(--accent-warm-fill);
   color: var(--accent-warm-text);
+}
+
+/* A Synlighed-restricted Statistik/Svar button (see forms.js's Oversigt
+   row rendering) — greyed out rather than removed, so its position/tooltip
+   still explain why it's missing instead of the row just looking shorter. */
+.forms-row-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+@media (hover: hover) {
+  .forms-row-icon-btn:disabled:hover {
+    background: none;
+    color: var(--text-muted);
+  }
 }
 
 /* Small hover label — this page's one tooltip convention, since a native
@@ -961,9 +984,9 @@
   .forms-field-row-top input[type="text"],
   .forms-field-type-dd { flex: 1 1 auto; }
   .forms-builder-head { flex-wrap: wrap; row-gap: 0.5rem; }
-  /* Status/Frist/Produktionsår's shared 3-column .edit-field-row (see
-     style.css) is too cramped at this width — stack it like every other
-     field on the page instead. */
+  /* Status/Synlighed/Frist/Produktionsår's shared 4-column .edit-field-row
+     (see style.css) is too cramped at this width — stack it like every
+     other field on the page instead. */
   .forms-builder-card .edit-field-row { flex-direction: column; }
   /* Half the desktop indent for the fill-in view's answer widgets — a
      full "tab" (or two, for Skala's circles/captions) eats too much of a

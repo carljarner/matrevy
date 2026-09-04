@@ -740,7 +740,7 @@ async function renderFormsList(root) {
     const info = el('div', 'forms-open-info');
     info.appendChild(el('div', 'forms-open-title', f.title));
     if (f.deadline) info.appendChild(el('div', 'forms-open-deadline',
-      'Frist: ' + (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline)));
+      'Frist: ' + (typeof formatDaDateMaybeTime === 'function' ? formatDaDateMaybeTime(f.deadline) : f.deadline)));
     row.appendChild(info);
     const arrow = el('span', 'forms-open-arrow', '→');
     arrow.setAttribute('aria-hidden', 'true');
@@ -985,14 +985,14 @@ async function renderFormFillIn(root, formId) {
 // disclosure state) and excluded from both sides of the diff, exactly like
 // manus.js's `_`-prefixed-key exclusion, so toggling a section open/closed
 // never itself counts as an edit.
-let formsBuilderDraft = null; // { titleInput, statusDd, deadlineField, revyDd, draftSections }
+let formsBuilderDraft = null; // { titleInput, statusDd, visibilityDd, deadlineField, revyDd, draftSections }
 let formsBuilderSnapshot = null;
 
 function formsBuilderPayloadForDiff() {
   if (!formsBuilderDraft) return null;
-  const { titleInput, statusDd, deadlineField, revyDd, draftSections } = formsBuilderDraft;
+  const { titleInput, statusDd, visibilityDd, deadlineField, revyDd, draftSections } = formsBuilderDraft;
   return {
-    title: titleInput.value, status: statusDd.value,
+    title: titleInput.value, status: statusDd.value, visibility: visibilityDd.value,
     deadline: deadlineField.value || null, productionYear: revyDd.value,
     sections: draftSections,
   };
@@ -1227,8 +1227,9 @@ async function formsRenderOverviewScreen(root) {
           const def = full.data.definition;
           await formsApi('forms_save', {
             id: f.id, title: def.title, description: def.description,
-            status: f.status === 'open' ? 'closed' : 'open', deadline: def.deadline,
-            productionYear: def.productionYear, fromTemplateId: def.fromTemplateId,
+            status: f.status === 'open' ? 'closed' : 'open', visibility: def.visibility,
+            deadline: def.deadline, productionYear: def.productionYear,
+            fromTemplateId: def.fromTemplateId,
             fields: def.fields, sections: def.sections || [],
           });
         }
@@ -1238,26 +1239,34 @@ async function formsRenderOverviewScreen(root) {
       row.appendChild(statusCell);
 
       row.appendChild(el('td', null, f.deadline
-        ? (typeof formatDaDate === 'function' ? formatDaDate(f.deadline) : f.deadline) : '—'));
+        ? (typeof formatDaDateMaybeTime === 'function' ? formatDaDateMaybeTime(f.deadline) : f.deadline) : '—'));
       row.appendChild(el('td', null, String(f.responseCount)));
 
       // Three row actions: "Se statistik" (bars), "Se svar" (paper) and
       // "Rediger" (pencil, same icon convention as calendar.js/budget.js's
       // own edit buttons), far right, edit last. Deleting a form moved into
       // its own edit view (top-right X) — see formsRenderBuilderScreen.
+      // Statistik/Svar are greyed out (not hidden — Titel/Status/Rediger
+      // stay boss-editable regardless) whenever this form's own Synlighed
+      // restricts them to Koordinatorer; forms_admin_read enforces the
+      // same restriction server-side, this is just so a boss doesn't click
+      // through to a screen that then has to refuse them.
+      const restricted = f.visibility === 'admin' && !siteHasLevel('admin');
       const actionsCell = el('td', 'forms-row-actions');
       const statsBtn = el('button', 'forms-row-icon-btn');
       statsBtn.type = 'button';
-      statsBtn.setAttribute('aria-label', 'Statistik');
-      statsBtn.setAttribute('data-tooltip', 'Statistik');
+      statsBtn.setAttribute('aria-label', restricted ? 'Statistik (kun koordinatorer)' : 'Statistik');
+      statsBtn.setAttribute('data-tooltip', restricted ? 'Kun koordinatorer' : 'Statistik');
       statsBtn.appendChild(formsChartIcon());
-      statsBtn.addEventListener('click', () => renderAdminView(root, { name: 'stats', formId: f.id }));
+      if (restricted) statsBtn.disabled = true;
+      else statsBtn.addEventListener('click', () => renderAdminView(root, { name: 'stats', formId: f.id }));
       const respBtn = el('button', 'forms-row-icon-btn');
       respBtn.type = 'button';
-      respBtn.setAttribute('aria-label', 'Svar');
-      respBtn.setAttribute('data-tooltip', 'Svar');
+      respBtn.setAttribute('aria-label', restricted ? 'Svar (kun koordinatorer)' : 'Svar');
+      respBtn.setAttribute('data-tooltip', restricted ? 'Kun koordinatorer' : 'Svar');
       respBtn.appendChild(formsPaperIcon());
-      respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
+      if (restricted) respBtn.disabled = true;
+      else respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
       const editBtn = el('button', 'forms-row-icon-btn');
       editBtn.type = 'button';
       editBtn.setAttribute('aria-label', 'Rediger');
@@ -1291,10 +1300,11 @@ async function formsRenderOverviewScreen(root) {
 }
 
 function formsOpenDeleteConfirm(root, f) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet formular');
+  const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${f.title}"?`);
   modal.classList.add('forms-center-modal');
-  form.appendChild(el('p', 'forms-intro',
-    `Slet "${f.title}" permanent, inklusive alle ${f.responseCount} indsendte svar? Dette kan ikke fortrydes.`));
+  form.appendChild(el('p', 'forms-intro', f.responseCount > 0
+    ? `Inklusiv alle ${f.responseCount} svar? Dette kan ikke fortrydes.`
+    : 'Dette kan ikke fortrydes.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');
@@ -1957,15 +1967,26 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   titleInput.value = existingDefinition ? existingDefinition.title : '';
   card.appendChild(siteEditField('Titel', titleInput));
 
-  // Status/Frist/Revy are form-level metadata, shown once regardless of
-  // how many sections the form has.
+  // Status/Synlighed/Frist/Revy are form-level metadata, shown once
+  // regardless of how many sections the form has.
   const metaRow = el('div', 'edit-field-row');
   const statusDd = siteCreateDropdownField(
     [{ value: 'closed', label: 'Lukket' }, { value: 'open', label: 'Åben' }],
     existingDefinition ? existingDefinition.status : 'closed');
   metaRow.appendChild(siteEditField('Status', statusDd));
 
-  const deadlineField = siteCreateDateField(existingDefinition ? existingDefinition.deadline : '');
+  // Gates access to this form's own responses (statistik + svar) server-side
+  // (see forms_admin_read's visibility check) — 'admin' hides both from a
+  // boss-level visitor, while the form itself (this builder, status toggle)
+  // stays boss-editable regardless, same as every other Formularer action.
+  const visibilityDd = siteCreateDropdownField(
+    [{ value: 'boss', label: 'Bosser' }, { value: 'admin', label: 'Koordinatorer' }],
+    existingDefinition && existingDefinition.visibility === 'admin' ? 'admin' : 'boss');
+  metaRow.appendChild(siteEditField('Synlighed', visibilityDd));
+
+  // Deadline is a single field: picking a day re-opens the same popup as a
+  // time picker (see siteCreateDateTimeField) instead of a separate field.
+  const deadlineField = siteCreateDateTimeField(existingDefinition ? existingDefinition.deadline : '');
   metaRow.appendChild(siteEditField('Frist (valgfri)', deadlineField));
 
   const existingYear = existingDefinition && existingDefinition.productionYear != null
@@ -2035,7 +2056,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     const productionYear = parseInt(revyDd.value, 10);
     saveBtn.disabled = true;
     const payload = {
-      title, status: statusDd.value,
+      title, status: statusDd.value, visibility: visibilityDd.value,
       deadline: deadlineField.value || null, productionYear,
       fromTemplateId: existingDefinition ? (existingDefinition.fromTemplateId || null) : null,
       fields: [], sections: cleanedSections.sections,
@@ -2059,7 +2080,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   // at the end of setup, so the initial scaffold (a brand new form's default
   // "Navn" field, or an existing form's just-loaded sections) never itself
   // reads as unsaved; only a real edit after this point does.
-  formsBuilderDraft = { titleInput, statusDd, deadlineField, revyDd, draftSections };
+  formsBuilderDraft = { titleInput, statusDd, visibilityDd, deadlineField, revyDd, draftSections };
   formsBuilderSnapshot = formsBuilderSerializeForDiff(formsBuilderPayloadForDiff());
 }
 
@@ -2168,7 +2189,7 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
       rerenderAll();
       onChange();
     } else {
-      formsOpenDeleteSectionConfirm(idx + 1, () => {
+      formsOpenDeleteSectionConfirm(formsSectionHeaderLabel(section, idx), () => {
         draftSections.splice(idx, 1);
         pruneSectionFields();
         rerenderAll();
@@ -2226,10 +2247,10 @@ function formsSectionIsEmpty(section) {
   return !fields.some((f) => (f.label || '').trim());
 }
 
-function formsOpenDeleteSectionConfirm(sectionNumber, onConfirm) {
-  const { modal, form, actions, close } = siteOpenModalWithClose('Slet sektion');
-  modal.classList.add('forms-center-modal');
-  form.appendChild(el('p', 'forms-intro', `Slet Sektion ${sectionNumber}? Dette kan ikke fortrydes.`));
+function formsOpenDeleteSectionConfirm(sectionLabel, onConfirm) {
+  const { modal, form, actions, close } = siteOpenEditModal(`Slet ${sectionLabel}`);
+  modal.classList.add('forms-center-modal', 'forms-narrow-modal');
+  form.appendChild(el('p', 'forms-intro', 'Dette kan ikke fortrydes.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');
@@ -2239,7 +2260,7 @@ function formsOpenDeleteSectionConfirm(sectionNumber, onConfirm) {
 }
 
 function formsOpenDeleteResponseConfirm(submittedAtLabel, onConfirm) {
-  const { modal, form, actions, close } = siteOpenModalWithClose('Slet svar');
+  const { modal, form, actions, close } = siteOpenEditModal('Slet svar');
   modal.classList.add('forms-center-modal');
   form.appendChild(el('p', 'forms-intro', `Slet dette svar (indsendt ${submittedAtLabel})? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
@@ -2258,7 +2279,7 @@ function formsFieldIsEmpty(field) {
 }
 
 function formsOpenDeleteFieldConfirm(fieldLabel, onConfirm) {
-  const { modal, form, actions, close } = siteOpenModalWithClose('Slet spørgsmål');
+  const { modal, form, actions, close } = siteOpenEditModal('Slet spørgsmål');
   modal.classList.add('forms-center-modal');
   const label = (fieldLabel || '').trim();
   form.appendChild(el('p', 'forms-intro',
@@ -2332,7 +2353,7 @@ function formsOpenTemplateMenuPopup(anchor, templates, result, onUse) {
 }
 
 function formsOpenDeleteTemplateConfirm(t) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose('Slet skabelon');
+  const { modal, form, error, actions, close } = siteOpenEditModal('Slet skabelon');
   modal.classList.add('forms-center-modal');
   form.appendChild(el('p', 'forms-intro', `Slet skabelonen "${t.title}" permanent? Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
@@ -2486,8 +2507,17 @@ async function formsRenderResponsesScreen(root, formId) {
     return;
   }
   const definition = result.data.definition;
-  const responses = Array.isArray(result.data.responses) ? result.data.responses : [];
   body.appendChild(el('h2', null, definition.title));
+  // forms_admin_read withholds responses (never the definition) for a
+  // boss-level visitor when Synlighed is "Koordinatorer" — the row's own
+  // disabled Svar-button already keeps a boss from reaching this screen
+  // normally, this is the server-enforced backstop.
+  if (result.data.responsesRestricted) {
+    body.appendChild(el('p', 'forms-msg error',
+      'Svarene for denne formular er kun tilgængelige for koordinatorer.'));
+    return;
+  }
+  const responses = Array.isArray(result.data.responses) ? result.data.responses : [];
 
   if (responses.length === 0) {
     body.appendChild(el('p', 'forms-intro', 'Ingen svar endnu.'));
@@ -2635,8 +2665,15 @@ async function formsRenderStatsScreen(root, formId) {
     return;
   }
   const definition = result.data.definition;
-  const responses = Array.isArray(result.data.responses) ? result.data.responses : [];
   body.appendChild(el('h2', null, definition.title));
+  // See formsRenderResponsesScreen's own comment — same server-enforced
+  // Synlighed backstop, here for the aggregated stats instead of raw svar.
+  if (result.data.responsesRestricted) {
+    body.appendChild(el('p', 'forms-msg error',
+      'Statistikken for denne formular er kun tilgængelig for koordinatorer.'));
+    return;
+  }
+  const responses = Array.isArray(result.data.responses) ? result.data.responses : [];
   body.appendChild(el('p', 'forms-stats-summary',
     responses.length === 1 ? '1 svar indsendt' : `${responses.length} svar indsendt`));
 
