@@ -363,6 +363,53 @@
   border-top-color: var(--accent-warm);
 }
 
+/* Trailing drop zone below the last row (koordMpGetDragImageEl's own
+   dragstart wires it just like every real row) — lets a row be dropped
+   after the last one, since a per-row-only drop target can only ever
+   insert *before* that row. Same top-border insertion-line treatment as
+   .koord-mp-row itself, just with no row content of its own. */
+.koord-mp-drop-tail {
+  min-height: 0.9rem;
+  border-top: 2px solid transparent;
+  transition: border-top-color 0.15s;
+}
+.koord-mp-drop-tail.koord-mp-drop-target {
+  border-top-color: var(--accent-warm);
+}
+
+/* koordMpGetDragImageEl()'s shared, reused drag-image element — see
+   forms.js's formsGetDragImageEl for the full rationale. Positioned
+   off-screen (not display:none, which some browsers refuse to snapshot)
+   so it never actually appears in the page's own layout. Stacks up to
+   three lines (Emne/To do/Beskrivelse) instead of the single-line pill
+   used elsewhere, since a Masterplan task row has no one title field. */
+.koord-mp-drag-image {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  max-width: 260px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--modal-shadow);
+}
+.koord-mp-drag-image-line {
+  font-size: 0.85rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.koord-mp-drag-image-line:first-child {
+  font-weight: 600;
+}
+.koord-mp-drag-image-line + .koord-mp-drag-image-line {
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 /* --- Columns — same flex ratios shared by the header row, group rows
    (title only) and task rows, so everything lines up whether or not a
    given row actually renders every column. --------------------------- */

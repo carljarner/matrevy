@@ -884,9 +884,9 @@ body.site-menu-open {
   box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
 }
 
-/* Purely-visual grab affordance, rightmost in the row (see bosses.js) —
-   same glyph/sizing recipe as manus.css's .manus-akt-drag-handle and
-   wiki.css's .wiki-manage-drag-handle. */
+/* Purely-visual grab affordance, leading (leftmost) in the row (see
+   bosses.js) — same glyph/sizing recipe and now same leading position as
+   manus.css's .manus-akt-drag-handle and wiki.css's .wiki-manage-drag-handle. */
 .boss-manage-drag-handle {
   flex: none;
   color: var(--text-muted);
@@ -896,6 +896,25 @@ body.site-menu-open {
 }
 
 .boss-manage-row:active .boss-manage-drag-handle { cursor: grabbing; }
+
+/* bossesGetDragImageEl()'s shared, reused drag-image element (js/bosses.js)
+   — see forms.js's formsGetDragImageEl for the full rationale. Positioned
+   off-screen (not display:none, which some browsers refuse to snapshot)
+   so it never actually appears in the page's own layout. */
+.bosses-drag-image {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: var(--modal-shadow);
+}
 
 /* One row along the bottom: "+" (left) — error (center, grows/shrinks to
    fill whatever's left) — "Gem" (right, kept small rather than the

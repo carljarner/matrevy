@@ -103,6 +103,26 @@ function renderBossesView(data) {
   }
 }
 
+// A native drag lets the browser snapshot the dragged element itself as the
+// drag image, which for one of these rows (handle + two stacked text
+// inputs) reads as a messy oversized preview rather than a clean one.
+// Routes through one shared, off-screen (not display:none — that would
+// keep it from being paintable) <div> instead, restyled with just the
+// dragged role's own title (not the person's name(s) — the row's actual
+// identity while reordering, matching what the list is organized by)
+// right before dragstart calls setDragImage on it — see forms.js's
+// formsGetDragImageEl for the page this pattern originated on.
+function bossesGetDragImageEl() {
+  let ghost = document.getElementById('bosses-drag-image');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'bosses-drag-image';
+    ghost.className = 'bosses-drag-image';
+    document.body.appendChild(ghost);
+  }
+  return ghost;
+}
+
 // ── Drag reorder helpers (duplicated from budget.js's own
 // budgetWireDropHighlight/budgetMoveDraftItem — see CLAUDE.md's
 // per-page-duplication convention, since neither file is loaded here).
@@ -200,6 +220,9 @@ function renderBossesEdit(data) {
       li.addEventListener('dragstart', (e) => {
         bossesDragItem = r;
         e.dataTransfer.effectAllowed = 'move';
+        const ghost = bossesGetDragImageEl();
+        ghost.textContent = r.role;
+        e.dataTransfer.setDragImage(ghost, 12, 16);
       });
       li.addEventListener('dragend', () => li.classList.remove('boss-drop-target'));
       bossesWireDropHighlight(li, () => {
@@ -207,6 +230,16 @@ function renderBossesEdit(data) {
           bossesMoveDraftItem(draft.roles, bossesDragItem, r, renderRows);
         }
       }, { stop: true });
+
+      // Purely-visual grab affordance, leading (leftmost) in the row — same
+      // glyph/sizing recipe as manus.css's .manus-akt-drag-handle and
+      // wiki.css's .wiki-manage-drag-handle, and now their same leading
+      // position (this row used to put it rightmost instead).
+      const handle = document.createElement('span');
+      handle.className = 'boss-manage-drag-handle';
+      handle.textContent = '⠿';
+      handle.setAttribute('aria-hidden', 'true');
+      li.appendChild(handle);
 
       // Role above names, matching the view-mode row order (.boss-role
       // then .boss-name — see renderBossesView) so toggling Rediger
@@ -246,16 +279,6 @@ function renderBossesEdit(data) {
         renderRows();
       });
       li.appendChild(rmBtn);
-
-      // Purely visual grab affordance — the whole row is already
-      // draggable, same "⠿" glyph as manus.js's Aktfordeling drag handle
-      // and wiki.js's chapter-reorder handle, placed rightmost here
-      // instead of those two's leading position.
-      const handle = document.createElement('span');
-      handle.className = 'boss-manage-drag-handle';
-      handle.textContent = '⠿';
-      handle.setAttribute('aria-hidden', 'true');
-      li.appendChild(handle);
 
       list.appendChild(li);
     });

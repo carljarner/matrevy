@@ -875,6 +875,23 @@ tr.budget-row-filler td {
   box-shadow: inset 0 2px 0 0 var(--accent-warm);
 }
 
+/* Trailing drop zone below the last category row (js/budget.js's
+   renderExpenseRows) — lets a category be dropped after the last one, since
+   a per-row-only drop target can only ever insert *before* that row. Same
+   inset-box-shadow treatment as .budget-manage-tr td, sized via its own
+   <td>'s height rather than the table's usual cell padding so it reads as
+   a deliberate strip, not a stray extra row. */
+.budget-manage-drop-tail-row td {
+  height: 0.9rem;
+  padding: 0;
+  border-bottom: none;
+  box-shadow: inset 0 2px 0 0 transparent;
+  transition: box-shadow 0.15s;
+}
+.budget-manage-drop-tail-row.budget-drop-target td {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
+}
+
 /* budgetGetDragImageEl()'s shared, reused drag-image element (js/budget.js)
    — see forms.js's formsGetDragImageEl for why a native drag needs this
    instead of letting the browser snapshot the dragged row/card itself.
@@ -1355,6 +1372,20 @@ tr.budget-row-filler td {
 }
 
 .streg-price-row.budget-drop-target {
+  border-top-color: var(--accent-warm);
+}
+
+/* Trailing drop zone below the last drink type (js/budget.js's
+   buildStregPricesCard renderList) — lets one be dropped after the last
+   row, since a per-row-only drop target can only ever insert *before*
+   that row. Same top-border treatment as .streg-price-row itself, no row
+   content of its own. */
+.streg-price-drop-tail {
+  min-height: 0.9rem;
+  border-top: 2px solid transparent;
+  transition: border-top-color 0.15s;
+}
+.streg-price-drop-tail.budget-drop-target {
   border-top-color: var(--accent-warm);
 }
 

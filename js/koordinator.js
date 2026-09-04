@@ -736,6 +736,33 @@ function koordMoveDraftItem(draft, item, beforeItem, rerender) {
   rerender();
 }
 
+// A native drag lets the browser snapshot the dragged element itself as the
+// drag image, which for a Masterplan row (7 columns' worth of text inputs)
+// reads as a messy oversized preview rather than a clean one. Routes
+// through one shared, off-screen (not display:none — that would keep it
+// from being paintable) <div> instead, restyled right before dragstart
+// calls setDragImage on it — see forms.js's formsGetDragImageEl for the
+// page this pattern originated on. Unlike the single-line ghosts on other
+// pages, a task row has no one title field, so the ghost shows up to three
+// stacked lines (Emne/To do/Beskrivelse — the row's first three, most
+// identifying columns) instead of picking just one.
+function koordMpGetDragImageEl() {
+  let ghost = document.getElementById('koord-mp-drag-image');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'koord-mp-drag-image';
+    ghost.className = 'koord-mp-drag-image';
+    document.body.appendChild(ghost);
+  }
+  return ghost;
+}
+
+function koordMpDragGhostLines(row) {
+  if (row.type === 'group') return [(row.title || '').trim() || 'Gruppe'];
+  const lines = [row.emne, row.todo, row.beskrivelse].map((v) => (v || '').trim()).filter(Boolean);
+  return lines.length ? lines : ['Opgave'];
+}
+
 // Duplicated verbatim from budget.js's own budgetWireDropHighlight.
 function koordWireDropHighlight(rowEl, onDrop) {
   let depth = 0;
@@ -861,6 +888,9 @@ function koordMpWireRowDrag(rowEl, row, rows) {
   rowEl.addEventListener('dragstart', (e) => {
     koordMpDragItem = row;
     e.dataTransfer.effectAllowed = 'move';
+    const ghost = koordMpGetDragImageEl();
+    ghost.replaceChildren(...koordMpDragGhostLines(row).map((line) => el('div', 'koord-mp-drag-image-line', line)));
+    e.dataTransfer.setDragImage(ghost, 12, 16);
   });
   rowEl.addEventListener('dragend', () => rowEl.classList.remove('koord-mp-drop-target'));
   koordWireDropHighlight(rowEl, () => {
@@ -982,6 +1012,15 @@ function renderMpGrid() {
   rows.forEach((row) => {
     mount.appendChild(row.type === 'group' ? renderMpGroupRow(row, rows) : renderMpTaskRow(row, rows));
   });
+
+  // A per-row-only drop target can only ever insert *before* that row —
+  // this trailing spacer is the only way to drop a row after the last one,
+  // same drop-tail recipe as wiki.js's/manus.js's own reorderable lists.
+  const tailRow = el('div', 'koord-mp-drop-tail');
+  koordWireDropHighlight(tailRow, () => {
+    if (koordMpDragItem) koordMoveDraftItem(rows, koordMpDragItem, null, renderMpGrid);
+  });
+  mount.appendChild(tailRow);
 
   const addRow = el('div', 'koord-mp-add-row');
   const addTaskBtn = el('button', 'btn-small', '+ Tilføj opgave');

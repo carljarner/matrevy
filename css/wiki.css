@@ -25,9 +25,9 @@
   min-width: 0;
 }
 
-/* Revyst-level view (js/wiki.js's renderWikiUnderConstruction): collapse
-   the two-column grid to a single centered gate card, same idea as
-   site.js's own applyPageGate() card. */
+/* Revyst-level view with no published chapters yet (js/wiki.js's
+   renderWikiNoPublishedChapters): collapse the two-column grid to a single
+   centered gate card, same idea as site.js's own applyPageGate() card. */
 .wiki-columns-construction {
   grid-template-columns: 1fr;
   max-width: 480px;
@@ -97,6 +97,14 @@
   background: var(--accent-warm-fill);
   color: var(--accent-warm-text);
   font-weight: 600;
+}
+
+/* Boss/admin-only suffix on a chapter's own list entry, flagging it as not
+   yet published to revyster (see wiki.js's renderWiki) — muted so it reads
+   as metadata, not part of the title itself. */
+.wiki-chapter-unpublished-tag {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .wiki-chapter-outline {
@@ -243,6 +251,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Per-row "Synlig for revyster" toggle — site-wide checkbox convention
+   (accent-color instead of the browser-default blue), same as Forms'/
+   Fællesspisning's own checkbox fields. */
+.wiki-manage-publish-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.wiki-manage-publish-toggle input[type="checkbox"] {
+  accent-color: var(--accent-warm-text);
+  cursor: pointer;
 }
 
 .wiki-manage-add-trigger-wrap {

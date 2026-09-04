@@ -15,6 +15,17 @@
    input + formatting toolbar + contenteditable body) — no modal, same
    position on the page. Delete lives inside that edit view's action row.
 
+   Each chapter also carries a `published` flag (default false/unset),
+   toggled per row inside the "Rediger kapitler" modal — coordinators
+   write chapters long before they're ready to show them off, so writing
+   and publishing are separate steps. Boss/admin always see every chapter
+   regardless of `published`. A revyst-level visitor sees the full chapter
+   list (so they know what exists) but can only open a published one —
+   unpublished titles render greyed-out/disabled, same visual treatment
+   as a locked nav item. If nothing is published yet, the revyst-level
+   view collapses to a single banner card instead of the two-column
+   layout (renderWikiNoPublishedChapters).
+
    Metadata saves globally via siteSaveResource ('wiki' resource,
    whole-array replace like every other data-driven page).
 
@@ -94,11 +105,19 @@ let wikiSelectedChapterId = null;
 let wikiEditingChapterId = null;
 
 // ── Rendering ────────────────────────────────────────────────
-// The wiki's content isn't finished yet — only boss/admin (who are
-// actively writing it) see the real chapters/editor; a revyst-level
-// visitor gets a static "under construction" card instead, mirroring
-// site.js's own applyPageGate() login-gate card styling.
-function renderWikiUnderConstruction() {
+// A chapter is visible to a revyst-level visitor once its own `published`
+// flag is true — everything else (writing, drafting) stays boss/admin-only
+// until a coordinator explicitly flips it on in the "Rediger kapitler"
+// modal. Missing/undefined `published` (every pre-existing chapter, and
+// every freshly-added one) reads as not-yet-published.
+function wikiChapterIsPublished(chapter) {
+  return chapter.published === true;
+}
+
+// Shown to a revyst-level visitor in place of the two-column layout when
+// no chapter is published yet — mirrors site.js's own applyPageGate()
+// login-gate card styling.
+function renderWikiNoPublishedChapters() {
   const columns = document.querySelector('.wiki-columns');
   if (!columns) return;
   columns.textContent = '';
@@ -109,7 +128,7 @@ function renderWikiUnderConstruction() {
   const h = document.createElement('h2');
   h.textContent = 'Siden er under opbygning';
   const p = document.createElement('p');
-  p.textContent = 'Wikien er ved at blive skrevet og er endnu ikke klar.';
+  p.textContent = 'Wikien er ved at blive skrevet og er endnu ikke offentliggjort for revyster.';
   card.appendChild(h);
   card.appendChild(p);
   columns.appendChild(card);
@@ -122,12 +141,13 @@ function renderWiki() {
   if (!chapterList || !contentBody) return;
 
   const canEdit = siteHasLevel('boss');
-  if (!canEdit) {
-    renderWikiUnderConstruction();
+  const chapters = getEffectiveChapters();
+
+  if (!canEdit && !chapters.some(wikiChapterIsPublished)) {
+    renderWikiNoPublishedChapters();
     return;
   }
-
-  const chapters = getEffectiveChapters();
+  document.querySelector('.wiki-columns')?.classList.remove('wiki-columns-construction');
 
   chapterList.textContent = '';
   contentBody.textContent = '';
@@ -141,8 +161,11 @@ function renderWiki() {
     empty.textContent = 'Wikien er tom endnu.';
     contentBody.appendChild(empty);
   } else {
-    if (!wikiSelectedChapterId || !chapters.some((c) => c.id === wikiSelectedChapterId)) {
-      wikiSelectedChapterId = chapters[0].id;
+    // A revyst-level visitor can only ever land on a published chapter —
+    // boss/admin can land on any of them, published or not.
+    const selectable = canEdit ? chapters : chapters.filter(wikiChapterIsPublished);
+    if (!wikiSelectedChapterId || !selectable.some((c) => c.id === wikiSelectedChapterId)) {
+      wikiSelectedChapterId = selectable[0].id;
     }
     if (wikiEditingChapterId && !chapters.some((c) => c.id === wikiEditingChapterId)) {
       wikiEditingChapterId = null;
@@ -152,18 +175,32 @@ function renderWiki() {
     // edited — simplest, deliberate answer to "what if you switch
     // mid-edit": you can't, until Gem/Annuller.
     for (const chapter of chapters) {
+      const published = wikiChapterIsPublished(chapter);
+      // A revyst-level visitor sees every chapter's title (so they know
+      // what exists) but can't open an unpublished one — greyed/disabled,
+      // same look as switching mid-edit below.
+      const locked = !canEdit && !published;
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'wiki-chapter-btn';
       if (chapter.id === wikiSelectedChapterId) btn.classList.add('wiki-chapter-active');
       btn.textContent = chapter.title;
-      btn.disabled = !!wikiEditingChapterId;
-      btn.addEventListener('click', () => {
-        if (chapter.id === wikiSelectedChapterId) return;
-        wikiSelectedChapterId = chapter.id;
-        renderWiki();
-        scrollWikiContentToSidebarTop();
-      });
+      if (canEdit && !published) {
+        const tag = document.createElement('span');
+        tag.className = 'wiki-chapter-unpublished-tag';
+        tag.textContent = ' (skjult)';
+        btn.appendChild(tag);
+      }
+      btn.disabled = locked || !!wikiEditingChapterId;
+      if (!locked) {
+        btn.addEventListener('click', () => {
+          if (chapter.id === wikiSelectedChapterId) return;
+          wikiSelectedChapterId = chapter.id;
+          renderWiki();
+          scrollWikiContentToSidebarTop();
+        });
+      }
       chapterList.appendChild(btn);
 
       if (chapter.id === wikiSelectedChapterId) {
@@ -452,7 +489,7 @@ function renderChapterEditView(chapter) {
       finalAttachments.push({ id: a.id, name: a.name, path });
     }
 
-    const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML), attachments: finalAttachments };
+    const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML), published: chapter.published === true, attachments: finalAttachments };
     const current = getEffectiveChapters();
     const next = current.map((c) => (c.id === chapter.id ? draft : c));
     const result = await saveChapters(next); // clears wikiEditingChapterId + re-renders on success
@@ -1014,10 +1051,11 @@ function wikiWireDropHighlight(el, onDrop, { stop = false } = {}) {
 function openManageChaptersModal() {
   const { form, error, actions, close } = siteOpenModalWithClose('Rediger kapitler');
 
-  // Local draft of {id, title} only — body is never touched here, only
-  // reattached from the current saved chapters at save time, so a
-  // reorder/add can never lose a chapter's content.
-  let draft = getEffectiveChapters().map((c) => ({ id: c.id, title: c.title }));
+  // Local draft of {id, title, published} only — body/attachments are
+  // never touched here, only reattached from the current saved chapters at
+  // save time, so a reorder/add/publish-toggle can never lose a chapter's
+  // content.
+  let draft = getEffectiveChapters().map((c) => ({ id: c.id, title: c.title, published: c.published === true }));
 
   const listWrap = document.createElement('div');
   listWrap.className = 'wiki-manage-list';
@@ -1068,6 +1106,23 @@ function openManageChaptersModal() {
       title.textContent = item.title;
       row.appendChild(title);
 
+      // Publish toggle — mutates the draft item directly (no re-render
+      // needed, unlike a reorder, since nothing else on screen depends on
+      // this value).
+      const publishLabel = document.createElement('label');
+      publishLabel.className = 'wiki-manage-publish-toggle';
+      const publishCheckbox = document.createElement('input');
+      publishCheckbox.type = 'checkbox';
+      publishCheckbox.checked = item.published === true;
+      publishCheckbox.addEventListener('change', () => {
+        item.published = publishCheckbox.checked;
+      });
+      publishLabel.appendChild(publishCheckbox);
+      const publishText = document.createElement('span');
+      publishText.textContent = 'Synlig for revyster';
+      publishLabel.appendChild(publishText);
+      row.appendChild(publishLabel);
+
       listWrap.appendChild(row);
     });
 
@@ -1097,7 +1152,7 @@ function openManageChaptersModal() {
   addTrigger.title = 'Tilføj kapitel';
   addTrigger.setAttribute('aria-label', 'Tilføj kapitel');
   addTrigger.addEventListener('click', () => {
-    draft.push({ id: Date.now().toString(36), title: 'Nyt kapitel' });
+    draft.push({ id: Date.now().toString(36), title: 'Nyt kapitel', published: false });
     renderList();
   });
   addTriggerWrap.appendChild(addTrigger);
@@ -1118,8 +1173,8 @@ function openManageChaptersModal() {
     const next = draft.map((d) => {
       const existing = current.find((c) => c.id === d.id);
       return existing
-        ? { id: d.id, title: d.title, body: existing.body, attachments: existing.attachments || [] }
-        : { id: d.id, title: d.title, body: '' };
+        ? { id: d.id, title: d.title, body: existing.body, published: d.published === true, attachments: existing.attachments || [] }
+        : { id: d.id, title: d.title, body: '', published: d.published === true };
     });
 
     const result = await saveChapters(next);

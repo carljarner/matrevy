@@ -1323,6 +1323,23 @@ function buildCategoryEditSection(card, status) {
 
       tbody.appendChild(tr);
     });
+
+    // A per-row-only drop target can only ever insert *before* that row —
+    // this trailing spacer is the only way to drop a category after the
+    // last one, same drop-tail recipe as wiki.js's/manus.js's own
+    // reorderable lists.
+    const tailRow = el('tr', 'budget-manage-drop-tail-row');
+    const tailCell = el('td');
+    tailCell.colSpan = 5;
+    tailRow.appendChild(tailCell);
+    budgetWireDropHighlight(tailRow, () => {
+      if (dragItem) {
+        budgetMoveDraftItem(draftExpense, dragItem, null, renderExpenseRows);
+        refreshCategoryDirtyStatus();
+        budgetSyncPendingColumnHeight();
+      }
+    });
+    tbody.appendChild(tailRow);
   }
   renderExpenseRows();
 
@@ -3371,6 +3388,20 @@ function buildStregPricesCard() {
 
       list.appendChild(row);
     });
+
+    // A per-row-only drop target can only ever insert *before* that row —
+    // this trailing spacer is the only way to drop a drink type after the
+    // last one, same drop-tail recipe as wiki.js's/manus.js's own
+    // reorderable lists.
+    const tailRow = el('div', 'streg-price-drop-tail');
+    budgetWireDropHighlight(tailRow, () => {
+      if (dragItem) {
+        budgetMoveDraftItem(items, dragItem, null, renderList);
+        commitAll();
+      }
+    });
+    list.appendChild(tailRow);
+
     refreshComputed();
   }
   renderList();
