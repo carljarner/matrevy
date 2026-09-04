@@ -364,8 +364,12 @@ function faellesBuildTable(root) {
   // removable from the sheet here, calendar-sourced or extra alike (see
   // faellesOpenDeleteDayConfirm for what "removable" means per source).
   const addRow = el('tr', 'faelles-add-row');
-  const addCell = el('td', 'faelles-add-row-plus-cell');
-  addCell.colSpan = FAELLES_FIELDS.length;
+  // Sits under the Navn column only (not colSpan'd across Madforbehold too)
+  // and reuses .faelles-col-navn so it's sticky at exactly the same width
+  // as every other row's Navn cell — a colSpan'd sticky cell would cover
+  // Navn+Madforbehold's combined width, hiding a day column's own "✕" one
+  // column too early.
+  const addCell = el('td', 'faelles-add-row-plus-cell faelles-col-navn');
   const addBtn = faellesAddPlusBtn('Tilføj række');
   addBtn.addEventListener('click', () => {
     const draft = { id: null, answers: { navn: '', madforbehold: '' }, dayOverrides: {} };
@@ -376,6 +380,7 @@ function faellesBuildTable(root) {
   });
   addCell.appendChild(addBtn);
   addRow.appendChild(addCell);
+  addRow.appendChild(el('td')); // filler under the Madforbehold column
 
   for (const col of columns) {
     const td = el('td', 'faelles-col-day');

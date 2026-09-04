@@ -191,13 +191,14 @@
   text-align: left;
 }
 
-/* "Tilføj række" and the two summary-row labels ("Samlet antal i dag",
-   "Madforbehold") sit in the table's first column same as Navn — without
-   this they'd scroll away under the day columns while Navn itself stays
-   put, since only .faelles-col-navn (above) is pinned. Same sticky recipe,
-   so the whole first column — header, every row, and these three bottom
-   lines — stays fixed together while the day columns scroll underneath. */
-.faelles-add-row-plus-cell,
+/* The two summary-row labels ("Samlet antal i dag", "Madforbehold") sit in
+   the table's first column same as Navn — without this they'd scroll away
+   under the day columns while Navn itself stays put, since only
+   .faelles-col-navn (above) was pinned. Same sticky recipe, so the whole
+   first column — header, every row, "Tilføj række" (which reuses
+   .faelles-col-navn directly, see faellesspisning.js), and these two
+   summary lines — stays fixed together while the day columns scroll
+   underneath. */
 .faelles-table tbody.faelles-summary th {
   position: sticky;
   left: 0;
