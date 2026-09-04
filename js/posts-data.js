@@ -9,7 +9,14 @@ const POSTS_DATA = [
     "title": "Velkommen!",
     "text": "<p>Velkommen til <em>Matematikrevy.dk</em>, jeg har glædet mig til at se jer her:))</p><p>Hop ind og hent årets revy-kalender ned på jeres telefon, så I ikke misser øvere!</p><p>I kan også allerede nu begynde at uploade manus inde på</p><p></p><ul><li>https://matematikrevy.dk/manus.html</li></ul><p></p><p>Når I begynder at lægge penge ud på vegne af revyen, så får I dem tilbage ved at udfylde formularen her</p><p></p><ul><li>https://matematikrevy.dk/budget.html&nbsp;</li></ul><p><strong>Værd at bemærke:</strong>&nbsp;Som revyst kan I uploade, men ikke slette. Så indtil jeg lige finder en smart løsning på det, så kontakt mig eller en koordinator, hvis noget skal slettes.&nbsp;</p><p></p>",
     "image": "",
-    "comments": []
+    "comments": [
+      {
+        "id": "6a9ae6792c4426a4",
+        "author": "Carl J",
+        "text": "Damn, det er sku smart. Tak for det!",
+        "date": "2026-09-04T17:40:41"
+      }
+    ]
   },
   {
     "id": "6a9ae62787136a9a",
