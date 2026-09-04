@@ -2106,11 +2106,27 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   const visibilityDd = siteCreateDropdownField(
     [{ value: 'boss', label: 'Bosser' }, { value: 'admin', label: 'Koordinatorer' }],
     existingDefinition && existingDefinition.visibility === 'admin' ? 'admin' : 'boss');
+  const visibilityField = siteEditField('Synlighed', visibilityDd);
   if (!siteHasLevel('admin')) {
-    visibilityDd.disabled = true;
     visibilityDd.classList.add('forms-visibility-locked');
+    // Deliberately not `disabled` — a disabled control never dispatches a
+    // click at all (not even to a capturing ancestor listener), so there'd
+    // be no event left to react to and a boss's click would give no
+    // feedback (same lesson as Wiki's publish-toggle eye icon). Instead
+    // this capturing listener on the field's own wrapper — an ancestor of
+    // the dropdown button — runs *before* siteCreateDropdownField's own
+    // click handler (which opens the option popup): capture-phase
+    // listeners on an ancestor always reach it before the target-phase
+    // listener already registered on the button itself, regardless of
+    // registration order. stopImmediatePropagation keeps the popup from
+    // ever opening.
+    visibilityField.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      formsShowLockToast('Kun koordinatorer');
+    }, true);
   }
-  metaRow.appendChild(siteEditField('Synlighed', visibilityDd));
+  metaRow.appendChild(visibilityField);
 
   // Deadline is a single field: picking a day re-opens the same popup as a
   // time picker (see siteCreateDateTimeField) instead of a separate field.
@@ -2250,13 +2266,20 @@ function formsLockSectionsEditor(containerEl) {
 // read-only/click-swallowed controls above otherwise give no feedback for
 // why nothing happened. Re-triggers its own auto-dismiss timer on repeat
 // clicks rather than stacking multiple banners.
+// `text` defaults to the original already-answered-form message; the
+// Synlighed field lock below (a different reason a control can be
+// unclickable) passes its own shorter text instead. The element is a
+// shared singleton reused for either message, so the text has to be
+// re-set on every call, not just the first.
 let formsLockToastEl = null;
 let formsLockToastTimer = null;
-function formsShowLockToast() {
+function formsShowLockToast(text) {
+  text = text || 'Denne formular har allerede modtaget svar og kan ikke redigeres, før alle svar er slettet under "Se svar".';
   if (!formsLockToastEl) {
-    formsLockToastEl = el('div', 'forms-lock-toast',
-      'Denne formular har allerede modtaget svar og kan ikke redigeres, før alle svar er slettet under "Se svar".');
+    formsLockToastEl = el('div', 'forms-lock-toast', text);
     document.body.appendChild(formsLockToastEl);
+  } else {
+    formsLockToastEl.textContent = text;
   }
   formsLockToastEl.classList.add('visible');
   clearTimeout(formsLockToastTimer);
