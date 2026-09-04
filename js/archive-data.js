@@ -243,7 +243,7 @@ const ARCHIVE_DATA = [
   },
   {
     "year": 2026,
-    "name": "MatRevy 2026",
+    "name": "JubiRevy 2026",
     "folder": "MatRevy_2026",
     "coverImage": "",
     "youtubeUrl": "",
