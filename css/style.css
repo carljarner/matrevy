@@ -1295,6 +1295,14 @@ body.site-menu-open {
   overflow-y: auto;
 }
 
+.site-tp-end {
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  margin-top: 0.3rem;
+  padding-top: 0.45rem;
+  flex-shrink: 0;
+}
+
 .site-list-selected {
   background: var(--accent-warm-text);
   color: #ffffff;

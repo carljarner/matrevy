@@ -1999,7 +1999,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   if (locked) {
     card.appendChild(el('p', 'forms-lock-banner',
       `Denne formular har allerede modtaget ${existingDefinition.responseCount} svar. ` +
-      'Spørgsmål kan ikke redigeres, før alle svar er slettet under "Se svar".'));
+      'Slet svarene for at redigere.'));
   }
 
   sectionsListEl = el('div', 'forms-sections-list');

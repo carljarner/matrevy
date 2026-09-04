@@ -557,7 +557,11 @@ function siteTimeOptions() {
   return opts;
 }
 
-function siteOpenTimePicker(anchor, currentValue, onSelect) {
+// `opts.endOfDayOption` pins an always-visible "23:59" row below the
+// scrollable 15-min list (mirrors "Ingen tid" pinned above it) — used by
+// Formularer's deadline field, where a deadline genuinely open "through the
+// end of the day" needs an exact time the 15-min grid can't express.
+function siteOpenTimePicker(anchor, currentValue, onSelect, opts) {
   const pop = document.createElement('div');
   pop.className = 'site-field-pop site-tp-pop';
 
@@ -581,6 +585,16 @@ function siteOpenTimePicker(anchor, currentValue, onSelect) {
     if (t === currentValue) { row.classList.add('site-list-selected'); selectedRow = row; }
     row.addEventListener('click', () => { close(); onSelect(t); });
     list.appendChild(row);
+  }
+
+  if (opts && opts.endOfDayOption) {
+    const endRow = document.createElement('button');
+    endRow.type = 'button';
+    endRow.className = 'site-list-row site-tp-end';
+    endRow.textContent = '23:59';
+    if (currentValue === '23:59') { endRow.classList.add('site-list-selected'); selectedRow = endRow; }
+    endRow.addEventListener('click', () => { close(); onSelect('23:59'); });
+    pop.appendChild(endRow);
   }
 
   const close = siteOpenFieldPopup(anchor, pop);
@@ -731,7 +745,7 @@ function siteCreateDateTimeField(initialValue) {
           _value = t ? `${iso}T${t}` : iso;
           render();
           btn.dispatchEvent(new Event('change'));
-        });
+        }, { endOfDayOption: true });
       });
     });
   });
