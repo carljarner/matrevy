@@ -222,17 +222,21 @@ function koordPillBtn(label, variant) {
   return btn;
 }
 
-// ── Arkiv section (add/edit/delete data/archive.json years) ──
+// ── Arkiv section (edit/delete data/archive.json years) ──
 // The card itself only ever shows one button — Rediger, opening a dropdown
 // picker (same primitive as Manus's own "Manus" quick-link picker) that
-// lists every year plus a leading "+ Tilføj" row. No year list is ever
-// shown directly on this page.
+// lists every existing year. No year list is ever shown directly on this
+// page, and there's no "+ Tilføj" here — every entry a Koordinator admin
+// needs already gets created automatically by koordCloseYear/
+// koordStartNewYear (see openKoordYearEditor's own comment); a year outside
+// that (e.g. hand-fixing a much older entry) is still addable via Arkiv's
+// own page.
 function renderArkivSection() {
   const container = document.getElementById('koord-arkiv-body');
   if (!container) return;
   container.textContent = '';
 
-  container.appendChild(el('span', null, 'Tilføj til eller rediger arkivet.'));
+  container.appendChild(el('span', null, 'Rediger arkivet.'));
 
   const editBtn = el('button', 'btn-small', 'Rediger');
   editBtn.type = 'button';
@@ -240,18 +244,13 @@ function renderArkivSection() {
   container.appendChild(editBtn);
 }
 
-const KOORD_ARKIV_ADD_VALUE = '__add__';
-
-// Dropdown popup listing "+ Tilføj" followed by every year (newest first),
-// same primitive as manus.js's "Manus" quick-link cast picker
-// (siteOpenDropdownPicker). Picking a year opens the editor for that entry;
-// picking "+ Tilføj" opens it blank.
+// Dropdown popup listing every year (newest first), same primitive as
+// manus.js's "Manus" quick-link cast picker (siteOpenDropdownPicker).
+// Picking a year opens the editor for that entry.
 function openArkivYearPicker(anchor) {
   const years = getEffectiveArchiveYears().slice().sort((a, b) => b.year - a.year);
-  const options = [{ value: KOORD_ARKIV_ADD_VALUE, label: '+ Tilføj' }]
-    .concat(years.map((y) => ({ value: y.folder, label: y.name })));
+  const options = years.map((y) => ({ value: y.folder, label: y.name }));
   siteOpenDropdownPicker(anchor, options, null, (value) => {
-    if (value === KOORD_ARKIV_ADD_VALUE) { openKoordYearEditor(); return; }
     const entry = getEffectiveArchiveYears().find((y) => y.folder === value);
     if (entry) openKoordYearEditor(entry);
   });
@@ -263,9 +262,13 @@ function openArkivYearPicker(anchor) {
 // no manuscript upload (manusPdf is always the CI-generated
 // archive/<folder>/Manuskript.pdf, derived automatically — see
 // scripts/generate-pdfs.js), and X-close/green-Gem-pill chrome instead of
-// the shared edit-modal's Annuller/blue-Gem pair.
+// the shared edit-modal's Annuller/blue-Gem pair. Edit-only — Koordinator's
+// own picker (openArkivYearPicker above) never offers "+ Tilføj"; adding a
+// year here would duplicate koordCloseYear/koordStartNewYear's own
+// guarded-create logic for no real benefit, since every entry a Koordinator
+// admin needs already gets created automatically by those two flows.
 function openKoordYearEditor(existing) {
-  const { modal, form, error, actions, close } = siteOpenModalWithClose(existing ? 'Rediger årgang' : 'Tilføj årgang');
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger årgang');
   modal.classList.add('koord-year-edit-modal');
 
   const group = el('div', 'koord-year-edit-group');
@@ -273,28 +276,18 @@ function openKoordYearEditor(existing) {
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
   nameInput.placeholder = 'MatRevy 2024';
-  nameInput.value = existing ? existing.name : '';
+  nameInput.value = existing.name;
 
   const yearInput = document.createElement('input');
   yearInput.type = 'number';
   yearInput.min = '1900';
   yearInput.max = '2100';
-  yearInput.value = existing ? String(existing.year) : '';
+  yearInput.value = String(existing.year);
 
   const nameYearRow = el('div', 'koord-year-edit-row');
   nameYearRow.appendChild(siteEditField('Navn', nameInput));
   nameYearRow.appendChild(siteEditField('Årstal', yearInput));
   group.appendChild(nameYearRow);
-
-  if (!existing) {
-    let yearTouched = false;
-    yearInput.addEventListener('input', () => { yearTouched = true; });
-    nameInput.addEventListener('input', () => {
-      if (yearTouched) return;
-      const m = nameInput.value.match(/\b(19|20)\d{2}\b/);
-      if (m) yearInput.value = m[0];
-    });
-  }
 
   const coverInput = document.createElement('input');
   coverInput.type = 'file';
@@ -306,7 +299,7 @@ function openKoordYearEditor(existing) {
   });
   const coverRow = el('div', 'koord-year-edit-file-row');
   coverRow.appendChild(coverInput);
-  if (existing && existing.coverImage) {
+  if (existing.coverImage) {
     // .btn-small — same treatment as this page's own "Gå til Manus-siden"
     // link and Wiki's attachment links, rather than a plain blue &lt;a&gt;.
     const coverLink = document.createElement('a');
@@ -322,19 +315,19 @@ function openKoordYearEditor(existing) {
   const youtubeInput = document.createElement('input');
   youtubeInput.type = 'url';
   youtubeInput.placeholder = 'https://www.youtube.com/watch?v=...';
-  youtubeInput.value = existing ? existing.youtubeUrl || '' : '';
+  youtubeInput.value = existing.youtubeUrl || '';
   group.appendChild(siteEditField('Link til YouTube', youtubeInput));
 
   const spotifyInput = document.createElement('input');
   spotifyInput.type = 'url';
   spotifyInput.placeholder = 'https://open.spotify.com/album/...';
-  spotifyInput.value = existing ? existing.spotifyUrl || '' : '';
+  spotifyInput.value = existing.spotifyUrl || '';
   group.appendChild(siteEditField('Link til Spotify', spotifyInput));
 
   const driveInput = document.createElement('input');
   driveInput.type = 'url';
   driveInput.placeholder = 'https://drive.google.com/drive/folders/...';
-  driveInput.value = existing ? existing.driveUrl || '' : '';
+  driveInput.value = existing.driveUrl || '';
   group.appendChild(siteEditField('Link til Google Drive', driveInput));
 
   form.appendChild(group);
@@ -344,12 +337,10 @@ function openKoordYearEditor(existing) {
 
   const save = koordPillBtn('Gem', 'site-btn-success');
 
-  if (existing) {
-    const del = el('button', 'site-btn-danger edit-actions-left', 'Slet');
-    del.type = 'button';
-    del.addEventListener('click', () => { close(); openDeleteArchiveYearConfirm(existing); });
-    actions.appendChild(del);
-  }
+  const del = el('button', 'site-btn-danger edit-actions-left', 'Slet');
+  del.type = 'button';
+  del.addEventListener('click', () => { close(); openDeleteArchiveYearConfirm(existing); });
+  actions.appendChild(del);
   actions.appendChild(save);
 
   save.addEventListener('click', async () => {
@@ -364,23 +355,7 @@ function openKoordYearEditor(existing) {
     }
 
     const current = getEffectiveArchiveYears();
-    // Year is not unique (e.g. a jubilee revy in the same year as a regular
-    // one); folder is the stable unique key, enforced below.
-
-    let folder;
-    if (existing) {
-      folder = existing.folder;
-    } else {
-      const slug = slugifyFolderName(name);
-      if (!slug) {
-        error.textContent = 'Navnet skal indeholde mindst ét bogstav eller tal.';
-        return;
-      }
-      const usedFolders = new Set(current.map((e) => e.folder));
-      folder = slug;
-      let n = 2;
-      while (usedFolders.has(folder)) { folder = `${slug}-${n}`; n++; }
-    }
+    const folder = existing.folder; // stable, never re-derived from name/year
 
     if (pendingCover && pendingCover.size > ARCHIVE_MAX_UPLOAD_BYTES) {
       error.textContent = `Filen "${pendingCover.name}" er for stor (maks. 5 MB).`;
@@ -394,7 +369,7 @@ function openKoordYearEditor(existing) {
       year,
       name,
       folder,
-      coverImage: existing ? existing.coverImage || '' : '',
+      coverImage: existing.coverImage || '',
       youtubeUrl: youtubeInput.value.trim(),
       spotifyUrl: spotifyInput.value.trim(),
       driveUrl: driveInput.value.trim(),
@@ -419,9 +394,7 @@ function openKoordYearEditor(existing) {
     }
     progress.textContent = '';
 
-    const next = existing
-      ? current.map((e) => (e.folder === existing.folder ? entryDraft : e))
-      : current.concat([entryDraft]);
+    const next = current.map((e) => (e.folder === existing.folder ? entryDraft : e));
 
     const result = await saveArchiveYears(next);
     if (result.ok) {
