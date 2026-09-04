@@ -4,8 +4,8 @@ const POSTS_DATA = [
   {
     "id": "6a9ae58e507692c1",
     "pinned": true,
-    "date": "2026-09-04T17:36:47",
-    "author": "Carl J",
+    "date": "2026-09-04T17:36:00",
+    "author": "Carl Jarner",
     "title": "Velkommen!",
     "text": "<p>Velkommen til <em>Matematikrevy.dk</em>, jeg har glædet mig til at se jer her:))</p><p>Hop ind og hent årets revy-kalender ned på jeres telefon, så I ikke misser øvere!</p><p>I kan også allerede nu begynde at uploade manus inde på</p><p></p><ul><li>https://matematikrevy.dk/manus.html</li></ul><p></p><p>Når I begynder at lægge penge ud på vegne af revyen, så får I dem tilbage ved at udfylde formularen her</p><p></p><ul><li>https://matematikrevy.dk/budget.html&nbsp;</li></ul><p><strong>Værd at bemærke:</strong>&nbsp;Som revyst kan I uploade, men ikke slette. Så indtil jeg lige finder en smart løsning på det, så kontakt mig eller en koordinator, hvis noget skal slettes.&nbsp;</p><p></p>",
     "image": "",
@@ -21,10 +21,10 @@ const POSTS_DATA = [
   {
     "id": "6a9ae62787136a9a",
     "pinned": false,
-    "date": "2026-09-04T17:39:20",
-    "author": "Carl J",
+    "date": "2026-09-04T17:39:00",
+    "author": "Carl Jarner",
     "title": "",
-    "text": "Opslag, der ikke er <em>pinned</em>&nbsp;dukker op hernede.",
+    "text": "Opslag, der ikke er <em>pinned,</em>&nbsp;dukker op hernede.",
     "image": "",
     "comments": []
   }
