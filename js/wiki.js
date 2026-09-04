@@ -1033,6 +1033,81 @@ function wikiGetDragImageEl() {
   return ghost;
 }
 
+// ── Hover tooltip (publish-toggle icon labels) ──
+// Mirrors budget.js's own budgetShowFieldTooltip/budgetHideFieldTooltip
+// (that file isn't loaded on this page, per the per-feature duplication
+// convention documented in CLAUDE.md): a fixed-position dark box, since a
+// native title attribute's own tooltip renders inconsistently across
+// browsers.
+let wikiFieldTooltipEl = null;
+function wikiShowFieldTooltip(anchor, text) {
+  wikiHideFieldTooltip();
+  const tip = document.createElement('div');
+  tip.className = 'wiki-field-tooltip';
+  tip.textContent = text;
+  document.body.appendChild(tip);
+  const anchorRect = anchor.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let top = anchorRect.top - tipRect.height - 6;
+  if (top < 4) top = anchorRect.bottom + 6;
+  let left = anchorRect.left;
+  if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - tipRect.width - 4;
+  if (left < 4) left = 4;
+  tip.style.top = `${top}px`;
+  tip.style.left = `${left}px`;
+  wikiFieldTooltipEl = tip;
+}
+function wikiHideFieldTooltip() {
+  if (wikiFieldTooltipEl) { wikiFieldTooltipEl.remove(); wikiFieldTooltipEl = null; }
+}
+
+// Open/closed eye glyphs for the publish toggle — same stroke-icon style as
+// budget.js's budgetPencilIcon()/budgetCheckIcon() etc. (16x16 viewBox,
+// currentColor stroke), duplicated since budget.js isn't loaded here.
+function wikiEyeOpenIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const outline = document.createElementNS(svgNS, 'path');
+  outline.setAttribute('d', 'M1 8s2.6-4.5 7-4.5S15 8 15 8s-2.6 4.5-7 4.5S1 8 1 8z');
+  svg.appendChild(outline);
+  const pupil = document.createElementNS(svgNS, 'circle');
+  pupil.setAttribute('cx', '8');
+  pupil.setAttribute('cy', '8');
+  pupil.setAttribute('r', '2');
+  svg.appendChild(pupil);
+  return svg;
+}
+
+function wikiEyeClosedIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const lid = document.createElementNS(svgNS, 'path');
+  lid.setAttribute('d', 'M1.333 5.333A7.097 7.097 0 0 0 14.667 5.333');
+  svg.appendChild(lid);
+  ['M2.667 10L3.818 8.633', 'M13.333 10L12.182 8.633', 'M6 12L6.481 9.833', 'M10 12L9.519 9.833'].forEach((d) => {
+    const lash = document.createElementNS(svgNS, 'path');
+    lash.setAttribute('d', d);
+    svg.appendChild(lash);
+  });
+  return svg;
+}
+
 // Robust dragenter/dragleave pairing via a nesting counter — duplicated from
 // manus.js's identically-named helper (Aktfordeling's drag-and-drop), since
 // wiki.js doesn't load manus.js. Plain dragover-driven highlighting re-fires
@@ -1131,24 +1206,33 @@ function openManageChaptersModal() {
 
       // Publish toggle — admin-only (boss can write/reorder/delete every
       // chapter but not decide what's visible to revyster); boss still
-      // sees the current state, just can't touch it. Mutates the draft
-      // item directly (no re-render needed, unlike a reorder, since
-      // nothing else on screen depends on this value).
-      const publishLabel = document.createElement('label');
-      publishLabel.className = 'wiki-manage-publish-toggle';
-      if (!canPublish) publishLabel.classList.add('wiki-manage-publish-toggle-readonly');
-      const publishCheckbox = document.createElement('input');
-      publishCheckbox.type = 'checkbox';
-      publishCheckbox.checked = item.published === true;
-      publishCheckbox.disabled = !canPublish;
-      publishCheckbox.addEventListener('change', () => {
-        item.published = publishCheckbox.checked;
+      // sees the current state, just can't touch it. An open/closed eye
+      // icon button (see wikiEyeOpenIcon/wikiEyeClosedIcon above) rather
+      // than a checkbox+label — hover shows the current state via the
+      // same dark-box tooltip convention as budget.js's icon actions.
+      // Mutates the draft item directly (no full renderList() needed,
+      // unlike a reorder, since nothing else on screen depends on this
+      // value — just the button's own icon/tooltip text).
+      const publishBtn = document.createElement('button');
+      publishBtn.type = 'button';
+      publishBtn.className = 'wiki-manage-publish-toggle';
+      if (!canPublish) publishBtn.classList.add('wiki-manage-publish-toggle-readonly');
+      publishBtn.disabled = !canPublish;
+      function syncPublishBtn() {
+        publishBtn.textContent = '';
+        publishBtn.appendChild(item.published ? wikiEyeOpenIcon() : wikiEyeClosedIcon());
+        publishBtn.setAttribute('aria-label', item.published ? 'Synlig for revyster' : 'Skjult for revyster');
+      }
+      syncPublishBtn();
+      publishBtn.addEventListener('mouseenter', () => wikiShowFieldTooltip(publishBtn, publishBtn.getAttribute('aria-label')));
+      publishBtn.addEventListener('mouseleave', wikiHideFieldTooltip);
+      publishBtn.addEventListener('click', () => {
+        if (!canPublish) return;
+        item.published = !item.published;
+        syncPublishBtn();
+        wikiHideFieldTooltip();
       });
-      publishLabel.appendChild(publishCheckbox);
-      const publishText = document.createElement('span');
-      publishText.textContent = 'Synlig for revyster';
-      publishLabel.appendChild(publishText);
-      row.appendChild(publishLabel);
+      row.appendChild(publishBtn);
 
       listWrap.appendChild(row);
     });

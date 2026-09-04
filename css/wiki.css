@@ -262,23 +262,36 @@
   white-space: nowrap;
 }
 
-/* Per-row "Synlig for revyster" toggle — site-wide checkbox convention
-   (accent-color instead of the browser-default blue), same as Forms'/
-   Fællesspisning's own checkbox fields. */
+/* Per-row "Synlig for revyster" toggle — an open/closed eye icon button,
+   same square icon-button chrome as budget.js's .budget-icon-btn (that
+   file isn't loaded on this page, per the per-feature duplication
+   convention documented in CLAUDE.md). */
 .wiki-manage-publish-toggle {
   flex-shrink: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.82rem;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
   color: var(--text-muted);
-  white-space: nowrap;
   cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.wiki-manage-publish-toggle input[type="checkbox"] {
-  accent-color: var(--accent-warm-text);
-  cursor: pointer;
+@media (hover: hover) {
+  .wiki-manage-publish-toggle:not(:disabled):hover {
+    background: var(--accent-warm-fill);
+    color: var(--accent-warm-text);
+  }
+}
+
+.wiki-manage-publish-toggle:not(:disabled):focus-visible {
+  outline: none;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
 }
 
 /* Boss (not admin) still sees each chapter's publish state but can't
@@ -288,8 +301,23 @@
   opacity: 0.6;
 }
 
-.wiki-manage-publish-toggle-readonly input[type="checkbox"] {
-  cursor: not-allowed;
+/* wikiShowFieldTooltip()'s popup — position:fixed on <body>, clamped
+   on-screen in JS, mirrors budget.css's own .budget-field-tooltip
+   treatment. */
+.wiki-field-tooltip {
+  position: fixed;
+  z-index: 250;
+  max-width: 320px;
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  white-space: normal;
+  overflow-wrap: break-word;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
 }
 
 .wiki-manage-add-trigger-wrap {
