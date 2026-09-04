@@ -2,7 +2,7 @@
     "_schema": "scenes for Matematikrevyen 2026",
     "_note": "Replace each production. 'schedulable' is false for videos and band jingles with no rehearsable cast. 'cast' maps each person in the scene to their role code from the script.",
     "production": "Matematikrevyen 2026",
-    "version": "2026-09-03",
+    "version": "2026-09-04",
     "acts": [
         {
             "act": "1",
@@ -600,7 +600,8 @@
                     "duration": 2.5,
                     "scriptBody": "\\sings{S}[Omkvæd] Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n  \\sings{B}[Vers 1] Året det er gået, men nu er matrevy tilbage\nVi ved hvad der skal gøres, giver dem alt hvad de vil have\nHar skrevet hele dagen, ingen skriftlig eksamen\nManuskript fyldt med rap, det her track er lige sagen\nDet her track er lige sagen\nDer er ikke så mange jokes, det er bare træ, træ, træ\nOg banger efter banger fra det band, band, band\nGi-giv den lige op for mit matrevy gang\n\n   \\sings{S}[Omkvæd]  Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n \\sings{S}[Vers 2] Jeg er tre bajere inde, men - giv mig lige en til\nFjern den der pilsner, jeg skal have GT\nMatrevy er bedst, og hele SCIENCE ved det\nIkke tid til at læse, jeg skal på scenen\nSt-stilen den er lagt, ordet i min magt\nHele salen råber stadig: \"Fuck campusvagt!\"\nOg beatet er banger allerede i første akt\nVores fest kan ikke lukke, luk munden blev der sagt\n(brr-brr, ey)\nSe, vi flækker beats og giver verbale tæsk i teksten\nI flækker af grin når I ser de bedste sketches\nSå flækker vi floor, når vi rammer efterfesten\n\n\\sings{S}[Omkvæd] Der er ikke nogen pause\nØver, har travlt\nHop op på scenen\nModtag applaus\nMit navn overalt, så bare kald mig for Gauss\nStore UP1, lad mig se jer alle bounce\nMatrevy-sound\n2024-sound\n\n  \\sings{B}[C-stykke] Hele holdet omme backstaaaaage\nHar drip i deres rekvisitkasse\n300 i det publikuuuuum\nDet betyder, vi skal give den gas (gang-gang-gang)\nBare bund tre bajer i første akt\nDu ved at vi har bars lige fra første takt\nRevyen går i gang, ja vi gør det straks\nBare bund tre bajer i hver fucking akt\n\n \\sings{S}[Outro] Matrevy sound",
                     "melody": "MellemFingaMuzik: “AMG”",
-                    "writtenBy": "Johan '19"
+                    "writtenBy": "Johan '19",
+                    "dansPriority": 0
                 },
                 {
                     "id": "1-11",
@@ -1335,7 +1336,7 @@
                     "priority": 2,
                     "repeat": false,
                     "scriptBody": "\\sings{S}[Vers 1] Jeg er omdrejningsfladen \nHusker du mig i dag\n(Eller) har du glemt alt om de timer \nDa vi hygged’ os i $\\mathbb{R}^3$ \nTror aldrig helt du forstod mig\nMen selv efter alle de år \nVenter jeg stadig på dig med\nUdstrakt tangentvektor \n\n\\sings{S}[Vers 2] Bli’r du undervist i mat’matik der \nEr intuitivt og smukt \nVil du længes efter mit lange \nOg hæslige prikprodukt  \nGeometri 1 er dejligt \nDu den eneste der gad derhen \nFor at differentiere cosinus\nIgen og igen og igen \n\n\\sings{S}[Vers 3] Nedtællingen er forbi nu \nVi starter blok 4 hip hurra \nDer er nye mat mat’er i sigte \nMig og Niels Martin står klar\nEr der mon én som kan li mig? \nMøder jeg mon nog'n igen?\n(En der) kan sætte pris på Christoffel \nOg udregne Gauss-krumningen\n\n\\sings{S}[Omkvæd] Jeg er omdrejningsfladen \nHvor'n ku' du glemme mig \nFor en flade kan også ha' følelser \nIk så overfladisk endda \nOg ingen af de nye på studiet \nKan halvdelen af det du ka'\n\n\\sings{S}[Vers 4] Jeg husker den gang da du started'\nog syn's studiet det var en leg\nKom direkte fra UNF camp \n(I) en blok var det bar' dig og mig   \n(Men du) rykkede vid're i teksten \nTil større og sværere fag \nDu savnede fler' dimensioner \nNej det var slet ik' nok med tre\n\n\\sings{S}[Omkvæd] Jeg er omdrejningsfladen \nJeg er da ogs' abstrakt\nMen du ville bar' have mere\nNej pludseligt var jeg ik' så fed\nMens jeg drejed' om aksen skred du \nMed en mangfoldighed",
-                    "dansPriority": 0,
+                    "dansPriority": 1,
                     "duration": 4,
                     "melody": "Anne Linnet: ``Barndommens Gade''",
                     "writtenBy": "Augusta '20, Malthe '20",
@@ -2679,5 +2680,5 @@
             ]
         }
     ],
-    "generatedAt": "2026-09-03T12:55:55+02:00"
+    "generatedAt": "2026-09-04T14:39:33+02:00"
 }
