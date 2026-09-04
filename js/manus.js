@@ -2561,10 +2561,12 @@ function buildActColumn(act, buildColumnBody, rowFilter = null) {
 // (N = manusDraft.acts.length, 4 for the fixed Akt1/2/3/Ekstranumre
 // skeleton) — used by Aktfordeling's act row and, unchanged otherwise, by
 // Rollefordeling/Manus below so those three tabs read as the same grid.
-// Stjerneark alone passes an explicit `columns` override (3) so it wraps —
-// that tab's rows are wide (priority circles + repeat toggle alongside the
-// title), so four side-by-side columns read as cramped there in a way the
-// other tabs' plainer rows don't. Any act beyond the first `columns - 1`
+// Stjerneark alone passes an explicit `columns` override (3 on desktop, 1 on
+// mobile — see renderStjerneArkTab) so it wraps — that tab's rows are wide
+// (priority circles + repeat toggle alongside the title), so four
+// side-by-side columns read as cramped there in a way the other tabs'
+// plainer rows don't; on mobile even 3 is too narrow, so all four acts
+// stack into the single column instead. Any act beyond the first `columns - 1`
 // stacks into that *last* column — for the fixed 4-act skeleton at 3
 // columns that means Akt3 and Ekstranumre both land in column 3. That stack
 // is its own flex column (`.manus-kanban-col-stack`), not a second CSS grid
@@ -3044,7 +3046,31 @@ const MANUS_PRIO_VALUES = [0, 1, 2, 3];
 // that used to carry entry.name was the first thing ellipsis truncation ate,
 // making the row look identical to its main half. A short, always-visible
 // "↳ Dans" badge up front replaces the name entirely for that row instead.
-function renderStarRow(row, entry) {
+// Mobile-only popup (site-utils.js's shared field-popup chrome) opening the
+// same four .manus-prio-circle buttons the desktop row shows inline — see
+// renderStarRow's isMobile branch below.
+function openStarPrioPopup(anchor, current, onSelect) {
+  const pop = document.createElement('div');
+  pop.className = 'site-field-pop manus-star-prio-pop';
+  MANUS_PRIO_VALUES.forEach(v => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `manus-prio-circle manus-prio-${v}` + (v === current ? ' manus-prio-active' : '');
+    btn.textContent = v;
+    btn.title = `Prioritet ${v}`;
+    btn.addEventListener('click', () => { close(); onSelect(v); });
+    pop.appendChild(btn);
+  });
+  const close = siteOpenFieldPopup(anchor, pop);
+}
+
+// `isMobile` (window.matchMedia('(max-width: 719px)'), checked once by the
+// caller — see renderStjerneArkTab) swaps the four always-visible priority
+// circles for a single circle showing just the active value, opening
+// openStarPrioPopup on click — four circles plus the repeat toggle is too
+// wide for the name to stay readable at phone width, even with Stjerneark's
+// mobile 1-column layout (see renderStjerneArkTab).
+function renderStarRow(row, entry, isMobile) {
   const isDanceHalf = entry.id.endsWith(DANCE_SPLIT_SUFFIX);
   const el = document.createElement('div');
   el.className = 'manus-akt-row manus-star-row';
@@ -3066,30 +3092,48 @@ function renderStarRow(row, entry) {
   const controls = document.createElement('div');
   controls.className = 'manus-star-controls';
 
-  // manus-prio-N is a permanent per-value class (so :hover can preview that
-  // value's own color via CSS alone); manus-prio-active is the separate,
-  // toggled marker for which one is actually selected.
-  const prioBtns = MANUS_PRIO_VALUES.map(v => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `manus-prio-circle manus-prio-${v}`;
-    btn.textContent = v;
-    btn.title = `Prioritet ${v}`;
-    btn.addEventListener('click', () => {
-      if (isDanceHalf) row.dansPriority = v; else row.priority = v;
-      updatePrioBtns();
+  function currentPrio() { return isDanceHalf ? (row.dansPriority || 0) : (row.priority || 0); }
+  function setPrio(v) { if (isDanceHalf) row.dansPriority = v; else row.priority = v; }
+
+  if (isMobile) {
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.title = 'Vælg prioritet';
+    function renderToggle() {
+      const v = currentPrio();
+      toggle.className = `manus-prio-circle manus-prio-toggle manus-prio-${v} manus-prio-active`;
+      toggle.textContent = String(v);
+    }
+    renderToggle();
+    toggle.addEventListener('click', () => {
+      siteToggleFieldPopup(toggle, () => {
+        openStarPrioPopup(toggle, currentPrio(), (v) => { setPrio(v); renderToggle(); });
+      });
     });
-    controls.appendChild(btn);
-    return btn;
-  });
-  function updatePrioBtns() {
-    const active = isDanceHalf ? (row.dansPriority || 0) : (row.priority || 0);
-    prioBtns.forEach((btn, v) => {
-      btn.classList.toggle('manus-prio-active', v === active);
-      btn.setAttribute('aria-pressed', String(v === active));
+    controls.appendChild(toggle);
+  } else {
+    // manus-prio-N is a permanent per-value class (so :hover can preview that
+    // value's own color via CSS alone); manus-prio-active is the separate,
+    // toggled marker for which one is actually selected.
+    const prioBtns = MANUS_PRIO_VALUES.map(v => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `manus-prio-circle manus-prio-${v}`;
+      btn.textContent = v;
+      btn.title = `Prioritet ${v}`;
+      btn.addEventListener('click', () => { setPrio(v); updatePrioBtns(); });
+      controls.appendChild(btn);
+      return btn;
     });
+    function updatePrioBtns() {
+      const active = currentPrio();
+      prioBtns.forEach((btn, v) => {
+        btn.classList.toggle('manus-prio-active', v === active);
+        btn.setAttribute('aria-pressed', String(v === active));
+      });
+    }
+    updatePrioBtns();
   }
-  updatePrioBtns();
 
   const repeatBtn = document.createElement('button');
   repeatBtn.type = 'button';
@@ -3125,14 +3169,18 @@ function renderStjerneArkTab() {
     return;
   }
 
+  // Mobile: all four act columns stack on top of each other (columns:1 —
+  // see renderActColumnsGrid's stacking branch) instead of desktop's 3-wide
+  // layout, so each row gets the full screen width for name + rating.
+  const isMobile = window.matchMedia('(max-width: 719px)').matches;
   mount.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
     rowsInAct.forEach((row, idx) => {
       const scene = manusRowScene(row, act, idx);
       const split = splitDanceScene(scene);
       const entries = split || [scene];
-      for (const entry of entries) body.appendChild(renderStarRow(row, entry));
+      for (const entry of entries) body.appendChild(renderStarRow(row, entry, isMobile));
     });
-  }, 3, row => !manusRowIsManualMedia(row)));
+  }, isMobile ? 1 : 3, row => !manusRowIsManualMedia(row)));
 }
 
 // ── Program tab (Medvirkende / Ordliste / QR-koder → Program.pdf) ──

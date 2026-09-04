@@ -305,6 +305,55 @@
   box-shadow: var(--modal-shadow);
 }
 
+/* Oversigt on phones: at this width a 5-column table has no room left for
+   Frist/Svar, and auto column widths meant every row picked its own column
+   widths from its own content, so the shared border-bottom line landed at a
+   different height/position row to row — collapsed to two lines per form
+   instead: Titel + Status on the first line, the row actions centered
+   full-width below (a single border-bottom per <tr> "card" instead of one
+   per <td> fixes the misaligned-line look). nth-child order matches the
+   ['Titel','Status','Frist','Svar',''] header built in forms.js; thead is
+   hidden entirely since none of its labels still apply to this stacked
+   shape. */
+@media (max-width: 719px) {
+  .forms-dashboard-table thead { display: none; }
+  .forms-dashboard-table,
+  .forms-dashboard-table tbody {
+    display: block;
+    width: 100%;
+  }
+  .forms-dashboard-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    column-gap: 0.5rem;
+  }
+  .forms-dashboard-row {
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 0;
+  }
+  .forms-dashboard-row td {
+    border-bottom: none;
+    padding: 0.1rem 0;
+  }
+  .forms-dashboard-row td:nth-child(1) {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .forms-dashboard-row td:nth-child(2) { flex: 0 0 auto; }
+  .forms-dashboard-row td:nth-child(3),
+  .forms-dashboard-row td:nth-child(4) { display: none; }
+  .forms-dashboard-row td:nth-child(5) {
+    flex: 1 0 100%;
+    order: 3;
+  }
+  .forms-dashboard-table .forms-row-actions { justify-content: center; }
+}
+
 .forms-responses-wrap { overflow-x: auto; }
 
 .forms-export-btn { margin-top: 0.75rem; }

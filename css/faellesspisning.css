@@ -56,15 +56,24 @@
   padding-bottom: 1rem;
 }
 
+/* border-spacing:0 (not border-collapse:collapse) + box-shadow instead of a
+   real border-bottom on every cell: WebKit doesn't collapse a sticky cell's
+   border consistently with its non-sticky neighbours under
+   border-collapse:collapse (the sticky Navn column and header row both use
+   position:sticky below) — the row separator line visibly changes width/
+   thickness at the sticky column's edge because of it. box-shadow paints
+   per-cell and isn't part of border collapsing, so every column's line
+   renders identically regardless of which cells are sticky. */
 .faelles-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   font-size: 0.85rem;
 }
 
 .faelles-table th,
 .faelles-table td {
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px 0 0 var(--border);
   padding: 0.4rem 0.5rem;
   text-align: center;
   white-space: nowrap;
@@ -204,7 +213,7 @@
 }
 
 .faelles-add-row td {
-  border-bottom: none;
+  box-shadow: none;
   padding-top: 0.6rem;
 }
 
@@ -251,7 +260,7 @@
 
 .faelles-table tbody.faelles-summary tr:first-child td,
 .faelles-table tbody.faelles-summary tr:first-child th {
-  border-top: 2px solid var(--border);
+  box-shadow: inset 0 -1px 0 0 var(--border), inset 0 2px 0 0 var(--border);
 }
 
 .faelles-table tbody.faelles-summary th {
@@ -382,4 +391,15 @@
    left-aligned form. */
 .faelles-confirm-modal h2 {
   text-align: center;
+}
+
+/* --- Mobile (≤719px, site-wide breakpoint) ---------------------------
+   Grid stays a horizontally-scrolled table at every width (see file-top
+   comment) — this only shrinks the sticky Navn column, which otherwise eats
+   too much of a phone's limited width before the day columns even start. */
+@media (max-width: 719px) {
+  .faelles-table { font-size: 0.78rem; }
+  .faelles-table th,
+  .faelles-table td { padding: 0.3rem 0.4rem; }
+  .faelles-table .faelles-col-navn input[type="text"] { min-width: 4.5rem; }
 }

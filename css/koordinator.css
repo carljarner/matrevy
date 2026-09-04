@@ -255,12 +255,21 @@
   width: min(420px, 94vw);
 }
 
-/* .card-head is a plain non-wrapping flex row site-wide — scoped override
-   so "Masterplan" + the plan picker don't get squeezed together on a
-   narrow screen. */
+/* .card-head is a plain non-wrapping flex row site-wide. It used to be let
+   wrap here so "Masterplan" + the plan picker didn't get squeezed together
+   on a narrow screen — but a wrapped picker read as its own orphaned row,
+   not "still the top row, just shorter" (the actual ask: the picker must
+   always stay top-right). Below the width where it would otherwise wrap
+   (≤719px, the site-wide breakpoint), the "Viser plan for:" label is
+   dropped entirely (see .koord-mp-plan-picker-label below) — the dropdown
+   alone is narrow enough to always fit next to the title, so the row simply
+   never needs to wrap in the first place. */
 .koord-mp-card .card-head {
-  flex-wrap: wrap;
-  row-gap: 0.5rem;
+  flex-wrap: nowrap;
+}
+
+@media (max-width: 719px) {
+  .koord-mp-plan-picker-label { display: none; }
 }
 
 /* --- Masterplan (js/koordinator.js's renderMasterplanCard/renderMpGrid) --

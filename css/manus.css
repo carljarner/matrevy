@@ -1310,15 +1310,25 @@ a.manus-pdf-title:focus-visible {
 /* The dance half's row title is replaced entirely by this short badge (see
    renderStarRow() in manus.js) rather than repeating the scene name a
    second time right under its main half. */
+/* display:inline-flex + align-items:center (rather than the arrow's own
+   position:relative/top nudge this replaced) centers the arrow glyph
+   against the " Dans" text by box height, not text-baseline metrics — the
+   old nudge was tuned against one browser's baseline math for the ↳
+   glyph and read as vertically offset in Safari on the same phone that
+   rendered it fine in Chrome. A bare text node inside a flex container is
+   wrapped in an anonymous flex item per spec, so this stays consistent
+   across engines. */
 .manus-star-dans-label {
   padding-left: 1rem;
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
 }
 
 .manus-star-dans-arrow {
   display: inline-block;
-  position: relative;
-  top: calc(-0.15em + 3px);
+  line-height: 1;
 }
 
 /* Priority (0-3): four always-visible circles, grey until the active one
@@ -1404,8 +1414,12 @@ a.manus-pdf-title:focus-visible {
   .manus-select-columns .manus-col-empty { font-size: 0.85rem; }
   .manus-select-col-stack { gap: 0.75rem; }
   .manus-select-panel-group { margin-bottom: 0.85rem; }
-  /* .manus-kanban keeps horizontal scroll rather than stacking, consistent
-     with Kalender's own month-grid overflow-x:auto mobile pattern. */
+  /* .manus-kanban keeps horizontal scroll rather than stacking on
+     Aktfordeling/Rollefordeling/Manus, consistent with Kalender's own
+     month-grid overflow-x:auto mobile pattern — Stjerneark is the one
+     exception, stacking all four act columns instead (renderStjerneArkTab
+     passes columns:1 at this width, all in JS, no CSS override needed
+     here). */
   .manus-tab-btn-bar { display: none; }
   .manus-tab-select-mobile { display: flex; }
 
@@ -1428,6 +1442,29 @@ a.manus-pdf-title:focus-visible {
     padding: 0.4rem 0.6rem;
     font-size: 0.8rem;
   }
+
+  /* Stjerneark only (renderStjerneArkTab passes columns:1 at this width, so
+     .manus-kanban stacks instead of scrolling horizontally like the other
+     tabs — see renderActColumnsGrid's own comment) — a bit more breathing
+     room now that each row spans the full screen width. */
+  .manus-star-controls { gap: 0.4rem; }
+
+  /* The collapsed single priority circle (renderStarRow's isMobile branch)
+     stands in for four circles at once, so it gets a bigger touch target
+     than the desktop always-visible .manus-prio-circle row. */
+  .manus-prio-toggle {
+    width: 26px;
+    height: 26px;
+    font-size: 0.8rem;
+  }
+}
+
+/* Stjerneark's mobile priority popup (openStarPrioPopup in manus.js) —
+   .site-field-pop supplies the chrome, this just lays its four
+   .manus-prio-circle buttons out in a row. */
+.manus-star-prio-pop {
+  display: flex;
+  gap: 0.5rem;
 }
 
 /* --- "Hent stemmeark" print view ----------------------------
