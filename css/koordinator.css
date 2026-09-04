@@ -228,11 +228,15 @@
    card head, .card-head is already flex/space-between so this just sits as
    its 2nd child) + the "Ny plan"/"+ Tilføj" create modal, mirroring
    .koord-year-edit-modal's own sizing. -------------------------------- */
+/* flex-wrap:nowrap (not wrap) — with wrap, "Viser plan for:" ends up on
+   its own line above the dropdown whenever the two don't quite fit side by
+   side, which reads as broken (see the ≤400px breakpoint below, which
+   hides the label outright well before that point actually happens). */
 .koord-mp-plan-picker {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .koord-mp-plan-picker-label {
@@ -259,17 +263,18 @@
    wrap here so "Masterplan" + the plan picker didn't get squeezed together
    on a narrow screen — but a wrapped picker read as its own orphaned row,
    not "still the top row, just shorter" (the actual ask: the picker must
-   always stay top-right). Below the width where it would otherwise wrap
-   (≤300px — see the comment on the Blok tab bar's own matching breakpoint
-   below for how that number was picked), the "Viser plan for:" label is
-   dropped entirely (see .koord-mp-plan-picker-label below) — the dropdown
-   alone is narrow enough to always fit next to the title, so the row simply
-   never needs to wrap in the first place. */
+   always stay top-right). Below the width where "Viser plan for:" + the
+   dropdown stop fitting next to each other on one line (empirically ~380px
+   — .koord-mp-plan-picker's own nowrap above turns a too-tight fit into
+   real horizontal overflow instead of an internal wrap, so the label has to
+   actually disappear before that point, not after), the label is dropped
+   entirely (see .koord-mp-plan-picker-label below) — the dropdown alone is
+   narrow enough to always fit next to the title on its own. */
 .koord-mp-card .card-head {
   flex-wrap: nowrap;
 }
 
-@media (max-width: 300px) {
+@media (max-width: 400px) {
   .koord-mp-plan-picker-label { display: none; }
 }
 
