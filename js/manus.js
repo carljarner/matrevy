@@ -1922,6 +1922,16 @@ function manusCurrentActsPayload() {
   return acts;
 }
 
+// Whether "Generér PDF'er" actually has anything to build — true once at
+// least one *saved* scene sits in a real act (id prefix other than
+// MANUS_POOL_ACT_CODE). Deliberately reads getEffectiveScenesData()
+// (currently-saved data), not manusDraft — an unsaved drag in Aktfordeling
+// doesn't change what manusRegeneratePdfs() would actually produce, since
+// that rebuilds straight from saved data too.
+function manusHasSavedScenesToGenerate() {
+  return getEffectiveScenesData().some((s) => String(s.id).split('-')[0] !== MANUS_POOL_ACT_CODE);
+}
+
 // ── Kanban card (shared by the "Ikke placeret" column and every act
 // column in the Aktfordeling tab) ──────────────────────────────
 function renderDraftRowCard(row) {
@@ -2786,7 +2796,7 @@ function renderRollefordelingTab() {
   if (!anyPlaced) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
-    empty.textContent = 'Placér scener i Aktfordeling, før du fordeler roller.';
+    empty.textContent = 'Placer scener i Aktfordeling først.';
     mount.appendChild(empty);
     return;
   }
@@ -3014,7 +3024,7 @@ function renderManusTextTab() {
   if (!anyPlaced) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
-    empty.textContent = 'Placér scener i Aktfordeling, før du skriver manus.';
+    empty.textContent = 'Placer scener i Aktfordeling først.';
     mount.appendChild(empty);
     return;
   }
@@ -3186,7 +3196,7 @@ function renderStjerneArkTab() {
   if (!anyPlaced) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
-    empty.textContent = 'Placér scener i Aktfordeling, før du prioriterer.';
+    empty.textContent = 'Placer scener i Aktfordeling først.';
     mount.appendChild(empty);
     manusStarLastLayoutKey = null;
     return;
@@ -3804,12 +3814,35 @@ function manusPdfStatusText() {
   if (manusPdfPollTimedOut) return 'Kunne ikke bekræfte om PDF’erne er opdateret endnu — tjek "Tjek om klar" på Koordinator-siden om lidt';
   if (manusPdfLastGeneratedAt) return manusFormatGeneratedAt(manusPdfLastGeneratedAt);
   if (manusPdfConfirmedAbsent) return 'Endnu ikke genereret';
-  if (manusPdfCheckFailed) return 'Sidst genereret: ukendt';
-  return ''; // still checking — momentary, resolves within one tick
+  // checkFailed (or the check simply hasn't resolved yet) says nothing
+  // rather than a "Sidst genereret: ukendt" line — that read as if
+  // something HAD been generated at some unknown point, which is
+  // misleading in the common case where nothing has been generated at all
+  // yet. manusPdfCheckFailed is still tracked (see its own comment above)
+  // even though nothing currently renders it.
+  return '';
 }
 
 function manusPdfTimestampEl() {
   return document.querySelector('#manus-main-view-actions [data-manus-pdf-timestamp]');
+}
+
+// The Danish toast text explaining why a PDF quick-link button
+// (renderManusPdfLinksSection) can't open a real file right now, or null
+// when it's safe to attempt (a real generated file is expected, or we just
+// don't know yet — see the "optimistic" note below). Two distinct reasons
+// get two distinct messages, per explicit request: no active production at
+// all (Koordinator's "Afslut revyen" clears it) reads differently from an
+// active one that's simply never had a successful "Generér PDF'er" run.
+// Deliberately does NOT treat manusPdfCheckFailed/"still checking" (both
+// read as manusPdfConfirmedAbsent === false) as blocked — the file most
+// likely does exist in those cases, we just haven't confirmed it, so a
+// click stays optimistic rather than blocking on an inconclusive check.
+function manusPdfBlockedReason() {
+  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  if (!folder) return 'Ingen aktiv produktion';
+  if (manusPdfConfirmedAbsent) return 'Ikke genereret endnu';
+  return null;
 }
 
 // Fetched once per page load (guarded by manusPdfTimestampLoaded), not on
@@ -3860,7 +3893,7 @@ function manusPollPdfCompletion(beforeDate, url) {
       manusPdfPollTimedOut = true;
       renderManusPdfLinksSection();
       renderMainViewActions();
-      siteShowToast('Kunne ikke bekræfte at PDF’erne er opdateret — tjek Koordinator-siden om lidt');
+      siteShowToast('Kunne ikke bekræfte at PDF’erne er opdateret. Tjek Koordinator-siden om lidt');
       return;
     }
     const current = await manusFetchPdfStatus(url);
@@ -3953,9 +3986,23 @@ function renderMainViewActions() {
   generateBtn.type = 'button';
   generateBtn.className = 'site-btn-warm';
   generateBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
-  generateBtn.textContent = manusPdfGenerating ? 'Genererer...' : "Generér PDF'er";
+  generateBtn.textContent = manusPdfGenerating ? 'Genererer...' : "Generer PDF'er";
   generateBtn.disabled = manusPdfGenerating || manusResourceSaveInFlight;
-  generateBtn.addEventListener('click', () => manusRegeneratePdfs());
+  generateBtn.addEventListener('click', () => {
+    // Looks like an ordinary active button either way — nothing greys it
+    // out when there's no active production or the (saved) act columns are
+    // still empty, since that reads as broken rather than "there's nothing
+    // to do yet." Checked against getEffectiveScenesData() (the currently
+    // *saved* scenes), not the draft, since manusRegeneratePdfs() itself
+    // always rebuilds from that same saved data — see
+    // manusCurrentActsPayload()'s own comment. Same two-message split as
+    // the PDF quick-links' own manusPdfBlockedReason: no active production
+    // at all reads differently from an active one with nothing placed yet.
+    const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+    if (!folder) { siteShowToast('Ingen aktiv produktion'); return; }
+    if (!manusHasSavedScenesToGenerate()) { siteShowToast('Intet at generere'); return; }
+    manusRegeneratePdfs();
+  });
   left.appendChild(generateBtn);
 
   const pdfStatus = document.createElement('span');
@@ -4030,7 +4077,11 @@ function manusSlugifyName(name) {
 // plain revyst-level visitor only once Koordinator's "Vis PDF'er for
 // revyster" toggle (CONFIG_DATA.pdfLinksVisibleToRevyst) is on, so
 // boss/admin can proof a freshly (re)generated set privately before
-// revealing them. Unlike Main Manus View below (boss-only), this is a
+// revealing them. Buttons always render, even with no active production or
+// before anything's ever been generated — see openFile/manusPdfBlockedReason
+// below, which show a toast instead of opening a broken link in that case,
+// rather than hiding the row (that read as broken, not "nothing here yet").
+// Unlike Main Manus View below (boss-only), this is a
 // shortcut to the files scripts/generate-pdfs.js (run via generate-pdfs.yml)
 // already produced, not a trigger to (re)build them ("Generér PDF'er" moved
 // to Main Manus View's own action row, since that's the one boss-only write
@@ -4045,8 +4096,16 @@ function renderManusPdfLinksSection() {
   section.style.display = '';
   section.textContent = '';
 
+  // Kicks off the same freshness check Main Manus View's own status text
+  // relies on (manusLoadPdfTimestampIfNeeded is guarded to only actually
+  // fetch once) — this section renders for plain revyst-level visitors too
+  // (once Koordinator's toggle is on), who never touch boss-only Main Manus
+  // View at all, so this call can't be left solely to
+  // renderMainViewActions() or manusPdfBlockedReason() below would never
+  // learn manusPdfConfirmedAbsent for them.
+  manusLoadPdfTimestampIfNeeded();
+
   const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
-  if (!folder) return;
 
   // GitHub Pages serves everything under archive/ with a 10-minute
   // Cache-Control (confirmed live: max-age=600, via the Fastly CDN in
@@ -4067,7 +4126,14 @@ function renderManusPdfLinksSection() {
   // coordinator's tab triggered it) — same accepted cross-tab limitation as
   // the pulse/poll state themselves (see the "PDF regeneration status"
   // comment above).
+  // Buttons always render (see the file header's own note) even with no
+  // active production or before anything's ever been generated — clicking
+  // one then shows the same black bottom-of-page toast every other write
+  // action on the site uses, instead of a broken/empty window.open(). See
+  // manusPdfBlockedReason for which of its two messages applies and why.
   const openFile = (filename) => {
+    const blocked = manusPdfBlockedReason();
+    if (blocked) { siteShowToast(blocked); return; }
     const bust = manusPdfLastGeneratedAt ? manusPdfLastGeneratedAt.getTime() : Date.now();
     window.open(`archive/${folder}/${filename}?v=${bust}`, '_blank');
   };
@@ -4255,7 +4321,7 @@ function renderAdminSettings() {
       status.textContent = res.message || '';
       return;
     }
-    status.textContent = 'Gemt — slår igennem for revyster om ca. 1-2 minutter.';
+    status.textContent = 'Gemt. Kan ses af revyster om ca. 1-2 minutter.';
   });
 
   row.appendChild(input);
