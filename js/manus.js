@@ -4179,6 +4179,11 @@ function renderManusPdfLinksSection() {
   programBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   programBtn.textContent = 'Program';
   programBtn.addEventListener('click', () => {
+    // Checked before ever opening the dropdown, not just inside openFile
+    // once a variant is picked — a blocked state means there's nothing
+    // real to choose between either, so the menu itself shouldn't open.
+    const blocked = manusPdfBlockedReason();
+    if (blocked) { siteShowToast(blocked); return; }
     siteOpenDropdownPicker(programBtn, PROGRAM_PDF_VARIANTS, null, (filename) => {
       openFile(filename);
     });
@@ -4196,6 +4201,9 @@ function renderManusPdfLinksSection() {
   manusBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   manusBtn.textContent = 'Manus';
   manusBtn.addEventListener('click', () => {
+    // Same "don't even open the menu" gate as the Program button above.
+    const blocked = manusPdfBlockedReason();
+    if (blocked) { siteShowToast(blocked); return; }
     // "Sangboss" is a fixed pseudo-person (every song, regardless of cast —
     // see scripts/generate-pdfs.js's buildSangbossManuskript), which writes
     // its file to manuskripter/Sangboss.pdf — so the *slug* has to stay
