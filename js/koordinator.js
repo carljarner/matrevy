@@ -186,6 +186,22 @@ function koordSuggestNextFolder(folder) {
   return folder.slice(0, m.index) + nextYear + folder.slice(m.index + m[0].length);
 }
 
+// Prefill guess for "Start ny revy"'s own folder field. The normal case is
+// right after "Afslut revyen" already cleared currentProductionFolder, so
+// there's no active folder left to increment from — falls back to the
+// newest Arkiv year's own folder instead (koordCloseYear always creates or
+// reuses one for the folder it just closed, and saveArchiveYears keeps this
+// page's own override cache fresh, so this reflects that closed year
+// immediately, no reload needed). Only when Arkiv has no years at all (a
+// brand-new deploy) does this come back empty.
+function koordGuessNextProductionFolder(currentFolder) {
+  if (currentFolder) return koordSuggestNextFolder(currentFolder);
+  const years = getEffectiveArchiveYears();
+  if (!years.length) return '';
+  const newest = years.slice().sort((a, b) => b.year - a.year)[0];
+  return koordSuggestNextFolder(newest.folder);
+}
+
 function koordPillBtn(label, variant) {
   const btn = el('button', variant || 'site-btn-warm', label);
   btn.type = 'button';
@@ -648,7 +664,7 @@ function openStartNewYearModal(currentFolder) {
 
   const newFolderInput = document.createElement('input');
   newFolderInput.type = 'text';
-  newFolderInput.value = currentFolder ? koordSuggestNextFolder(currentFolder) : '';
+  newFolderInput.value = koordGuessNextProductionFolder(currentFolder);
   form.appendChild(siteEditField('Ny produktionsmappe', newFolderInput));
 
   const progress = el('div', 'koord-progress');
