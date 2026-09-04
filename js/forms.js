@@ -2263,9 +2263,9 @@ function formsOpenDeleteSectionConfirm(title, onConfirm) {
 }
 
 function formsOpenDeleteResponseConfirm(submittedAtLabel, onConfirm) {
-  const { modal, form, actions, close } = siteOpenEditModal('Slet svar');
-  modal.classList.add('forms-center-modal');
-  form.appendChild(el('p', 'forms-intro', `Slet dette svar (indsendt ${submittedAtLabel})? Dette kan ikke fortrydes.`));
+  const { modal, form, actions, close } = siteOpenEditModal('Slet svar?');
+  modal.classList.add('forms-center-modal', 'forms-response-delete-modal');
+  form.appendChild(el('p', 'forms-intro', `Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = formsPillBtn('Slet', 'site-btn-danger');

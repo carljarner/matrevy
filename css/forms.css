@@ -92,6 +92,12 @@
   width: min(340px, 88vw);
 }
 
+/* Delete-response confirm (formsOpenDeleteResponseConfirm) — title +
+   one-line message, same fixed one-liner width as .forms-leave-modal. */
+.forms-response-delete-modal {
+  width: min(300px, 85vw);
+}
+
 .forms-msg {
   font-size: 0.85rem;
   min-height: 1.2rem;
