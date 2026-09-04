@@ -202,7 +202,7 @@ function renderArkivSection() {
   if (!container) return;
   container.textContent = '';
 
-  container.appendChild(el('span', null, 'Tilføj eller rediger arkivet.'));
+  container.appendChild(el('span', null, 'Tilføj til eller rediger arkivet.'));
 
   const editBtn = el('button', 'btn-small', 'Rediger');
   editBtn.type = 'button';
@@ -440,14 +440,20 @@ function openDeleteArchiveYearConfirm(entry) {
 }
 
 // ── Close-year sequence ──────────────────────────────────────
-// Runs the four (well, six) steps of a Manus year-close in order, reporting
-// progress via onProgress(text) before each step starts. Throws (with a
-// Danish message) on the first failing step — every step here is either a
-// pure read, a guarded-idempotent create, or a plain overwrite of a known
-// target shape, so it's always safe to just fix the problem and re-run the
-// whole sequence rather than needing any rollback logic (see the plan's own
-// note on this).
-async function koordCloseYear({ closingFolder, closingName, closingYear, newFolder }, onProgress) {
+// Runs the steps of a Manus year-close in order, reporting progress via
+// onProgress(text) before each step starts. Throws (with a Danish message)
+// on the first failing step — every step here is either a pure read, a
+// guarded-idempotent create, or a plain overwrite of a known target shape,
+// so it's always safe to just fix the problem and re-run the whole sequence
+// rather than needing any rollback logic (see the plan's own note on this).
+//
+// Deliberately does NOT pick a new production folder — it only closes the
+// current one (clears currentProductionFolder back to '', which
+// manus_current_production_folder() server-side treats as "no active
+// production", blocking manuscripts_create). Starting the next production
+// is a separate, explicit step — see koordStartNewYear below — so an admin
+// can close a revy without immediately having to name the next one.
+async function koordCloseYear({ closingFolder, closingName, closingYear }, onProgress) {
   onProgress('Henter nuværende scenes.json og cast.json...');
   const rawBase = 'https://raw.githubusercontent.com/carljarner/matrevy/main/';
   const [scenesText, castText] = await Promise.all([
@@ -494,13 +500,28 @@ async function koordCloseYear({ closingFolder, closingName, closingYear, newFold
   const manuscriptsRes = await siteSaveResource('manuscripts', { submissions: [] });
   if (!manuscriptsRes.ok) throw new Error(manuscriptsRes.message || 'Kunne ikke nulstille indsendte manuskripter.');
 
+  onProgress('Lukker den aktive produktionsmappe...');
+  // Resets "Vis PDF'er for revyster" back to hidden in the same write, so
+  // the next production cycle starts private again — see manus.js's own
+  // renderAdminSettings. An empty currentProductionFolder is a valid,
+  // deliberate state — see save_config()'s own comment server-side and
+  // manus_current_production_folder(), which treats '' as "no active
+  // production" and rejects manuscripts_create with no_production_folder.
+  const configRes = await siteSaveResource('config', { currentProductionFolder: '', pdfLinksVisibleToRevyst: false });
+  if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke lukke produktionsmappen.');
+
+  onProgress('Færdig!');
+}
+
+// Sets a new active production folder — the second, separate half of the
+// old combined "close + start" flow (see koordCloseYear above). Run on its
+// own, with no reset of scenes/cast/manuscripts, since koordCloseYear
+// already did that when the previous production closed; this step just
+// re-opens the door for revyst uploads under the new folder name.
+async function koordStartNewYear(newFolder, onProgress) {
   onProgress('Skifter til den nye produktionsmappe...');
-  // Resets "Vis PDF'er for revyster" back to hidden in the same write, so a
-  // new production cycle starts private again — see manus.js's own
-  // renderAdminSettings.
   const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
-
   onProgress('Færdig!');
 }
 
@@ -511,7 +532,7 @@ async function koordCloseYear({ closingFolder, closingName, closingYear, newFold
 // Only the actual archiving step (openCloseYearModal below) still needs a
 // modal.
 function renderKoordCloseYearGuide(container) {
-  container.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Klargør de endelige filer'));
+  container.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Klargør filerne'));
   container.appendChild(el('p', null,
     'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
     'endelige tekst og rollebesætning og gemmer dem i arkivet (tager et par minutter). Bekræft herunder, at det er landet, ' +
@@ -534,17 +555,20 @@ function renderKoordCloseYearGuide(container) {
   container.appendChild(checkRow);
 }
 
-// ── Modal ─────────────────────────────────────────────────────
-// Opened by the right column's single "Afslut" button — the actual
-// archiving action itself (the guide that used to precede it as this
-// modal's own "Trin 1" now sits inline in the Manus card, see
-// renderKoordCloseYearGuide above).
+// ── Modals ────────────────────────────────────────────────────
+// Opened by the "Afslut revyen" subtitle's "Afslut" button — archives the
+// current production and closes it (see koordCloseYear above; the guide
+// that used to precede this as the modal's own "Trin 1" now sits inline in
+// the guide card, see renderKoordCloseYearGuide above). Deliberately does
+// NOT pick a new production folder — that's "Start ny revy" below, a
+// separate step so closing a revy doesn't force naming the next one in the
+// same breath.
 function openCloseYearModal(closingFolder) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut år og start nyt');
+  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut revyen');
   modal.classList.add('koord-close-year-modal');
 
   const intro = el('p', 'koord-modal-intro',
-    `Dette nulstiller Manus (scener, rollebesætning, indsendte manuskripter) og gør en ny mappe til den aktive produktion. Den nuværende mappe ("${closingFolder}") ændres ikke og bliver stående i arkivet.`);
+    `Dette nulstiller Manus (scener, rollebesætning, indsendte manuskripter), gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, og lukker den aktive produktionsmappe — revyster kan herefter ikke indsende manuskripter, før en ny revy startes.`);
   form.appendChild(intro);
 
   const nameInput = document.createElement('input');
@@ -560,9 +584,71 @@ function openCloseYearModal(closingFolder) {
   yearInput.value = yearMatch ? yearMatch[0] : '';
   form.appendChild(siteEditField('Afsluttende års årstal', yearInput));
 
+  const progress = el('div', 'koord-progress');
+  form.appendChild(progress);
+
+  const cancelBtn = koordPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = koordPillBtn('Afslut revyen', 'site-btn-success');
+  confirmBtn.addEventListener('click', async () => {
+    error.textContent = '';
+    const closingName = nameInput.value.trim();
+    const closingYear = Number(yearInput.value);
+
+    if (!closingName) { error.textContent = 'Angiv et navn til det afsluttende år.'; return; }
+    if (!Number.isInteger(closingYear) || closingYear < 1900 || closingYear > 2100) {
+      error.textContent = 'Angiv et gyldigt årstal.';
+      return;
+    }
+
+    cancelBtn.disabled = true;
+    confirmBtn.disabled = true;
+    try {
+      await koordCloseYear(
+        { closingFolder, closingName, closingYear },
+        (text) => { progress.textContent = text; }
+      );
+      // CONFIG_DATA is this tab's embedded snapshot from page load — it has
+      // no localStorage override mechanism (unlike calendar/archive/posts/
+      // wiki/manus), so the status cards above can't reflect the closed
+      // production folder until a reload picks up the regenerated
+      // config-data.js (~1-2 min, same GitHub Action lag as everywhere else
+      // on this site). Say so explicitly rather than silently re-rendering
+      // a status card that would still show the old folder.
+      progress.textContent = 'Revyen er afsluttet, og produktionsmappen er lukket. Genindlæs siden om et par minutter for at se det afspejlet ovenfor.';
+      siteShowToast('Revyen er afsluttet');
+      cancelBtn.textContent = 'Luk';
+      cancelBtn.disabled = false;
+    } catch (e) {
+      error.textContent = e.message || 'Der opstod en fejl. Det er trygt at prøve igen — allerede fuldførte trin gentages uden problemer.';
+      cancelBtn.disabled = false;
+      confirmBtn.disabled = false;
+    }
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// Opened by the "Start ny revy" subtitle's "Start" button — the second,
+// separate half of the old combined close+start flow (see
+// koordStartNewYear above). `currentFolder` is whatever's active right now
+// (usually '' after "Afslut revyen" has run, but not enforced — an admin
+// can also use this to rename/redirect the active production without
+// closing it first, hence the warning below when one's already set).
+function openStartNewYearModal(currentFolder) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('Start ny revy');
+  modal.classList.add('koord-close-year-modal');
+
+  const intro = el('p', 'koord-modal-intro', currentFolder
+    ? `Der er allerede en aktiv produktionsmappe ("${currentFolder}"). Dette skifter til en ny uden at arkivere eller nulstille den nuværende — brug "Afslut revyen" først, medmindre du er sikker på at det ikke er nødvendigt.`
+    : 'Gør en ny mappe til den aktive produktion, så revyster igen kan indsende manuskripter til Manus.');
+  form.appendChild(intro);
+
   const newFolderInput = document.createElement('input');
   newFolderInput.type = 'text';
-  newFolderInput.value = koordSuggestNextFolder(closingFolder);
+  newFolderInput.value = currentFolder ? koordSuggestNextFolder(currentFolder) : '';
   form.appendChild(siteEditField('Ny produktionsmappe', newFolderInput));
 
   const progress = el('div', 'koord-progress');
@@ -571,23 +657,16 @@ function openCloseYearModal(closingFolder) {
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = koordPillBtn('Afslut år og start nyt', 'site-btn-success');
+  const confirmBtn = koordPillBtn('Start ny revy', 'site-btn-success');
   confirmBtn.addEventListener('click', async () => {
     error.textContent = '';
-    const closingName = nameInput.value.trim();
-    const closingYear = Number(yearInput.value);
     const newFolder = newFolderInput.value.trim();
 
-    if (!closingName) { error.textContent = 'Angiv et navn til det afsluttende år.'; return; }
-    if (!Number.isInteger(closingYear) || closingYear < 1900 || closingYear > 2100) {
-      error.textContent = 'Angiv et gyldigt årstal.';
-      return;
-    }
     if (!/^[A-Za-z0-9_-]+$/.test(newFolder)) {
-      error.textContent = 'Ny produktionsmappe må kun indeholde bogstaver, tal, "_" og "-".';
+      error.textContent = 'Produktionsmappen må kun indeholde bogstaver, tal, "_" og "-".';
       return;
     }
-    if (newFolder === closingFolder) {
+    if (newFolder === currentFolder) {
       error.textContent = 'Den nye produktionsmappe skal være forskellig fra den nuværende.';
       return;
     }
@@ -595,23 +674,13 @@ function openCloseYearModal(closingFolder) {
     cancelBtn.disabled = true;
     confirmBtn.disabled = true;
     try {
-      await koordCloseYear(
-        { closingFolder, closingName, closingYear, newFolder },
-        (text) => { progress.textContent = text; }
-      );
-      // CONFIG_DATA is this tab's embedded snapshot from page load — it has
-      // no localStorage override mechanism (unlike calendar/archive/posts/
-      // wiki/manus), so the status card above can't reflect the new
-      // production folder until a reload picks up the regenerated
-      // config-data.js (~1-2 min, same GitHub Action lag as everywhere
-      // else on this site). Say so explicitly rather than silently
-      // re-rendering a status card that would still show the old folder.
-      progress.textContent = `Nyt produktionsår startet (${newFolder}). Genindlæs siden om et par minutter for at se det afspejlet ovenfor.`;
-      siteShowToast('Nyt produktionsår startet');
+      await koordStartNewYear(newFolder, (text) => { progress.textContent = text; });
+      progress.textContent = `Ny produktionsmappe startet (${newFolder}). Genindlæs siden om et par minutter for at se det afspejlet ovenfor.`;
+      siteShowToast('Ny produktionsmappe startet');
       cancelBtn.textContent = 'Luk';
       cancelBtn.disabled = false;
     } catch (e) {
-      error.textContent = e.message || 'Der opstod en fejl. Det er trygt at prøve igen — allerede fuldførte trin gentages uden problemer.';
+      error.textContent = e.message || 'Der opstod en fejl. Det er trygt at prøve igen.';
       cancelBtn.disabled = false;
       confirmBtn.disabled = false;
     }
@@ -1585,44 +1654,44 @@ function renderKoordModeTabs(root) {
   root.appendChild(tabs);
 }
 
-// "Arkivering" tab: a wide left "Manus" card (active-folder status + the
-// "Afslut revyen" close-year guide, see openCloseYearModal) and a narrow
-// right column stacking "Budget" (which budget is active, see
-// openKoordBudgetEditor) and "Arkiv" (unchanged Rediger picker) — same
-// 2fr/1fr layout as style.css's .dashboard-columns, page-scoped as
-// .koord-columns since it only applies within this one tab.
+// "Arkivering" tab: a wide left "Guide til arkivering af manus" card
+// (three subtitled steps — Klargør filerne, Afslut revyen, Start ny revy)
+// and a narrow right column stacking "Budget" (which budget is active, see
+// openKoordBudgetEditor), "Arkiv" (unchanged Rediger picker), and "Manus"
+// (active-folder status only) — same 2fr/1fr layout as style.css's
+// .dashboard-columns, page-scoped as .koord-columns since it only applies
+// within this one tab.
 function renderArkiveringCard(container) {
   const folder = koordCurrentFolder();
 
   const layout = el('div', 'koord-columns');
 
-  const manusCard = el('section', 'card');
-  const manusHead = el('div', 'card-head');
-  manusHead.appendChild(el('h2', null, 'Manus'));
-  manusCard.appendChild(manusHead);
+  const guideCard = el('section', 'card');
+  const guideHead = el('div', 'card-head');
+  guideHead.appendChild(el('h2', null, 'Guide til arkivering af manus'));
+  guideCard.appendChild(guideHead);
 
-  manusCard.appendChild(el('p', null, folder
-    ? `Aktiv produktionsmappe: ${folder}`
-    : 'Ingen aktiv produktionsmappe fundet (data/config.json).'));
-  const manusLink = document.createElement('a');
-  manusLink.href = 'manus.html';
-  manusLink.textContent = 'Gå til Manus-siden';
-  manusLink.className = 'btn-small';
-  manusCard.appendChild(manusLink);
+  renderKoordCloseYearGuide(guideCard);
 
-  renderKoordCloseYearGuide(manusCard);
-
-  manusCard.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
-  manusCard.appendChild(el('p', null,
-    'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter) til et nyt, tomt produktionsår og gemmer et ' +
-    'snapshot af scenes.json/cast.json i arkivet.'));
+  guideCard.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
+  guideCard.appendChild(el('p', null,
+    'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter), gemmer et snapshot af scenes.json/cast.json i ' +
+    'arkivet, og lukker den aktive produktionsmappe, så revyster ikke længere kan indsende manuskripter.'));
   const closeBtn = el('button', 'btn-small', 'Afslut');
   closeBtn.type = 'button';
   closeBtn.disabled = !folder;
   closeBtn.addEventListener('click', () => openCloseYearModal(folder));
-  manusCard.appendChild(closeBtn);
+  guideCard.appendChild(closeBtn);
 
-  layout.appendChild(manusCard);
+  guideCard.appendChild(el('h3', 'koord-step-heading', 'Start ny revy'));
+  guideCard.appendChild(el('p', null,
+    'Gør en ny mappe til den aktive produktion, så revyster igen kan indsende manuskripter til Manus.'));
+  const startBtn = el('button', 'btn-small', 'Start');
+  startBtn.type = 'button';
+  startBtn.addEventListener('click', () => openStartNewYearModal(folder));
+  guideCard.appendChild(startBtn);
+
+  layout.appendChild(guideCard);
 
   const rightCol = el('div', 'koord-right-col');
 
@@ -1644,11 +1713,35 @@ function renderArkiveringCard(container) {
   arkivCard.appendChild(arkivBody);
   rightCol.appendChild(arkivCard);
 
+  const manusCard = el('section', 'card');
+  const manusHead = el('div', 'card-head');
+  manusHead.appendChild(el('h2', null, 'Manus'));
+  manusCard.appendChild(manusHead);
+  const manusBody = el('div', 'koord-arkivering-row');
+  manusBody.id = 'koord-manus-body';
+  manusCard.appendChild(manusBody);
+  rightCol.appendChild(manusCard);
+
   layout.appendChild(rightCol);
 
   container.appendChild(layout);
   renderArkivSection();
+  renderKoordManusSection();
   koordLoadBudgetYears();
+}
+
+// Right-column "Manus" card: just the active-production-folder status, no
+// edit action here (that's the guide card's own "Afslut revyen"/"Start ny
+// revy" steps) — mirrors the Budget/Arkiv cards' own koord-arkivering-row
+// shape but as a plain status line.
+function renderKoordManusSection() {
+  const container = document.getElementById('koord-manus-body');
+  if (!container) return;
+  container.textContent = '';
+  const folder = koordCurrentFolder();
+  container.appendChild(el('span', null, folder
+    ? `Aktiv produktionsmappe: ${folder}`
+    : 'Ingen aktiv produktionsmappe.'));
 }
 
 // "Tjeklister & Fællesbeskeder" tab: empty placeholder for now.
