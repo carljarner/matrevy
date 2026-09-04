@@ -1301,7 +1301,7 @@ async function formsRenderOverviewScreen(root) {
 
 function formsOpenDeleteConfirm(root, f) {
   const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${f.title}"?`);
-  modal.classList.add('forms-center-modal');
+  modal.classList.add('forms-center-modal', 'forms-narrow-modal');
   form.appendChild(el('p', 'forms-intro', f.responseCount > 0
     ? `Inklusiv alle ${f.responseCount} svar? Dette kan ikke fortrydes.`
     : 'Dette kan ikke fortrydes.'));
