@@ -550,7 +550,7 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
 // re-opens the door for revyst uploads under the new folder name.
 //
 // Also updates data/scenes.json's own top-level `production` field (e.g.
-// "Matematikrevyen 2027") — a completely different string from
+// "MatRevy 2027") — a completely different string from
 // currentProductionFolder's archive-folder slug ("MatRevy_2027"), but the
 // one scripts/generate-pdfs.js actually prints as \revyname{}/\revyyear{}
 // on every generated PDF's title page. Left untouched by koordCloseYear
@@ -691,19 +691,21 @@ function openStartNewYearModal(currentFolder) {
 
   const guessedFolder = koordGuessNextProductionFolder(currentFolder);
   const guessedYearMatch = guessedFolder.match(/\d{4}/);
+  const guessedYear = guessedYearMatch ? guessedYearMatch[0] : '';
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
-  // "MatRevy" matches archive.json's own naming convention for every
-  // historical entry ("MatRevy 2026", "MatRevy 2025", ...) — a jubilee year
+  // "MatRevy <year>" matches archive.json's own naming convention for every
+  // historical entry ("MatRevy 2026", "MatRevy 2025", ...) — sent to the
+  // server as-is (not rebuilt from the Årstal field below), a jubilee year
   // wants something else, freely editable like every other guessed field
   // on this page.
-  nameInput.value = 'MatRevy';
+  nameInput.value = guessedYear ? `MatRevy ${guessedYear}` : 'MatRevy';
   const yearInput = document.createElement('input');
   yearInput.type = 'number';
   yearInput.min = '1900';
   yearInput.max = '2100';
-  yearInput.value = guessedYearMatch ? guessedYearMatch[0] : '';
+  yearInput.value = guessedYear;
   // Same 2:1 side-by-side row as openKoordYearEditor's own Navn/Årstal
   // pair (koord-year-edit-row, reused verbatim — already exactly this
   // ratio, collapsing to stacked on mobile).

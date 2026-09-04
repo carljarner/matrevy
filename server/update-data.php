@@ -4144,11 +4144,18 @@ function save_masterplan($payload) {
 function save_production($payload) {
   $name = $payload['name'] ?? '';
   $year = $payload['year'] ?? '';
+  // `name` is the whole display string as typed (e.g. "MatRevy 2027",
+  // guessed with the year already baked in — matching archive.json's own
+  // `name` convention) — stored verbatim, not rebuilt from `year`. `year`
+  // is still required and validated on its own (a real 4-digit year), but
+  // only as a sanity check that one was actually given; not cross-checked
+  // against `name` itself, same permissive "two independent fields" stance
+  // as openKoordYearEditor's own Navn/Årstal pair for archive.json.
   if (!is_string($name) || trim($name) === '' || mb_strlen($name) > 100
       || !is_string($year) || !preg_match('/^\d{4}$/', $year)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  $production = trim($name) . ' ' . $year;
+  $production = trim($name);
 
   update_file('data/scenes.json', function ($json) use ($production) {
     $json['production'] = $production;
