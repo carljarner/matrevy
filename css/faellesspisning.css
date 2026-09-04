@@ -35,8 +35,19 @@
 
 /* --- Main grid ---------------------------------------------------- */
 
+/* overflow-x:auto alone forces overflow-y's computed value to 'auto' too
+   (CSS Overflow spec: one axis non-'visible' pulls the other off 'visible'),
+   which silently turns this wrap into its own scroll container — and since
+   it never actually overflows vertically (no height cap), that container's
+   own scrollTop never moves, so a sticky child inside it never "sees" the
+   page scrolling and just scrolls away with the rest of the table (verified
+   empirically, not just per spec). Capping the height and scrolling
+   vertically *within* the wrap (rather than relying on page scroll) is what
+   makes the sticky header actually work — same recipe as wiki.css's chapter
+   list (`max-height: calc(100vh - 96px)`). */
 .faelles-table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: calc(100vh - 260px);
   -webkit-overflow-scrolling: touch;
   /* Room for the horizontal scrollbar below the table content — without
      this, an overlay scrollbar (macOS Safari/Chrome with "always show
@@ -59,7 +70,17 @@
   white-space: nowrap;
 }
 
+/* Sticky header row (Navn/Madforbehold/date columns) — stays visible while
+   scrolling down a long roster, so a date further down the sheet is always
+   readable. background is required so rows scrolling up don't show through;
+   z-index sits above the sticky Navn column's tbody cells (1) but below the
+   header's own Navn corner cell (which needs to win over both this row and
+   the tbody's sticky column — see .faelles-table thead .faelles-col-navn). */
 .faelles-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
   color: var(--text-muted);
   font-weight: 600;
   font-size: 0.8rem;
@@ -81,7 +102,7 @@
 }
 
 .faelles-table thead .faelles-col-navn {
-  z-index: 2;
+  z-index: 3;
 }
 
 /* Fixed-ish width so a long Madforbehold entry never grows the column —
