@@ -45,9 +45,9 @@
       Aktfordeling/Rollefordeling/
       Manus/Stjerneark all share one act-columns grid (renderActColumnsGrid(),
       N columns = manusDraft.acts.length, 4 for the fixed skeleton, one row —
-      Stjerneark alone passes an explicit 2-column override so its wider
-      rows wrap Akt1/Akt2 onto a first row and Akt3/Ekstranumre onto a
-      second) —
+      Stjerneark alone passes an explicit `columns` override — 3/2/1
+      depending on window width, see manusStarLayoutMode() — so its wider
+      rows wrap the remaining acts onto however many columns actually fit) —
       Aktfordeling additionally renders "Ikke placeret" as its own
       full-width row below the acts (same column grid, filled row-wise,
       selected-but-unplaced pool rows only), and its drag-and-drop makes
@@ -2561,12 +2561,13 @@ function buildActColumn(act, buildColumnBody, rowFilter = null) {
 // (N = manusDraft.acts.length, 4 for the fixed Akt1/2/3/Ekstranumre
 // skeleton) — used by Aktfordeling's act row and, unchanged otherwise, by
 // Rollefordeling/Manus below so those three tabs read as the same grid.
-// Stjerneark alone passes an explicit `columns` override (3 on desktop, 1 on
-// mobile — see renderStjerneArkTab) so it wraps — that tab's rows are wide
-// (priority circles + repeat toggle alongside the title), so four
-// side-by-side columns read as cramped there in a way the other tabs'
-// plainer rows don't; on mobile even 3 is too narrow, so all four acts
-// stack into the single column instead. Any act beyond the first `columns - 1`
+// Stjerneark alone passes an explicit `columns` override (3/2/1 depending on
+// window width — see manusStarLayoutMode()/renderStjerneArkTab) so it wraps
+// — that tab's rows are wide (priority circles + repeat toggle alongside the
+// title), so four side-by-side columns read as cramped there in a way the
+// other tabs' plainer rows don't; below ~1000px even 3 is too narrow, and
+// below the site-wide ~719px breakpoint even 2 is, so all four acts stack
+// into a single column at that point. Any act beyond the first `columns - 1`
 // stacks into that *last* column — for the fixed 4-act skeleton at 3
 // columns that means Akt3 and Ekstranumre both land in column 3. That stack
 // is its own flex column (`.manus-kanban-col-stack`), not a second CSS grid
@@ -3156,6 +3157,27 @@ function renderStarRow(row, entry, isMobile) {
   return el;
 }
 
+// Stjerneark's own responsive tiers — independent of the site-wide ≤719px
+// mobile breakpoint, since this tab's rows (name + up to 4 priority circles
+// + repeat toggle) get cramped well before that: the always-visible circles
+// collapse into a single tap-to-open toggle (see renderStarRow's `compact`
+// param) at ≤1000px already, and the 3-wide act-column grid drops to 2
+// columns at that same width, then to 1 (full stack, same as before) at the
+// existing ≤719px breakpoint. `key` is just `columns` as a string, cheap to
+// compare so the resize handler below only re-renders on an actual tier
+// change, not on every pixel of a drag-resize.
+function manusStarLayoutMode() {
+  const w = window.innerWidth;
+  if (w <= 719) return { columns: 1, compact: true, key: '1' };
+  if (w <= 1000) return { columns: 2, compact: true, key: '2' };
+  return { columns: 3, compact: false, key: '3' };
+}
+
+// Set by renderStjerneArkTab, read by the resize listener further down so a
+// window resize that doesn't cross a tier boundary is a no-op instead of a
+// full re-render.
+let manusStarLastLayoutKey = null;
+
 function renderStjerneArkTab() {
   const mount = document.getElementById('manus-tab-stjerneark');
   mount.textContent = '';
@@ -3166,22 +3188,39 @@ function renderStjerneArkTab() {
     empty.className = 'manus-col-empty';
     empty.textContent = 'Placér scener i Aktfordeling, før du prioriterer.';
     mount.appendChild(empty);
+    manusStarLastLayoutKey = null;
     return;
   }
 
-  // Mobile: all four act columns stack on top of each other (columns:1 —
-  // see renderActColumnsGrid's stacking branch) instead of desktop's 3-wide
-  // layout, so each row gets the full screen width for name + rating.
-  const isMobile = window.matchMedia('(max-width: 719px)').matches;
+  const { columns, compact, key } = manusStarLayoutMode();
+  manusStarLastLayoutKey = key;
   mount.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
     rowsInAct.forEach((row, idx) => {
       const scene = manusRowScene(row, act, idx);
       const split = splitDanceScene(scene);
       const entries = split || [scene];
-      for (const entry of entries) body.appendChild(renderStarRow(row, entry, isMobile));
+      for (const entry of entries) body.appendChild(renderStarRow(row, entry, compact));
     });
-  }, isMobile ? 1 : 3, row => !manusRowIsManualMedia(row)));
+  }, columns, row => !manusRowIsManualMedia(row)));
 }
+
+// Re-renders Stjerneark in place when a resize crosses one of its own tier
+// boundaries (see manusStarLayoutMode above) — without this, switching
+// tiers by dragging the window narrower/wider only took effect on the next
+// tab switch/re-render, requiring a manual refresh to see the column count
+// or circle style catch up. rAF-debounced the same way site.js's own
+// siteUpdateHeaderFit resize listener is, so a drag-resize doesn't re-render
+// on every intermediate pixel.
+let manusStarResizeRaf = null;
+window.addEventListener('resize', () => {
+  if (manusStarResizeRaf) cancelAnimationFrame(manusStarResizeRaf);
+  manusStarResizeRaf = requestAnimationFrame(() => {
+    manusStarResizeRaf = null;
+    if (manusActiveTab !== 'stjerneark') return;
+    if (manusStarLayoutMode().key === manusStarLastLayoutKey) return;
+    renderStjerneArkTab();
+  });
+});
 
 // ── Program tab (Medvirkende / Ordliste / QR-koder → Program.pdf) ──
 // Architecturally independent of manusDraft (entirely scene-scoped) — its

@@ -823,12 +823,14 @@ a.manus-pdf-title:focus-visible {
    inline per render — see renderActColumnsGrid() — so it always matches
    however many acts there are, 4 for the fixed skeleton); Rollefordeling
    and Manus reuse the exact same grid for their own act columns. Stjerneark
-   also reuses it but passes an explicit 3-column override, so its wider
+   also reuses it but passes an explicit `columns` override (3/2/1 depending
+   on window width — manusStarLayoutMode() in manus.js), so its wider
    per-scene rows (priority circles + repeat toggle) don't squeeze four
-   across — Akt1 and Akt2 each get their own column, and Akt3/Ekstranumre
-   stack into the third (an explicit inline grid-column per column in
-   renderActColumnsGrid(), not grid's default row-major wrap, keeps
-   Ekstranumre under Akt3 specifically rather than back under column 1).
+   across — at 3 columns Akt1 and Akt2 each get their own column and
+   Akt3/Ekstranumre stack into the third (an explicit inline grid-column per
+   column in renderActColumnsGrid(), not grid's default row-major wrap,
+   keeps Ekstranumre under Akt3 specifically rather than back under column
+   1); narrower tiers group progressively more acts per column the same way.
    .manus-kanban-pool-section is Aktfordeling-only: "Ikke placeret" as a
    full-width row below the acts, its own grid using the same column
    template so widths line up, filled row-wise (CSS grid's default
@@ -1417,9 +1419,9 @@ a.manus-pdf-title:focus-visible {
   /* .manus-kanban keeps horizontal scroll rather than stacking on
      Aktfordeling/Rollefordeling/Manus, consistent with Kalender's own
      month-grid overflow-x:auto mobile pattern — Stjerneark is the one
-     exception, stacking all four act columns instead (renderStjerneArkTab
-     passes columns:1 at this width, all in JS, no CSS override needed
-     here). */
+     exception, stacking all four act columns into a single column at this
+     width (renderStjerneArkTab/manusStarLayoutMode() in manus.js; it's
+     already down to 2 columns by the ≤1000px tier just below). */
   .manus-tab-btn-bar { display: none; }
   .manus-tab-select-mobile { display: flex; }
 
@@ -1443,15 +1445,24 @@ a.manus-pdf-title:focus-visible {
     font-size: 0.8rem;
   }
 
-  /* Stjerneark only (renderStjerneArkTab passes columns:1 at this width, so
-     .manus-kanban stacks instead of scrolling horizontally like the other
-     tabs — see renderActColumnsGrid's own comment) — a bit more breathing
-     room now that each row spans the full screen width. */
+  /* Stjerneark only, at this width down to a single stacked act column
+     (manusStarLayoutMode() in manus.js) — a bit more breathing room now
+     that each row spans the full screen width. The compact single-circle
+     toggle itself (.manus-prio-toggle) is styled below, at its own ≤1000px
+     tier — it's already active well above this breakpoint. */
   .manus-star-controls { gap: 0.4rem; }
+}
 
-  /* The collapsed single priority circle (renderStarRow's isMobile branch)
-     stands in for four circles at once, so it gets a bigger touch target
-     than the desktop always-visible .manus-prio-circle row. */
+/* --- Stjerneark's own responsive tiers (manusStarLayoutMode() in
+   manus.js) — narrower than the site-wide ≤719px breakpoint above, since
+   this tab's rows get cramped earlier than the rest of the site: the
+   always-visible 4-circle priority row collapses into a single
+   tap-to-open toggle, and the act-column grid drops from 3 to 2 columns
+   (then to 1 at the shared ≤719px tier above). */
+@media (max-width: 1000px) {
+  /* The collapsed single priority circle (renderStarRow's `compact`
+     branch) stands in for four circles at once, so it gets a bigger touch
+     target than the desktop always-visible .manus-prio-circle row. */
   .manus-prio-toggle {
     width: 26px;
     height: 26px;
