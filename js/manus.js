@@ -3801,6 +3801,35 @@ async function manusFetchPdfStatus(path) {
   }
 }
 
+// A single GitHub Contents API call confirming whether `path` currently
+// exists in the repo — unlike manusFetchPdfStatus above, which only knows
+// "has this path ever had a commit," a *deleted* file still has commit
+// history (its own removal is a commit that touches the path), so that
+// check alone kept reporting a stale "Sidst genereret" date — and let the
+// PDF quick-link buttons keep trying to open a 404 — for a file that had
+// actually been removed (confirmed live 2026-09 clearing out
+// archive/MatRevy_2026's test PDFs). Used only by
+// manusLoadPdfTimestampIfNeeded's one-shot page-load check below, not the
+// repeating manusPollPdfCompletion poll — that one only ever runs against
+// a file already confirmed to exist, mid-regeneration, where this
+// existence/history distinction doesn't matter, and doubling its request
+// count would risk the unauthenticated 60/hour cap it's already tuned
+// against.
+async function manusFetchPdfExists(path) {
+  if (!path) return { exists: false, checkFailed: true };
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/carljarner/matrevy/contents/${path.split('/').map(encodeURIComponent).join('/')}`,
+      { cache: 'no-store' }
+    );
+    if (res.status === 404) return { exists: false, checkFailed: false };
+    if (!res.ok) return { exists: false, checkFailed: true };
+    return { exists: true, checkFailed: false };
+  } catch (e) {
+    return { exists: false, checkFailed: true };
+  }
+}
+
 // Repo-relative path, not a URL — fed to the GitHub Commits API's `path`
 // filter above (also happens to be the same string a browser HEAD request
 // against the deployed site would have used, back when this checked
@@ -3864,12 +3893,29 @@ function manusPdfBlockedReason() {
 function manusLoadPdfTimestampIfNeeded() {
   if (manusPdfTimestampLoaded || manusPdfGenerating) return;
   manusPdfTimestampLoaded = true;
-  manusFetchPdfStatus(manusPdfReferenceUrl()).then(({ date, confirmedAbsent, checkFailed }) => {
-    manusPdfLastGeneratedAt = date;
-    manusPdfConfirmedAbsent = confirmedAbsent;
-    manusPdfCheckFailed = checkFailed;
+  const path = manusPdfReferenceUrl();
+  const apply = () => {
     const el = manusPdfTimestampEl();
     if (el) el.textContent = manusPdfStatusText();
+  };
+  manusFetchPdfExists(path).then(({ exists, checkFailed }) => {
+    if (!exists) {
+      manusPdfLastGeneratedAt = null;
+      manusPdfConfirmedAbsent = !checkFailed;
+      manusPdfCheckFailed = checkFailed;
+      apply();
+      return;
+    }
+    // Confirmed to exist — a second call for the display date/timestamp
+    // (manusFetchPdfStatus's own Commits-API check), only reached once per
+    // page load, not from the repeating completion poll (see
+    // manusFetchPdfExists's own comment).
+    manusFetchPdfStatus(path).then(({ date, confirmedAbsent, checkFailed: cf2 }) => {
+      manusPdfLastGeneratedAt = date;
+      manusPdfConfirmedAbsent = confirmedAbsent;
+      manusPdfCheckFailed = cf2;
+      apply();
+    });
   });
 }
 

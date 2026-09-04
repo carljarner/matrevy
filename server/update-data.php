@@ -4129,6 +4129,33 @@ function save_masterplan($payload) {
   }, 'Opdater masterplan.json via Koordinator');
 }
 
+// data/scenes.json's own top-level `production` field (e.g. "Matematikrevyen
+// 2026") — distinct from config.json's currentProductionFolder (an archive
+// *folder slug* like "MatRevy_2026"). scripts/generate-pdfs.js reads this
+// string as the \revyname{}/\revyyear{} printed on every generated PDF's
+// title page (splitting the year back out of it via a regex — see that
+// script's own comment), so it needs to change whenever a new production
+// starts or every PDF keeps printing the old year. A dedicated resource
+// rather than folding this into the `manus` resource above: `manus` is a
+// full-array-replace of `acts`/`cast` (mirrors save_manus's own scenes/cast
+// validation), and round-tripping the *current* acts/cast just to touch
+// this one unrelated field would risk clobbering concurrent scene edits
+// with a stale copy — same one-key-at-a-time posture as save_config above.
+function save_production($payload) {
+  $name = $payload['name'] ?? '';
+  $year = $payload['year'] ?? '';
+  if (!is_string($name) || trim($name) === '' || mb_strlen($name) > 100
+      || !is_string($year) || !preg_match('/^\d{4}$/', $year)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $production = trim($name) . ' ' . $year;
+
+  update_file('data/scenes.json', function ($json) use ($production) {
+    $json['production'] = $production;
+    return $json;
+  }, 'Opdater produktionsnavn via Koordinator');
+}
+
 $RESOURCES = [
   'manus'         => ['level' => 'boss',  'save' => 'save_manus'],
   'calendar'      => ['level' => 'boss',  'save' => 'save_calendar'],
@@ -4140,6 +4167,7 @@ $RESOURCES = [
   'config'        => ['level' => 'admin', 'save' => 'save_config'],
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
   'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
+  'production'    => ['level' => 'admin', 'save' => 'save_production'],
 ];
 
 $resource = $body['resource'] ?? '';

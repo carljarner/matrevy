@@ -121,17 +121,31 @@ async function saveArchiveYears(next) {
 // its Last-Modified. This is a one-shot manual check (the "Tjek om klar"
 // button below), not a repeating poll, so the unauthenticated 60/hour rate
 // limit isn't a practical concern here the way it is for manus.js's own
-// repeating MANUS_PDF_POLL_INTERVAL_MS poll. ────────────────────────
+// repeating MANUS_PDF_POLL_INTERVAL_MS poll — hence checking existence via
+// a first Contents API call before ever trusting the Commits API's own
+// date: a *deleted* file still has commit history (its own removal is a
+// commit touching that path), so commits.length alone can't tell "was
+// generated" from "was generated, then later removed" — confirmed live
+// 2026-09 after archive/MatRevy_2026's test PDFs were cleared out, which
+// left this check still reporting a stale generated-date for a file that
+// no longer existed (same bug manus.js's own manusFetchPdfExists fixes).
 async function koordFetchPdfStatus(path) {
   if (!path) return { date: null, confirmedAbsent: false, checkFailed: true };
   try {
+    const existsRes = await fetch(
+      `https://api.github.com/repos/carljarner/matrevy/contents/${path.split('/').map(encodeURIComponent).join('/')}`,
+      { cache: 'no-store' }
+    );
+    if (existsRes.status === 404) return { date: null, confirmedAbsent: true, checkFailed: false };
+    if (!existsRes.ok) return { date: null, confirmedAbsent: false, checkFailed: true };
+
     const res = await fetch(
       `https://api.github.com/repos/carljarner/matrevy/commits?path=${encodeURIComponent(path)}&per_page=1`,
       { cache: 'no-store' }
     );
     if (!res.ok) return { date: null, confirmedAbsent: false, checkFailed: true };
     const commits = await res.json();
-    if (!Array.isArray(commits) || !commits.length) return { date: null, confirmedAbsent: true, checkFailed: false };
+    if (!Array.isArray(commits) || !commits.length) return { date: null, confirmedAbsent: false, checkFailed: true };
     const date = new Date(commits[0].commit.committer.date);
     return { date: isNaN(date.getTime()) ? null : date, confirmedAbsent: false, checkFailed: isNaN(date.getTime()) };
   } catch (e) {
@@ -534,7 +548,20 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
 // own, with no reset of scenes/cast/manuscripts, since koordCloseYear
 // already did that when the previous production closed; this step just
 // re-opens the door for revyst uploads under the new folder name.
-async function koordStartNewYear(newFolder, onProgress) {
+//
+// Also updates data/scenes.json's own top-level `production` field (e.g.
+// "Matematikrevyen 2027") — a completely different string from
+// currentProductionFolder's archive-folder slug ("MatRevy_2027"), but the
+// one scripts/generate-pdfs.js actually prints as \revyname{}/\revyyear{}
+// on every generated PDF's title page. Left untouched by koordCloseYear
+// (which only ever resets acts/cast), so without this every PDF generated
+// for the new production would keep printing the old year until someone
+// noticed and hand-edited the JSON.
+async function koordStartNewYear(newFolder, productionName, productionYear, onProgress) {
+  onProgress('Opdaterer produktionsnavn...');
+  const prodRes = await siteSaveResource('production', { name: productionName, year: String(productionYear) });
+  if (!prodRes.ok) throw new Error(prodRes.message || 'Kunne ikke opdatere produktionsnavnet.');
+
   onProgress('Skifter til den nye produktionsmappe...');
   const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
@@ -662,9 +689,28 @@ function openStartNewYearModal(currentFolder) {
     : 'Gør en ny mappe til den aktive produktion, så revyster igen kan indsende manuskripter til Manus.');
   form.appendChild(intro);
 
+  const guessedFolder = koordGuessNextProductionFolder(currentFolder);
+  const guessedYearMatch = guessedFolder.match(/\d{4}/);
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  // "Matematikrevyen" is the name every historical scenes.json production
+  // string actually uses (a jubilee year wants something else — freely
+  // editable, same "guess but let the admin override" posture as every
+  // other guessed field on this page).
+  nameInput.value = 'Matematikrevyen';
+  form.appendChild(siteEditField('Revyens navn', nameInput));
+
+  const yearInput = document.createElement('input');
+  yearInput.type = 'number';
+  yearInput.min = '1900';
+  yearInput.max = '2100';
+  yearInput.value = guessedYearMatch ? guessedYearMatch[0] : '';
+  form.appendChild(siteEditField('Revyens årstal', yearInput));
+
   const newFolderInput = document.createElement('input');
   newFolderInput.type = 'text';
-  newFolderInput.value = koordGuessNextProductionFolder(currentFolder);
+  newFolderInput.value = guessedFolder;
   form.appendChild(siteEditField('Ny produktionsmappe', newFolderInput));
 
   const progress = el('div', 'koord-progress');
@@ -676,8 +722,15 @@ function openStartNewYearModal(currentFolder) {
   const confirmBtn = koordPillBtn('Start ny revy', 'site-btn-success');
   confirmBtn.addEventListener('click', async () => {
     error.textContent = '';
+    const productionName = nameInput.value.trim();
+    const productionYear = Number(yearInput.value);
     const newFolder = newFolderInput.value.trim();
 
+    if (!productionName) { error.textContent = 'Angiv revyens navn.'; return; }
+    if (!Number.isInteger(productionYear) || productionYear < 1900 || productionYear > 2100) {
+      error.textContent = 'Angiv et gyldigt årstal.';
+      return;
+    }
     if (!/^[A-Za-z0-9_-]+$/.test(newFolder)) {
       error.textContent = 'Produktionsmappen må kun indeholde bogstaver, tal, "_" og "-".';
       return;
@@ -690,7 +743,7 @@ function openStartNewYearModal(currentFolder) {
     cancelBtn.disabled = true;
     confirmBtn.disabled = true;
     try {
-      await koordStartNewYear(newFolder, (text) => { progress.textContent = text; });
+      await koordStartNewYear(newFolder, productionName, productionYear, (text) => { progress.textContent = text; });
       progress.textContent = `Ny produktionsmappe startet (${newFolder}). Genindlæs siden om et par minutter for at se det afspejlet ovenfor.`;
       siteShowToast('Ny produktionsmappe startet');
       cancelBtn.textContent = 'Luk';
