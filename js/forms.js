@@ -729,6 +729,13 @@ async function renderFormsList(root) {
     listWrap.appendChild(el('p', 'forms-intro', 'Der er ingen åbne formularer lige nu.'));
     return;
   }
+  // Same order as Oversigt (formsCompareOrder — its own manual drag order,
+  // per year), grouped newest-year-first on top of that: unlike Oversigt,
+  // this list isn't scoped to a single year filter, so more than one
+  // year's open forms could in principle show up together here.
+  const currentYear = formsCurrentProductionYear();
+  const formYear = (f) => (f.productionYear != null ? f.productionYear : currentYear);
+  forms.sort((a, b) => formYear(b) - formYear(a) || formsCompareOrder(a, b));
   for (const f of forms) {
     // The whole row opens the form now, not just the arrow — a <button>
     // (not a styled <div>) so it's natively keyboard/focus accessible
@@ -2091,9 +2098,18 @@ function formsRenderBuilderScreen(root, existingDefinition) {
   // (see forms_admin_read's visibility check) — 'admin' hides both from a
   // boss-level visitor, while the form itself (this builder, status toggle)
   // stays boss-editable regardless, same as every other Formularer action.
+  // Deciding *who can see the responses* is itself admin-only though — a
+  // boss can't self-upgrade a form's own Synlighed to 'admin' (or back
+  // down from it): the field still shows the current value, same
+  // visible-but-locked treatment as Wiki's publish-toggle eye icon
+  // (wiki.js openManageChaptersModal's canPublish).
   const visibilityDd = siteCreateDropdownField(
     [{ value: 'boss', label: 'Bosser' }, { value: 'admin', label: 'Koordinatorer' }],
     existingDefinition && existingDefinition.visibility === 'admin' ? 'admin' : 'boss');
+  if (!siteHasLevel('admin')) {
+    visibilityDd.disabled = true;
+    visibilityDd.classList.add('forms-visibility-locked');
+  }
   metaRow.appendChild(siteEditField('Synlighed', visibilityDd));
 
   // Deadline is a single field: picking a day re-opens the same popup as a

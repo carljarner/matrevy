@@ -145,6 +145,15 @@
   transform: translateX(-50%) translateY(0);
 }
 
+/* Synlighed field, boss-level: visible (shows the current value) but not
+   editable — only admin decides who a form's own responses are restricted
+   to. Same visible-but-locked treatment as Wiki's publish-toggle eye icon
+   (wiki.css .wiki-manage-publish-toggle-readonly). */
+.forms-visibility-locked {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* ── Revyst: open-forms list ─────────────────────────────── */
 /* A <button>, not a styled <div> — the whole row opens the form, with
    the arrow as a decorative affordance rather than the sole target. */

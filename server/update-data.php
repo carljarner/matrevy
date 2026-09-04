@@ -2442,6 +2442,10 @@ function forms_list_open($body) {
       'description' => $def['description'] ?? '',
       'deadline' => $def['deadline'] ?? null,
       'productionYear' => $def['productionYear'] ?? null,
+      // Needed client-side to sort this list the same way Oversigt does
+      // (formsCompareOrder) — Oversigt's own drag-and-drop reorder writes
+      // this straight into definition.json (forms_reorder).
+      'order' => $def['order'] ?? null,
     ];
   }
   respond(200, ['ok' => true, 'forms' => $out]);

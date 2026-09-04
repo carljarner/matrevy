@@ -1061,6 +1061,27 @@ function wikiHideFieldTooltip() {
   if (wikiFieldTooltipEl) { wikiFieldTooltipEl.remove(); wikiFieldTooltipEl = null; }
 }
 
+// A transient dark banner pinned to the bottom of the viewport, shown when
+// a boss (not admin) clicks the publish-toggle eye icon — mirrors
+// forms.js's formsShowLockToast (that file isn't loaded here, per the
+// per-feature duplication convention). Re-triggers its own auto-dismiss
+// timer on repeat clicks rather than stacking multiple banners.
+let wikiLockToastEl = null;
+let wikiLockToastTimer = null;
+function wikiShowLockToast() {
+  if (!wikiLockToastEl) {
+    wikiLockToastEl = document.createElement('div');
+    wikiLockToastEl.className = 'wiki-lock-toast';
+    wikiLockToastEl.textContent = 'Kun koordinatorer';
+    document.body.appendChild(wikiLockToastEl);
+  }
+  wikiLockToastEl.classList.add('visible');
+  clearTimeout(wikiLockToastTimer);
+  wikiLockToastTimer = setTimeout(() => {
+    if (wikiLockToastEl) wikiLockToastEl.classList.remove('visible');
+  }, 3200);
+}
+
 // Open/closed eye glyphs for the publish toggle — same stroke-icon style as
 // budget.js's budgetPencilIcon()/budgetCheckIcon() etc. (16x16 viewBox,
 // currentColor stroke), duplicated since budget.js isn't loaded here.
@@ -1212,12 +1233,16 @@ function openManageChaptersModal() {
       // same dark-box tooltip convention as budget.js's icon actions.
       // Mutates the draft item directly (no full renderList() needed,
       // unlike a reorder, since nothing else on screen depends on this
-      // value — just the button's own icon/tooltip text).
+      // value — just the button's own icon/tooltip text). Deliberately
+      // not `disabled` for a boss visitor — a disabled button can never
+      // fire click at all, which would leave a boss's click on it giving
+      // no feedback; instead the -readonly class alone keeps it looking
+      // (and, via the click handler below, behaving) non-interactive,
+      // while still surfacing the wikiShowLockToast() explanation.
       const publishBtn = document.createElement('button');
       publishBtn.type = 'button';
       publishBtn.className = 'wiki-manage-publish-toggle';
       if (!canPublish) publishBtn.classList.add('wiki-manage-publish-toggle-readonly');
-      publishBtn.disabled = !canPublish;
       function syncPublishBtn() {
         publishBtn.textContent = '';
         publishBtn.appendChild(item.published ? wikiEyeOpenIcon() : wikiEyeClosedIcon());
@@ -1227,7 +1252,7 @@ function openManageChaptersModal() {
       publishBtn.addEventListener('mouseenter', () => wikiShowFieldTooltip(publishBtn, publishBtn.getAttribute('aria-label')));
       publishBtn.addEventListener('mouseleave', wikiHideFieldTooltip);
       publishBtn.addEventListener('click', () => {
-        if (!canPublish) return;
+        if (!canPublish) { wikiHideFieldTooltip(); wikiShowLockToast(); return; }
         item.published = !item.published;
         syncPublishBtn();
         wikiHideFieldTooltip();

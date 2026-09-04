@@ -281,21 +281,27 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
+/* :not(.wiki-manage-publish-toggle-readonly), not :not(:disabled) — the
+   button is deliberately never actually `disabled` (see openManageChapters-
+   Modal's own comment: a disabled button can't fire click at all, which
+   would leave a boss's click on it giving no feedback), so hover/focus
+   styling has to be gated on the readonly class instead. */
 @media (hover: hover) {
-  .wiki-manage-publish-toggle:not(:disabled):hover {
+  .wiki-manage-publish-toggle:not(.wiki-manage-publish-toggle-readonly):hover {
     background: var(--accent-warm-fill);
     color: var(--accent-warm-text);
   }
 }
 
-.wiki-manage-publish-toggle:not(:disabled):focus-visible {
+.wiki-manage-publish-toggle:not(.wiki-manage-publish-toggle-readonly):focus-visible {
   outline: none;
   background: var(--accent-warm-fill);
   color: var(--accent-warm-text);
 }
 
 /* Boss (not admin) still sees each chapter's publish state but can't
-   change it — see openManageChaptersModal's canPublish. */
+   change it — see openManageChaptersModal's canPublish. Clicking it still
+   works (see above), it just shows wikiShowLockToast() instead of toggling. */
 .wiki-manage-publish-toggle-readonly {
   cursor: not-allowed;
   opacity: 0.6;
@@ -318,6 +324,39 @@
   overflow-wrap: break-word;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   pointer-events: none;
+}
+
+/* wikiShowLockToast() — a dark banner pinned to the bottom of the viewport,
+   shown when a boss (not admin) clicks the publish-toggle eye icon. Fixed
+   to the viewport (not the modal) since "Rediger kapitler" can hold more
+   rows than fit without scrolling. Hidden via opacity+translateY (not
+   display:none) so the 0.2s transition actually animates in/out;
+   pointer-events:none while hidden keeps it from intercepting clicks meant
+   for whatever's underneath — mirrors forms.css's own .forms-lock-toast
+   (that file isn't loaded here, per the per-feature duplication convention). */
+.wiki-lock-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.25rem;
+  transform: translateX(-50%) translateY(0.5rem);
+  max-width: min(28rem, calc(100vw - 2rem));
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  padding: 0.7rem 1rem;
+  border-radius: 8px;
+  box-shadow: var(--modal-shadow);
+  text-align: center;
+  z-index: 300;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.wiki-lock-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .wiki-manage-add-trigger-wrap {
