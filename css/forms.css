@@ -75,13 +75,21 @@
   width: min(300px, 85vw);
 }
 
-/* Delete-section confirm (formsOpenDeleteSectionConfirm) — its whole
-   message now lives in the title ("Slet Sektion N: <title>?"), so it reads
-   better a little narrower than the default .edit-modal (480px), though
-   not as narrow as .forms-leave-modal's own one-liner since a section
-   title can run long. */
+/* Delete-form confirm (formsOpenDeleteConfirm) — its message can run a
+   sentence longer than a plain one-liner (svar count included), so it's
+   narrower than the default .edit-modal (480px) but not as narrow as
+   .forms-leave-modal's own one-liner. */
 .forms-narrow-modal {
   width: min(400px, 90vw);
+}
+
+/* Delete-section confirm (formsOpenDeleteSectionConfirm) — its whole
+   message now lives in the title ('Slet "<title>"?'), same as the
+   delete-form confirm's own title-only pattern, so it can run narrower
+   still — just short of .forms-leave-modal's fixed one-liner width, since
+   a section title can still run a little long. */
+.forms-section-delete-modal {
+  width: min(340px, 88vw);
 }
 
 .forms-msg {

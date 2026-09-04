@@ -2189,7 +2189,10 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
       rerenderAll();
       onChange();
     } else {
-      formsOpenDeleteSectionConfirm(formsSectionHeaderLabel(section, idx), () => {
+      const sectionTitle = (section.title || '').trim();
+      const confirmTitle = sectionTitle
+        ? `Slet "${sectionTitle}"?` : `Slet ${formsSectionHeaderLabel(section, idx)}?`;
+      formsOpenDeleteSectionConfirm(confirmTitle, () => {
         draftSections.splice(idx, 1);
         pruneSectionFields();
         rerenderAll();
@@ -2247,9 +2250,9 @@ function formsSectionIsEmpty(section) {
   return !fields.some((f) => (f.label || '').trim());
 }
 
-function formsOpenDeleteSectionConfirm(sectionLabel, onConfirm) {
-  const { modal, form, actions, close } = siteOpenEditModal(`Slet ${sectionLabel}`);
-  modal.classList.add('forms-center-modal', 'forms-narrow-modal');
+function formsOpenDeleteSectionConfirm(title, onConfirm) {
+  const { modal, form, actions, close } = siteOpenEditModal(title);
+  modal.classList.add('forms-center-modal', 'forms-section-delete-modal');
   form.appendChild(el('p', 'forms-intro', 'Dette kan ikke fortrydes.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
