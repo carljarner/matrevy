@@ -1142,6 +1142,26 @@ function formsChartIcon() {
   return svg;
 }
 
+// A native drag lets the browser snapshot the dragged element itself as
+// the drag image, but a <tr> can't be rasterized on its own outside its
+// <table> — every browser tested falls back to something that reads as
+// "the whole row plus a stray line and blank space above it," rather than
+// a clean drag preview. Route every Oversigt drag through one shared,
+// off-screen (not display:none — that would keep it from being
+// paintable at all) plain <div> instead, restyled with just this row's
+// title right before dragstart calls setDragImage on it, so the browser
+// always has something ordinary-looking to snapshot.
+function formsGetDragImageEl() {
+  let ghost = document.getElementById('forms-drag-image');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'forms-drag-image';
+    ghost.className = 'forms-drag-image';
+    document.body.appendChild(ghost);
+  }
+  return ghost;
+}
+
 // Mirrors budget.js's budgetWireDropHighlight — duplicated here per the
 // site's per-page convention (see CLAUDE.md): counting dragenter/dragleave
 // pairs (rather than toggling straight off dragover/dragleave) avoids the
@@ -1283,6 +1303,9 @@ async function formsRenderOverviewScreen(root) {
       row.addEventListener('dragstart', (e) => {
         dragItem = f;
         e.dataTransfer.effectAllowed = 'move';
+        const ghost = formsGetDragImageEl();
+        ghost.textContent = f.title;
+        e.dataTransfer.setDragImage(ghost, 12, 16);
       });
       row.addEventListener('dragend', () => row.classList.remove('forms-drop-target'));
       formsWireDropHighlight(row, () => {
@@ -1366,6 +1389,20 @@ async function formsRenderOverviewScreen(root) {
 
       tbody.appendChild(row);
     }
+
+    // A per-row drop target can only ever insert *before* that row — this
+    // trailing spacer row is the only way to drop a form after the last
+    // one, same "drop-tail" recipe as wiki.js's wiki-manage-drop-tail/
+    // manus.js's manus-akt-drop-tail.
+    const tailRow = el('tr', 'forms-drop-tail-row');
+    const tailCell = el('td');
+    tailCell.colSpan = 5;
+    tailRow.appendChild(tailCell);
+    formsWireDropHighlight(tailRow, () => {
+      if (dragItem) reorderRow(dragItem, null);
+    });
+    tbody.appendChild(tailRow);
+
     table.appendChild(tbody);
     tableWrap.appendChild(table);
   }

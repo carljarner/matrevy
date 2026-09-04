@@ -269,6 +269,42 @@
   box-shadow: inset 0 2px 0 0 var(--accent-warm);
 }
 
+/* Trailing drop zone below the last row — see forms.js's forms-drop-tail-row
+   — lets a dragged form land after the last one (a per-row drop target can
+   only ever insert *before* that row), same recipe as wiki.css's own
+   .wiki-manage-drop-tail. Sized via its <td>'s height, not the table's usual
+   cell padding, so it reads as a deliberate strip rather than a stray extra
+   row. */
+.forms-drop-tail-row td {
+  height: 0.9rem;
+  padding: 0;
+  border-bottom: none;
+  box-shadow: inset 0 2px 0 0 transparent;
+  transition: box-shadow 0.15s;
+}
+.forms-drop-tail-row.forms-drop-target td {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
+}
+
+/* formsGetDragImageEl()'s shared, reused drag-image element — see its own
+   comment in forms.js for why a <tr> can't just be dragged as itself.
+   Positioned off-screen (not display:none, which some browsers refuse to
+   snapshot) so it never actually appears in the page's own layout. */
+.forms-drag-image {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: var(--modal-shadow);
+}
+
 .forms-responses-wrap { overflow-x: auto; }
 
 .forms-export-btn { margin-top: 0.75rem; }
