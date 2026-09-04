@@ -503,19 +503,18 @@ function faellesDeleteRow(row, tr) {
 // Styled "Er du sikker?" overlay, replacing the native confirm() dialog —
 // mirrors calendar.js's openDeleteConfirm/manus.js's openManuscriptDeleteConfirm.
 function faellesOpenDeleteRowConfirm(row, tr) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  const title = row.answers.navn ? `Slet "${row.answers.navn}"?` : 'Slet denne række?';
+  const { modal, form, error, actions, close } = siteOpenEditModal(title);
   modal.classList.add('faelles-confirm-modal');
-  const heading = modal.querySelector('h2');
-  if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'faelles-confirm-text';
-  info.textContent = row.answers.navn ? `Fjern "${row.answers.navn}" permanent?` : 'Fjern denne række permanent?';
+  info.className = 'faelles-confirm-note';
+  info.textContent = 'Dette kan ikke fortrydes.';
   form.appendChild(info);
 
   const cancelBtn = faellesPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
-  const confirmBtn = faellesPillBtn('Fjern', 'site-btn-danger');
+  const confirmBtn = faellesPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
@@ -686,7 +685,7 @@ async function faellesOpenConnectModal(root) {
     fieldsContainer.appendChild(siteEditField('Navn-felt', navnPicker));
     fieldsContainer.appendChild(siteEditField('Madforbehold-felt', madforboholdPicker));
     fieldsContainer.appendChild(el('p', 'faelles-summary-note',
-      'Alle nuværende og fremtidige svar bliver automatisk skrevet til arket — ingen manuel import nødvendig.'));
+      'Alle nuværende og fremtidige svar bliver automatisk tilføjet arket.'));
   }
 
   formPicker.addEventListener('change', () => loadFormFields(formPicker.value));
@@ -736,12 +735,12 @@ function faellesOpenDisconnectConfirm(root, closeParent) {
 
   const info = document.createElement('p');
   info.className = 'faelles-confirm-text';
-  info.textContent = 'Fjern forbindelsen til formularen?';
+  info.textContent = 'Fjern forbindelsen?';
   form.appendChild(info);
 
   const note = document.createElement('p');
   note.className = 'faelles-confirm-note';
-  note.textContent = 'Rækker der allerede er hentet ind, bliver ikke slettet.';
+  note.textContent = 'Rækker der er hentet ind, bliver ikke slettet.';
   form.appendChild(note);
 
   const cancelBtn = faellesPillBtn('Annuller');

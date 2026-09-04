@@ -191,6 +191,20 @@
   text-align: left;
 }
 
+/* "Tilføj række" and the two summary-row labels ("Samlet antal i dag",
+   "Madforbehold") sit in the table's first column same as Navn — without
+   this they'd scroll away under the day columns while Navn itself stays
+   put, since only .faelles-col-navn (above) is pinned. Same sticky recipe,
+   so the whole first column — header, every row, and these three bottom
+   lines — stays fixed together while the day columns scroll underneath. */
+.faelles-add-row-plus-cell,
+.faelles-table tbody.faelles-summary th {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  z-index: 1;
+}
+
 /* faellesShowFieldTooltip()'s popup — position:fixed on <body>, clamped
    on-screen in JS, mirrors forms.css's .forms-response-tooltip (that
    file isn't loaded on this page, per the per-feature duplication
@@ -334,4 +348,12 @@
 
 .faelles-confirm-modal {
   width: min(300px, 85vw);
+}
+
+/* faellesOpenDeleteRowConfirm keeps a real h2 title ("Slet "X"?") instead
+   of the no-heading pattern above — centered like koordinator.css's own
+   .koord-arkiv-confirm-modal h2, since this is a one-line question, not a
+   left-aligned form. */
+.faelles-confirm-modal h2 {
+  text-align: center;
 }
