@@ -907,17 +907,8 @@ const MASTERPLAN_DATA = {
       "id": "matrevy_2025",
       "year": 2025,
       "label": "MatRevy 2025",
-      "ansvarLabels": [
-        "Ansvar 2024",
-        "Ansvar 2025"
-      ],
       "tabs": {
         "blok4": [
-          {
-            "id": "p25-blok4-g1",
-            "type": "group",
-            "title": ""
-          },
           {
             "id": "p25-blok4-r1",
             "type": "task",
@@ -970,11 +961,6 @@ const MASTERPLAN_DATA = {
           }
         ],
         "august": [
-          {
-            "id": "p25-august-g1",
-            "type": "group",
-            "title": ""
-          },
           {
             "id": "p25-august-r1",
             "type": "task",
@@ -1741,11 +1727,6 @@ const MASTERPLAN_DATA = {
           }
         ],
         "efterrevyen": [
-          {
-            "id": "p25-efterrevyen-g1",
-            "type": "group",
-            "title": ""
-          },
           {
             "id": "p25-efterrevyen-r1",
             "type": "task",
