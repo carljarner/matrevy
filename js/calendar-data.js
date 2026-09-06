@@ -552,6 +552,7 @@ const CALENDAR_DATA = [
     "end": "19:30",
     "title": "Sketchudvælgelse",
     "category": "manus",
+    "location": "Aud4",
     "note": "Vi spiller de indsendte sketches igennem og giver dem point. Lokale : A104"
   },
   {
