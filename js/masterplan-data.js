@@ -6,10 +6,6 @@ const MASTERPLAN_DATA = {
       "id": "matrevy_2026",
       "year": 2026,
       "label": "MatRevy 2026",
-      "ansvarLabels": [
-        "Ansvar 2026",
-        "Ansvar 2027"
-      ],
       "tabs": {
         "blok4": [
           {
@@ -30,7 +26,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Lav ny messengergruppe",
             "ansvarA": "Carl J",
             "ansvarB": "Thea",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "blok4-r3",
