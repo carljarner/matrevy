@@ -98,7 +98,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Opdatér PowerPoint",
             "ansvarA": "Carl A og Fred",
             "ansvarB": "Thea+Carl+Frederikke",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "august-r5",
@@ -325,7 +325,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "",
             "ansvarA": "Carl + Fred",
             "ansvarB": "Frede",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r11",
@@ -335,7 +335,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "(Supplér med mat-kantinen)",
             "ansvarA": "Carl + Fred",
             "ansvarB": "Frede",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r12",
@@ -345,7 +345,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "",
             "ansvarA": "Carl + Fred",
             "ansvarB": "Frede",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r13",
