@@ -96,7 +96,7 @@
                         "beskrivelse": "Opdatér PowerPoint",
                         "ansvarA": "Carl A og Fred",
                         "ansvarB": "Thea+Carl+Frederikke",
-                        "status": "igang"
+                        "status": "faerdig"
                     },
                     {
                         "id": "august-r5",
@@ -323,7 +323,7 @@
                         "beskrivelse": "",
                         "ansvarA": "Carl + Fred",
                         "ansvarB": "Frede",
-                        "status": "mangler"
+                        "status": "igang"
                     },
                     {
                         "id": "blok1-r11",
@@ -333,7 +333,7 @@
                         "beskrivelse": "(Supplér med mat-kantinen)",
                         "ansvarA": "Carl + Fred",
                         "ansvarB": "Frede",
-                        "status": "mangler"
+                        "status": "igang"
                     },
                     {
                         "id": "blok1-r12",
@@ -343,7 +343,7 @@
                         "beskrivelse": "",
                         "ansvarA": "Carl + Fred",
                         "ansvarB": "Frede",
-                        "status": "mangler"
+                        "status": "igang"
                     },
                     {
                         "id": "blok1-r13",
