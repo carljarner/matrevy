@@ -1191,22 +1191,24 @@
   grid-column: 2;
 }
 
-/* Sticky under the site header (56px) with a small gap. min-height fills
-   the visible viewport below that offset (not the card's own, often much
-   taller, full height) so justify-content:center below centers the links
-   within what's actually on screen, rather than against the whole scrolled
-   card — which used to leave the nav starting off-screen below the fold at
-   page load. Anchored at top:76px like every other sticky/scroll-margin
-   offset on this page, so the box can never grow upward past that line and
-   overlap the tab bar (Oversigt/Ny formular/Statistik) above it. */
+/* Sticky, centered on the *viewport* itself (top:50% + translateY(-50%),
+   the standard sticky-centered-sidebar trick) rather than min-height'd to
+   fill it — sticky can push an element down from its natural document
+   position with no scrolling needed at all, so as long as the row (its
+   containing block) is taller than the viewport — true for any real
+   multi-section form — the nav is already sitting centered the moment the
+   page loads, not just once you've scrolled far enough to "reach" it. The
+   shift is only ever a small fraction of the viewport height (half the
+   nav's own, short, content height), nowhere near enough to pull it back
+   up past the row's own top edge into the tab bar (Oversigt/Ny formular/
+   Statistik) above it. */
 .forms-stats-nav {
   grid-column: 1;
   position: sticky;
-  top: 76px;
-  min-height: calc(100vh - 76px - 16px);
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
-  justify-content: center;
   gap: 0.3rem;
 }
 
@@ -1218,6 +1220,8 @@
   color: var(--text-muted);
   text-decoration: none;
   padding: 0.35rem 0.6rem;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 @media (hover: hover) {
@@ -1228,11 +1232,13 @@
 
 /* Currently-scrolled-past section — the site-wide "orange = chosen"
    convention (see CLAUDE.md's button-conventions section) applied to a
-   scrollspy nav instead of a picked row/tab: text-color plus an underline,
-   no pill background. */
+   scrollspy nav instead of a picked row/tab: text-color plus an animated
+   underline, same border-bottom-color transition as .forms-admin-tab's own
+   active state above, rather than a plain (non-animatable) text-decoration
+   toggle. */
 .forms-stats-nav-item.active {
   color: var(--accent-warm-text);
-  text-decoration: underline;
+  border-bottom-color: var(--accent-warm-text);
   font-weight: 600;
 }
 
