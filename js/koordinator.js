@@ -504,13 +504,14 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
   if (!manuscriptsRes.ok) throw new Error(manuscriptsRes.message || 'Kunne ikke nulstille indsendte manuskripter.');
 
   onProgress('Lukker den aktive produktionsmappe...');
-  // Resets "Vis PDF'er for revyster" back to hidden in the same write, so
-  // the next production cycle starts private again — see manus.js's own
-  // renderAdminSettings. An empty currentProductionFolder is a valid,
-  // deliberate state — see save_config()'s own comment server-side and
+  // Resets "Vis PDF'er for revyster" back to hidden and "Luk for uploads"
+  // back to open in the same write, so the next production cycle starts
+  // private-but-open again — see manus.js's own renderAdminSettings. An
+  // empty currentProductionFolder is a valid, deliberate state — see
+  // save_config()'s own comment server-side and
   // manus_current_production_folder(), which treats '' as "no active
   // production" and rejects manuscripts_create with no_production_folder.
-  const configRes = await siteSaveResource('config', { currentProductionFolder: '', pdfLinksVisibleToRevyst: false });
+  const configRes = await siteSaveResource('config', { currentProductionFolder: '', pdfLinksVisibleToRevyst: false, uploadsClosedForRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke lukke produktionsmappen.');
 
   onProgress('Færdig!');
@@ -567,7 +568,7 @@ async function koordStartNewYear(newFolder, productionName, productionYear, onPr
   }
 
   onProgress('Skifter til den nye produktionsmappe...');
-  const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false });
+  const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false, uploadsClosedForRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
   onProgress('Færdig!');
 }

@@ -1,4 +1,5 @@
 {
     "currentProductionFolder": "MatRevy_2026",
-    "pdfLinksVisibleToRevyst": false
+    "pdfLinksVisibleToRevyst": false,
+    "uploadsClosedForRevyst": false
 }

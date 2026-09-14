@@ -1842,6 +1842,12 @@ body.site-menu-open {
 }
 
 .post-edit-body p {
+  /* Overrides .login-modal p's 0.85rem — that rule targets short plain
+     modal helper text, but leaks into this richer body and shrinks
+     paragraphs below list items/headings, which have no such override
+     (most visibly: a bullet-listed URL line reading bigger than the
+     paragraph text around it). */
+  font-size: 1rem;
   margin: 0 0 0.6rem;
 }
 

@@ -232,6 +232,12 @@ a.manus-pdf-title:focus-visible {
   min-width: 6.5rem; /* fits "Opdater" (the longer label) with matching padding */
 }
 
+.manus-uploads-closed-notice {
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* --- Upload modal: Sketch/Sang type toggle -------------------
    Reuses .btn-small (site.css) as-is for background/border/hover/
    focus-visible — same first-level button system as the rest of the
