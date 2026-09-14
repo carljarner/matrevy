@@ -1191,16 +1191,16 @@
   grid-column: 2;
 }
 
-/* Fixed 50px below the top of <main class="page-content"> (the sticky
-   site header is 56px, so 56 + 50 = 106px from the viewport top) and
+/* Fixed 75px below the top of <main class="page-content"> (the sticky
+   site header is 56px, so 56 + 75 = 131px from the viewport top) and
    stays there — plain position:sticky, no scroll-driven repositioning.
    max-height/overflow-y caps a long section list to the viewport so it
    scrolls internally instead of overflowing past the bottom edge. */
 .forms-stats-nav {
   grid-column: 1;
   position: sticky;
-  top: 106px;
-  max-height: calc(100vh - 126px);
+  top: 131px;
+  max-height: calc(100vh - 151px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
