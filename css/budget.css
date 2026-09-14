@@ -379,39 +379,49 @@
 /* --- Stregnskab drink-type breakdown (Rediger udlæg modal) -
    Only shown while the modal's own Kategori field is set to Stregnskab
    (see openRequestEditModal); toggled via inline style.display rather than
-   [hidden] since this is plain page JS, not an Artifact. */
-.budget-streg-breakdown {
+   [hidden] since this is plain page JS, not an Artifact. Every selector
+   here also matches the general per-category .budget-sub-breakdown*
+   family (same modal, shown instead whenever Kategori has its own
+   subcategories) — identical look, just a different data source/field
+   name, so the two share one set of rules rather than duplicating them. */
+.budget-streg-breakdown,
+.budget-sub-breakdown {
   margin-bottom: 1rem;
 }
 
-.budget-streg-breakdown-title {
+.budget-streg-breakdown-title,
+.budget-sub-breakdown-title {
   font-size: 0.8rem;
   font-weight: normal;
   color: var(--text-muted);
   margin: 0 0 0.4rem;
 }
 
-.budget-streg-breakdown-rows {
+.budget-streg-breakdown-rows,
+.budget-sub-breakdown-rows {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0 2rem; /* indents both the drink-type and amount columns inward, towards center */
+  padding: 0 2rem; /* indents both the drink-type/subcategory and amount columns inward, towards center */
 }
 
-.budget-streg-breakdown-row {
+.budget-streg-breakdown-row,
+.budget-sub-breakdown-row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
 
-.budget-streg-breakdown-label {
+.budget-streg-breakdown-label,
+.budget-sub-breakdown-label {
   flex: 1;
   min-width: 0;
   font-size: 0.9rem;
   color: var(--header);
 }
 
-.budget-streg-breakdown-row input {
+.budget-streg-breakdown-row input,
+.budget-sub-breakdown-row input {
   flex: 0 0 6rem;
   width: 6rem;
   text-align: right;
@@ -423,13 +433,15 @@
   font: inherit;
 }
 
-.budget-streg-breakdown-row input:focus {
+.budget-streg-breakdown-row input:focus,
+.budget-sub-breakdown-row input:focus {
   outline: none;
   border-color: var(--accent-warm);
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
-.budget-streg-breakdown-sum {
+.budget-streg-breakdown-sum,
+.budget-sub-breakdown-sum {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-top: 0.5rem;
@@ -1039,6 +1051,113 @@ tr.budget-row-filler td {
   text-align: right;
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+/* --- Sub-categories within a category (buildCategoryEditSection) --------
+   A chevron toggle sits inside the Kategori cell itself, to the left of the
+   name input (not a whole extra table column, which would ripple into
+   every one of this table's own nth-child column rules above) — expanding
+   it reveals an indented sub-list in a full-width row directly below,
+   closed by default. Reuses .budget-group-chevron's shared look (color/
+   size/rotate-transition) but rotation is driven by a plain modifier class
+   here rather than an ancestor .budget-group-collapsed, since a category
+   row isn't nested inside one bigger collapsible container the way a
+   pending-request group's own rows are. */
+.budget-manage-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.budget-manage-name-row .budget-manage-text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.budget-manage-subcat-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.budget-manage-subcat-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  border-radius: 4px;
+}
+
+.budget-subcat-collapsed {
+  transform: rotate(-90deg);
+}
+
+/* The wrap row's single <td> spans every column (colSpan=5 in JS), so it's
+   simultaneously :first-child and :last-child — re-qualified with the
+   table's own class + element type to out-specificity the "editing table's
+   trailing delete column" rule above (.budget-sheet-table-editing
+   td:last-child), which would otherwise squash it to a narrow centered
+   2rem box. */
+.budget-sheet-table-editing tr.budget-subcat-wrap-tr td {
+  width: auto;
+  min-width: 0;
+  text-align: left;
+  padding: 0.3rem 0.6rem 0.7rem 2.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.budget-subcat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* Draggable to reorder, same convention as .streg-price-row (a plain <div>
+   list, not a table, so a top-border highlight is safe here — unlike
+   .budget-manage-tr's own box-shadow trick, only needed inside a real
+   <table> under border-collapse). */
+.budget-subcat-row {
+  cursor: grab;
+  border-top: 2px solid transparent;
+  transition: border-top-color 0.15s;
+  padding-top: 0.3rem;
+}
+
+.budget-subcat-row:active {
+  cursor: grabbing;
+}
+
+.budget-subcat-row.budget-drop-target {
+  border-top-color: var(--accent-warm);
+}
+
+/* Trailing drop zone below the last subcategory — same "insert after the
+   last row" recipe as .budget-manage-drop-tail-row/.streg-price-drop-tail. */
+.budget-subcat-drop-tail {
+  min-height: 0.7rem;
+  border-top: 2px solid transparent;
+  transition: border-top-color 0.15s;
+}
+
+.budget-subcat-drop-tail.budget-drop-target {
+  border-top-color: var(--accent-warm);
+}
+
+/* --- Sub-categories on the normal-mode sheet (buildNormalSheetSection) --
+   The parent's own Planlagt becomes a read-only sum display once it has
+   subcategories; each subcategory gets its own indented row directly
+   below with a real editable Planlagt plus its own derived Brugt/Rest. */
+.budget-plan-locked {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.budget-sheet-table tr.budget-subrow td:first-child {
+  padding-left: 2rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 /* Warning-tinted variant of .budget-badge — used both for a pending

@@ -810,6 +810,25 @@ function computeSpentByCategory() {
   return map;
 }
 
+// Sibling of computeSpentByCategory, one level down — sums each non-deleted
+// expense's own subBreakdown (see budget_approve/budget_expense_add/
+// budget_expense_update server-side) per subcategory key, across every
+// category (subBreakdown keys are already globally unique, so no per-
+// category scoping is needed here). A pre-existing expense with no
+// subBreakdown at all (predates this feature, or its category never had
+// subcategories) simply contributes nothing, same "orphaned/absent data is
+// just ignored" posture used everywhere else on this page.
+function computeSpentBySubcategory() {
+  const map = {};
+  budgetState.expenses.forEach((e) => {
+    if (e.deleted) return;
+    Object.entries(e.subBreakdown || {}).forEach(([k, v]) => {
+      map[k] = (map[k] || 0) + (Number(v) || 0);
+    });
+  });
+  return map;
+}
+
 // Snapshot-diff dirty check (mirrors manus.js's manusIsDirty/manusLastSavedSnapshot
 // pattern) rather than a one-way flag, so manually reverting a typed value back to
 // its last-saved amount flips the status back to "Gemt" instead of staying dirty.
@@ -914,8 +933,13 @@ function buildBudgetSheetCard() {
 // budgetSheet needs for live totals/dirty-tracking.
 function buildNormalSheetSection(card) {
   const spent = computeSpentByCategory();
+  const spentSub = computeSpentBySubcategory();
   const plannedInputs = {};
   const restCells = {};
+  // Only populated for a category that has subcategories — the read-only
+  // element showing its Planlagt as the live sum of its own subcategories'
+  // inputs (kept in sync by updateSheetTotals on every keystroke).
+  const parentPlannedDisplays = {};
 
   const tableWrap = el('div', 'budget-table-wrap');
   const table = el('table', 'budget-table budget-sheet-table');
@@ -927,21 +951,37 @@ function buildNormalSheetSection(card) {
 
   const tbody = el('tbody');
   budgetSheetExpenseCategories().forEach((c) => {
+    const subs = c.subcategories || [];
     const tr = el('tr');
     tr.appendChild(el('td', null, c.label));
 
     const pTd = el('td', 'budget-td-num');
-    const inp = el('input', 'budget-plan-input');
-    inp.type = 'text';
-    inp.inputMode = 'decimal';
-    inp.placeholder = '0';
-    const pv = budgetState.budget.planned[c.key];
-    if (pv != null && pv !== '') inp.value = String(pv).replace('.', ',');
-    inp.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
-    plannedInputs[c.key] = inp;
-    pTd.appendChild(inp);
+    if (subs.length > 0) {
+      // No longer directly editable once a category has subcategories —
+      // each subcategory gets its own Planlagt field below, and this is
+      // just their live sum (see updateSheetTotals).
+      const display = el('span', 'budget-plan-locked');
+      display.title = 'Planlagt fordeles nu på underkategorier nedenfor';
+      parentPlannedDisplays[c.key] = display;
+      pTd.appendChild(display);
+    } else {
+      const inp = el('input', 'budget-plan-input');
+      inp.type = 'text';
+      inp.inputMode = 'decimal';
+      inp.placeholder = '0';
+      const pv = budgetState.budget.planned[c.key];
+      if (pv != null && pv !== '') inp.value = String(pv).replace('.', ',');
+      inp.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
+      plannedInputs[c.key] = inp;
+      pTd.appendChild(inp);
+    }
     tr.appendChild(pTd);
 
+    // Brugt/Rest at the category level always reflect the FULL flat spend
+    // (expenses.json's own `category` field, regardless of any
+    // subBreakdown) — spending is still tracked as one lump per expense,
+    // never re-summed from subBreakdown here, so this is unaffected by
+    // whether the category has subcategories.
     tr.appendChild(el('td', 'budget-td-num budget-brugt-cell', formatKr(spent[c.key] || 0)));
 
     const rTd = el('td', 'budget-td-num budget-rest-cell');
@@ -949,6 +989,34 @@ function buildNormalSheetSection(card) {
     tr.appendChild(rTd);
 
     tbody.appendChild(tr);
+
+    subs.forEach((sub) => {
+      const subTr = el('tr', 'budget-subrow');
+      subTr.appendChild(el('td', 'budget-subrow-label', sub.label));
+
+      const subPTd = el('td', 'budget-td-num');
+      const subInp = el('input', 'budget-plan-input');
+      subInp.type = 'text';
+      subInp.inputMode = 'decimal';
+      subInp.placeholder = '0';
+      const subPv = budgetState.budget.planned[sub.key];
+      if (subPv != null && subPv !== '') subInp.value = String(subPv).replace('.', ',');
+      subInp.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
+      plannedInputs[sub.key] = subInp;
+      subPTd.appendChild(subInp);
+      subTr.appendChild(subPTd);
+
+      // Unlike the parent, a subcategory's own Brugt/Rest ARE derived from
+      // subBreakdown (computeSpentBySubcategory) — the one place spending
+      // is actually attributed to a sub-key at all.
+      subTr.appendChild(el('td', 'budget-td-num budget-brugt-cell', formatKr(spentSub[sub.key] || 0)));
+
+      const subRTd = el('td', 'budget-td-num budget-rest-cell');
+      restCells[sub.key] = subRTd;
+      subTr.appendChild(subRTd);
+
+      tbody.appendChild(subTr);
+    });
   });
   table.appendChild(tbody);
 
@@ -994,7 +1062,7 @@ function buildNormalSheetSection(card) {
   card.appendChild(netRow);
 
   return {
-    plannedInputs, restCells, spent, incomeList, incomeRows,
+    plannedInputs, restCells, spent, spentSub, parentPlannedDisplays, incomeList, incomeRows,
     totalPlannedCell, totalBrugtCell, totalRestCell, incomeTotalCell, netCell,
   };
 }
@@ -1021,10 +1089,33 @@ function updateSheetTotals() {
   let totalPlanned = 0;
   let totalBrugt = 0;
   budgetSheetExpenseCategories().forEach((c) => {
-    const planned = parseAmount(budgetSheet.plannedInputs[c.key].value) || 0;
+    const subs = c.subcategories || [];
     const brugt = budgetSheet.spent[c.key] || 0;
+    let planned;
+    if (subs.length > 0) {
+      // The parent's own Planlagt no longer has an input of its own — it's
+      // the live sum of its subcategories', which also each get their own
+      // Rest cell here (their Brugt is a fixed value already rendered).
+      planned = 0;
+      subs.forEach((sub) => {
+        const subPlanned = parseAmount(budgetSheet.plannedInputs[sub.key].value) || 0;
+        planned += subPlanned;
+        const subBrugt = budgetSheet.spentSub[sub.key] || 0;
+        const subRest = subPlanned - subBrugt;
+        const subCell = budgetSheet.restCells[sub.key];
+        subCell.textContent = formatKr(subRest);
+        subCell.classList.toggle('budget-negative', subRest < 0);
+      });
+      const display = budgetSheet.parentPlannedDisplays[c.key];
+      if (display) display.textContent = formatKr(planned);
+    } else {
+      planned = parseAmount(budgetSheet.plannedInputs[c.key].value) || 0;
+    }
     const rest = planned - brugt;
     totalPlanned += planned;
+    // Only the category-level Brugt (never a subcategory's own) feeds the
+    // grand total — a subcategory's Brugt is a finer breakdown of the same
+    // money already counted here, not additional spend.
     totalBrugt += brugt;
     const cell = budgetSheet.restCells[c.key];
     cell.textContent = formatKr(rest);
@@ -1047,11 +1138,20 @@ function updateSheetTotals() {
 function collectSheetPayload() {
   const planned = {};
   budgetSheetExpenseCategories().forEach((c) => {
-    const raw = budgetSheet.plannedInputs[c.key].value.trim();
-    if (raw !== '') {
-      const v = parseAmount(raw);
-      if (Number.isFinite(v) && v >= 0) planned[c.key] = v;
-    }
+    // A category with subcategories never gets its own `planned` entry —
+    // only its subcategories' own keys do (see budget_save_sheet's
+    // matching server-side validation, which accepts both key shapes in
+    // this same flat map).
+    const keys = (c.subcategories && c.subcategories.length > 0) ? c.subcategories.map((s) => s.key) : [c.key];
+    keys.forEach((key) => {
+      const input = budgetSheet.plannedInputs[key];
+      if (!input) return;
+      const raw = input.value.trim();
+      if (raw !== '') {
+        const v = parseAmount(raw);
+        if (Number.isFinite(v) && v >= 0) planned[key] = v;
+      }
+    });
   });
   const income = budgetSheet.incomeRows.map((r) => {
     const amount = parseAmount(r.amountInput.value);
@@ -1183,7 +1283,18 @@ function budgetMoveDraftItem(draft, item, beforeItem, rerender) {
 // separate add-row form, seeding a fresh row with placeholder-ish default
 // text ("name"/"bilag") ready to be typed over.
 function buildCategoryEditSection(card, status) {
-  const draftExpense = budgetState.categories.expense.map((c) => ({ ...c }));
+  // Each item's own subcategories array is deep-cloned too (not just
+  // shallow `{...c}`) — otherwise the draft would share array references
+  // with budgetState.categories.expense and mutate live state before Gem.
+  // `_expanded` is a client-only UI flag (never sent to the server, see
+  // saveCategoryEdits/refreshCategoryDirtyStatus below) tracking whether
+  // that row's sub-list is currently shown — always starts closed, per the
+  // toggle-arrow's own "closed by default" behavior.
+  const draftExpense = budgetState.categories.expense.map((c) => ({
+    ...c,
+    subcategories: (c.subcategories || []).map((s) => ({ ...s })),
+    _expanded: false,
+  }));
   const draftIncome = budgetState.categories.income.map((c) => ({ ...c }));
   const spent = computeSpentByCategory();
   const planned = budgetState.budget.planned || {};
@@ -1194,6 +1305,13 @@ function buildCategoryEditSection(card, status) {
   const paidCategoryKeys = new Set(
     budgetState.expenses.filter((e) => !e.deleted).map((e) => e.category)
   );
+  // Sub-category keys with ≥1 non-deleted paid expense whose subBreakdown
+  // references them — the same delete-block condition, one level down.
+  const paidSubcategoryKeys = new Set();
+  budgetState.expenses.forEach((e) => {
+    if (e.deleted) return;
+    Object.keys(e.subBreakdown || {}).forEach((k) => paidSubcategoryKeys.add(k));
+  });
 
   // Lowercase, not uppercase — this is what actually ends up written on a
   // receipt, per explicit design feedback.
@@ -1219,7 +1337,10 @@ function buildCategoryEditSection(card, status) {
     income: budgetState.categories.income,
   });
   function refreshCategoryDirtyStatus() {
-    const dirty = JSON.stringify({ expense: draftExpense, income: draftIncome }) !== categorySnapshot;
+    // Strip _expanded via a replacer — merely toggling a chevron open/
+    // closed must never flip the Gemt/Ikke-gemt status on its own.
+    const replacer = (k, v) => (k === '_expanded' ? undefined : v);
+    const dirty = JSON.stringify({ expense: draftExpense, income: draftIncome }, replacer) !== categorySnapshot;
     status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
     status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
   }
@@ -1237,6 +1358,102 @@ function buildCategoryEditSection(card, status) {
   card.appendChild(tableWrap);
 
   let dragItem = null;
+
+  // The nested sub-category list shown below a category row once its own
+  // chevron is expanded — a small live draft on item.subcategories,
+  // add/rename/reorder/delete via the same generic helpers/conventions as
+  // the top-level list itself (budgetWireDropHighlight/budgetMoveDraftItem,
+  // .budget-manage-add-plus, a styled delete confirm), just scoped one
+  // level down and rendered as a single colspan'd <tr> rather than its own
+  // table (so it never disturbs the outer table's column widths).
+  function renderSubcategoryRow(item) {
+    const wrapTr = el('tr', 'budget-subcat-wrap-tr');
+    const wrapTd = el('td');
+    wrapTd.colSpan = 5;
+
+    const list = el('div', 'budget-subcat-list');
+    let subDragItem = null;
+
+    function renderSubList() {
+      list.textContent = '';
+      item.subcategories.forEach((sub) => {
+        const row = el('div', 'budget-manage-row budget-subcat-row');
+        row.draggable = true;
+        row.addEventListener('dragstart', (e) => {
+          subDragItem = sub;
+          e.dataTransfer.effectAllowed = 'move';
+          const ghost = budgetGetDragImageEl();
+          ghost.textContent = sub.label;
+          e.dataTransfer.setDragImage(ghost, 12, 16);
+        });
+        row.addEventListener('dragend', () => row.classList.remove('budget-drop-target'));
+        budgetWireDropHighlight(row, () => {
+          if (subDragItem && subDragItem !== sub) {
+            budgetMoveDraftItem(item.subcategories, subDragItem, sub, renderSubList);
+            refreshCategoryDirtyStatus();
+          }
+        });
+
+        const input = el('input', 'budget-manage-text-input');
+        input.type = 'text';
+        input.value = sub.label;
+        input.addEventListener('input', () => { sub.label = input.value; refreshCategoryDirtyStatus(); });
+        row.appendChild(input);
+
+        const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
+        removeBtn.type = 'button';
+        removeBtn.title = 'Fjern underkategori';
+        removeBtn.addEventListener('click', () => {
+          if (sub.key && paidSubcategoryKeys.has(sub.key)) {
+            siteShowToast('Kan ikke slette underkategori. Der findes allerede en betalt udgift fordelt hertil.');
+            return;
+          }
+          budgetOpenDeleteSubcategoryConfirm(sub, async () => {
+            const idx = item.subcategories.indexOf(sub);
+            if (idx !== -1) item.subcategories.splice(idx, 1);
+            renderSubList();
+            refreshCategoryDirtyStatus();
+            return { ok: true };
+          });
+        });
+        row.appendChild(removeBtn);
+
+        list.appendChild(row);
+      });
+
+      // Same drop-tail recipe as the outer list — a per-row-only drop
+      // target can only ever insert *before* that row.
+      const tailRow = el('div', 'budget-subcat-drop-tail');
+      budgetWireDropHighlight(tailRow, () => {
+        if (subDragItem) {
+          budgetMoveDraftItem(item.subcategories, subDragItem, null, renderSubList);
+          refreshCategoryDirtyStatus();
+        }
+      });
+      list.appendChild(tailRow);
+    }
+    renderSubList();
+    wrapTd.appendChild(list);
+
+    const addBtn = el('button', 'budget-manage-add-plus', '+');
+    addBtn.type = 'button';
+    addBtn.title = 'Tilføj underkategori';
+    addBtn.addEventListener('click', () => {
+      item.subcategories.push({ key: null, label: 'navn' });
+      renderSubList();
+      refreshCategoryDirtyStatus();
+      // Find the just-added row's own input directly (not via
+      // focusLastRowInput/lastElementChild — the trailing drop-tail div is
+      // always the list's actual last child).
+      const inputs = list.querySelectorAll('.budget-manage-text-input');
+      const lastInput = inputs[inputs.length - 1];
+      if (lastInput) { lastInput.focus(); lastInput.select(); }
+    });
+    wrapTd.appendChild(addBtn);
+
+    wrapTr.appendChild(wrapTd);
+    return wrapTr;
+  }
 
   function renderExpenseRows() {
     tbody.textContent = '';
@@ -1260,11 +1477,30 @@ function buildCategoryEditSection(card, status) {
       });
 
       const nameTd = el('td');
+      const nameRow = el('div', 'budget-manage-name-row');
+      // Every category gets a chevron in edit mode (even one with no
+      // subcategories yet) — expanding an empty one is how a first
+      // subcategory gets added. Never shown for Stregnskab, which can
+      // never carry subcategories (it already has its own separate
+      // drink-type breakdown via Stregregnskab).
+      if (item.key !== budgetStregCategoryKey()) {
+        const chevronBtn = el('button',
+          'budget-group-chevron budget-manage-subcat-toggle' + (item._expanded ? '' : ' budget-subcat-collapsed'), '▾');
+        chevronBtn.type = 'button';
+        chevronBtn.title = 'Underkategorier';
+        chevronBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          item._expanded = !item._expanded;
+          renderExpenseRows();
+        });
+        nameRow.appendChild(chevronBtn);
+      }
       const nameInput = el('input', 'budget-manage-text-input');
       nameInput.type = 'text';
       nameInput.value = item.label;
       nameInput.addEventListener('input', () => { item.label = nameInput.value; refreshCategoryDirtyStatus(); });
-      nameTd.appendChild(nameInput);
+      nameRow.appendChild(nameInput);
+      nameTd.appendChild(nameRow);
       tr.appendChild(nameTd);
 
       const bilagTd = el('td');
@@ -1322,6 +1558,7 @@ function buildCategoryEditSection(card, status) {
       tr.appendChild(removeTd);
 
       tbody.appendChild(tr);
+      if (item._expanded) tbody.appendChild(renderSubcategoryRow(item));
     });
 
     // A per-row-only drop target can only ever insert *before* that row —
@@ -1414,6 +1651,42 @@ function buildCategoryEditSection(card, status) {
   return { draftExpense, draftIncome };
 }
 
+// Styled "Er du sikker?" confirm for removing a sub-category from the
+// draft — mirrors stregOpenDeleteCategoryConfirm's shape (built on
+// siteOpenEditModal, its auto <h2> stripped and replaced with a plain
+// confirm question + a fixed "can't be undone" caveat) but the actual
+// removal + dirty-status refresh happens in the caller's onConfirm, since
+// this is a pure in-memory draft edit (no server round trip here — Gem is
+// what actually persists it).
+function budgetOpenDeleteSubcategoryConfirm(sub, onConfirm) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('budget-confirm-narrow');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  form.appendChild(el('p', 'budget-confirm-text',
+    sub.label ? `Fjern "${sub.label}"?` : 'Fjern denne underkategori?'));
+  form.appendChild(el('p', 'budget-intro', 'Dette kan ikke fortrydes.'));
+
+  const cancelBtn = budgetPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = budgetPillBtn('Fjern', 'site-btn-danger');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await onConfirm();
+    if (!result.ok) {
+      confirmBtn.disabled = false;
+      if (result.message) error.textContent = result.message;
+      return;
+    }
+    close();
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
 async function saveCategoryEdits(saveBtn, status, categoryDrafts) {
   const { draftExpense, draftIncome } = categoryDrafts;
   if (draftExpense.length === 0) {
@@ -1431,6 +1704,11 @@ async function saveCategoryEdits(saveBtn, status, categoryDrafts) {
     status.className = 'budget-save-status error';
     return;
   }
+  if (draftExpense.some((c) => (c.subcategories || []).some((s) => !s.label.trim()))) {
+    status.textContent = 'Udfyld navn for hver underkategori.';
+    status.className = 'budget-save-status error';
+    return;
+  }
   if (draftIncome.some((c) => !c.label.trim())) {
     status.textContent = 'Udfyld navn for hver indtægt.';
     status.className = 'budget-save-status error';
@@ -1441,7 +1719,12 @@ async function saveCategoryEdits(saveBtn, status, categoryDrafts) {
   status.className = 'budget-save-status';
   const result = await budgetApi('budget_categories_save', {
     budgetId: budgetViewId,
-    expense: draftExpense.map((c) => ({ key: c.key || undefined, label: c.label.trim(), abbrev: c.abbrev.trim() })),
+    expense: draftExpense.map((c) => ({
+      key: c.key || undefined,
+      label: c.label.trim(),
+      abbrev: c.abbrev.trim(),
+      subcategories: (c.subcategories || []).map((s) => ({ key: s.key || undefined, label: s.label.trim() })),
+    })),
     income: draftIncome.map((c) => ({ key: c.key || undefined, label: c.label.trim() })),
   });
   if (result.ok) {
@@ -1535,11 +1818,41 @@ function stregBreakdownIsComplete(req) {
   return Object.keys(breakdown).length > 0 && Math.abs(sum - (Number(req.amount) || 0)) <= 0.01;
 }
 
+// Sibling of stregBreakdownIsComplete, generalized to any OTHER category
+// that has its own admin-defined subcategories (categories.json) instead
+// of Stregnskab's own drink types — same completeness rule (every key
+// still a valid current subcategory, sum within 1 øre of req.amount),
+// mirroring budget_approve's own server-side check for this mechanism.
+function subBreakdownIsComplete(req, categories) {
+  const def = (categories || []).find((c) => c.key === req.category);
+  const subKeys = new Set(((def && def.subcategories) || []).map((s) => s.key));
+  if (subKeys.size === 0) return true;
+  const breakdown = req.subBreakdown || {};
+  const sum = Object.entries(breakdown).reduce(
+    (s, [k, v]) => (subKeys.has(k) ? s + (Number(v) || 0) : s), 0
+  );
+  return Object.keys(breakdown).length > 0 && Math.abs(sum - (Number(req.amount) || 0)) <= 0.01;
+}
+
+// Combines the two breakdown mechanisms above behind one check — a request
+// is gated by at most one of them (Stregnskab's own, or a general
+// category's own), never both — so call sites don't each have to duplicate
+// the is-streg/has-subs branching themselves.
+function budgetRequestNeedsBreakdown(req) {
+  if (req.category === budgetStregCategoryKey()) {
+    return { required: true, complete: stregBreakdownIsComplete(req) };
+  }
+  const def = budgetState.categories.expense.find((c) => c.key === req.category);
+  const hasSubs = !!(def && def.subcategories && def.subcategories.length > 0);
+  if (!hasSubs) return { required: false, complete: true };
+  return { required: true, complete: subBreakdownIsComplete(req, budgetState.categories.expense) };
+}
+
 function buildPendingRowContent(root, req) {
   const wrap = el('div', 'budget-item-content');
   const isOrphan = !budgetCategoryIsValid(req.category, budgetState.categories.expense);
-  const isStreg = req.category === budgetStregCategoryKey();
-  const breakdownIncomplete = isStreg && !stregBreakdownIsComplete(req);
+  const breakdown = budgetRequestNeedsBreakdown(req);
+  const breakdownIncomplete = breakdown.required && !breakdown.complete;
 
   const top = el('div', 'budget-item-top');
   const topLeft = el('span', 'budget-item-top-left');
@@ -1548,7 +1861,8 @@ function buildPendingRowContent(root, req) {
   topLeft.appendChild(el('span', 'budget-amount', formatKr(req.amount)));
   if (breakdownIncomplete && !isOrphan) {
     const warnBadge = el('span', 'budget-badge budget-badge-orphan', '⚠');
-    budgetWireIconTooltip(warnBadge, 'Fordel beløb på drikkevarer');
+    budgetWireIconTooltip(warnBadge, req.category === budgetStregCategoryKey()
+      ? 'Fordel beløb på drikkevarer' : 'Fordel beløb på underkategorier');
     topLeft.appendChild(warnBadge);
   }
   top.appendChild(topLeft);
@@ -1618,10 +1932,11 @@ function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
   // approving the group would otherwise partially succeed and leave an
   // orphaned/unapprovable request behind, same as clicking Godkend on it
   // individually would.
-  approveAllBtn.disabled = members.some((req) =>
-    !budgetCategoryIsValid(req.category, budgetState.categories.expense) ||
-    (req.category === budgetStregCategoryKey() && !stregBreakdownIsComplete(req))
-  );
+  approveAllBtn.disabled = members.some((req) => {
+    if (!budgetCategoryIsValid(req.category, budgetState.categories.expense)) return true;
+    const b = budgetRequestNeedsBreakdown(req);
+    return b.required && !b.complete;
+  });
   approveAllBtn.addEventListener('click', () => openApproveAllModal(root, members));
   header.appendChild(approveAllBtn);
   group.appendChild(header);
@@ -1814,14 +2129,66 @@ async function openRequestEditModal(root, req) {
     updateBreakdownSum();
   }
 
+  // Generalized sibling of the block above — shown instead whenever
+  // Kategori has its own subcategories (categories.json), structurally the
+  // same but sourcing rows from those instead of Stregregnskab's own drink
+  // types, and sent back as subBreakdown instead of stregBreakdown. A
+  // request has exactly one category, so at most one of the two blocks is
+  // ever visible at once (see updateBreakdownVisibility).
+  const subBreakdownDraft = { ...(req.subBreakdown || {}) };
+  const subBreakdownWrap = el('div', 'budget-sub-breakdown');
+  const subBreakdownSumEl = el('div', 'budget-sub-breakdown-sum');
+
+  function currentSubcategories() {
+    const def = budgetState.categories.expense.find((c) => c.key === categorySelect.value);
+    return (def && def.subcategories) || [];
+  }
+
+  function updateSubBreakdownSum() {
+    const sum = Object.values(subBreakdownDraft).reduce((s, v) => s + (Number(v) || 0), 0);
+    const amount = parseAmount(amountInput.value) || 0;
+    subBreakdownSumEl.textContent = `Mangler at fordele: ${formatKr(amount - sum)}`;
+    subBreakdownSumEl.classList.toggle('budget-negative', Math.abs(sum - amount) > 0.01);
+  }
+
+  function renderSubBreakdownRows() {
+    const rows = el('div', 'budget-sub-breakdown-rows');
+    currentSubcategories().forEach((sub) => {
+      const row = el('div', 'budget-sub-breakdown-row');
+      row.appendChild(el('span', 'budget-sub-breakdown-label', sub.label));
+      const input = el('input');
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      const existing = subBreakdownDraft[sub.key];
+      input.value = existing != null ? String(existing).replace('.', ',') : '';
+      input.addEventListener('input', () => {
+        subBreakdownDraft[sub.key] = parseAmount(input.value) || 0;
+        updateSubBreakdownSum();
+      });
+      row.appendChild(input);
+      rows.appendChild(row);
+    });
+    subBreakdownWrap.textContent = '';
+    subBreakdownWrap.appendChild(el('h3', 'budget-sub-breakdown-title', 'Fordeling af beløb'));
+    subBreakdownWrap.appendChild(rows);
+    subBreakdownWrap.appendChild(subBreakdownSumEl);
+    updateSubBreakdownSum();
+  }
+
   function updateBreakdownVisibility() {
-    breakdownWrap.style.display = categorySelect.value === budgetStregCategoryKey() ? '' : 'none';
+    const isStreg = categorySelect.value === budgetStregCategoryKey();
+    const subs = currentSubcategories();
+    breakdownWrap.style.display = isStreg ? '' : 'none';
+    subBreakdownWrap.style.display = (!isStreg && subs.length > 0) ? '' : 'none';
+    if (!isStreg && subs.length > 0) renderSubBreakdownRows();
   }
 
   renderBreakdownRows();
   form.appendChild(breakdownWrap);
+  renderSubBreakdownRows();
+  form.appendChild(subBreakdownWrap);
   categorySelect.addEventListener('change', updateBreakdownVisibility);
-  amountInput.addEventListener('input', updateBreakdownSum);
+  amountInput.addEventListener('input', () => { updateBreakdownSum(); updateSubBreakdownSum(); });
   updateBreakdownVisibility();
 
   const commentInput = el('textarea');
@@ -1846,6 +2213,7 @@ async function openRequestEditModal(root, req) {
       comment: commentInput.value.trim(),
       budgetId: budgetViewId,
       ...(categorySelect.value === budgetStregCategoryKey() ? { stregBreakdown: { ...breakdownDraft } } : {}),
+      ...(currentSubcategories().length > 0 ? { subBreakdown: { ...subBreakdownDraft } } : {}),
     });
     if (result.ok) {
       close();
@@ -2231,12 +2599,75 @@ function openExpenseAddModal(root) {
   receiptInput.accept = 'image/*,application/pdf';
   form.appendChild(siteEditField('Kvittering (billede eller PDF, valgfrit)', receiptInput));
 
+  // Shown whenever the selected category has its own subcategories — the
+  // amount must be divided across them before the server will accept a
+  // direct add under such a category (see budget_expense_add). Same
+  // draft/rows/sum shape as openRequestEditModal's own generalized block.
+  const subBreakdownDraft = {};
+  const subBreakdownWrap = el('div', 'budget-sub-breakdown');
+  const subBreakdownSumEl = el('div', 'budget-sub-breakdown-sum');
+
+  function currentSubcategories() {
+    const def = budgetState.categories.expense.find((c) => c.key === categorySelect.value);
+    return (def && def.subcategories) || [];
+  }
+
+  function subBreakdownComplete() {
+    const subs = currentSubcategories();
+    if (subs.length === 0) return true;
+    const sum = subs.reduce((s, sub) => s + (Number(subBreakdownDraft[sub.key]) || 0), 0);
+    return Math.abs(sum - (parseAmount(amountInput.value) || 0)) <= 0.01;
+  }
+
+  function updateSubBreakdownSum() {
+    const sum = Object.values(subBreakdownDraft).reduce((s, v) => s + (Number(v) || 0), 0);
+    const amount = parseAmount(amountInput.value) || 0;
+    subBreakdownSumEl.textContent = `Mangler at fordele: ${formatKr(amount - sum)}`;
+    subBreakdownSumEl.classList.toggle('budget-negative', Math.abs(sum - amount) > 0.01);
+  }
+
+  function renderSubBreakdownRows() {
+    const rows = el('div', 'budget-sub-breakdown-rows');
+    currentSubcategories().forEach((sub) => {
+      const row = el('div', 'budget-sub-breakdown-row');
+      row.appendChild(el('span', 'budget-sub-breakdown-label', sub.label));
+      const input = el('input');
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      const existing = subBreakdownDraft[sub.key];
+      input.value = existing != null ? String(existing).replace('.', ',') : '';
+      input.addEventListener('input', () => {
+        subBreakdownDraft[sub.key] = parseAmount(input.value) || 0;
+        updateSubBreakdownSum();
+      });
+      row.appendChild(input);
+      rows.appendChild(row);
+    });
+    subBreakdownWrap.textContent = '';
+    subBreakdownWrap.appendChild(el('h3', 'budget-sub-breakdown-title', 'Fordeling af beløb'));
+    subBreakdownWrap.appendChild(rows);
+    subBreakdownWrap.appendChild(subBreakdownSumEl);
+    updateSubBreakdownSum();
+  }
+
+  function updateSubBreakdownVisibility() {
+    const subs = currentSubcategories();
+    subBreakdownWrap.style.display = subs.length > 0 ? '' : 'none';
+    if (subs.length > 0) renderSubBreakdownRows();
+  }
+
+  form.appendChild(subBreakdownWrap);
+  categorySelect.addEventListener('change', updateSubBreakdownVisibility);
+  amountInput.addEventListener('input', updateSubBreakdownSum);
+  updateSubBreakdownVisibility();
+
   const confirmBtn = budgetPillBtn('Tilføj', 'site-btn-success');
   confirmBtn.addEventListener('click', async () => {
     const amount = parseAmount(amountInput.value);
     if (!categorySelect.value) { error.textContent = 'Vælg en kategori.'; return; }
     if (!(amount > 0)) { error.textContent = 'Angiv et gyldigt beløb.'; return; }
     if (!paidByInput.value.trim()) { error.textContent = 'Angiv udlægsholder.'; return; }
+    if (!subBreakdownComplete()) { error.textContent = 'Fordel hele beløbet på underkategorier.'; return; }
     confirmBtn.disabled = true;
     error.textContent = '';
     let receiptBase64 = '';
@@ -2268,6 +2699,7 @@ function openExpenseAddModal(root) {
       receiptBase64,
       receiptExt,
       budgetId: budgetViewId,
+      ...(currentSubcategories().length > 0 ? { subBreakdown: { ...subBreakdownDraft } } : {}),
     });
     if (result.ok) {
       close();
@@ -2348,6 +2780,61 @@ function openExpenseEditModal(root, exp) {
   commentInput.value = exp.comment || '';
   form.appendChild(siteEditField('Kommentar', commentInput));
 
+  // Category is locked here (see the function's own header comment), so
+  // which subcategories apply is fixed for the life of this modal — shown
+  // only when the (unchangeable) category currently has any, pre-filled
+  // from the expense's own subBreakdown and re-validated to still sum to a
+  // possibly-edited amount before Gem. Unlike Stregnskab's own
+  // stregBreakdown, which isn't editable through this modal at all (a
+  // known, pre-existing gap left as-is), this new mechanism does better.
+  const expenseCategoryDef = budgetState.categories.expense.find((c) => c.key === exp.category);
+  const expenseSubcategories = (expenseCategoryDef && expenseCategoryDef.subcategories) || [];
+  const subBreakdownDraft = { ...(exp.subBreakdown || {}) };
+  const subBreakdownWrap = el('div', 'budget-sub-breakdown');
+  const subBreakdownSumEl = el('div', 'budget-sub-breakdown-sum');
+
+  function subBreakdownComplete() {
+    if (expenseSubcategories.length === 0) return true;
+    const sum = expenseSubcategories.reduce((s, sub) => s + (Number(subBreakdownDraft[sub.key]) || 0), 0);
+    return Math.abs(sum - (parseAmount(amountInput.value) || 0)) <= 0.01;
+  }
+
+  function updateSubBreakdownSum() {
+    const sum = Object.values(subBreakdownDraft).reduce((s, v) => s + (Number(v) || 0), 0);
+    const amount = parseAmount(amountInput.value) || 0;
+    subBreakdownSumEl.textContent = `Mangler at fordele: ${formatKr(amount - sum)}`;
+    subBreakdownSumEl.classList.toggle('budget-negative', Math.abs(sum - amount) > 0.01);
+  }
+
+  if (expenseSubcategories.length > 0) {
+    const rows = el('div', 'budget-sub-breakdown-rows');
+    expenseSubcategories.forEach((sub) => {
+      const row = el('div', 'budget-sub-breakdown-row');
+      row.appendChild(el('span', 'budget-sub-breakdown-label', sub.label));
+      const input = el('input');
+      input.type = 'text';
+      input.inputMode = 'decimal';
+      const existing = subBreakdownDraft[sub.key];
+      input.value = existing != null ? String(existing).replace('.', ',') : '';
+      input.addEventListener('input', () => {
+        subBreakdownDraft[sub.key] = parseAmount(input.value) || 0;
+        updateSubBreakdownSum();
+      });
+      row.appendChild(input);
+      rows.appendChild(row);
+    });
+    subBreakdownWrap.appendChild(el('h3', 'budget-sub-breakdown-title', 'Fordeling af beløb'));
+    subBreakdownWrap.appendChild(rows);
+    subBreakdownWrap.appendChild(subBreakdownSumEl);
+    updateSubBreakdownSum();
+    form.appendChild(subBreakdownWrap);
+    amountInput.addEventListener('input', updateSubBreakdownSum);
+  }
+
+  // Shared by both Gem and Slet — deleting an expense shouldn't be blocked
+  // on an incomplete breakdown (that's a "fix the split" concern, not a
+  // "can this record be removed" one), so that check lives only in Gem's
+  // own click handler below, not here.
   function validate() {
     if (!(parseAmount(amountInput.value) > 0)) return 'Angiv et gyldigt beløb.';
     if (!paidByInput.value.trim()) return 'Angiv udlægsholder.';
@@ -2373,9 +2860,12 @@ function openExpenseEditModal(root, exp) {
   confirmBtn.addEventListener('click', async () => {
     const msg = validate();
     if (msg) { error.textContent = msg; return; }
+    if (!subBreakdownComplete()) { error.textContent = 'Fordel hele beløbet på underkategorier.'; return; }
     confirmBtn.disabled = true;
     error.textContent = '';
-    const result = await budgetApi('budget_expense_update', buildPayload(false));
+    const payload = buildPayload(false);
+    if (expenseSubcategories.length > 0) payload.subBreakdown = { ...subBreakdownDraft };
+    const result = await budgetApi('budget_expense_update', payload);
     if (result.ok) {
       close();
       reloadAdmin(root);

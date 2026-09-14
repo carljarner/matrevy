@@ -573,6 +573,49 @@ function budget_category_abbrev($categories, $key) {
   return $key;
 }
 
+// Full expense-category definition (incl. its own subcategories, if any) for
+// $key, or null if it doesn't exist in $categories. Used everywhere a
+// category's subcategories need to be looked up before validating a
+// breakdown against them.
+function budget_expense_category_def($categories, $key) {
+  foreach (($categories['expense'] ?? []) as $c) {
+    if (($c['key'] ?? null) === $key) return $c;
+  }
+  return null;
+}
+
+// Shared validation for a "breakdown" map — {subKey: amount} — against a
+// list of currently-valid keys, used by both Stregregnskab's own
+// stregBreakdown (drink-type keys from streg.json) and the general
+// per-category subBreakdown (subcategory keys from categories.json). When
+// $amount is given (non-null), the map is also required to be non-empty and
+// sum to within 1 øre of it — the "complete" check budget_approve enforces
+// before letting an expense through. When $amount is null, only shape/key
+// validation runs — the lighter check budget_request_update uses to accept
+// partial in-progress edits before the request is ready to approve.
+// Returns ['errorCode' => ?string, 'breakdown' => array] — errorCode is
+// 'invalid_shape' (not an array, or a bad/unknown key or non-numeric/
+// negative value), 'breakdown_required' (empty/all-invalid, only checked
+// when $amount is given), or 'breakdown_mismatch' (sum off by >1 øre, only
+// checked when $amount is given).
+function budget_validate_breakdown_sum($breakdown, $validKeys, $amount) {
+  if (!is_array($breakdown)) return ['errorCode' => 'invalid_shape', 'breakdown' => []];
+  $clean = [];
+  $sum = 0.0;
+  foreach ($breakdown as $k => $v) {
+    if (!is_string($k) || !in_array($k, $validKeys, true) || !is_numeric($v) || (float) $v < 0) {
+      return ['errorCode' => 'invalid_shape', 'breakdown' => []];
+    }
+    $clean[$k] = round((float) $v, 2);
+    $sum += (float) $v;
+  }
+  if ($amount !== null) {
+    if (empty($clean)) return ['errorCode' => 'breakdown_required', 'breakdown' => []];
+    if (abs($sum - (float) $amount) > 0.01) return ['errorCode' => 'breakdown_mismatch', 'breakdown' => []];
+  }
+  return ['errorCode' => null, 'breakdown' => $clean];
+}
+
 // The ONLY guard between a request's "file" field and reading an arbitrary
 // file off the host. Receipts are named "<key>_<n>.<ext>" (paid) or
 // "pending/<id>.<ext>" (submitted), ext being jpg (re-encoded images) or
@@ -966,6 +1009,18 @@ function budget_receipt($body) {
 // the request's category against this budget's current list (see
 // budget_submit) and, if it's no longer valid, puts the request back and
 // refuses to approve.
+// Puts a pulled-out pending request back into requests.json unmutated —
+// shared by every rejection branch below (invalid category, an incomplete
+// stregBreakdown, an incomplete subBreakdown) so a refused approval never
+// loses the request, just leaves it exactly as it was.
+function budget_requeue_pending_request($budgetId, $found) {
+  budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($found) {
+    if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
+    $json['requests'][] = $found;
+    return $json;
+  });
+}
+
 function budget_approve($body) {
   $budgetId = budget_resolve_budget_id($body);
   $id       = $body['id'] ?? '';
@@ -1002,46 +1057,44 @@ function budget_approve($body) {
     // or was never valid — see budget_submit) — put the pulled request back
     // rather than silently losing it, and refuse to approve it. The admin
     // must reassign a real category via budget_request_update first.
-    budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($found) {
-      if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
-      $json['requests'][] = $found;
-      return $json;
-    });
+    budget_requeue_pending_request($budgetId, $found);
     respond(409, ['error' => 'invalid_category']);
   }
+  $categoryDef = budget_expense_category_def($categories, $category);
 
   // A Stregnskab-category request can't be approved until its amount has
   // been broken down by drink type — that breakdown is what lets
   // stregregnskab's own Priser card derive "Indkøb" per drink type instead
-  // of it being hand-typed (see stregComputeIndkobByKey client-side).
+  // of it being hand-typed (see stregComputeIndkobByKey client-side). A
+  // request under any OTHER category that has its own admin-defined
+  // subcategories needs the same treatment, generalized: divided by those
+  // subcategories instead of drink types, stored under subBreakdown instead
+  // of stregBreakdown (never both on the same expense).
   $stregBreakdown = null;
+  $subBreakdown = null;
   if ($category === budget_streg_category_key()) {
     $stregDoc = budget_load($budgetId, 'streg.json', streg_default_doc());
     $stregKeys = array_column(streg_categories($stregDoc), 'key');
-    $breakdown = is_array($found['stregBreakdown'] ?? null) ? $found['stregBreakdown'] : [];
-    $sum = 0.0;
-    $allKeysValid = !empty($breakdown);
-    foreach ($breakdown as $k => $v) {
-      if (!in_array($k, $stregKeys, true) || !is_numeric($v)) { $allKeysValid = false; break; }
-      $sum += (float) $v;
-    }
-    $errorCode = null;
-    if (!$allKeysValid) {
-      $errorCode = 'streg_breakdown_required';
-    } elseif (abs($sum - (float) $found['amount']) > 0.01) {
-      $errorCode = 'streg_breakdown_mismatch';
-    }
-    if ($errorCode !== null) {
+    $result = budget_validate_breakdown_sum($found['stregBreakdown'] ?? [], $stregKeys, (float) $found['amount']);
+    if ($result['errorCode'] !== null) {
+      $code = $result['errorCode'] === 'breakdown_required' ? 'streg_breakdown_required'
+        : ($result['errorCode'] === 'breakdown_mismatch' ? 'streg_breakdown_mismatch' : $result['errorCode']);
       // Same "put it back, refuse to approve" rollback as the invalid_category
       // check above.
-      budget_mutate($budgetId, 'requests.json', ['requests' => []], function ($json) use ($found) {
-        if (!isset($json['requests']) || !is_array($json['requests'])) $json['requests'] = [];
-        $json['requests'][] = $found;
-        return $json;
-      });
-      respond(409, ['error' => $errorCode]);
+      budget_requeue_pending_request($budgetId, $found);
+      respond(409, ['error' => $code]);
     }
-    $stregBreakdown = $breakdown;
+    $stregBreakdown = $result['breakdown'];
+  } elseif (!empty($categoryDef['subcategories'])) {
+    $subKeys = array_column($categoryDef['subcategories'], 'key');
+    $result = budget_validate_breakdown_sum($found['subBreakdown'] ?? [], $subKeys, (float) $found['amount']);
+    if ($result['errorCode'] !== null) {
+      $code = $result['errorCode'] === 'breakdown_required' ? 'sub_breakdown_required'
+        : ($result['errorCode'] === 'breakdown_mismatch' ? 'sub_breakdown_mismatch' : $result['errorCode']);
+      budget_requeue_pending_request($budgetId, $found);
+      respond(409, ['error' => $code]);
+    }
+    $subBreakdown = $result['breakdown'];
   }
 
   $n = budget_next_n($budgetId, $category);
@@ -1077,6 +1130,10 @@ function budget_approve($body) {
     // null for every non-Stregnskab expense — see stregComputeIndkobByKey
     // client-side, which sums this across expenses.json to derive "Indkøb".
     'stregBreakdown' => $stregBreakdown,
+    // null unless $category has its own subcategories — see
+    // computeSpentBySubcategory client-side, which sums this across
+    // expenses.json to derive each subcategory's own Brugt/Rest.
+    'subBreakdown' => $subBreakdown,
   ];
   budget_mutate($budgetId, 'expenses.json', ['expenses' => []], function ($json) use ($expense) {
     if (!isset($json['expenses']) || !is_array($json['expenses'])) $json['expenses'] = [];
@@ -1122,9 +1179,21 @@ function budget_save_sheet($body) {
   $categories = budget_load_categories($budgetId);
   $expenseKeys = array_column($categories['expense'] ?? [], 'key');
   $incomeKeys  = array_column($categories['income']  ?? [], 'key');
+  // A category with subcategories no longer gets its own `planned` entry
+  // from the client (its Planlagt is derived as the sum of its
+  // subcategories' own entries instead) — but a sub-key is just another
+  // valid key in this same flat map, so the allowed key set is simply the
+  // union of both.
+  $subKeys = [];
+  foreach (($categories['expense'] ?? []) as $c) {
+    foreach (($c['subcategories'] ?? []) as $s) {
+      if (isset($s['key'])) $subKeys[] = $s['key'];
+    }
+  }
+  $allowedPlannedKeys = array_merge($expenseKeys, $subKeys);
   $cleanPlanned = [];
   foreach ($planned as $key => $val) {
-    if (!in_array($key, $expenseKeys, true) || !is_numeric($val) || (float) $val < 0) {
+    if (!in_array($key, $allowedPlannedKeys, true) || !is_numeric($val) || (float) $val < 0) {
       respond(400, ['error' => 'invalid_shape']);
     }
     $cleanPlanned[$key] = round((float) $val, 2);
@@ -1192,6 +1261,24 @@ function budget_expense_add($body) {
     respond(400, ['error' => 'invalid_shape']);
   }
 
+  // A category with its own subcategories requires the amount to be divided
+  // across them up front — unlike Stregnskab's own stregBreakdown, which
+  // this direct-add path has never populated (a known, pre-existing gap
+  // left as-is; only this new, general mechanism is held to the stricter
+  // standard here).
+  $categoryDef = budget_expense_category_def($categories, $category);
+  $subBreakdown = null;
+  if (!empty($categoryDef['subcategories'])) {
+    $subKeys = array_column($categoryDef['subcategories'], 'key');
+    $result = budget_validate_breakdown_sum($body['subBreakdown'] ?? [], $subKeys, (float) $amount);
+    if ($result['errorCode'] !== null) {
+      $code = $result['errorCode'] === 'breakdown_required' ? 'sub_breakdown_required'
+        : ($result['errorCode'] === 'breakdown_mismatch' ? 'sub_breakdown_mismatch' : $result['errorCode']);
+      respond(400, ['error' => $code]);
+    }
+    $subBreakdown = $result['breakdown'];
+  }
+
   $id = dechex(time()) . bin2hex(random_bytes(4));
   $n = budget_next_n($budgetId, $category);
   $abbrev = budget_category_abbrev($categories, $category);
@@ -1222,6 +1309,7 @@ function budget_expense_add($body) {
     'phone'       => trim($phone),
     'receiptFile' => $receiptRel,
     'approvedAt'  => date('c'),
+    'subBreakdown' => $subBreakdown,
   ];
   budget_mutate($budgetId, 'expenses.json', ['expenses' => []], function ($json) use ($expense) {
     if (!isset($json['expenses']) || !is_array($json['expenses'])) $json['expenses'] = [];
@@ -1250,13 +1338,21 @@ function budget_expense_update($body) {
   // receipt kept); Gendan sets it back to false. Defaults false so every
   // pre-existing caller of this action is unaffected.
   $deleted  = $body['deleted'] ?? false;
-  // Note: `amount` can be edited here independently of a Stregnskab
-  // expense's own `stregBreakdown` (category is locked post-approval, but
-  // amount isn't) — an edit here doesn't re-validate or adjust the
-  // breakdown against the new amount, same accepted looseness as every
-  // other field here (comment/name/phone are equally editable with no
-  // cross-checks). stregComputeIndkobByKey (budget.js) will simply reflect
-  // whatever stregBreakdown was captured at approval time.
+  // Optional subBreakdown re-split: omitted (the key absent from $body)
+  // leaves whatever's already on file untouched — same "omitted = don't
+  // touch" posture as budget_request_update's own stregBreakdown handling.
+  // When given, it's re-validated to still sum to the (possibly just-
+  // edited) `amount` — unlike Stregnskab's own stregBreakdown, which isn't
+  // editable through this action at all (a known, pre-existing gap; only
+  // this new, general mechanism does better here).
+  $subBreakdownIn = array_key_exists('subBreakdown', $body) ? $body['subBreakdown'] : null;
+  // Note: `amount` can otherwise be edited here independently of a
+  // Stregnskab expense's own `stregBreakdown` (category is locked post-
+  // approval, but amount isn't) — an edit here doesn't re-validate or
+  // adjust that breakdown against the new amount, same accepted looseness
+  // as every other field here (comment/name/phone are equally editable
+  // with no cross-checks). stregComputeIndkobByKey (budget.js) will simply
+  // reflect whatever stregBreakdown was captured at approval time.
   if (!is_string($id) || $id === ''
       || !is_numeric($amount) || (float) $amount <= 0
       || !is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)
@@ -1267,9 +1363,33 @@ function budget_expense_update($body) {
       || !is_bool($deleted)) {
     respond(400, ['error' => 'invalid_shape']);
   }
+
+  $cleanSubBreakdown = null;
+  if ($subBreakdownIn !== null) {
+    $expenses0 = budget_load($budgetId, 'expenses.json', ['expenses' => []])['expenses'] ?? [];
+    $expenseCategory = null;
+    foreach ($expenses0 as $e0) {
+      if (($e0['id'] ?? null) === $id) { $expenseCategory = $e0['category'] ?? null; break; }
+    }
+    // A missing expense here just falls through to the main mutate below,
+    // which already 404s via $found — no need to duplicate that response.
+    if ($expenseCategory !== null) {
+      $categoryDef = budget_expense_category_def(budget_load_categories($budgetId), $expenseCategory);
+      $subKeys = array_column($categoryDef['subcategories'] ?? [], 'key');
+      if (empty($subKeys)) respond(400, ['error' => 'invalid_shape']);
+      $result = budget_validate_breakdown_sum($subBreakdownIn, $subKeys, (float) $amount);
+      if ($result['errorCode'] !== null) {
+        $code = $result['errorCode'] === 'breakdown_required' ? 'sub_breakdown_required'
+          : ($result['errorCode'] === 'breakdown_mismatch' ? 'sub_breakdown_mismatch' : $result['errorCode']);
+        respond(400, ['error' => $code]);
+      }
+      $cleanSubBreakdown = $result['breakdown'];
+    }
+  }
+
   $found = false;
   budget_mutate($budgetId, 'expenses.json', ['expenses' => []],
-    function ($json) use ($id, $amount, $date, $paidBy, $transfer, $settled, $comment, $name, $phone, $deleted, &$found) {
+    function ($json) use ($id, $amount, $date, $paidBy, $transfer, $settled, $comment, $name, $phone, $deleted, $cleanSubBreakdown, &$found) {
       // Bind &$e to a real variable, not the ($json['expenses'] ?? []) expression
       // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
       // edit would silently not persist (handler still returns ok:true).
@@ -1289,6 +1409,9 @@ function budget_expense_update($body) {
             $e['deletedAt'] = date('c');
           } else {
             unset($e['deletedAt']);
+          }
+          if ($cleanSubBreakdown !== null) {
+            $e['subBreakdown'] = $cleanSubBreakdown;
           }
           $found = true;
           break;
@@ -1338,13 +1461,16 @@ function budget_expense_remove($body) {
 //
 // Optional `stregBreakdown` ({[stregCategoryKey]: amount}): only meaningful
 // when the (possibly just-changed) category is the Stregnskab one — see
-// budget_streg_category_key(). If the client omits the field entirely, any
-// existing breakdown is left untouched (so fixing e.g. just the phone number
-// doesn't force a breakdown re-submit); if the category is something other
-// than Stregnskab, any breakdown is dropped (meaningless outside it). Not
-// required to sum to `amount` here — budget_approve is what actually
-// enforces completeness, since an admin should be free to save partial
-// progress before the request is ready to approve.
+// budget_streg_category_key(). Optional `subBreakdown` ({[subCategoryKey]:
+// amount}): the same idea, generalized to any OTHER category that has its
+// own admin-defined subcategories (categories.json), never both fields
+// meaningful at once. Either way: if the client omits the field entirely,
+// any existing breakdown is left untouched (so fixing e.g. just the phone
+// number doesn't force a breakdown re-submit); if the category no longer
+// matches that breakdown's own kind, the breakdown is dropped (meaningless
+// there). Neither is required to sum to `amount` here — budget_approve is
+// what actually enforces completeness, since an admin should be free to
+// save partial progress before the request is ready to approve.
 function budget_request_update($body) {
   $budgetId = budget_resolve_budget_id($body);
   $id       = $body['id'] ?? '';
@@ -1354,7 +1480,9 @@ function budget_request_update($body) {
   $phone    = $body['phone'] ?? '';
   $comment  = $body['comment'] ?? '';
   $breakdownIn = array_key_exists('stregBreakdown', $body) ? $body['stregBreakdown'] : null;
-  $validExpenseKeys = array_column(budget_load_categories($budgetId)['expense'] ?? [], 'key');
+  $subBreakdownIn = array_key_exists('subBreakdown', $body) ? $body['subBreakdown'] : null;
+  $categories = budget_load_categories($budgetId);
+  $validExpenseKeys = array_column($categories['expense'] ?? [], 'key');
   if (!is_string($id) || $id === ''
       || !in_array($category, $validExpenseKeys, true)
       || !is_numeric($amount) || (float) $amount <= 0
@@ -1366,21 +1494,26 @@ function budget_request_update($body) {
 
   $cleanBreakdown = null;
   if ($category === budget_streg_category_key() && $breakdownIn !== null) {
-    if (!is_array($breakdownIn)) respond(400, ['error' => 'invalid_shape']);
     $stregDoc = budget_load($budgetId, 'streg.json', streg_default_doc());
     $stregKeys = array_column(streg_categories($stregDoc), 'key');
-    $cleanBreakdown = [];
-    foreach ($breakdownIn as $k => $v) {
-      if (!is_string($k) || !in_array($k, $stregKeys, true) || !is_numeric($v) || (float) $v < 0) {
-        respond(400, ['error' => 'invalid_shape']);
-      }
-      $cleanBreakdown[$k] = round((float) $v, 2);
-    }
+    $result = budget_validate_breakdown_sum($breakdownIn, $stregKeys, null);
+    if ($result['errorCode'] !== null) respond(400, ['error' => 'invalid_shape']);
+    $cleanBreakdown = $result['breakdown'];
+  }
+
+  $categoryDef = budget_expense_category_def($categories, $category);
+  $categoryHasSubs = !empty($categoryDef['subcategories']);
+  $cleanSubBreakdown = null;
+  if ($categoryHasSubs && $subBreakdownIn !== null) {
+    $subKeys = array_column($categoryDef['subcategories'], 'key');
+    $result = budget_validate_breakdown_sum($subBreakdownIn, $subKeys, null);
+    if ($result['errorCode'] !== null) respond(400, ['error' => 'invalid_shape']);
+    $cleanSubBreakdown = $result['breakdown'];
   }
 
   $found = false;
   budget_mutate($budgetId, 'requests.json', ['requests' => []],
-    function ($json) use ($id, $category, $amount, $name, $phone, $comment, $cleanBreakdown, &$found) {
+    function ($json) use ($id, $category, $amount, $name, $phone, $comment, $cleanBreakdown, $cleanSubBreakdown, $categoryHasSubs, &$found) {
       // Bind &$r to a real variable, not the ($json['requests'] ?? []) expression
       // — foreach-by-reference over a `??` result mutates a throwaway copy, so the
       // edit would silently not persist (handler still returns ok:true).
@@ -1396,6 +1529,11 @@ function budget_request_update($body) {
             unset($r['stregBreakdown']);
           } elseif ($cleanBreakdown !== null) {
             $r['stregBreakdown'] = $cleanBreakdown;
+          }
+          if (!$categoryHasSubs) {
+            unset($r['subBreakdown']);
+          } elseif ($cleanSubBreakdown !== null) {
+            $r['subBreakdown'] = $cleanSubBreakdown;
           }
           $found = true;
           break;
@@ -1506,8 +1644,19 @@ function budget_categories_save($body) {
   foreach (($current['expense'] ?? []) as $c) { $currentExpenseByKey[$c['key']] = $c; }
   $expensesLedger = budget_load($budgetId, 'expenses.json', ['expenses' => []])['expenses'] ?? [];
 
+  // Sub-category keys share the SAME flat key namespace as top-level
+  // category keys (seeded here, and kept up to date by budget_slugify_key's
+  // own by-reference dedupe as new keys — top-level or sub — are minted
+  // below) — this is what lets `planned`/`subBreakdown` look a key up
+  // unambiguously without also carrying its parent key everywhere.
   $knownExpenseKeys = array_fill_keys(array_keys($currentExpenseByKey), true);
+  foreach ($currentExpenseByKey as $c) {
+    foreach (($c['subcategories'] ?? []) as $s) {
+      if (isset($s['key'])) $knownExpenseKeys[$s['key']] = true;
+    }
+  }
   $usedExpenseKeys = [];
+  $usedSubKeysGlobal = [];
   $usedAbbrevsLower = [];
   $cleanExpense = [];
   foreach ($expenseIn as $item) {
@@ -1549,7 +1698,39 @@ function budget_categories_save($body) {
     if (isset($usedAbbrevsLower[$abbrevLower])) respond(400, ['error' => 'duplicate_abbrev']);
     $usedAbbrevsLower[$abbrevLower] = true;
 
-    $cleanExpense[] = ['key' => $key, 'label' => $label, 'abbrev' => $abbrev];
+    // Sub-categories: a plain {key?, label} list, no abbrev — bilag
+    // numbering/receipt filenames stay keyed on the parent only. The
+    // protected Stregnskab category can never carry any (it already has
+    // its own separate drink-type breakdown via streg.json).
+    $subIn = isset($item['subcategories']) && is_array($item['subcategories']) ? $item['subcategories'] : [];
+    if ($key === budget_streg_category_key() && !empty($subIn)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $currentSubByKey = ($keyIn !== null) ? array_column($currentExpenseByKey[$keyIn]['subcategories'] ?? [], null, 'key') : [];
+    $cleanSub = [];
+    foreach ($subIn as $s) {
+      if (!is_array($s) || !isset($s['label']) || !is_string($s['label'])
+          || trim($s['label']) === '' || mb_strlen(trim($s['label'])) > 60) {
+        respond(400, ['error' => 'invalid_shape']);
+      }
+      $sLabel = trim($s['label']);
+      $sKeyIn = (isset($s['key']) && is_string($s['key']) && $s['key'] !== '') ? $s['key'] : null;
+      if ($sKeyIn !== null) {
+        // Must already exist under THIS SAME parent — a sub-key that
+        // exists under a different parent (impossible in steady state
+        // since sub-keys are globally unique, but a stale/adversarial
+        // payload could still name one) is rejected the same way.
+        if (!isset($currentSubByKey[$sKeyIn])) respond(409, ['error' => 'stale_categories']);
+        $sKey = $sKeyIn;
+      } else {
+        $sKey = budget_slugify_key($sLabel, $knownExpenseKeys);
+      }
+      if (isset($usedSubKeysGlobal[$sKey]) || isset($usedExpenseKeys[$sKey])) respond(400, ['error' => 'duplicate_category']);
+      $usedSubKeysGlobal[$sKey] = true;
+      $cleanSub[] = ['key' => $sKey, 'label' => $sLabel];
+    }
+
+    $cleanExpense[] = ['key' => $key, 'label' => $label, 'abbrev' => $abbrev, 'subcategories' => $cleanSub];
   }
 
   // "Stregnskab" is a structural join point with stregregnskab's own
@@ -1589,20 +1770,38 @@ function budget_categories_save($body) {
   respond(200, ['ok' => true, 'categories' => $result]);
 }
 
+// Finds the existing budget "closest in time" to $targetYear — smallest
+// |year diff|, ties broken by the most recently created — so seeding a new
+// budget always draws from the most relevant prior budget regardless of
+// which one (if any) is currently active. Returns null when $years is empty.
+function budget_find_closest_year_entry($years, $targetYear) {
+  $best = null;
+  $bestDiff = null;
+  foreach ($years as $y) {
+    $diff = abs((int)($y['year'] ?? 0) - $targetYear);
+    if ($best === null || $diff < $bestDiff
+        || ($diff === $bestDiff && ($y['createdAt'] ?? '') > ($best['createdAt'] ?? ''))) {
+      $best = $y;
+      $bestDiff = $diff;
+    }
+  }
+  return $best;
+}
+
 // Admin: create a new, empty budget — seeds its `planned` amounts and its
-// categories.json as a copy of the *currently active* budget's (a
-// deliberate starting point so the admin doesn't retype every category from
-// scratch; falls back to budget_default_categories() if there's no active
-// budget yet, i.e. true first-ever bootstrap), leaves income/expenses/
-// requests empty, and appends it to years.json under a freshly-generated
-// budgetId. Does NOT change which budget is active — call
-// budget_set_active_year separately to actually route new revyst
-// submissions into it (so "Start nyt budgetår" in the client is just these
-// two calls in sequence). `year` no longer needs to be unique — multiple
-// budgets can share a calendar year (e.g. a regular run and a jubilee
-// edition), each in its own budgetId-keyed directory — but `label` does,
-// so the two stay distinguishable everywhere they're shown by label alone
-// (the year switcher, "Aktivt budget", the page title).
+// categories.json as a copy of the existing budget *closest in time* to the
+// new one's year (a deliberate starting point so the admin doesn't retype
+// every category/amount from scratch; falls back to
+// budget_default_categories() if there's no existing budget yet, i.e. true
+// first-ever bootstrap), leaves income/expenses/requests empty, and appends
+// it to years.json under a freshly-generated budgetId. Does NOT change
+// which budget is active — call budget_set_active_year separately to
+// actually route new revyst submissions into it (so "Start nyt budgetår" in
+// the client is just these two calls in sequence). `year` no longer needs
+// to be unique — multiple budgets can share a calendar year (e.g. a regular
+// run and a jubilee edition), each in its own budgetId-keyed directory —
+// but `label` does, so the two stay distinguishable everywhere they're
+// shown by label alone (the year switcher, "Aktivt budget", the page title).
 function budget_create_year($body) {
   $year = $body['year'] ?? null;
   $label = $body['label'] ?? '';
@@ -1621,13 +1820,14 @@ function budget_create_year($body) {
   foreach (($years['years'] ?? []) as $y) { $knownIds[$y['budgetId'] ?? ''] = true; }
   $budgetId = budget_slugify_budget_id($year, $label, $knownIds);
 
-  $activeBudgetId = $years['activeBudgetId'] ?? null;
-  $hasActive = is_string($activeBudgetId) && $activeBudgetId !== '';
-  $seedPlanned = $hasActive
-    ? (budget_load($activeBudgetId, 'budget.json', ['planned' => []])['planned'] ?? [])
+  $sourceEntry = budget_find_closest_year_entry($years['years'] ?? [], $year);
+  $sourceBudgetId = $sourceEntry['budgetId'] ?? null;
+  $hasSource = is_string($sourceBudgetId) && $sourceBudgetId !== '';
+  $seedPlanned = $hasSource
+    ? (budget_load($sourceBudgetId, 'budget.json', ['planned' => []])['planned'] ?? [])
     : [];
   if (empty($seedPlanned)) $seedPlanned = new stdClass();
-  $seedCategories = $hasActive ? budget_load_categories($activeBudgetId) : budget_default_categories();
+  $seedCategories = $hasSource ? budget_load_categories($sourceBudgetId) : budget_default_categories();
 
   budget_mutate($budgetId, 'budget.json', ['planned' => new stdClass(), 'income' => [], 'updatedAt' => null],
     function ($json) use ($seedPlanned) {

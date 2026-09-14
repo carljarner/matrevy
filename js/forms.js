@@ -1040,6 +1040,11 @@ function renderAdminView(root, screen) {
   // reference from outliving its own screen (formsRenderBuilderScreen sets
   // a fresh one itself when screen.name IS 'builder').
   if (screen.name !== 'builder') { formsBuilderDraft = null; formsBuilderSnapshot = null; }
+  // See formsStatsNavCleanup's own comment — the Statistik screen is the
+  // only one that attaches a window-level scroll listener, torn down
+  // unconditionally here so navigating away (even back to 'stats' on a
+  // different form) never leaves a stale one running.
+  if (formsStatsNavCleanup) { formsStatsNavCleanup(); formsStatsNavCleanup = null; }
   root.replaceChildren();
   const tabs = el('div', 'forms-admin-tabs');
   // "Se svar"/"Se statistik" are views onto one form from within Oversigt,
@@ -2807,10 +2812,12 @@ function formsExportCsv(definition, responses) {
 // nothing to lose by seeing it all, unlike the fill-in view there's no
 // prev/next paging here.
 async function formsRenderStatsScreen(root, formId) {
+  const layout = el('div', 'forms-stats-layout');
   const card = el('section', 'card forms-form forms-fillin-wide');
   const body = el('div', null, 'Henter statistik …');
   card.appendChild(body);
-  root.appendChild(card);
+  layout.appendChild(card);
+  root.appendChild(layout);
 
   const result = await formsApi('forms_admin_read', { formId });
   body.replaceChildren();
@@ -2836,15 +2843,75 @@ async function formsRenderStatsScreen(root, formId) {
     return;
   }
 
-  for (const pageDef of formsSectionsFromDefinition(definition)) {
+  // One {pageDef, pageEl} per section, fed to formsBuildStatsNav below —
+  // the nav's own scrollspy needs each section's real DOM element to
+  // measure against, not just its data.
+  const pages = [];
+  formsSectionsFromDefinition(definition).forEach((pageDef, idx) => {
     const pageEl = el('div', 'forms-fillin-page');
+    pageEl.id = 'forms-stats-section-' + pageDef.id;
     if (pageDef.title) pageEl.appendChild(el('h3', 'forms-fillin-section-title', pageDef.title));
     if (pageDef.description) pageEl.appendChild(el('p', 'forms-intro', pageDef.description));
     for (const field of pageDef.fields) {
       pageEl.appendChild(siteEditField(field.label, formsRenderFieldStatsWidget(field, responses)));
     }
     body.appendChild(pageEl);
+    pages.push({ title: (pageDef.title || '').trim() || `Sektion ${idx + 1}`, pageEl });
+  });
+
+  // A single-section form has nothing to navigate between — skip the nav
+  // entirely rather than show one lone, permanently-"active" entry.
+  if (pages.length > 1) formsBuildStatsNav(layout, pages);
+}
+
+// Sticky left-hand table of contents for the Statistik screen — one entry
+// per section, left-aligned, the entry for whichever section is currently
+// scrolled to the top of the viewport highlighted via .active (the
+// site-wide "orange = currently chosen" convention). Plain scroll-position
+// tracking rather than IntersectionObserver: the "current" section is
+// simply the last one whose top has scrolled above the reference line, an
+// easier invariant to reason about than juggling overlapping
+// isIntersecting entries near the top/bottom of the page.
+// formsStatsNavCleanup (module-level) is torn down at the top of
+// renderAdminView on every screen change, since this is the one screen
+// that attaches a window-level scroll listener — nothing else on this
+// page needs to outlive its own render.
+let formsStatsNavCleanup = null;
+
+function formsBuildStatsNav(layout, pages) {
+  const nav = el('nav', 'forms-stats-nav');
+  const items = pages.map(({ title, pageEl }) => {
+    const link = el('a', 'forms-stats-nav-item', title);
+    link.href = '#' + pageEl.id;
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    nav.appendChild(link);
+    return { pageEl, link };
+  });
+  layout.insertBefore(nav, layout.firstChild);
+
+  // Reference line: just below the sticky site header (56px) plus a small
+  // gap, matching .forms-fillin-page's own scroll-margin-top in forms.css.
+  const REF_Y = 76;
+  let ticking = false;
+  function updateActive() {
+    ticking = false;
+    let current = items[0];
+    for (const item of items) {
+      if (item.pageEl.getBoundingClientRect().top <= REF_Y) current = item;
+    }
+    for (const item of items) item.link.classList.toggle('active', item === current);
   }
+  function onScroll() {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(updateActive);
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  updateActive();
+  formsStatsNavCleanup = () => window.removeEventListener('scroll', onScroll);
 }
 
 // Dispatches by field.type, mirroring formsRenderAnswerInput's own
