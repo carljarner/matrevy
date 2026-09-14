@@ -1192,21 +1192,30 @@
 }
 
 /* Two-level sticky: .forms-stats-nav-sticky is a fixed-height "window"
-   pinned below the site header, starting at the same height as the form
-   title (56px header + the card's own 1.25rem/20px top padding + a small
-   gap ≈ 96px) rather than flush under the header itself. .forms-stats-nav
-   inside it is centered vertically within that window (align-items:center,
-   the same visual effect as the old top:50%/translateY(-50%) centering
-   trick) when it's short enough to fit, but is capped to the window's own
-   height with its own overflow-y once it isn't — so a form with many
-   sections scrolls internally instead of pushing its top entries above the
-   window (the bug the plain top:50% centering had, since it centered the
-   nav's *true* content height with no cap at all). */
+   pinned below the site header. .forms-stats-nav inside it is centered
+   vertically within that window (align-items:center, the same visual
+   effect as the old top:50%/translateY(-50%) centering trick) when it's
+   short enough to fit, but is capped to the window's own height with its
+   own overflow-y once it isn't — so a form with many sections scrolls
+   internally instead of pushing its top entries above the window (the bug
+   the plain top:50% centering had, since it centered the nav's *true*
+   content height with no cap at all).
+   padding-top exactly mirrors .card's own 1.25rem top padding: the nav
+   and the card are sibling grid items that share the same natural
+   (unstuck) top position (align-items:start on .forms-stats-layout), but
+   the *title* sits 1.25rem lower than that shared top, inset by the
+   card's own padding. Without this padding, a long section list — which
+   fills the window edge-to-edge with no room left to center — renders its
+   first entry flush with the window's top edge, 1.25rem above where the
+   title actually is; adding the same inset here keeps the nav's own top
+   edge tracking the title's, both before and after the window locks in
+   place, with no jump at the moment it does. */
 .forms-stats-nav-sticky {
   grid-column: 1;
   position: sticky;
   top: 96px;
   height: calc(100vh - 96px - 20px);
+  padding-top: 1.25rem;
   display: flex;
   align-items: center;
 }
