@@ -3,5 +3,5 @@
 const CONFIG_DATA = {
   "currentProductionFolder": "MatRevy_2026",
   "pdfLinksVisibleToRevyst": false,
-  "uploadsClosedForRevyst": false
+  "uploadsClosedForRevyst": true
 };
