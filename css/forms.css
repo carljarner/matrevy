@@ -1191,25 +1191,16 @@
   grid-column: 2;
 }
 
-/* Positioned entirely by JS (formsBuildStatsNav's updateNavPosition, in
-   js/forms.js) rather than a fixed CSS offset — see that function's own
-   comment for the small ratchet it implements. position:relative (not
-   sticky) since plain sticky's `top` only ever clamps a *floor* (never
-   render above a fixed threshold), which can't express "don't force a
-   short list down towards center just because centering math says so":
-   - margin-top (set once) aligns the nav's natural resting position with
-     the "N svar indsendt" summary line above the section list, measured
-     against the real DOM elements rather than a guessed pixel constant.
-   - top (recomputed on scroll/resize) implements the ratchet: centered
-     while unpinned and the summary line sits below viewport-center, then
-     locked at whatever position it was just showing once the summary
-     line's own position would rise to or above center.
+/* Fixed 50px below the top of <main class="page-content"> (the sticky
+   site header is 56px, so 56 + 50 = 106px from the viewport top) and
+   stays there — plain position:sticky, no scroll-driven repositioning.
    max-height/overflow-y caps a long section list to the viewport so it
-   scrolls internally instead of overflowing past either edge. */
+   scrolls internally instead of overflowing past the bottom edge. */
 .forms-stats-nav {
   grid-column: 1;
-  position: relative;
-  max-height: calc(100vh - 40px);
+  position: sticky;
+  top: 106px;
+  max-height: calc(100vh - 126px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;

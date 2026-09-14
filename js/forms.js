@@ -2892,53 +2892,9 @@ function formsBuildStatsNav(layout, pages) {
   });
   layout.insertBefore(nav, layout.firstChild);
 
-  // margin-top (set once — doesn't depend on scroll) aligns the nav's own
-  // natural flow position with the "N svar indsendt" summary line above
-  // the section list: the nav and the card are sibling grid items sharing
-  // the same row-top (align-items:start on .forms-stats-layout), but the
-  // summary line sits lower, inset by the card's own top padding —
-  // measured here against the real elements rather than a guessed pixel
-  // constant, so it holds regardless of what sits above the layout (page
-  // title, tab bar, ...).
-  const summaryEl = layout.querySelector('.forms-stats-summary');
-  const cardEl = layout.querySelector('.forms-form');
-  if (summaryEl && cardEl) {
-    const gap = summaryEl.getBoundingClientRect().top - cardEl.getBoundingClientRect().top;
-    nav.style.marginTop = Math.max(0, gap) + 'px';
-  }
-
-  // Vertical position from here on is a small ratchet, not a pure function
-  // of scroll position — plain position:sticky can't express it, since it
-  // always clamps a *floor* (never render above a fixed threshold), while
-  // this needs the opposite for a short nav (never *forced* down towards
-  // center just because centering math says so — see below):
-  //   - while unpinned, the nav tracks the summary line (its own natural,
-  //     unshifted flow position) for as long as that keeps it below
-  //     viewport-center — "below center, realign to center" — so it
-  //     renders pinned at center the entire time it's unpinned.
-  //   - the moment the summary line's own position would rise to or above
-  //     center, the nav locks ("stays in place") at whatever position it
-  //     was just showing — center, if it got there by being forced, or
-  //     its own natural position, if it started out above center already
-  //     (a short list, whose natural resting spot needs no forcing at
-  //     all) — and *keeps* rendering there for the rest of the scroll,
-  //     rather than resuming to track the summary line, which would
-  //     otherwise carry it back off-screen after a brief glimpse at
-  //     center.
-  //   - scrolling back up far enough that the summary line's own position
-  //     recovers past the locked value releases the lock again, so the
-  //     effect is reversible on the way back to the top.
-  let pinnedTop = null;
-  function updateNavPosition() {
-    if (!summaryEl) return;
-    const navHeight = nav.getBoundingClientRect().height;
-    const forcedTop = (window.innerHeight - navHeight) / 2;
-    const naturalTop = summaryEl.getBoundingClientRect().top;
-    if (pinnedTop !== null && naturalTop > pinnedTop) pinnedTop = null;
-    if (pinnedTop === null && naturalTop <= forcedTop) pinnedTop = naturalTop;
-    const targetTop = pinnedTop !== null ? pinnedTop : forcedTop;
-    nav.style.top = (targetTop - naturalTop) + 'px';
-  }
+  // Vertical position is plain position:sticky (see forms.css) — the nav
+  // just holds its fixed offset below the sticky site header once scrolled
+  // that far, nothing else to compute here.
 
   // Reference line: just below the sticky site header (56px) plus a small
   // gap, matching .forms-fillin-page's own scroll-margin-top in forms.css.
@@ -2951,23 +2907,16 @@ function formsBuildStatsNav(layout, pages) {
       if (item.pageEl.getBoundingClientRect().top <= REF_Y) current = item;
     }
     for (const item of items) item.link.classList.toggle('active', item === current);
-    updateNavPosition();
   }
   function onScroll() {
     if (ticking) return;
     ticking = true;
     requestAnimationFrame(updateOnScroll);
   }
-  function onResize() {
-    pinnedTop = null; // viewport/nav size changed — re-derive from scratch
-    updateNavPosition();
-  }
   window.addEventListener('scroll', onScroll, { passive: true });
-  window.addEventListener('resize', onResize);
   updateOnScroll();
   formsStatsNavCleanup = () => {
     window.removeEventListener('scroll', onScroll);
-    window.removeEventListener('resize', onResize);
   };
 }
 
