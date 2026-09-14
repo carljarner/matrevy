@@ -1656,8 +1656,8 @@ a.manus-pdf-title:focus-visible {
 
 /* --- Admin settings card (bottom of the page): two centered columns
    (uploads open/closed, PDF visibility), each a label above a toggle
-   switch, with one shared status line below both. Moved here from
-   Koordinator. --------------------------------------------------------- */
+   switch. Save results surface via the site-wide siteShowToast, not a
+   card-local status line. Moved here from Koordinator. ------------------ */
 #manus-admin-settings {
   margin-top: 1.5rem;
 }
@@ -1743,19 +1743,4 @@ a.manus-pdf-title:focus-visible {
 .manus-toggle-switch input:disabled + .manus-toggle-slider {
   opacity: 0.6;
   cursor: default;
-}
-
-.manus-admin-toggle-status {
-  margin-top: 1.25rem;
-  padding: 0.6rem 1rem;
-  border-radius: 6px;
-  background: var(--input-bg);
-  border: 1px solid var(--border);
-  font-size: 0.85rem;
-  color: var(--text);
-  text-align: center;
-}
-
-.manus-admin-toggle-status:empty {
-  display: none;
 }

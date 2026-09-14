@@ -4559,13 +4559,14 @@ function renderPoolLayoutVisibility() {
 // is boss-visible).
 // One admin-settings toggle column: reads/writes a single CONFIG_DATA/config
 // boolean field via siteSaveResource('config', ...) and reports the result
-// into a status line shared by both columns (`status`), same shape for both
-// the uploads and the PDF-visibility toggle below. `checked`/`onChange` let
+// via the site-wide bottom-of-screen siteShowToast (site-utils.js) — same
+// brief black confirmation used for every other save on the site, rather
+// than a bespoke status box just for this card. `checked`/`onChange` let
 // each column phrase its own on/off state independently of the raw
 // configKey — the uploads column shows/writes the *inverse* of
 // uploadsClosedForRevyst so its label can read as a positive "revyster kan
 // uploade" rather than a double-negative "luk ikke for uploads".
-function renderAdminToggleColumn(container, status, { id, label: labelText, checked, onChange, savedText }) {
+function renderAdminToggleColumn(container, { id, label: labelText, checked, onChange, savedText }) {
   const col = document.createElement('div');
   col.className = 'manus-admin-toggle-col';
 
@@ -4588,15 +4589,14 @@ function renderAdminToggleColumn(container, status, { id, label: labelText, chec
   input.addEventListener('change', async () => {
     const next = input.checked;
     input.disabled = true;
-    status.textContent = '';
     const res = await onChange(next);
     input.disabled = false;
     if (!res.ok) {
       input.checked = !next;
-      status.textContent = res.message || '';
+      if (res.message) siteShowToast(res.message);
       return;
     }
-    status.textContent = savedText;
+    siteShowToast(savedText);
   });
 
   col.appendChild(label);
@@ -4623,14 +4623,11 @@ function renderAdminSettings() {
   const columns = document.createElement('div');
   columns.className = 'manus-admin-toggle-columns';
 
-  const status = document.createElement('div');
-  status.className = 'manus-admin-toggle-status';
-
   // Off (uploads open) by default — flipping this off blocks a plain
   // revyst-level visitor's Upload/Opdater actions further up this page
   // (renderBottomActions), enforced server-side too (manuscripts_create/
   // manuscripts_update in update-data.php), not just a client-side hide.
-  renderAdminToggleColumn(columns, status, {
+  renderAdminToggleColumn(columns, {
     id: 'manus-uploads-open-toggle',
     label: 'Revyster kan uploade sketches/sange',
     checked: !(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.uploadsClosedForRevyst),
@@ -4642,7 +4639,7 @@ function renderAdminSettings() {
     savedText: 'Gemt. Slår igennem for revyster om ca. 1-2 minutter.',
   });
 
-  renderAdminToggleColumn(columns, status, {
+  renderAdminToggleColumn(columns, {
     id: 'manus-pdf-toggle',
     label: "Revyster kan se manus pdf'er",
     checked: !!(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.pdfLinksVisibleToRevyst),
@@ -4655,7 +4652,6 @@ function renderAdminSettings() {
   });
 
   section.appendChild(columns);
-  section.appendChild(status);
 }
 
 // "Manus" -> "Manus for MatRevy 2026" once an active production folder is
