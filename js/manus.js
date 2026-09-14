@@ -4588,7 +4588,7 @@ function renderAdminToggleColumn(container, status, { id, label: labelText, chec
   input.addEventListener('change', async () => {
     const next = input.checked;
     input.disabled = true;
-    status.textContent = 'Gemmer...';
+    status.textContent = '';
     const res = await onChange(next);
     input.disabled = false;
     if (!res.ok) {

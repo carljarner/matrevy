@@ -1746,8 +1746,16 @@ a.manus-pdf-title:focus-visible {
 }
 
 .manus-admin-toggle-status {
-  margin-top: 1rem;
+  margin-top: 1.25rem;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
   font-size: 0.85rem;
   color: var(--text);
   text-align: center;
+}
+
+.manus-admin-toggle-status:empty {
+  display: none;
 }
