@@ -1191,19 +1191,29 @@
   grid-column: 2;
 }
 
-/* Sticky top-pinned, same recipe as wiki.css's own .wiki-chapters: pinned
-   just below the sticky site header (76px, matching formsBuildStatsNav's
-   REF_Y and .forms-fillin-page's own scroll-margin-top above) and capped to
-   the remaining viewport height with its own overflow-y — so a form with
-   many sections never grows taller than the viewport and pushes its own
-   top entries up out of view. Previously centered on the viewport itself
-   (top:50% + translateY(-50%)), which did exactly that once the nav's
-   content grew past viewport height. */
-.forms-stats-nav {
+/* Two-level sticky: .forms-stats-nav-sticky is a fixed-height "window"
+   pinned below the site header, starting at the same height as the form
+   title (56px header + the card's own 1.25rem/20px top padding + a small
+   gap ≈ 96px) rather than flush under the header itself. .forms-stats-nav
+   inside it is centered vertically within that window (align-items:center,
+   the same visual effect as the old top:50%/translateY(-50%) centering
+   trick) when it's short enough to fit, but is capped to the window's own
+   height with its own overflow-y once it isn't — so a form with many
+   sections scrolls internally instead of pushing its top entries above the
+   window (the bug the plain top:50% centering had, since it centered the
+   nav's *true* content height with no cap at all). */
+.forms-stats-nav-sticky {
   grid-column: 1;
   position: sticky;
-  top: 76px;
-  max-height: calc(100vh - 96px);
+  top: 96px;
+  height: calc(100vh - 96px - 20px);
+  display: flex;
+  align-items: center;
+}
+
+.forms-stats-nav {
+  width: 100%;
+  max-height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1244,7 +1254,7 @@
   .forms-stats-layout {
     display: block;
   }
-  .forms-stats-nav {
+  .forms-stats-nav-sticky {
     display: none;
   }
 }

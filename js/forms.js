@@ -2879,7 +2879,13 @@ async function formsRenderStatsScreen(root, formId) {
 let formsStatsNavCleanup = null;
 
 function formsBuildStatsNav(layout, pages) {
+  // .forms-stats-nav-sticky is the sticky, fixed-height "window" (see its
+  // own comment in forms.css); .forms-stats-nav is the actual link list,
+  // vertically centered inside it when short and independently scrollable
+  // when it's taller than the window.
+  const stickyWrap = el('div', 'forms-stats-nav-sticky');
   const nav = el('nav', 'forms-stats-nav');
+  stickyWrap.appendChild(nav);
   const items = pages.map(({ title, pageEl }) => {
     const link = el('a', 'forms-stats-nav-item', title);
     link.href = '#' + pageEl.id;
@@ -2890,7 +2896,7 @@ function formsBuildStatsNav(layout, pages) {
     nav.appendChild(link);
     return { pageEl, link };
   });
-  layout.insertBefore(nav, layout.firstChild);
+  layout.insertBefore(stickyWrap, layout.firstChild);
 
   // Reference line: just below the sticky site header (56px) plus a small
   // gap, matching .forms-fillin-page's own scroll-margin-top in forms.css.
