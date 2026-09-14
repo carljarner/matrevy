@@ -4655,7 +4655,7 @@ function renderAdminSettings() {
       }
       return res;
     },
-    savedText: 'Gemt. Slår igennem for revyster om ca. 1-2 minutter.',
+    savedText: 'Slår igennem for revyster om 1-2 minutter.',
   });
 
   renderAdminToggleColumn(columns, {
@@ -4670,7 +4670,7 @@ function renderAdminSettings() {
       }
       return res;
     },
-    savedText: 'Kan ses af revyster om ca. 1-2 minutter.',
+    savedText: 'Slår igennem for revyster om 1-2 minutter.',
   });
 
   section.appendChild(columns);
