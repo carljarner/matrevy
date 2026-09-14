@@ -1191,38 +1191,25 @@
   grid-column: 2;
 }
 
-/* Two-level sticky: .forms-stats-nav-sticky is a fixed-height "window"
-   pinned below the site header. .forms-stats-nav inside it is centered
-   vertically within that window (align-items:center, the same visual
-   effect as the old top:50%/translateY(-50%) centering trick) when it's
-   short enough to fit, but is capped to the window's own height with its
-   own overflow-y once it isn't — so a form with many sections scrolls
-   internally instead of pushing its top entries above the window (the bug
-   the plain top:50% centering had, since it centered the nav's *true*
-   content height with no cap at all).
-   padding-top exactly mirrors .card's own 1.25rem top padding: the nav
-   and the card are sibling grid items that share the same natural
-   (unstuck) top position (align-items:start on .forms-stats-layout), but
-   the *title* sits 1.25rem lower than that shared top, inset by the
-   card's own padding. Without this padding, a long section list — which
-   fills the window edge-to-edge with no room left to center — renders its
-   first entry flush with the window's top edge, 1.25rem above where the
-   title actually is; adding the same inset here keeps the nav's own top
-   edge tracking the title's, both before and after the window locks in
-   place, with no jump at the moment it does. */
-.forms-stats-nav-sticky {
-  grid-column: 1;
-  position: sticky;
-  top: 96px;
-  height: calc(100vh - 96px - 20px);
-  padding-top: 1.25rem;
-  display: flex;
-  align-items: center;
-}
-
+/* Positioned entirely by JS (formsBuildStatsNav's updateNavPosition, in
+   js/forms.js) rather than a fixed CSS offset — see that function's own
+   comment for the small ratchet it implements. position:relative (not
+   sticky) since plain sticky's `top` only ever clamps a *floor* (never
+   render above a fixed threshold), which can't express "don't force a
+   short list down towards center just because centering math says so":
+   - margin-top (set once) aligns the nav's natural resting position with
+     the "N svar indsendt" summary line above the section list, measured
+     against the real DOM elements rather than a guessed pixel constant.
+   - top (recomputed on scroll/resize) implements the ratchet: centered
+     while unpinned and the summary line sits below viewport-center, then
+     locked at whatever position it was just showing once the summary
+     line's own position would rise to or above center.
+   max-height/overflow-y caps a long section list to the viewport so it
+   scrolls internally instead of overflowing past either edge. */
 .forms-stats-nav {
-  width: 100%;
-  max-height: 100%;
+  grid-column: 1;
+  position: relative;
+  max-height: calc(100vh - 40px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1263,7 +1250,7 @@
   .forms-stats-layout {
     display: block;
   }
-  .forms-stats-nav-sticky {
+  .forms-stats-nav {
     display: none;
   }
 }
