@@ -4557,41 +4557,51 @@ function renderPoolLayoutVisibility() {
 // at the very bottom of the page, admin-only (hidden entirely, not just
 // collapsed, below that level — unlike the rest of Main Manus View, which
 // is boss-visible).
-// One admin-settings checkbox row: reads/writes a single CONFIG_DATA/config
-// boolean field via siteSaveResource('config', ...), same shape for both
-// "Vis PDF'er for revyster" and "Luk for uploads" below.
-function renderAdminToggleRow(section, { id, configKey, label: labelText, savedText }) {
-  const row = document.createElement('div');
-  row.className = 'manus-admin-toggle-row';
+// One admin-settings toggle column: reads/writes a single CONFIG_DATA/config
+// boolean field via siteSaveResource('config', ...) and reports the result
+// into a status line shared by both columns (`status`), same shape for both
+// the uploads and the PDF-visibility toggle below. `checked`/`onChange` let
+// each column phrase its own on/off state independently of the raw
+// configKey — the uploads column shows/writes the *inverse* of
+// uploadsClosedForRevyst so its label can read as a positive "revyster kan
+// uploade" rather than a double-negative "luk ikke for uploads".
+function renderAdminToggleColumn(container, status, { id, label: labelText, checked, onChange, savedText }) {
+  const col = document.createElement('div');
+  col.className = 'manus-admin-toggle-col';
+
+  const label = document.createElement('label');
+  label.className = 'manus-admin-toggle-label';
+  label.htmlFor = id;
+  label.textContent = labelText;
+
+  const switchLabel = document.createElement('label');
+  switchLabel.className = 'manus-toggle-switch';
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.id = id;
-  input.checked = !!(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA[configKey]);
-  const label = document.createElement('label');
-  label.htmlFor = id;
-  label.textContent = labelText;
-  const status = document.createElement('span');
-  status.className = 'manus-admin-toggle-status';
+  input.checked = checked;
+  const slider = document.createElement('span');
+  slider.className = 'manus-toggle-slider';
+  switchLabel.appendChild(input);
+  switchLabel.appendChild(slider);
 
   input.addEventListener('change', async () => {
     const next = input.checked;
     input.disabled = true;
     status.textContent = 'Gemmer...';
-    const res = await siteSaveResource('config', { [configKey]: next });
+    const res = await onChange(next);
     input.disabled = false;
     if (!res.ok) {
       input.checked = !next;
       status.textContent = res.message || '';
       return;
     }
-    if (typeof CONFIG_DATA !== 'undefined') CONFIG_DATA[configKey] = next;
     status.textContent = savedText;
   });
 
-  row.appendChild(input);
-  row.appendChild(label);
-  row.appendChild(status);
-  section.appendChild(row);
+  col.appendChild(label);
+  col.appendChild(switchLabel);
+  container.appendChild(col);
 }
 
 function renderAdminSettings() {
@@ -4610,23 +4620,42 @@ function renderAdminSettings() {
   head.appendChild(h2);
   section.appendChild(head);
 
-  renderAdminToggleRow(section, {
-    id: 'manus-pdf-toggle',
-    configKey: 'pdfLinksVisibleToRevyst',
-    label: "Vis PDF'er for revyster",
-    savedText: 'Gemt. Kan ses af revyster om ca. 1-2 minutter.',
-  });
+  const columns = document.createElement('div');
+  columns.className = 'manus-admin-toggle-columns';
 
-  // Off (uploads open) by default — flipping this on blocks a plain
+  const status = document.createElement('div');
+  status.className = 'manus-admin-toggle-status';
+
+  // Off (uploads open) by default — flipping this off blocks a plain
   // revyst-level visitor's Upload/Opdater actions further up this page
   // (renderBottomActions), enforced server-side too (manuscripts_create/
   // manuscripts_update in update-data.php), not just a client-side hide.
-  renderAdminToggleRow(section, {
-    id: 'manus-uploads-closed-toggle',
-    configKey: 'uploadsClosedForRevyst',
-    label: 'Luk for uploads',
+  renderAdminToggleColumn(columns, status, {
+    id: 'manus-uploads-open-toggle',
+    label: 'Revyster kan uploade sketches/sange',
+    checked: !(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.uploadsClosedForRevyst),
+    onChange: async (next) => {
+      const res = await siteSaveResource('config', { uploadsClosedForRevyst: !next });
+      if (res.ok && typeof CONFIG_DATA !== 'undefined') CONFIG_DATA.uploadsClosedForRevyst = !next;
+      return res;
+    },
     savedText: 'Gemt. Slår igennem for revyster om ca. 1-2 minutter.',
   });
+
+  renderAdminToggleColumn(columns, status, {
+    id: 'manus-pdf-toggle',
+    label: "Revyster kan se manus pdf'er",
+    checked: !!(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.pdfLinksVisibleToRevyst),
+    onChange: async (next) => {
+      const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
+      if (res.ok && typeof CONFIG_DATA !== 'undefined') CONFIG_DATA.pdfLinksVisibleToRevyst = next;
+      return res;
+    },
+    savedText: 'Gemt. Kan ses af revyster om ca. 1-2 minutter.',
+  });
+
+  section.appendChild(columns);
+  section.appendChild(status);
 }
 
 // "Manus" -> "Manus for MatRevy 2026" once an active production folder is

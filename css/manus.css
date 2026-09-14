@@ -1654,29 +1654,100 @@ a.manus-pdf-title:focus-visible {
   }
 }
 
-/* --- Admin settings card (bottom of the page) — currently just the
-   "Vis PDF'er for revyster" toggle, moved here from Koordinator. Same
-   layout/tokens as that card's own former .koord-toggle-row. ----------- */
+/* --- Admin settings card (bottom of the page): two centered columns
+   (uploads open/closed, PDF visibility), each a label above a toggle
+   switch, with one shared status line below both. Moved here from
+   Koordinator. --------------------------------------------------------- */
 #manus-admin-settings {
   margin-top: 1.5rem;
 }
 
-.manus-admin-toggle-row {
+.manus-admin-toggle-columns {
   display: flex;
-  align-items: center;
+  justify-content: space-around;
+  align-items: flex-start;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 1.5rem;
+  text-align: center;
 }
 
-.manus-admin-toggle-row input[type="checkbox"] {
-  accent-color: var(--accent-warm-text);
+.manus-admin-toggle-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
 }
 
-.manus-admin-toggle-row label {
+.manus-admin-toggle-label {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Toggle switch: a checkbox visually hidden behind a pill-shaped slider.
+   Off = warm-cream/border (matches the site's idle-fill convention), on =
+   --success green (the site-wide "positive/confirm" color — see the
+   button-color conventions in CLAUDE.md), never blue (reserved for Login). */
+.manus-toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 3rem;
+  height: 1.6rem;
   cursor: pointer;
 }
 
+.manus-toggle-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.manus-toggle-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.manus-toggle-slider::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.manus-toggle-switch input:checked + .manus-toggle-slider {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.manus-toggle-switch input:checked + .manus-toggle-slider::before {
+  transform: translateX(1.4rem);
+}
+
+.manus-toggle-switch input:focus-visible + .manus-toggle-slider {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
+.manus-toggle-switch input:disabled + .manus-toggle-slider {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .manus-admin-toggle-status {
+  margin-top: 1rem;
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: var(--text);
+  text-align: center;
 }
