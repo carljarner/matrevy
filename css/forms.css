@@ -1183,7 +1183,7 @@
   display: grid;
   grid-template-columns: minmax(160px, 200px) minmax(0, 640px) minmax(160px, 200px);
   justify-content: center;
-  align-items: center;
+  align-items: start;
   gap: 2.5rem;
 }
 
@@ -1191,15 +1191,22 @@
   grid-column: 2;
 }
 
-/* Sticky under the site header (56px) with a small gap, and vertically
-   centered against the card's own height (align-items:center above) rather
-   than pinned to the card's top edge. */
+/* Sticky under the site header (56px) with a small gap. min-height fills
+   the visible viewport below that offset (not the card's own, often much
+   taller, full height) so justify-content:center below centers the links
+   within what's actually on screen, rather than against the whole scrolled
+   card — which used to leave the nav starting off-screen below the fold at
+   page load. Anchored at top:76px like every other sticky/scroll-margin
+   offset on this page, so the box can never grow upward past that line and
+   overlap the tab bar (Oversigt/Ny formular/Statistik) above it. */
 .forms-stats-nav {
   grid-column: 1;
   position: sticky;
   top: 76px;
+  min-height: calc(100vh - 76px - 16px);
   display: flex;
   flex-direction: column;
+  justify-content: center;
   gap: 0.3rem;
 }
 
