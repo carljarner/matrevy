@@ -215,6 +215,17 @@ function getEffectiveManuscripts() {
   return manuscriptsOverride || MANUSCRIPTS_DATA;
 }
 
+// data/config.json's own shadow — unlike every other resource here, a
+// config save is a partial merge server-side (save_config only touches the
+// keys it's sent, see update-data.php), not a full-array replace, so the
+// override itself is accumulated key-by-key (renderAdminToggleColumn below)
+// rather than swapped wholesale on every save.
+let configOverride = siteLoadOverride('config') || {};
+
+function getEffectiveConfig() {
+  return Object.assign({}, (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {}), configOverride);
+}
+
 // ── Any-level authenticated API (revyst-level manuscripts_create) ──
 // Mirrors posts.js's postsApi()/postsResolvePassword() exactly — see the
 // file header for why this can't just use site-utils.js's siteSaveResource
@@ -456,7 +467,7 @@ function renderBottomActions() {
   // never reach this branch (returned above), so this only ever affects a
   // plain revyst-level visitor, matching the server-side enforcement in
   // manuscripts_create/manuscripts_update.
-  if (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.uploadsClosedForRevyst) {
+  if (getEffectiveConfig().uploadsClosedForRevyst) {
     const notice = document.createElement('p');
     notice.className = 'manus-uploads-closed-notice';
     notice.textContent = 'Upload af manus til årets revy er lukket.';
@@ -475,7 +486,7 @@ function renderBottomActions() {
     // never even sees the modal, rather than filling it in and hitting a
     // generic "Der opstod en serverfejl" only on submit. Same toast/message
     // as the boss-only PDF actions' own "Ingen aktiv produktion" gate.
-    const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+    const folder = getEffectiveConfig().currentProductionFolder || '';
     if (!folder) { siteShowToast('Ingen aktiv produktion'); return; }
     openUploadModal();
   });
@@ -486,7 +497,7 @@ function renderBottomActions() {
   updateBtn.className = 'site-btn-warm';
   updateBtn.textContent = 'Opdater';
   updateBtn.addEventListener('click', () => {
-    const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+    const folder = getEffectiveConfig().currentProductionFolder || '';
     if (!folder) { siteShowToast('Ingen aktiv produktion'); return; }
     openUpdateModal();
   });
@@ -4047,7 +4058,7 @@ async function manusFetchPdfExists(path) {
 // Last-Modified headers instead — kept the name to avoid touching every
 // call site over a cosmetic rename).
 function manusPdfReferenceUrl() {
-  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  const folder = getEffectiveConfig().currentProductionFolder || '';
   return folder ? `archive/${folder}/Manuskript.pdf` : null;
 }
 
@@ -4089,7 +4100,7 @@ function manusPdfTimestampEl() {
 // likely does exist in those cases, we just haven't confirmed it, so a
 // click stays optimistic rather than blocking on an inconclusive check.
 function manusPdfBlockedReason() {
-  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  const folder = getEffectiveConfig().currentProductionFolder || '';
   if (!folder) return 'Ingen aktiv produktion';
   if (manusPdfConfirmedAbsent) return 'Ikke genereret endnu';
   return null;
@@ -4265,7 +4276,7 @@ function renderMainViewActions() {
     // manusCurrentActsPayload()'s own comment. Same two-message split as
     // the PDF quick-links' own manusPdfBlockedReason: no active production
     // at all reads differently from an active one with nothing placed yet.
-    const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+    const folder = getEffectiveConfig().currentProductionFolder || '';
     if (!folder) { siteShowToast('Ingen aktiv produktion'); return; }
     if (!manusHasSavedScenesToGenerate()) { siteShowToast('Intet at generere'); return; }
     manusRegeneratePdfs();
@@ -4355,7 +4366,7 @@ function manusSlugifyName(name) {
 // action here — see renderMainViewActions).
 function renderManusPdfLinksSection() {
   const section = document.getElementById('manus-pdf-links');
-  const revystAllowed = typeof CONFIG_DATA !== 'undefined' && !!CONFIG_DATA.pdfLinksVisibleToRevyst;
+  const revystAllowed = !!getEffectiveConfig().pdfLinksVisibleToRevyst;
   if (!siteHasLevel('boss') && (!siteHasLevel('revyst') || !revystAllowed)) {
     section.style.display = 'none';
     return;
@@ -4372,7 +4383,7 @@ function renderManusPdfLinksSection() {
   // learn manusPdfConfirmedAbsent for them.
   manusLoadPdfTimestampIfNeeded();
 
-  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  const folder = getEffectiveConfig().currentProductionFolder || '';
 
   // GitHub Pages serves everything under archive/ with a 10-minute
   // Cache-Control (confirmed live: max-age=600, via the Fastly CDN in
@@ -4557,12 +4568,17 @@ function renderPoolLayoutVisibility() {
 // at the very bottom of the page, admin-only (hidden entirely, not just
 // collapsed, below that level — unlike the rest of Main Manus View, which
 // is boss-visible).
-// One admin-settings toggle column: reads/writes a single CONFIG_DATA/config
-// boolean field via siteSaveResource('config', ...) and reports the result
-// via the site-wide bottom-of-screen siteShowToast (site-utils.js) — same
-// brief black confirmation used for every other save on the site, rather
-// than a bespoke status box just for this card. `checked`/`onChange` let
-// each column phrase its own on/off state independently of the raw
+// One admin-settings toggle column: reads/writes a single config boolean
+// field via siteSaveResource('config', ...) + getEffectiveConfig()'s
+// localStorage-backed configOverride (same shape as every other page's own
+// override shadow — see the comment above configOverride's declaration),
+// so a refresh during the ~1-2 min embed-regen window still shows the
+// just-saved state instead of reverting to the stale embedded CONFIG_DATA.
+// Reports the result via the site-wide bottom-of-screen siteShowToast
+// (site-utils.js) — same brief black confirmation used for every other save
+// on the site, rather than a bespoke status box just for this card.
+// `checked`/`onChange` let each column phrase its own on/off state
+// independently of the raw
 // configKey — the uploads column shows/writes the *inverse* of
 // uploadsClosedForRevyst so its label can read as a positive "revyster kan
 // uploade" rather than a double-negative "luk ikke for uploads".
@@ -4630,10 +4646,13 @@ function renderAdminSettings() {
   renderAdminToggleColumn(columns, {
     id: 'manus-uploads-open-toggle',
     label: 'Revyster kan uploade sketches/sange',
-    checked: !(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.uploadsClosedForRevyst),
+    checked: !getEffectiveConfig().uploadsClosedForRevyst,
     onChange: async (next) => {
       const res = await siteSaveResource('config', { uploadsClosedForRevyst: !next });
-      if (res.ok && typeof CONFIG_DATA !== 'undefined') CONFIG_DATA.uploadsClosedForRevyst = !next;
+      if (res.ok) {
+        configOverride = Object.assign({}, configOverride, { uploadsClosedForRevyst: !next });
+        siteSaveOverride('config', configOverride);
+      }
       return res;
     },
     savedText: 'Gemt. Slår igennem for revyster om ca. 1-2 minutter.',
@@ -4642,13 +4661,16 @@ function renderAdminSettings() {
   renderAdminToggleColumn(columns, {
     id: 'manus-pdf-toggle',
     label: "Revyster kan se manus pdf'er",
-    checked: !!(typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.pdfLinksVisibleToRevyst),
+    checked: !!getEffectiveConfig().pdfLinksVisibleToRevyst,
     onChange: async (next) => {
       const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
-      if (res.ok && typeof CONFIG_DATA !== 'undefined') CONFIG_DATA.pdfLinksVisibleToRevyst = next;
+      if (res.ok) {
+        configOverride = Object.assign({}, configOverride, { pdfLinksVisibleToRevyst: next });
+        siteSaveOverride('config', configOverride);
+      }
       return res;
     },
-    savedText: 'Gemt. Kan ses af revyster om ca. 1-2 minutter.',
+    savedText: 'Kan ses af revyster om ca. 1-2 minutter.',
   });
 
   section.appendChild(columns);
@@ -4664,7 +4686,7 @@ function renderAdminSettings() {
 function renderPageTitle() {
   const heading = document.getElementById('manus-page-title');
   if (!heading) return;
-  const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  const folder = getEffectiveConfig().currentProductionFolder || '';
   if (!folder) { heading.textContent = 'Manus'; return; }
   // Prefers Arkiv's own editable name for the active production (its
   // "source of truth" display name, e.g. a jubilee year renamed to
