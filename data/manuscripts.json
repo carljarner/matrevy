@@ -17,6 +17,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Lav_Revy_Med_Os.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Lav_Revy_Med_Os.tex",
             "createdAt": "2026-09-14T16:41:18"
+        },
+        {
+            "id": "6aa807b432de2442",
+            "type": "sang",
+            "title": "KUA",
+            "sender": "Carl '21",
+            "pdfPath": "archive/MatRevy_2026/submitted/KUA.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/KUA.tex",
+            "createdAt": "2026-09-14T16:41:56"
         }
     ]
 }
