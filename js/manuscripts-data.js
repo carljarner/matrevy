@@ -36,5 +36,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Purify.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Purify.tex",
     "createdAt": "2026-09-14T16:42:26"
+  },
+  {
+    "id": "6aa807f34b0ea326",
+    "type": "sang",
+    "title": "Vores Publikum Kan Ikke Drikke Øl",
+    "sender": "Carl '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Vores_Publikum_Kan_Ikke_Drikke_Øl.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Vores_Publikum_Kan_Ikke_Drikke_Øl.tex",
+    "createdAt": "2026-09-14T16:42:59"
   }
 ];
