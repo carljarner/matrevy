@@ -257,6 +257,12 @@ $POST_ACTIONS = [
   'posts_create'       => 'revyst',
   'comments_create'    => 'revyst',
   'manuscripts_create' => 'revyst',
+  // Revyst-level like manuscripts_create — but unlike it, this targets an
+  // *existing* submission by id (overwrite, not append). Safe at revyst
+  // because it's still single-record, and only ever touches a submission
+  // still sitting in submitted/ (see manuscripts_update's own eligibility
+  // check) — never something boss has already pulled into the show.
+  'manuscripts_update' => 'revyst',
 ];
 if (isset($POST_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$POST_ACTIONS[$action]]) {
@@ -264,7 +270,8 @@ if (isset($POST_ACTIONS[$action])) {
   }
   if ($action === 'posts_create') posts_create($body);
   else if ($action === 'comments_create') comments_create($body);
-  else manuscripts_create($body);
+  else if ($action === 'manuscripts_create') manuscripts_create($body);
+  else manuscripts_update($body);
 }
 
 // manuscripts_sync_selection is boss-level (not revyst, unlike the actions
@@ -3600,6 +3607,127 @@ function manuscripts_create($body) {
     return $json;
   }, 'Nyt manus-upload: ' . $submission['title']);
   respond(200, ['ok' => true, 'id' => $submission['id'], 'pdfPath' => $pdfPath, 'texPath' => $texPath]);
+}
+
+// Revyst-level: overwrite an existing pending submission's pdf/tex content
+// and metadata in place — the "Opdater" counterpart to manuscripts_create's
+// "Upload". Reuses the same slug/path machinery, so a title change renames
+// the files (old ones deleted) while an unchanged title reliably reproduces
+// its own current path and simply overwrites in place via put_file().
+function manuscripts_update($body) {
+  $id        = $body['id'] ?? '';
+  $type      = $body['type'] ?? '';
+  $title     = $body['title'] ?? '';
+  $sender    = $body['sender'] ?? '';
+  $pdfBase64 = $body['pdfBase64'] ?? '';
+  $texBase64 = $body['texBase64'] ?? '';
+  if (!is_string($id) || $id === ''
+      || !in_array($type, ['sketch', 'sang'], true)
+      || !is_string($title) || trim($title) === ''
+      || !is_string($sender) || trim($sender) === ''
+      || !is_string($pdfBase64) || $pdfBase64 === ''
+      || !is_string($texBase64) || $texBase64 === '') {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $pdfRaw = base64_decode($pdfBase64, true);
+  $texRaw = base64_decode($texBase64, true);
+  if ($pdfRaw === false || $texRaw === false) {
+    respond(400, ['error' => 'bad_base64']);
+  }
+  if (strlen($pdfRaw) > MAX_UPLOAD_BYTES || strlen($texRaw) > MAX_UPLOAD_BYTES) {
+    respond(413, ['error' => 'too_large']);
+  }
+
+  $folder = manus_current_production_folder();
+  if ($folder === null) {
+    respond(400, ['error' => 'no_production_folder']);
+  }
+
+  [$getStatus, $current] = github_api('GET', 'contents/data/manuscripts.json');
+  if ($getStatus !== 200) {
+    respond(502, ['error' => 'github_read_failed', 'file' => 'data/manuscripts.json']);
+  }
+  $decoded = json_decode(base64_decode($current['content']), true);
+  $submissions = (is_array($decoded) && isset($decoded['submissions']) && is_array($decoded['submissions']))
+    ? $decoded['submissions'] : [];
+
+  $existing = null;
+  foreach ($submissions as $s) {
+    if (($s['id'] ?? null) === $id) { $existing = $s; break; }
+  }
+  if ($existing === null) {
+    respond(404, ['error' => 'not_found']);
+  }
+  // Eligibility re-check, defense in depth (mirrors manuscripts_sync_selection's
+  // own "graduated" skip) — boss may have selected this submission into the
+  // show in the time between the client loading the pool and this request.
+  if (!is_string($existing['pdfPath'] ?? null) || strpos($existing['pdfPath'], '/submitted/') === false) {
+    respond(409, ['error' => 'already_selected']);
+  }
+
+  $existingOthers = array_values(array_filter($submissions, function ($s) use ($id) {
+    return ($s['id'] ?? null) !== $id;
+  }));
+
+  $normalizedTitle = mb_strtolower(trim($title));
+  foreach ($existingOthers as $s) {
+    if (mb_strtolower(trim($s['title'] ?? '')) === $normalizedTitle) {
+      respond(409, ['error' => 'duplicate_title']);
+    }
+  }
+
+  // Uniqueness computed as if this submission didn't already exist: an
+  // unchanged title/type can't collide with anything (nothing else can be
+  // occupying its own current slug), while a changed title collides
+  // correctly against every other submission.
+  $newSlug = manus_unique_slug($type, trim($title), $existingOthers);
+  $ownBasename = null;
+  if (preg_match('#([^/]+)\.pdf$#', $existing['pdfPath'], $m)) {
+    $ownBasename = $m[1];
+  }
+
+  if ($ownBasename !== null && $newSlug === $ownBasename) {
+    // Title (and slug) unchanged — same path, plain in-place overwrite.
+    $pdfPath = $existing['pdfPath'];
+    $texPath = $existing['texPath'] ?? ('archive/' . $folder . '/submitted/' . $newSlug . '.tex');
+  } else {
+    // Renamed — write the new content at a fresh path, delete the old one.
+    $pdfPath = 'archive/' . $folder . '/submitted/' . $newSlug . '.pdf';
+    $texPath = 'archive/' . $folder . '/submitted/' . $newSlug . '.tex';
+  }
+  if (!preg_match(ARCHIVE_MANUS_SUBMITTED_RE, $pdfPath) || !preg_match(ARCHIVE_MANUS_SUBMITTED_RE, $texPath)) {
+    respond(400, ['error' => 'bad_path']);
+  }
+
+  put_file($pdfPath, $pdfBase64, 'Opdater manus: ' . trim($title));
+  put_file($texPath, $texBase64, 'Opdater manus: ' . trim($title));
+
+  $oldPdfPath = $existing['pdfPath'] ?? '';
+  $oldTexPath = $existing['texPath'] ?? '';
+  if ($oldPdfPath !== '' && $oldPdfPath !== $pdfPath) {
+    delete_file($oldPdfPath, 'Opdater manus (omdøbt): ' . trim($title));
+  }
+  if ($oldTexPath !== '' && $oldTexPath !== $texPath) {
+    delete_file($oldTexPath, 'Opdater manus (omdøbt): ' . trim($title));
+  }
+
+  update_file('data/manuscripts.json', function ($json) use ($id, $type, $title, $sender, $pdfPath, $texPath) {
+    $list = (is_array($json['submissions'] ?? null)) ? $json['submissions'] : [];
+    foreach ($list as $i => $s) {
+      if (($s['id'] ?? null) === $id) {
+        $list[$i]['type']    = $type;
+        $list[$i]['title']   = trim($title);
+        $list[$i]['sender']  = trim($sender);
+        $list[$i]['pdfPath'] = $pdfPath;
+        $list[$i]['texPath'] = $texPath;
+        break;
+      }
+    }
+    $json['submissions'] = $list;
+    return $json;
+  }, 'Opdater manus: ' . trim($title));
+
+  respond(200, ['ok' => true, 'id' => $id, 'pdfPath' => $pdfPath, 'texPath' => $texPath]);
 }
 
 // Boss-level (matches the `manuscripts` resource's own level — unlike

@@ -467,12 +467,31 @@ function renderBottomActions() {
     openUploadModal();
   });
   mount.appendChild(btn);
+
+  const updateBtn = document.createElement('button');
+  updateBtn.type = 'button';
+  updateBtn.className = 'site-btn-warm';
+  updateBtn.textContent = 'Opdater';
+  updateBtn.addEventListener('click', () => {
+    const folder = (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+    if (!folder) { siteShowToast('Ingen aktiv produktion'); return; }
+    openUpdateModal();
+  });
+  mount.appendChild(updateBtn);
+}
+
+// A submission is still "pending" — not yet pulled into the show by boss via
+// Vælg scener — exactly when its pdfPath still sits under .../submitted/;
+// manuscripts_sync_selection moves it out to sketches/songs the moment boss
+// selects+saves it, so no separate flag is needed to tell the two apart.
+function manusIsPendingSubmission(item) {
+  return typeof item.pdfPath === 'string' && item.pdfPath.includes('/submitted/');
 }
 
 // Two mutually-exclusive clickable boxes (Sketch/Sang) replacing a plain
 // dropdown, since there are only two options and neither is a sensible
 // default — the uploader must actively choose one.
-function createManusTypeToggle(options = [{ value: 'sketch', label: 'Sketch' }, { value: 'sang', label: 'Sang' }]) {
+function createManusTypeToggle(options = [{ value: 'sang', label: 'Sang' }, { value: 'sketch', label: 'Sketch' }]) {
   const wrap = document.createElement('div');
   wrap.className = 'manus-type-toggle';
   let selected = null;
@@ -489,7 +508,17 @@ function createManusTypeToggle(options = [{ value: 'sketch', label: 'Sketch' }, 
     boxes[opt.value] = box;
     wrap.appendChild(box);
   }
-  return { element: wrap, get value() { return selected; } };
+  return {
+    element: wrap,
+    get value() { return selected; },
+    // Pre-select a box programmatically (the update modal needs this to
+    // prefill Type from the chosen scene — the getter-only shape above is
+    // enough for the plain Upload modal, which always starts unselected).
+    select(value) {
+      selected = value;
+      for (const v in boxes) boxes[v].classList.toggle('active', v === selected);
+    },
+  };
 }
 
 // ── Upload (revyst+) ──────────────────────────────────────────
@@ -591,6 +620,175 @@ function openUploadModal() {
   });
 
   titleInput.focus();
+}
+
+// ── Opdater (revyst+): overwrite an existing pending submission's ─
+// pdf/tex + metadata in place. Only submissions still sitting in
+// submitted/ (manusIsPendingSubmission) are eligible — anything boss has
+// already pulled into the show via Vælg scener is off-limits here.
+function openUpdateModal() {
+  const eligible = getEffectiveManuscripts()
+    .filter(manusIsPendingSubmission)
+    .slice()
+    .sort((a, b) => a.title.localeCompare(b.title, 'da'));
+  if (eligible.length === 0) {
+    siteShowToast('Ingen scener at opdatere endnu.');
+    return;
+  }
+
+  const { form, error, actions, close } = siteOpenModalWithClose('Opdater manus');
+
+  const sceneOptions = eligible.map(item => ({ value: item.id, label: item.title }));
+  const sceneField = siteCreateDropdownField(sceneOptions, eligible[0].id);
+  form.appendChild(siteEditField('Vælg scene', sceneField));
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  form.appendChild(siteEditField('Titel', titleInput));
+
+  const senderInput = document.createElement('input');
+  senderInput.type = 'text';
+  form.appendChild(siteEditField('Afsender', senderInput));
+
+  const pdfInput = document.createElement('input');
+  pdfInput.type = 'file';
+  pdfInput.accept = '.pdf,application/pdf';
+  pdfInput.className = 'site-file-input';
+  form.appendChild(siteEditField('Manus (.pdf)', pdfInput));
+
+  const texInput = document.createElement('input');
+  texInput.type = 'file';
+  texInput.accept = '.tex';
+  texInput.className = 'site-file-input';
+  form.appendChild(siteEditField('Kildefil (.tex)', texInput));
+
+  const typeToggle = createManusTypeToggle();
+  form.appendChild(siteEditField('Type', typeToggle.element));
+
+  // Files can't be pre-filled into a file input (browsers block assigning a
+  // File into it), so a scene switch always clears them rather than leaving
+  // a stale file choice silently pointed at the wrong scene.
+  function populateFromItem(item) {
+    titleInput.value = item.title;
+    senderInput.value = item.sender;
+    typeToggle.select(item.type);
+    pdfInput.value = '';
+    texInput.value = '';
+    error.textContent = '';
+  }
+  populateFromItem(eligible[0]);
+
+  sceneField.addEventListener('change', () => {
+    const item = eligible.find(s => s.id === sceneField.value);
+    if (item) populateFromItem(item);
+  });
+
+  const save = document.createElement('button');
+  save.className = 'site-btn-success';
+  save.textContent = 'Opdater';
+  actions.appendChild(save);
+
+  save.addEventListener('click', () => {
+    const selected = eligible.find(s => s.id === sceneField.value);
+    const type = typeToggle.value;
+    const title = titleInput.value.trim();
+    const sender = senderInput.value.trim();
+    const pdfFile = pdfInput.files[0] || null;
+    const texFile = texInput.files[0] || null;
+    if (!selected) {
+      error.textContent = 'Vælg hvilken scene der skal opdateres.';
+      return;
+    }
+    if (!type) {
+      error.textContent = 'Vælg om det er en sketch eller en sang.';
+      return;
+    }
+    if (!title || !sender || !pdfFile || !texFile) {
+      error.textContent = 'Udfyld titel, afsender, og vælg både en .pdf- og en .tex-fil.';
+      return;
+    }
+    const normalizedTitle = title.toLowerCase();
+    const isDuplicate = getEffectiveManuscripts().some(
+      s => s.id !== selected.id && (s.title || '').trim().toLowerCase() === normalizedTitle
+    );
+    if (isDuplicate) {
+      error.textContent = 'Der findes allerede en scene med den titel. Vælg en anden titel.';
+      return;
+    }
+    if (pdfFile.size > MANUS_MAX_UPLOAD_BYTES || texFile.size > MANUS_MAX_UPLOAD_BYTES) {
+      error.textContent = 'Filerne skal hver især være under 5 MB.';
+      return;
+    }
+
+    openManuscriptUpdateConfirm(async () => {
+      let pdfBase64, texBase64;
+      try {
+        [pdfBase64, texBase64] = await Promise.all([manusFileToBase64(pdfFile), manusFileToBase64(texFile)]);
+      } catch (e) {
+        return { ok: false, message: 'Kunne ikke læse filerne. Prøv igen.' };
+      }
+      const result = await manusApi('manuscripts_update', { id: selected.id, type, title, sender, pdfBase64, texBase64 });
+      if (result.ok) {
+        manuscriptsOverride = getEffectiveManuscripts().map(s => s.id === selected.id
+          ? { ...s, type, title, sender, pdfPath: result.data.pdfPath, texPath: result.data.texPath, pendingDeploy: true }
+          : s);
+        siteSaveOverride('manuscripts', manuscriptsOverride);
+        renderColumns();
+        manusStartPendingPoll();
+        close();
+        siteShowToast('Manus opdateret – der går 1-2 min før siden er opdateret');
+      }
+      return result;
+    });
+  });
+
+  titleInput.focus();
+}
+
+// Same "Er du sikker?" shape as openManuscriptDeleteConfirm below, with a
+// second line explaining what the confirm actually does. `onConfirm` does
+// the real work (file read + API call + success side effects) and resolves
+// to a manusApi-shaped {ok, message} result — the confirm modal only reacts
+// to that result (closes itself on success, shows the message and stays
+// open on failure), it never touches the server directly.
+function openManuscriptUpdateConfirm(onConfirm) {
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
+  modal.classList.add('manus-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const line1 = document.createElement('p');
+  line1.className = 'manus-confirm-text';
+  line1.textContent = 'Er du sikker?';
+  form.appendChild(line1);
+
+  const line2 = document.createElement('p');
+  line2.className = 'manus-confirm-text';
+  line2.textContent = 'Dette vil erstatte de allerede uploadede filer, der hører til den scene.';
+  form.appendChild(line2);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'site-btn-warm';
+  cancelBtn.textContent = 'Annuller';
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'site-btn-success';
+  confirmBtn.textContent = 'Opdater';
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    const result = await onConfirm();
+    if (!result || !result.ok) {
+      confirmBtn.disabled = false;
+      if (result && result.message) error.textContent = result.message;
+      return;
+    }
+    close();
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Remove a submission (boss/admin) ──────────────────────────

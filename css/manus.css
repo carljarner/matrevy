@@ -225,6 +225,11 @@ a.manus-pdf-title:focus-visible {
 .manus-bottom-actions {
   display: flex;
   justify-content: center;
+  gap: 0.6rem;
+}
+
+.manus-bottom-actions button {
+  min-width: 6.5rem; /* fits "Opdater" (the longer label) with matching padding */
 }
 
 /* --- Upload modal: Sketch/Sang type toggle -------------------
