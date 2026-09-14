@@ -27,5 +27,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/KUA.pdf",
     "texPath": "archive/MatRevy_2026/submitted/KUA.tex",
     "createdAt": "2026-09-14T16:41:56"
+  },
+  {
+    "id": "6aa807d21bae69a8",
+    "type": "sang",
+    "title": "Purify",
+    "sender": "Carl '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Purify.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Purify.tex",
+    "createdAt": "2026-09-14T16:42:26"
   }
 ];
