@@ -763,7 +763,7 @@ function openManuscriptUpdateConfirm(onConfirm) {
   form.appendChild(line1);
 
   const line2 = document.createElement('p');
-  line2.className = 'manus-confirm-text';
+  line2.className = 'manus-confirm-sub';
   line2.textContent = 'Dette vil erstatte de allerede uploadede filer, der hører til den scene.';
   form.appendChild(line2);
 

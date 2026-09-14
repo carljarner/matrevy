@@ -1172,29 +1172,35 @@
    .forms-fillin-page/-section-title for the same card width and section
    layout as the fill-in view, so only the widgets below are new. */
 
-/* Two-track grid (nav, then the .forms-fillin-wide card) rather than a
-   flex row — a grid lets justify-content:center center the *pair* as one
-   block within #forms-root, so the nav reads as sitting just left of the
-   still visually-centered card rather than pinned to the page's own left
-   edge. Only present when formsBuildStatsNav actually ran (>1 section) —
-   a single-section form's card sits alone, centered exactly as before. */
+/* Three-track grid: nav, card, and a spacer track mirroring the nav's own
+   width formula. justify-content:center centers the whole symmetric band,
+   which keeps the *card* itself sitting on the page's true center (the
+   spacer balances the nav's width) instead of the nav dragging the pair's
+   shared center off to the right. Only present when formsBuildStatsNav
+   actually ran (>1 section) — a single-section form's card sits alone,
+   centered exactly as before. */
 .forms-stats-layout {
   display: grid;
-  grid-template-columns: minmax(160px, 200px) minmax(0, 640px);
+  grid-template-columns: minmax(160px, 200px) minmax(0, 640px) minmax(160px, 200px);
   justify-content: center;
-  align-items: start;
+  align-items: center;
   gap: 2.5rem;
 }
 
-/* Sticky under the site header (56px) with a small gap — stays in view
-   as the section content scrolls past it. */
+.forms-stats-layout .forms-form {
+  grid-column: 2;
+}
+
+/* Sticky under the site header (56px) with a small gap, and vertically
+   centered against the card's own height (align-items:center above) rather
+   than pinned to the card's top edge. */
 .forms-stats-nav {
+  grid-column: 1;
   position: sticky;
   top: 76px;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  padding-top: 0.3rem;
 }
 
 .forms-stats-nav-item {
@@ -1205,24 +1211,21 @@
   color: var(--text-muted);
   text-decoration: none;
   padding: 0.35rem 0.6rem;
-  border-left: 2px solid transparent;
-  border-radius: 0 4px 4px 0;
 }
 
 @media (hover: hover) {
   .forms-stats-nav-item:hover {
     color: var(--text);
-    background: var(--surface-2);
   }
 }
 
 /* Currently-scrolled-past section — the site-wide "orange = chosen"
    convention (see CLAUDE.md's button-conventions section) applied to a
-   scrollspy nav instead of a picked row/tab. */
+   scrollspy nav instead of a picked row/tab: text-color plus an underline,
+   no pill background. */
 .forms-stats-nav-item.active {
   color: var(--accent-warm-text);
-  background: var(--accent-warm-fill);
-  border-left-color: var(--accent-warm);
+  text-decoration: underline;
   font-weight: 600;
 }
 

@@ -431,6 +431,19 @@ a.manus-pdf-title:focus-visible {
   gap: 1.25rem;
 }
 
+/* Same min-width:0 opt-out as .manus-columns .card above — without it a
+   grid/flex track's implicit min size floors at its content's min-content
+   width, which overrides .manus-pdf-title's own text-overflow:ellipsis and
+   lets a long pool-entry title overflow the column on narrow screens. */
+.manus-select-columns > .card,
+.manus-select-col-stack {
+  min-width: 0;
+}
+
+.manus-select-col-stack > .card {
+  min-width: 0;
+}
+
 /* Third grid column is a stack of two cards (Udvælgelse, then Videoer &
    Bandsange below it) rather than a single card — same gap as the columns
    grid itself, so the vertical rhythm matches the horizontal one. */
@@ -1239,8 +1252,8 @@ a.manus-pdf-title:focus-visible {
    (style.css) for the full rationale. */
 .manus-confirm-modal {
   width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
+  min-width: min(260px, 85vw);
+  max-width: min(340px, 90vw);
 }
 
 .login-modal .manus-confirm-text {
@@ -1249,6 +1262,16 @@ a.manus-pdf-title:focus-visible {
   color: var(--text);
   text-align: center;
   margin-bottom: 0.5rem;
+}
+
+/* The explanatory line below the "Er du sikker?" title — plain body text,
+   not styled like a second title. */
+.login-modal .manus-confirm-sub {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-align: center;
+  margin-bottom: 0.75rem;
 }
 
 .manus-script-roles-heading {
