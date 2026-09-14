@@ -1191,22 +1191,20 @@
   grid-column: 2;
 }
 
-/* Sticky, centered on the *viewport* itself (top:50% + translateY(-50%),
-   the standard sticky-centered-sidebar trick) rather than min-height'd to
-   fill it — sticky can push an element down from its natural document
-   position with no scrolling needed at all, so as long as the row (its
-   containing block) is taller than the viewport — true for any real
-   multi-section form — the nav is already sitting centered the moment the
-   page loads, not just once you've scrolled far enough to "reach" it. The
-   shift is only ever a small fraction of the viewport height (half the
-   nav's own, short, content height), nowhere near enough to pull it back
-   up past the row's own top edge into the tab bar (Oversigt/Ny formular/
-   Statistik) above it. */
+/* Sticky top-pinned, same recipe as wiki.css's own .wiki-chapters: pinned
+   just below the sticky site header (76px, matching formsBuildStatsNav's
+   REF_Y and .forms-fillin-page's own scroll-margin-top above) and capped to
+   the remaining viewport height with its own overflow-y — so a form with
+   many sections never grows taller than the viewport and pushes its own
+   top entries up out of view. Previously centered on the viewport itself
+   (top:50% + translateY(-50%)), which did exactly that once the nav's
+   content grew past viewport height. */
 .forms-stats-nav {
   grid-column: 1;
   position: sticky;
-  top: 50%;
-  transform: translateY(-50%);
+  top: 76px;
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -1220,26 +1218,24 @@
   color: var(--text-muted);
   text-decoration: none;
   padding: 0.35rem 0.6rem;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  border-radius: 6px;
 }
 
 @media (hover: hover) {
   .forms-stats-nav-item:hover {
+    background: var(--surface-2);
     color: var(--text);
   }
 }
 
-/* Currently-scrolled-past section — the site-wide "orange = chosen"
-   convention (see CLAUDE.md's button-conventions section) applied to a
-   scrollspy nav instead of a picked row/tab: text-color plus an animated
-   underline, same border-bottom-color transition as .forms-admin-tab's own
-   active state above, rather than a plain (non-animatable) text-decoration
-   toggle. */
+/* Currently-scrolled-past section — same scrollspy-highlight recipe as
+   wiki.css's own .wiki-outline-active (its subchapter outline): an inset
+   left bar plus text-color/font-weight, rather than an animated
+   border-bottom underline. */
 .forms-stats-nav-item.active {
   color: var(--accent-warm-text);
-  border-bottom-color: var(--accent-warm-text);
   font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--accent-warm);
 }
 
 /* No room for a side nav at mobile width — the Statistik screen falls
