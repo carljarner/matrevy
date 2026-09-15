@@ -149,33 +149,50 @@ function icsEscape(text) {
   return String(text).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
-// Static, standard CET/CEST transition rules (EU-wide, last Sunday of
-// March/October, unchanged for decades) — needed so timed events carry an
-// explicit TZID instead of a floating local time. Google Calendar's
-// URL-subscription importer misreads a floating (no-TZID) time as UTC,
-// which showed events 2h late during CEST (UTC+2) — see CLAUDE.md.
-const ICS_VTIMEZONE = [
-  'BEGIN:VTIMEZONE',
-  'TZID:Europe/Copenhagen',
-  'BEGIN:DAYLIGHT',
-  'TZOFFSETFROM:+0100',
-  'TZOFFSETTO:+0200',
-  'TZNAME:CEST',
-  'DTSTART:19700329T020000',
-  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
-  'END:DAYLIGHT',
-  'BEGIN:STANDARD',
-  'TZOFFSETFROM:+0200',
-  'TZOFFSETTO:+0100',
-  'TZNAME:CET',
-  'DTSTART:19701025T030000',
-  'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
-  'END:STANDARD',
-  'END:VTIMEZONE',
-].join('\r\n');
-
 function icsDate(iso) {
   return iso.replace(/-/g, '');
+}
+
+// Standard EU CET/CEST transition rule (last Sunday of March/October,
+// unchanged for decades), evaluated directly against local wall-clock
+// date/time so timed events can be converted to genuine UTC. An earlier
+// approach carried an explicit TZID=Europe/Copenhagen + embedded VTIMEZONE
+// block instead, but Google Calendar's URL-subscription importer is
+// unreliable about honoring a non-Google-authored VTIMEZONE for externally
+// hosted feeds and kept misreading the floating local time as UTC anyway —
+// showing events 2h late during CEST. Emitting real UTC (Z-suffixed)
+// timestamps sidesteps the importer's timezone handling entirely — see
+// CLAUDE.md.
+function lastSundayOfMonth(year, month1based) {
+  const d = new Date(year, month1based, 0); // last day of month1based
+  d.setDate(d.getDate() - d.getDay());
+  return d.getDate();
+}
+
+function copenhagenOffsetMinutes(dateIso, timeHHMM) {
+  const [y, m, d] = dateIso.split('-').map(Number);
+  const [h, mi] = timeHHMM.split(':').map(Number);
+  if (m < 3 || m > 10) return 60; // Nov-Feb: CET
+  if (m > 3 && m < 10) return 120; // Apr-Sep: CEST
+  if (m === 3) {
+    const lastSun = lastSundayOfMonth(y, 3);
+    if (d < lastSun) return 60;
+    if (d > lastSun) return 120;
+    return h * 60 + mi < 120 ? 60 : 120; // spring forward at local 02:00
+  }
+  const lastSun = lastSundayOfMonth(y, 10);
+  if (d < lastSun) return 120;
+  if (d > lastSun) return 60;
+  return h * 60 + mi < 180 ? 120 : 60; // fall back at local 03:00
+}
+
+function icsUtcDateTime(dateIso, timeHHMM) {
+  const [y, m, d] = dateIso.split('-').map(Number);
+  const [h, mi] = timeHHMM.split(':').map(Number);
+  const offsetMin = copenhagenOffsetMinutes(dateIso, timeHHMM);
+  const dt = new Date(Date.UTC(y, m - 1, d, h, mi) - offsetMin * 60000);
+  const pad = n => String(n).padStart(2, '0');
+  return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}T${pad(dt.getUTCHours())}${pad(dt.getUTCMinutes())}${pad(dt.getUTCSeconds())}Z`;
 }
 
 // endDate defaults to date for a single-day event (mirrors calendar.js's
@@ -192,7 +209,7 @@ function icsAddDays(iso, days) {
 }
 
 function buildIcs(events) {
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Matematikrevyen//Kalender//DA', 'CALSCALE:GREGORIAN', ICS_VTIMEZONE];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Matematikrevyen//Kalender//DA', 'CALSCALE:GREGORIAN', 'X-WR-TIMEZONE:Europe/Copenhagen'];
   for (const ev of events) {
     const endDate = icsEventEndDate(ev);
     lines.push('BEGIN:VEVENT');
@@ -200,8 +217,8 @@ function buildIcs(events) {
     lines.push(`SUMMARY:${icsEscape(ev.title)}`);
     if (ev.start) {
       const endTime = ev.end || ev.start;
-      lines.push(`DTSTART;TZID=Europe/Copenhagen:${icsDate(ev.date)}T${ev.start.replace(':', '')}00`);
-      lines.push(`DTEND;TZID=Europe/Copenhagen:${icsDate(endDate)}T${endTime.replace(':', '')}00`);
+      lines.push(`DTSTART:${icsUtcDateTime(ev.date, ev.start)}`);
+      lines.push(`DTEND:${icsUtcDateTime(endDate, endTime)}`);
     } else {
       // All-day (possibly multi-day): DTEND is exclusive per RFC 5545.
       lines.push(`DTSTART;VALUE=DATE:${icsDate(ev.date)}`);
