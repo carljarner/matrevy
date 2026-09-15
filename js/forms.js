@@ -302,6 +302,12 @@ function formsGenerateRolleonskerSections() {
     },
     {
       id: formsNewFieldId(),
+      title: 'Fravær',
+      description: 'Skriv herunder det tidsinterval du IKKE kan være til stede til en øver',
+      fields: formsFravaerFields(false),
+    },
+    {
+      id: formsNewFieldId(),
       title: 'Tilmelding',
       description: '',
       fields: [
@@ -364,10 +370,20 @@ function formsRolleonskerTextareaField(label, placeholder) {
 // from CALENDAR_DATA every time the template is clicked, same reasoning as
 // Rolleønsker above — never a frozen snapshot.
 function formsGenerateFravaerSections() {
-  const events = formsFravaerRehearsalEvents();
-  const fields = [
-    { id: formsNewFieldId(), type: 'text', label: 'Fulde navn', required: true, placeholder: "Der sker ikke noget, hvis du dropper et mellemnavn eller to" },
+  return [
+    { id: formsNewFieldId(), title: 'Anmeld fravær', description: 'Skriv herunder det tidsinterval du IKKE kan være til stede til en øver', fields: formsFravaerFields(true) },
   ];
+}
+
+// Shared by the standalone Fravær template and Rolleønsker's own Fravær
+// section — Rolleønsker already collects "Fulde navn" in its first
+// section, so it passes includeName:false to avoid asking twice.
+function formsFravaerFields(includeName) {
+  const events = formsFravaerRehearsalEvents();
+  const fields = [];
+  if (includeName) {
+    fields.push({ id: formsNewFieldId(), type: 'text', label: 'Fulde navn', required: true, placeholder: "Der sker ikke noget, hvis du dropper et mellemnavn eller to" });
+  }
   for (const ev of events) {
     fields.push({
       id: formsNewFieldId(), type: 'text', required: false,
@@ -375,9 +391,7 @@ function formsGenerateFravaerSections() {
       placeholder: 'tt:mm - tt:mm',
     });
   }
-  return [
-    { id: formsNewFieldId(), title: 'Anmeld fravær', description: 'Skriv herunder det tidsinterval du IKKE kan være til stede til en øver', fields },
-  ];
+  return fields;
 }
 
 // "ove" is CAL_CATEGORIES's "Øvning" key (js/calendar.js) — kept as a bare
