@@ -760,7 +760,7 @@ function openUpdateModal() {
         renderColumns();
         manusStartPendingPoll();
         close();
-        siteShowToast('Manus opdateret – der går 1-2 min før siden er opdateret');
+        siteShowToast('Der går 1-2 min før siden er opdateret');
       }
       return result;
     });
