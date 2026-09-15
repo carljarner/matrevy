@@ -244,19 +244,40 @@
 /* ── Boss/admin: dashboard ────────────────────────────────── */
 .forms-dashboard-table,
 .forms-responses-table {
-  border-collapse: collapse;
   font-size: 0.88rem;
 }
-.forms-dashboard-table { width: 100%; }
+.forms-dashboard-table { width: 100%; border-collapse: collapse; }
 
 .forms-dashboard-table th,
-.forms-dashboard-table td,
-.forms-responses-table th,
-.forms-responses-table td {
+.forms-dashboard-table td {
   text-align: left;
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
+}
+
+/* .forms-responses-table's own header row is sticky (below) — under
+   border-collapse:collapse a sticky cell's border renders inconsistently in
+   WebKit (same issue budget.css's .streg-table already hit), so this table
+   uses border-collapse:separate + a per-cell inset box-shadow instead of
+   border-bottom, exactly like .streg-table's own fix. */
+.forms-responses-table { border-collapse: separate; border-spacing: 0; }
+.forms-responses-table th,
+.forms-responses-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+  vertical-align: top;
+}
+/* Sticky at 0 relative to .forms-responses-wrap's own bounded scrollport
+   (see that class below) — not the site header's own 56px sticky offset,
+   since stickiness here is scoped to the wrap's internal scroll, not the
+   page's. */
+.forms-responses-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 1;
 }
 
 /* Oversigt rows are draggable to reorder (see forms.js's formsWireDropHighlight/
@@ -363,9 +384,20 @@
   .forms-dashboard-table .forms-row-actions { justify-content: center; }
 }
 
-.forms-responses-wrap { overflow-x: auto; }
-
-.forms-export-btn { margin-top: 0.75rem; }
+/* Bounded height + overflow:auto (not just overflow-x) so the wrap becomes
+   a genuine internal scroll container: per the CSS overflow spec, an
+   overflow-x other than visible forces the computed overflow-y to auto too
+   (see formsShowResponseTooltip's own comment below on the same rule) — but
+   without a max-height that auto never actually engages (the box just grows
+   to fit its content and the whole PAGE scrolls instead), so position:sticky
+   on the header row has no scrolling ancestor to stick within and silently
+   does nothing. Capping the height here is what makes the header row
+   actually sticky while scrolling THROUGH the sheet, per this feature's own
+   requirement, rather than relying on page-level scroll. */
+.forms-responses-wrap {
+  overflow: auto;
+  max-height: calc(100vh - 230px);
+}
 
 /* A response table's columns never wrap onto multiple lines or get
    squeezed to fit — .forms-responses-wrap scrolls horizontally instead
@@ -392,10 +424,21 @@
   cursor: default;
 }
 
+/* formsOpenExportModal()'s per-condition block — a bordered card so several
+   stacked conditions read as distinct groups rather than running together;
+   its own .card-head mini-row (title + remove button) reuses the site-wide
+   .card-head class rather than a bespoke one. */
+.forms-export-filter-row {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 /* formsShowResponseTooltip()'s popup — position:fixed on <body>, clamped
-   on-screen in JS, so .forms-responses-wrap's own overflow-x:auto (which
-   per the CSS overflow spec forces overflow-y to 'auto' too) never clips
-   it, unlike a plain CSS ::after anchored inside that wrapper would be.
+   on-screen in JS, so .forms-responses-wrap's own overflow:auto (a genuine
+   scroll container now that it also has a max-height, see above) never
+   clips it, unlike a plain CSS ::after anchored inside that wrapper would be.
    Wraps onto multiple lines (unlike .forms-row-icon-btn's one-line
    tooltip) since a response's full text can run to a whole sentence. */
 .forms-response-tooltip {

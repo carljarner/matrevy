@@ -2666,12 +2666,12 @@ async function formsRenderResponsesScreen(root, formId) {
     return;
   }
   const definition = result.data.definition;
-  body.appendChild(el('h2', null, definition.title));
   // forms_admin_read withholds responses (never the definition) for a
   // boss-level visitor when Synlighed is "Koordinatorer" — the row's own
   // disabled Svar-button already keeps a boss from reaching this screen
   // normally, this is the server-enforced backstop.
   if (result.data.responsesRestricted) {
+    body.appendChild(el('h2', null, definition.title));
     body.appendChild(el('p', 'forms-msg error',
       'Svarene for denne formular er kun tilgængelige for koordinatorer.'));
     return;
@@ -2679,9 +2679,23 @@ async function formsRenderResponsesScreen(root, formId) {
   const responses = Array.isArray(result.data.responses) ? result.data.responses : [];
 
   if (responses.length === 0) {
+    body.appendChild(el('h2', null, definition.title));
     body.appendChild(el('p', 'forms-intro', 'Ingen svar endnu.'));
     return;
   }
+
+  // Title + export button share one top-right-aligned row (the site-wide
+  // .card-head convention) instead of the button sitting below the table —
+  // "Eksportér CSV" opens a modal (formsOpenExportModal) rather than
+  // exporting immediately, so column/row selection happens before the
+  // download.
+  const header = el('div', 'card-head');
+  header.appendChild(el('h2', null, definition.title));
+  const exportBtn = el('button', 'btn-small forms-export-btn', 'Eksportér CSV');
+  exportBtn.type = 'button';
+  exportBtn.addEventListener('click', () => formsOpenExportModal(definition, responses));
+  header.appendChild(exportBtn);
+  body.appendChild(header);
 
   const columns = formsAnswerColumns(definition);
   const wrap = el('div', 'forms-responses-wrap');
@@ -2722,11 +2736,6 @@ async function formsRenderResponsesScreen(root, formId) {
   table.appendChild(tbody);
   wrap.appendChild(table);
   body.appendChild(wrap);
-
-  const exportBtn = el('button', 'btn-small forms-export-btn', 'Eksportér CSV');
-  exportBtn.type = 'button';
-  exportBtn.addEventListener('click', () => formsExportCsv(definition, responses));
-  body.appendChild(exportBtn);
 }
 
 // One flat, ordered field list — top-level fields first, then each
@@ -2782,13 +2791,22 @@ function formsCsvEscape(v) {
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
-function formsExportCsv(definition, responses) {
-  const columns = formsAnswerColumns(definition);
-  const headers = ['Sendt', ...columns.map((c) => c.label)];
+// formsAnswerColumns' columns plus a leading "Sendt" pseudo-column, so both
+// can be toggled in one flat list in formsOpenExportModal's Kolonner
+// picker. Each get() takes the whole response (not just its answers), since
+// Sendt reads r.submittedAt directly rather than an answer.
+function formsExportColumnChoices(definition) {
+  return [
+    { label: 'Sendt', get: (r) => r.submittedAt },
+    ...formsAnswerColumns(definition).map((c) => ({ label: c.label, get: (r) => c.get(r.answers) })),
+  ];
+}
+
+function formsExportCsv(definition, responses, columns) {
+  const headers = columns.map((c) => c.label);
   const lines = [headers.map(formsCsvEscape).join(',')];
   for (const r of responses) {
-    const row = [r.submittedAt, ...columns.map((c) => c.get(r.answers))];
-    lines.push(row.map(formsCsvEscape).join(','));
+    lines.push(columns.map((c) => formsCsvEscape(c.get(r))).join(','));
   }
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -2799,6 +2817,159 @@ function formsExportCsv(definition, responses) {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+// A response's answer to `field` "matches" a filter condition if it equals
+// (select/scale/yesno) or intersects (checkboxes, whose answer is an array)
+// any of the condition's selectedValues.
+function formsAnswerMatchesFilter(field, answers, selectedValues) {
+  const v = answers ? answers[field.id] : undefined;
+  if (Array.isArray(v)) return v.some((x) => selectedValues.includes(x));
+  return selectedValues.includes(v);
+}
+
+// Combines every filter condition with one global connector — 'or' means
+// any condition matching is enough, anything else (including no mode set)
+// means every condition must match. No filters at all always matches.
+function formsRowMatchesFilters(filters, mode, answers) {
+  if (filters.length === 0) return true;
+  const results = filters.map((f) => formsAnswerMatchesFilter(f.field, answers, f.values));
+  return mode === 'or' ? results.some(Boolean) : results.every(Boolean);
+}
+
+// "Eksportér CSV" opens this instead of exporting immediately — lets the
+// admin choose which columns to include, and optionally filter which rows
+// are included based on one or more question-answer conditions. Built on
+// the same siteOpenModalWithClose + siteCreateDropdownField +
+// .forms-checkbox-list skeleton as formsOpenDependencyModal above, since
+// both are fundamentally "pick a question, then pick some of its resolved
+// answer values" pickers.
+function formsOpenExportModal(definition, responses) {
+  const columnChoices = formsExportColumnChoices(definition);
+  // Same eligibility rule as a dependency's controlling field
+  // (FORMS_DEPENDENCY_CONTROL_TYPES — fixed-answer types only, not free
+  // text or a per-row grid map), but deliberately without
+  // formsFieldCanControlDependency's extra "manual options only" rule: that
+  // restriction exists because the server can't validate a dependsOn
+  // against a live scenes/rehearsals option list, which doesn't apply
+  // here — this filter runs entirely client-side against options resolved
+  // fresh from the current SCENES_DATA/CALENDAR_DATA.
+  const eligibleFields = formsAllFields(definition).filter((f) =>
+    FORMS_DEPENDENCY_CONTROL_TYPES.includes(f.type) && formsDependencyOptionsForField(f).length > 0);
+
+  const { modal, form, actions, close } = siteOpenModalWithClose('Eksportér CSV');
+
+  form.appendChild(el('p', 'forms-intro', 'Vælg hvilke kolonner der skal med i eksporten.'));
+  const colWrap = el('div', 'forms-checkbox-list');
+  const colBoxes = columnChoices.map((column) => {
+    const row = el('label', 'forms-checkbox-row');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    row.appendChild(cb);
+    row.appendChild(document.createTextNode(column.label));
+    colWrap.appendChild(row);
+    return { cb, column };
+  });
+  form.appendChild(siteEditField('Kolonner', colWrap));
+
+  form.appendChild(el('p', 'forms-intro',
+    'Vælg evt. hvilke rækker der skal med, ud fra deres svar på et eller flere spørgsmål.'));
+
+  const filtersWrap = el('div');
+  form.appendChild(filtersWrap);
+
+  const modeDd = siteCreateDropdownField([
+    { value: 'and', label: 'Alle betingelser skal opfyldes (OG)' },
+    { value: 'or', label: 'Mindst én betingelse skal opfyldes (ELLER)' },
+  ], 'and');
+  const modeField = siteEditField('Kombination', modeDd);
+  modeField.hidden = true;
+  form.appendChild(modeField);
+
+  const conditions = []; // { rowEl, fieldDd, getValues }
+
+  function renumberConditions() {
+    conditions.forEach((c, idx) => { c.titleEl.textContent = `Betingelse ${idx + 1}`; });
+    modeField.hidden = conditions.length < 2;
+  }
+
+  function addCondition() {
+    const rowEl = el('div', 'forms-export-filter-row');
+    const head = el('div', 'card-head');
+    const titleEl = el('strong', null, '');
+    head.appendChild(titleEl);
+    const removeBtn = el('button', 'boss-edit-remove', '✕');
+    removeBtn.type = 'button';
+    removeBtn.title = 'Fjern betingelse';
+    removeBtn.setAttribute('aria-label', 'Fjern betingelse');
+    head.appendChild(removeBtn);
+    rowEl.appendChild(head);
+
+    const fieldDd = siteCreateDropdownField(
+      eligibleFields.map((f) => ({ value: f.id, label: f.label || '(uden titel)' })), eligibleFields[0].id);
+    rowEl.appendChild(siteEditField('Spørgsmål', fieldDd));
+
+    const valuesWrap = el('div', 'forms-checkbox-list');
+    rowEl.appendChild(siteEditField('Svar', valuesWrap));
+
+    function renderValues() {
+      valuesWrap.replaceChildren();
+      const field = eligibleFields.find((f) => f.id === fieldDd.value);
+      const options = field ? formsDependencyOptionsForField(field) : [];
+      const boxes = options.map((opt) => {
+        const optRow = el('label', 'forms-checkbox-row');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        optRow.appendChild(cb);
+        optRow.appendChild(document.createTextNode(opt.label));
+        valuesWrap.appendChild(optRow);
+        return { cb, value: opt.value };
+      });
+      valuesWrap.formsSelectedValues = () => boxes.filter((b) => b.cb.checked).map((b) => b.value);
+    }
+    fieldDd.addEventListener('change', renderValues);
+    renderValues();
+
+    removeBtn.addEventListener('click', () => {
+      rowEl.remove();
+      conditions.splice(conditions.indexOf(entry), 1);
+      renumberConditions();
+    });
+
+    filtersWrap.appendChild(rowEl);
+    const entry = {
+      titleEl,
+      getFilter: () => ({ field: eligibleFields.find((f) => f.id === fieldDd.value), values: valuesWrap.formsSelectedValues() }),
+    };
+    conditions.push(entry);
+    renumberConditions();
+  }
+
+  if (eligibleFields.length === 0) {
+    form.appendChild(el('p', 'forms-intro',
+      'Formularen har ingen spørgsmål med faste svarmuligheder (Vælg én/Vælg flere/Skala/Ja-Nej), ' +
+      'så der kan ikke filtreres på rækker.'));
+  } else {
+    const addBtn = el('button', 'btn-small', '+ Tilføj betingelse');
+    addBtn.type = 'button';
+    addBtn.addEventListener('click', addCondition);
+    form.appendChild(addBtn);
+  }
+
+  const exportError = el('p', 'forms-msg error');
+  form.appendChild(exportError);
+
+  const exportBtn = formsPillBtn('Eksportér', 'site-btn-success');
+  exportBtn.addEventListener('click', () => {
+    const selectedColumns = colBoxes.filter((b) => b.cb.checked).map((b) => b.column);
+    if (selectedColumns.length === 0) { exportError.textContent = 'Vælg mindst én kolonne.'; return; }
+    const filters = conditions.map((c) => c.getFilter()).filter((f) => f.values.length > 0);
+    const filteredResponses = responses.filter((r) => formsRowMatchesFilters(filters, modeDd.value, r.answers));
+    formsExportCsv(definition, filteredResponses, selectedColumns);
+    close();
+  });
+  actions.appendChild(exportBtn);
 }
 
 // ── Statistik screen ("Se statistik" row action) ───────────────
