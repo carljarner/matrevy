@@ -2750,32 +2750,62 @@ function formsAllFields(definition) {
   return fields;
 }
 
+// One field's own column(s) — shared by formsAnswerColumns (flat, used by
+// the responses table + CSV headers) and formsExportColumnGroups (grouped
+// by section, used by the export modal's kanban picker below). `field` is
+// null for a grid row-column (its answer is a per-row map, not a single
+// value — not a valid dependency-filter target).
+function formsColumnsForField(field) {
+  if (field.type === 'grid_single' || field.type === 'grid_multi') {
+    return (Array.isArray(field.rows) ? field.rows : []).map((row) => ({
+      key: `${field.id}::${row.id}`,
+      label: `${field.label} — ${row.label}`,
+      field: null,
+      get: (answers) => {
+        const cell = answers ? answers[field.id] : undefined;
+        const v = cell && typeof cell === 'object' ? cell[row.id] : undefined;
+        return formsFormatAnswerForDisplay(v);
+      },
+    }));
+  }
+  return [{
+    key: field.id,
+    label: field.label,
+    field,
+    get: (answers) => formsFormatAnswerForDisplay(answers ? answers[field.id] : undefined),
+  }];
+}
+
 // Same ordering as formsAllFields, but a grid question expands into one
 // column per row (its answer is a {rowId: value} map, not a single value)
 // — everything else still maps to exactly one column. Used by both the
 // responses table and CSV export so they always agree on shape.
 function formsAnswerColumns(definition) {
   const columns = [];
-  for (const field of formsAllFields(definition)) {
-    if (field.type === 'grid_single' || field.type === 'grid_multi') {
-      for (const row of (Array.isArray(field.rows) ? field.rows : [])) {
-        columns.push({
-          label: `${field.label} — ${row.label}`,
-          get: (answers) => {
-            const cell = answers ? answers[field.id] : undefined;
-            const v = cell && typeof cell === 'object' ? cell[row.id] : undefined;
-            return formsFormatAnswerForDisplay(v);
-          },
-        });
-      }
-    } else {
-      columns.push({
-        label: field.label,
-        get: (answers) => formsFormatAnswerForDisplay(answers ? answers[field.id] : undefined),
-      });
-    }
-  }
+  for (const field of formsAllFields(definition)) columns.push(...formsColumnsForField(field));
   return columns;
+}
+
+// Grouped by section for the export modal's kanban-style column picker —
+// top-level fields (definition.fields, outside any section) plus the
+// "Sendt" pseudo-column form a leading "Generelt" group; each real section
+// is its own group, in order. A section with no fields is dropped (nothing
+// to show as a column).
+function formsExportColumnGroups(definition) {
+  const wrapAnswers = (col) => ({ ...col, get: (r) => col.get(r.answers) });
+  const general = [{ key: 'sendt', label: 'Sendt', field: null, get: (r) => r.submittedAt }];
+  for (const field of (Array.isArray(definition.fields) ? definition.fields : [])) {
+    for (const col of formsColumnsForField(field)) general.push(wrapAnswers(col));
+  }
+  const groups = [{ title: 'Generelt', columns: general }];
+  (Array.isArray(definition.sections) ? definition.sections : []).forEach((section, idx) => {
+    const columns = [];
+    for (const field of (Array.isArray(section.fields) ? section.fields : [])) {
+      for (const col of formsColumnsForField(field)) columns.push(wrapAnswers(col));
+    }
+    if (columns.length > 0) groups.push({ title: (section.title || '').trim() || `Sektion ${idx + 1}`, columns });
+  });
+  return groups;
 }
 
 function formsFormatAnswerForDisplay(v) {
@@ -2789,17 +2819,6 @@ function formsFormatAnswerForDisplay(v) {
 function formsCsvEscape(v) {
   const s = v == null ? '' : String(v);
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-}
-
-// formsAnswerColumns' columns plus a leading "Sendt" pseudo-column, so both
-// can be toggled in one flat list in formsOpenExportModal's Kolonner
-// picker. Each get() takes the whole response (not just its answers), since
-// Sendt reads r.submittedAt directly rather than an answer.
-function formsExportColumnChoices(definition) {
-  return [
-    { label: 'Sendt', get: (r) => r.submittedAt },
-    ...formsAnswerColumns(definition).map((c) => ({ label: c.label, get: (r) => c.get(r.answers) })),
-  ];
 }
 
 function formsExportCsv(definition, responses, columns) {
@@ -2838,14 +2857,17 @@ function formsRowMatchesFilters(filters, mode, answers) {
 }
 
 // "Eksportér CSV" opens this instead of exporting immediately — lets the
-// admin choose which columns to include, and optionally filter which rows
-// are included based on one or more question-answer conditions. Built on
-// the same siteOpenModalWithClose + siteCreateDropdownField +
-// .forms-checkbox-list skeleton as formsOpenDependencyModal above, since
-// both are fundamentally "pick a question, then pick some of its resolved
-// answer values" pickers.
+// admin choose which columns to include (a kanban-style grid, one column
+// per section, mirroring Manus's Aktfordeling layout + Vælg scener's
+// click-to-toggle selection — see openSelectScenesOverlay/renderSelectRow
+// in js/manus.js for the pattern this is built from), and optionally
+// filter which rows are included based on one or more question-answer
+// conditions, scoped to only the questions currently selected as columns.
 function formsOpenExportModal(definition, responses) {
-  const columnChoices = formsExportColumnChoices(definition);
+  const groups = formsExportColumnGroups(definition);
+  const allFields = formsAllFields(definition);
+  const selectedKeys = new Set(); // nothing pre-selected — the admin opts in
+
   // Same eligibility rule as a dependency's controlling field
   // (FORMS_DEPENDENCY_CONTROL_TYPES — fixed-answer types only, not free
   // text or a per-row grid map), but deliberately without
@@ -2853,28 +2875,74 @@ function formsOpenExportModal(definition, responses) {
   // restriction exists because the server can't validate a dependsOn
   // against a live scenes/rehearsals option list, which doesn't apply
   // here — this filter runs entirely client-side against options resolved
-  // fresh from the current SCENES_DATA/CALENDAR_DATA.
-  const eligibleFields = formsAllFields(definition).filter((f) =>
-    FORMS_DEPENDENCY_CONTROL_TYPES.includes(f.type) && formsDependencyOptionsForField(f).length > 0);
+  // fresh from the current SCENES_DATA/CALENDAR_DATA. Additionally scoped
+  // to only currently-selected columns, per this modal's own design — a
+  // plain field's column key is always its own field.id (see
+  // formsColumnsForField), so selectedKeys.has(f.id) is the right check.
+  function computeEligibleFields() {
+    return allFields.filter((f) =>
+      FORMS_DEPENDENCY_CONTROL_TYPES.includes(f.type)
+      && formsDependencyOptionsForField(f).length > 0
+      && selectedKeys.has(f.id));
+  }
 
   const { modal, form, actions, close } = siteOpenModalWithClose('Eksportér CSV');
+  modal.classList.add('forms-export-modal');
 
-  form.appendChild(el('p', 'forms-intro', 'Vælg hvilke kolonner der skal med i eksporten.'));
-  const colWrap = el('div', 'forms-checkbox-list');
-  const colBoxes = columnChoices.map((column) => {
-    const row = el('label', 'forms-checkbox-row');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = true;
-    row.appendChild(cb);
-    row.appendChild(document.createTextNode(column.label));
-    colWrap.appendChild(row);
-    return { cb, column };
+  // ── Kolonner: kanban-style click-to-toggle grid ──
+  const colsHead = el('div', 'card-head');
+  colsHead.appendChild(el('p', 'forms-intro', 'Vælg hvilke kolonner der skal med — klik for at vælge/fravælge.'));
+  const selectAllBtn = el('button', 'btn-small', 'Vælg alle');
+  selectAllBtn.type = 'button';
+  colsHead.appendChild(selectAllBtn);
+  form.appendChild(colsHead);
+
+  const kanban = el('div', 'forms-export-kanban');
+  kanban.style.gridTemplateColumns = `repeat(${groups.length}, minmax(130px, 1fr))`;
+  form.appendChild(kanban);
+
+  const entryEls = new Map(); // column key -> its entry element
+  for (const group of groups) {
+    const col = el('div', 'forms-export-kanban-col');
+    col.appendChild(el('div', 'forms-export-kanban-col-header', group.title));
+    for (const column of group.columns) {
+      const entry = el('div', 'forms-export-kanban-entry', column.label);
+      entry.setAttribute('role', 'button');
+      entry.tabIndex = 0;
+      entry.setAttribute('aria-pressed', 'false');
+      entry.addEventListener('click', () => toggleColumn(column.key));
+      entry.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleColumn(column.key); }
+      });
+      entryEls.set(column.key, entry);
+      col.appendChild(entry);
+    }
+    kanban.appendChild(col);
+  }
+
+  function syncEntryStyles() {
+    for (const [key, entryEl] of entryEls) {
+      const selected = selectedKeys.has(key);
+      entryEl.classList.toggle('forms-export-kanban-entry-selected', selected);
+      entryEl.setAttribute('aria-pressed', String(selected));
+    }
+  }
+
+  function toggleColumn(key) {
+    if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
+    syncEntryStyles();
+    syncFilters();
+  }
+
+  selectAllBtn.addEventListener('click', () => {
+    for (const group of groups) for (const column of group.columns) selectedKeys.add(column.key);
+    syncEntryStyles();
+    syncFilters();
   });
-  form.appendChild(siteEditField('Kolonner', colWrap));
 
+  // ── Filtre: only offers questions currently selected as columns ──
   form.appendChild(el('p', 'forms-intro',
-    'Vælg evt. hvilke rækker der skal med, ud fra deres svar på et eller flere spørgsmål.'));
+    'Vælg evt. hvilke rækker der skal med, ud fra deres svar på et eller flere af de valgte spørgsmål.'));
 
   const filtersWrap = el('div');
   form.appendChild(filtersWrap);
@@ -2887,7 +2955,15 @@ function formsOpenExportModal(definition, responses) {
   modeField.hidden = true;
   form.appendChild(modeField);
 
-  const conditions = []; // { rowEl, fieldDd, getValues }
+  const noEligibleNote = el('p', 'forms-intro',
+    'Vælg mindst ét spørgsmål med faste svarmuligheder (Vælg én/Vælg flere/Skala/Ja-Nej) som kolonne ' +
+    'ovenfor, for at kunne filtrere rækker.');
+  form.appendChild(noEligibleNote);
+  const addBtn = el('button', 'btn-small', '+ Tilføj betingelse');
+  addBtn.type = 'button';
+  form.appendChild(addBtn);
+
+  const conditions = []; // { rowEl, titleEl, fieldId, getFilter, refreshChoices }
 
   function renumberConditions() {
     conditions.forEach((c, idx) => { c.titleEl.textContent = `Betingelse ${idx + 1}`; });
@@ -2895,6 +2971,9 @@ function formsOpenExportModal(definition, responses) {
   }
 
   function addCondition() {
+    const eligible = computeEligibleFields();
+    if (eligible.length === 0) return;
+
     const rowEl = el('div', 'forms-export-filter-row');
     const head = el('div', 'card-head');
     const titleEl = el('strong', null, '');
@@ -2906,16 +2985,24 @@ function formsOpenExportModal(definition, responses) {
     head.appendChild(removeBtn);
     rowEl.appendChild(head);
 
-    const fieldDd = siteCreateDropdownField(
-      eligibleFields.map((f) => ({ value: f.id, label: f.label || '(uden titel)' })), eligibleFields[0].id);
-    rowEl.appendChild(siteEditField('Spørgsmål', fieldDd));
+    // fieldDd sits behind a slot div (same indirection as
+    // formsOpenDependencyModal's own fieldDdSlot) so its option list can be
+    // rebuilt in place whenever the selected-columns set changes, without
+    // rebuilding the whole condition row.
+    const fieldFieldWrap = el('div', 'edit-field');
+    fieldFieldWrap.appendChild(el('label', null, 'Spørgsmål'));
+    const fieldDdSlot = el('div');
+    fieldFieldWrap.appendChild(fieldDdSlot);
+    rowEl.appendChild(fieldFieldWrap);
 
     const valuesWrap = el('div', 'forms-checkbox-list');
     rowEl.appendChild(siteEditField('Svar', valuesWrap));
 
+    let fieldDd = null;
+
     function renderValues() {
       valuesWrap.replaceChildren();
-      const field = eligibleFields.find((f) => f.id === fieldDd.value);
+      const field = allFields.find((f) => f.id === fieldDd.value);
       const options = field ? formsDependencyOptionsForField(field) : [];
       const boxes = options.map((opt) => {
         const optRow = el('label', 'forms-checkbox-row');
@@ -2928,7 +3015,14 @@ function formsOpenExportModal(definition, responses) {
       });
       valuesWrap.formsSelectedValues = () => boxes.filter((b) => b.cb.checked).map((b) => b.value);
     }
-    fieldDd.addEventListener('change', renderValues);
+
+    function mountFieldDropdown(choices, currentValue) {
+      fieldDd = siteCreateDropdownField(
+        choices.map((f) => ({ value: f.id, label: f.label || '(uden titel)' })), currentValue);
+      fieldDd.addEventListener('change', renderValues);
+      fieldDdSlot.replaceChildren(fieldDd);
+    }
+    mountFieldDropdown(eligible, eligible[0].id);
     renderValues();
 
     removeBtn.addEventListener('click', () => {
@@ -2940,30 +3034,50 @@ function formsOpenExportModal(definition, responses) {
     filtersWrap.appendChild(rowEl);
     const entry = {
       titleEl,
-      getFilter: () => ({ field: eligibleFields.find((f) => f.id === fieldDd.value), values: valuesWrap.formsSelectedValues() }),
+      rowEl,
+      fieldId: () => fieldDd.value,
+      getFilter: () => ({ field: allFields.find((f) => f.id === fieldDd.value), values: valuesWrap.formsSelectedValues() }),
+      refreshChoices: (eligibleNow) => { mountFieldDropdown(eligibleNow, fieldDd.value); renderValues(); },
     };
     conditions.push(entry);
     renumberConditions();
   }
+  addBtn.addEventListener('click', addCondition);
 
-  if (eligibleFields.length === 0) {
-    form.appendChild(el('p', 'forms-intro',
-      'Formularen har ingen spørgsmål med faste svarmuligheder (Vælg én/Vælg flere/Skala/Ja-Nej), ' +
-      'så der kan ikke filtreres på rækker.'));
-  } else {
-    const addBtn = el('button', 'btn-small', '+ Tilføj betingelse');
-    addBtn.type = 'button';
-    addBtn.addEventListener('click', addCondition);
-    form.appendChild(addBtn);
+  // Recomputes which fields are eligible to filter by (fixed-answer type
+  // AND currently a selected column), drops any existing condition whose
+  // field fell out of eligibility (nothing persists until Eksportér, so no
+  // confirmation needed), refreshes the remaining conditions' Spørgsmål
+  // option lists, and toggles the add-button/empty-state note.
+  function syncFilters() {
+    const eligible = computeEligibleFields();
+    const eligibleIds = new Set(eligible.map((f) => f.id));
+    for (let i = conditions.length - 1; i >= 0; i--) {
+      if (!eligibleIds.has(conditions[i].fieldId())) {
+        conditions[i].rowEl.remove();
+        conditions.splice(i, 1);
+      }
+    }
+    for (const c of conditions) c.refreshChoices(eligible);
+    renumberConditions();
+    const hasEligible = eligible.length > 0;
+    addBtn.hidden = !hasEligible;
+    noEligibleNote.hidden = hasEligible;
   }
+  syncFilters();
 
   const exportError = el('p', 'forms-msg error');
   form.appendChild(exportError);
 
   const exportBtn = formsPillBtn('Eksportér', 'site-btn-success');
   exportBtn.addEventListener('click', () => {
-    const selectedColumns = colBoxes.filter((b) => b.cb.checked).map((b) => b.column);
-    if (selectedColumns.length === 0) { exportError.textContent = 'Vælg mindst én kolonne.'; return; }
+    if (selectedKeys.size === 0) { exportError.textContent = 'Vælg mindst én kolonne.'; return; }
+    const selectedColumns = [];
+    for (const group of groups) {
+      for (const column of group.columns) {
+        if (selectedKeys.has(column.key)) selectedColumns.push(column);
+      }
+    }
     const filters = conditions.map((c) => c.getFilter()).filter((f) => f.values.length > 0);
     const filteredResponses = responses.filter((r) => formsRowMatchesFilters(filters, modeDd.value, r.answers));
     formsExportCsv(definition, filteredResponses, selectedColumns);

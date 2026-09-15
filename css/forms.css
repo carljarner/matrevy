@@ -424,6 +424,67 @@
   cursor: default;
 }
 
+/* formsOpenExportModal() needs real room for its kanban-style column grid
+   below — same width formula as Manus's .manus-select-overlay-modal/
+   .manus-points-modal (js/manus.js's Vælg scener/Indtast point), the site's
+   established "wide modal" convention, layered on top of the shared
+   .edit-modal chrome (max-height:85vh/overflow-y:auto still applies). */
+.forms-export-modal {
+  width: min(1040px, 96vw);
+}
+
+/* Kolonner picker — one column per form section (plus a leading "Generelt"
+   column for Sendt + any top-level fields), mirroring Manus's Aktfordeling
+   grid (.manus-kanban in css/manus.css) but not loaded on this page, so
+   reimplemented here per the site's per-feature-duplication convention.
+   gridTemplateColumns is set inline in JS (one column per section, same as
+   Aktfordeling's own renderActColumnsGrid) — overflow-x:auto lets it scroll
+   horizontally once there are enough sections to not fit the modal. */
+.forms-export-kanban {
+  display: grid;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.4rem;
+}
+.forms-export-kanban-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.forms-export-kanban-col-header {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.3rem 0.4rem;
+  background: var(--surface-2);
+  border-radius: 6px;
+}
+/* Click-to-toggle entry — same idle/hover/selected shape as Manus's
+   .manus-select-row/-selected (Vælg scener), just smaller text so a whole
+   section's worth of questions fits in one narrow column. No checkbox: the
+   whole card is the toggle, selection state is the orange fill alone. */
+.forms-export-kanban-entry {
+  font-size: 0.78rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+@media (hover: hover) {
+  .forms-export-kanban-entry:not(.forms-export-kanban-entry-selected):hover { background: #f2e7d2; }
+}
+.forms-export-kanban-entry:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+.forms-export-kanban-entry-selected {
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-weight: 600;
+}
+
 /* formsOpenExportModal()'s per-condition block — a bordered card so several
    stacked conditions read as distinct groups rather than running together;
    its own .card-head mini-row (title + remove button) reuses the site-wide
