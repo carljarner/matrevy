@@ -2949,8 +2949,8 @@ function formsOpenExportModal(definition, responses) {
   // (.cal-view-toggle in css/calendar.css), laid out as two equal-width
   // columns here instead of that toggle's own compact joined pill.
   let mode = 'and';
-  const andBtn = el('button', 'forms-export-mode-btn forms-export-mode-btn-selected', 'OG');
-  const orBtn = el('button', 'forms-export-mode-btn', 'ELLER');
+  const andBtn = el('button', 'forms-export-mode-btn forms-export-mode-btn-selected', 'Alle betingelser opfyldt');
+  const orBtn = el('button', 'forms-export-mode-btn', 'Mindst én betingelse opfyldt');
   andBtn.type = 'button';
   orBtn.type = 'button';
   function setMode(next) {
