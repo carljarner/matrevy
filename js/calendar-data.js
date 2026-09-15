@@ -842,16 +842,5 @@ const CALENDAR_DATA = [
     "category": "manus",
     "location": "S01",
     "note": ""
-  },
-  {
-    "id": "mu2oi5ev",
-    "date": "2026-09-15",
-    "endDate": "2026-09-15",
-    "start": "18:00",
-    "end": "20:00",
-    "title": "Test",
-    "category": "andet",
-    "location": "Test",
-    "note": ""
   }
 ];
