@@ -149,6 +149,31 @@ function icsEscape(text) {
   return String(text).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
+// Static, standard CET/CEST transition rules (EU-wide, last Sunday of
+// March/October, unchanged for decades) — needed so timed events carry an
+// explicit TZID instead of a floating local time. Google Calendar's
+// URL-subscription importer misreads a floating (no-TZID) time as UTC,
+// which showed events 2h late during CEST (UTC+2) — see CLAUDE.md.
+const ICS_VTIMEZONE = [
+  'BEGIN:VTIMEZONE',
+  'TZID:Europe/Copenhagen',
+  'BEGIN:DAYLIGHT',
+  'TZOFFSETFROM:+0100',
+  'TZOFFSETTO:+0200',
+  'TZNAME:CEST',
+  'DTSTART:19700329T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
+  'END:DAYLIGHT',
+  'BEGIN:STANDARD',
+  'TZOFFSETFROM:+0200',
+  'TZOFFSETTO:+0100',
+  'TZNAME:CET',
+  'DTSTART:19701025T030000',
+  'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
+  'END:STANDARD',
+  'END:VTIMEZONE',
+].join('\r\n');
+
 function icsDate(iso) {
   return iso.replace(/-/g, '');
 }
@@ -167,7 +192,7 @@ function icsAddDays(iso, days) {
 }
 
 function buildIcs(events) {
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Matematikrevyen//Kalender//DA', 'CALSCALE:GREGORIAN'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Matematikrevyen//Kalender//DA', 'CALSCALE:GREGORIAN', ICS_VTIMEZONE];
   for (const ev of events) {
     const endDate = icsEventEndDate(ev);
     lines.push('BEGIN:VEVENT');
@@ -175,8 +200,8 @@ function buildIcs(events) {
     lines.push(`SUMMARY:${icsEscape(ev.title)}`);
     if (ev.start) {
       const endTime = ev.end || ev.start;
-      lines.push(`DTSTART:${icsDate(ev.date)}T${ev.start.replace(':', '')}00`);
-      lines.push(`DTEND:${icsDate(endDate)}T${endTime.replace(':', '')}00`);
+      lines.push(`DTSTART;TZID=Europe/Copenhagen:${icsDate(ev.date)}T${ev.start.replace(':', '')}00`);
+      lines.push(`DTEND;TZID=Europe/Copenhagen:${icsDate(endDate)}T${endTime.replace(':', '')}00`);
     } else {
       // All-day (possibly multi-day): DTEND is exclusive per RFC 5545.
       lines.push(`DTSTART;VALUE=DATE:${icsDate(ev.date)}`);
