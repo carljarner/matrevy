@@ -522,30 +522,31 @@
   color: #ffffff;
 }
 
+/* Two condition boxes per row rather than one long stack — makes use of
+   this modal's own width (see .forms-export-modal), collapsing to one
+   column at the site-wide 719px breakpoint like every other two-up layout
+   on the site (e.g. Manus's own .manus-select-overlay-lists). Spacing
+   between boxes comes from this grid's own gap, not each box's margin. */
+.forms-export-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+@media (max-width: 719px) {
+  .forms-export-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* formsOpenExportModal()'s per-condition block — a bordered card so several
-   stacked conditions read as distinct groups rather than running together;
-   its own .card-head mini-row (title + remove button) reuses the site-wide
+   conditions read as distinct groups rather than running together; its own
+   .card-head mini-row (title + remove button) reuses the site-wide
    .card-head class rather than a bespoke one. */
 .forms-export-filter-row {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 0.75rem;
-  margin-bottom: 0.75rem;
-}
-
-/* Spørgsmål + Svar side by side — two columns on desktop, matching every
-   other two-up layout on the site (e.g. Manus's own .manus-select-overlay-
-   lists), collapsing to one column at the site-wide 719px breakpoint. */
-.forms-export-filter-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  align-items: start;
-}
-@media (max-width: 719px) {
-  .forms-export-filter-fields {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* formsShowResponseTooltip()'s popup — position:fixed on <body>, clamped

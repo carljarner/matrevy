@@ -2941,7 +2941,10 @@ function formsOpenExportModal(definition, responses) {
   form.appendChild(el('p', 'forms-intro',
     'Vælg evt. hvilke rækker der skal med, ud fra deres svar på et eller flere af de valgte spørgsmål.'));
 
-  const filtersWrap = el('div');
+  // Two condition boxes per row (grid, not a stacked list) — collapses to
+  // one column at the site's mobile breakpoint, see .forms-export-filters
+  // in css/forms.css.
+  const filtersWrap = el('div', 'forms-export-filters');
   form.appendChild(filtersWrap);
 
   // Single-select two-button toggle (not a dropdown) — same idle/hover/
@@ -2993,13 +2996,6 @@ function formsOpenExportModal(definition, responses) {
     head.appendChild(removeBtn);
     rowEl.appendChild(head);
 
-    // Spørgsmål + Svar sit side by side (two columns) rather than stacked —
-    // makes better use of this modal's own width (see .forms-export-modal)
-    // than the single-column stack formsOpenDependencyModal's narrower
-    // .edit-modal uses for the same pair of fields.
-    const fieldsRow = el('div', 'forms-export-filter-fields');
-    rowEl.appendChild(fieldsRow);
-
     // fieldDd sits behind a slot div (same indirection as
     // formsOpenDependencyModal's own fieldDdSlot) so its option list can be
     // rebuilt in place whenever the selected-columns set changes, without
@@ -3008,10 +3004,10 @@ function formsOpenExportModal(definition, responses) {
     fieldFieldWrap.appendChild(el('label', null, 'Spørgsmål'));
     const fieldDdSlot = el('div');
     fieldFieldWrap.appendChild(fieldDdSlot);
-    fieldsRow.appendChild(fieldFieldWrap);
+    rowEl.appendChild(fieldFieldWrap);
 
     const valuesWrap = el('div', 'forms-checkbox-list');
-    fieldsRow.appendChild(siteEditField('Svar', valuesWrap));
+    rowEl.appendChild(siteEditField('Svar', valuesWrap));
 
     let fieldDd = null;
 
