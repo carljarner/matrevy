@@ -2787,21 +2787,18 @@ function formsAnswerColumns(definition) {
 }
 
 // Grouped by section for the export modal's kanban-style column picker —
-// top-level fields (definition.fields, outside any section) plus the
-// "Sendt" pseudo-column form a leading "Generelt" group; each real section
-// is its own group, in order. A section with no fields is dropped (nothing
-// to show as a column).
+// each section is its own group, in order. Deliberately excludes the
+// "Sendt" timestamp and any top-level field outside a section (the latter
+// never actually happens in practice — every forms_save call always sends
+// definition.fields:[] — but excluded on principle either way): this
+// picker only ever offers real question columns, never picked by default.
+// A section with no fields is dropped (nothing to show as a column).
 function formsExportColumnGroups(definition) {
-  const wrapAnswers = (col) => ({ ...col, get: (r) => col.get(r.answers) });
-  const general = [{ key: 'sendt', label: 'Sendt', field: null, get: (r) => r.submittedAt }];
-  for (const field of (Array.isArray(definition.fields) ? definition.fields : [])) {
-    for (const col of formsColumnsForField(field)) general.push(wrapAnswers(col));
-  }
-  const groups = [{ title: 'Generelt', columns: general }];
+  const groups = [];
   (Array.isArray(definition.sections) ? definition.sections : []).forEach((section, idx) => {
     const columns = [];
     for (const field of (Array.isArray(section.fields) ? section.fields : [])) {
-      for (const col of formsColumnsForField(field)) columns.push(wrapAnswers(col));
+      for (const col of formsColumnsForField(field)) columns.push({ ...col, get: (r) => col.get(r.answers) });
     }
     if (columns.length > 0) groups.push({ title: (section.title || '').trim() || `Sektion ${idx + 1}`, columns });
   });
@@ -2891,7 +2888,7 @@ function formsOpenExportModal(definition, responses) {
 
   // ── Kolonner: kanban-style click-to-toggle grid ──
   const colsHead = el('div', 'card-head');
-  colsHead.appendChild(el('p', 'forms-intro', 'Vælg hvilke kolonner der skal med — klik for at vælge/fravælge.'));
+  colsHead.appendChild(el('p', 'forms-intro', 'Vælg hvilke kolonner der skal med'));
   const selectAllBtn = el('button', 'btn-small', 'Vælg alle');
   selectAllBtn.type = 'button';
   colsHead.appendChild(selectAllBtn);
@@ -2947,18 +2944,29 @@ function formsOpenExportModal(definition, responses) {
   const filtersWrap = el('div');
   form.appendChild(filtersWrap);
 
-  const modeDd = siteCreateDropdownField([
-    { value: 'and', label: 'Alle betingelser skal opfyldes (OG)' },
-    { value: 'or', label: 'Mindst én betingelse skal opfyldes (ELLER)' },
-  ], 'and');
-  const modeField = siteEditField('Kombination', modeDd);
+  // Single-select two-button toggle (not a dropdown) — same idle/hover/
+  // selected/focus treatment as Kalender's Måned/Liste view toggle
+  // (.cal-view-toggle in css/calendar.css), laid out as two equal-width
+  // columns here instead of that toggle's own compact joined pill.
+  let mode = 'and';
+  const andBtn = el('button', 'forms-export-mode-btn forms-export-mode-btn-selected', 'OG');
+  const orBtn = el('button', 'forms-export-mode-btn', 'ELLER');
+  andBtn.type = 'button';
+  orBtn.type = 'button';
+  function setMode(next) {
+    mode = next;
+    andBtn.classList.toggle('forms-export-mode-btn-selected', mode === 'and');
+    orBtn.classList.toggle('forms-export-mode-btn-selected', mode === 'or');
+  }
+  andBtn.addEventListener('click', () => setMode('and'));
+  orBtn.addEventListener('click', () => setMode('or'));
+  const modeToggle = el('div', 'forms-export-mode-toggle');
+  modeToggle.appendChild(andBtn);
+  modeToggle.appendChild(orBtn);
+  const modeField = siteEditField('Kombination', modeToggle);
   modeField.hidden = true;
   form.appendChild(modeField);
 
-  const noEligibleNote = el('p', 'forms-intro',
-    'Vælg mindst ét spørgsmål med faste svarmuligheder (Vælg én/Vælg flere/Skala/Ja-Nej) som kolonne ' +
-    'ovenfor, for at kunne filtrere rækker.');
-  form.appendChild(noEligibleNote);
   const addBtn = el('button', 'btn-small', '+ Tilføj betingelse');
   addBtn.type = 'button';
   form.appendChild(addBtn);
@@ -3062,7 +3070,6 @@ function formsOpenExportModal(definition, responses) {
     renumberConditions();
     const hasEligible = eligible.length > 0;
     addBtn.hidden = !hasEligible;
-    noEligibleNote.hidden = hasEligible;
   }
   syncFilters();
 
@@ -3079,7 +3086,7 @@ function formsOpenExportModal(definition, responses) {
       }
     }
     const filters = conditions.map((c) => c.getFilter()).filter((f) => f.values.length > 0);
-    const filteredResponses = responses.filter((r) => formsRowMatchesFilters(filters, modeDd.value, r.answers));
+    const filteredResponses = responses.filter((r) => formsRowMatchesFilters(filters, mode, r.answers));
     formsExportCsv(definition, filteredResponses, selectedColumns);
     close();
   });

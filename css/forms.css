@@ -485,6 +485,43 @@
   font-weight: 600;
 }
 
+/* Kombination (OG/ELLER) single-select toggle — same idle/hover/selected/
+   focus treatment as Kalender's Måned/Liste view toggle (.cal-view-toggle
+   in css/calendar.css, not loaded on this page), but two equal-width
+   columns instead of that toggle's own compact joined pill. */
+.forms-export-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+.forms-export-mode-btn {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+@media (hover: hover) {
+  .forms-export-mode-btn:not(.forms-export-mode-btn-selected):hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+.forms-export-mode-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
+}
+.forms-export-mode-btn-selected {
+  background: var(--accent-warm-text);
+  border-color: var(--accent-warm-text);
+  color: #ffffff;
+}
+
 /* formsOpenExportModal()'s per-condition block — a bordered card so several
    stacked conditions read as distinct groups rather than running together;
    its own .card-head mini-row (title + remove button) reuses the site-wide
