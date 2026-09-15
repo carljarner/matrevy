@@ -533,6 +533,21 @@
   margin-bottom: 0.75rem;
 }
 
+/* Spørgsmål + Svar side by side — two columns on desktop, matching every
+   other two-up layout on the site (e.g. Manus's own .manus-select-overlay-
+   lists), collapsing to one column at the site-wide 719px breakpoint. */
+.forms-export-filter-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 719px) {
+  .forms-export-filter-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* formsShowResponseTooltip()'s popup — position:fixed on <body>, clamped
    on-screen in JS, so .forms-responses-wrap's own overflow:auto (a genuine
    scroll container now that it also has a max-height, see above) never

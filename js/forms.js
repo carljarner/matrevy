@@ -2993,6 +2993,13 @@ function formsOpenExportModal(definition, responses) {
     head.appendChild(removeBtn);
     rowEl.appendChild(head);
 
+    // Spørgsmål + Svar sit side by side (two columns) rather than stacked —
+    // makes better use of this modal's own width (see .forms-export-modal)
+    // than the single-column stack formsOpenDependencyModal's narrower
+    // .edit-modal uses for the same pair of fields.
+    const fieldsRow = el('div', 'forms-export-filter-fields');
+    rowEl.appendChild(fieldsRow);
+
     // fieldDd sits behind a slot div (same indirection as
     // formsOpenDependencyModal's own fieldDdSlot) so its option list can be
     // rebuilt in place whenever the selected-columns set changes, without
@@ -3001,10 +3008,10 @@ function formsOpenExportModal(definition, responses) {
     fieldFieldWrap.appendChild(el('label', null, 'Spørgsmål'));
     const fieldDdSlot = el('div');
     fieldFieldWrap.appendChild(fieldDdSlot);
-    rowEl.appendChild(fieldFieldWrap);
+    fieldsRow.appendChild(fieldFieldWrap);
 
     const valuesWrap = el('div', 'forms-checkbox-list');
-    rowEl.appendChild(siteEditField('Svar', valuesWrap));
+    fieldsRow.appendChild(siteEditField('Svar', valuesWrap));
 
     let fieldDd = null;
 
