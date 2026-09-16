@@ -50,7 +50,7 @@ const MANUSCRIPTS_DATA = [
     "id": "6aaa9e6fe12290ec",
     "type": "sang",
     "title": "Formler",
-    "sender": "Louie (24')",
+    "sender": "Louie '24",
     "pdfPath": "archive/MatRevy_2026/submitted/Formler.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Formler.tex",
     "createdAt": "2026-09-16T15:49:35"
