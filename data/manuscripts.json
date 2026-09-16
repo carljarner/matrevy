@@ -71,6 +71,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Instruktorat.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Instruktorat.tex",
             "createdAt": "2026-09-16T15:52:14"
+        },
+        {
+            "id": "6aaac021746605e1",
+            "type": "sketch",
+            "title": "Hulelignelsen",
+            "sender": "Louie '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/Hulelignelsen.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Hulelignelsen.tex",
+            "createdAt": "2026-09-16T18:13:21"
         }
     ]
 }
