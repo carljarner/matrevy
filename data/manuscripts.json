@@ -53,6 +53,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Formler.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Formler.tex",
             "createdAt": "2026-09-16T15:49:35"
+        },
+        {
+            "id": "6aaa9ef7eeedc43f",
+            "type": "sketch",
+            "title": "Aina",
+            "sender": "Carl '21",
+            "pdfPath": "archive/MatRevy_2026/submitted/Aina.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Aina.tex",
+            "createdAt": "2026-09-16T15:51:51"
         }
     ]
 }
