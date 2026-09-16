@@ -80,6 +80,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Hulelignelsen.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Hulelignelsen.tex",
             "createdAt": "2026-09-16T18:13:21"
+        },
+        {
+            "id": "6aaade376a5520d9",
+            "type": "sang",
+            "title": "Eksamensvagter",
+            "sender": "Hugo '21, Michael '24, Carl '21, Thais '22",
+            "pdfPath": "archive/MatRevy_2026/submitted/Eksamensvagter.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Eksamensvagter.tex",
+            "createdAt": "2026-09-16T20:21:43"
         }
     ]
 }
