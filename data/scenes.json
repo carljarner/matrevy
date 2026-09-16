@@ -2,7 +2,7 @@
     "_schema": "scenes for Matematikrevyen 2026",
     "_note": "Replace each production. 'schedulable' is false for videos and band jingles with no rehearsable cast. 'cast' maps each person in the scene to their role code from the script.",
     "production": "MatRevy 2026",
-    "version": "2026-09-04",
+    "version": "2026-09-16",
     "acts": [
         {
             "act": "1",
@@ -25,5 +25,5 @@
             "scenes": []
         }
     ],
-    "generatedAt": "2026-09-04T15:39:26+02:00"
+    "generatedAt": "2026-09-16T17:43:05+02:00"
 }
