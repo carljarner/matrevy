@@ -134,6 +134,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Vippe-Nat.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Vippe-Nat.tex",
             "createdAt": "2026-09-17T18:39:29"
+        },
+        {
+            "id": "6aac51ca8100edc7",
+            "type": "sang",
+            "title": "Tavle Talk",
+            "sender": "Adam '23",
+            "pdfPath": "archive/MatRevy_2026/submitted/Tavle_Talk.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Tavle_Talk.tex",
+            "createdAt": "2026-09-17T22:47:06"
         }
     ]
 }
