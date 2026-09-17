@@ -90,5 +90,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Eksamensvagter.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Eksamensvagter.tex",
     "createdAt": "2026-09-16T20:21:43"
+  },
+  {
+    "id": "6aabb0e7b082841b",
+    "type": "sketch",
+    "title": "Løvens A-lokale 1",
+    "sender": "Carl '21 & Thais '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_1.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_1.tex",
+    "createdAt": "2026-09-17T11:20:39"
   }
 ];
