@@ -126,5 +126,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Vinsmagning.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Vinsmagning.tex",
     "createdAt": "2026-09-17T14:13:04"
+  },
+  {
+    "id": "6aac17c1cab39889",
+    "type": "sang",
+    "title": "Vippe-Nat",
+    "sender": "Philip '23 & Thais '22",
+    "pdfPath": "archive/MatRevy_2026/submitted/Vippe-Nat.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Vippe-Nat.tex",
+    "createdAt": "2026-09-17T18:39:29"
   }
 ];
