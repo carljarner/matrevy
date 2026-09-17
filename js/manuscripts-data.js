@@ -5,7 +5,7 @@ const MANUSCRIPTS_DATA = [
     "id": "6aa7bc54082cc763",
     "type": "sang",
     "title": "Uden Mig",
-    "sender": "Thais '22",
+    "sender": "Sirius '23 & Thais '22",
     "pdfPath": "archive/MatRevy_2026/submitted/Uden_Mig.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Uden_Mig.tex",
     "createdAt": "2026-09-14T11:20:20"
