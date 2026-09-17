@@ -144,5 +144,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Tavle_Talk.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Tavle_Talk.tex",
     "createdAt": "2026-09-17T22:47:06"
+  },
+  {
+    "id": "6aac522670e66117",
+    "type": "sang",
+    "title": "IcEE",
+    "sender": "Adam '23",
+    "pdfPath": "archive/MatRevy_2026/submitted/IcEE.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/IcEE.tex",
+    "createdAt": "2026-09-17T22:48:38"
   }
 ];
