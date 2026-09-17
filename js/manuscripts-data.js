@@ -108,5 +108,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_2.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_2.tex",
     "createdAt": "2026-09-17T11:21:11"
+  },
+  {
+    "id": "6aabb123b8821165",
+    "type": "sketch",
+    "title": "Løvens A-lokale 3",
+    "sender": "Carl '21 & Thais '22",
+    "pdfPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_3.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_3.tex",
+    "createdAt": "2026-09-17T11:21:39"
   }
 ];
