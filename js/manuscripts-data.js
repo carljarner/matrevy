@@ -153,5 +153,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/IcEE.pdf",
     "texPath": "archive/MatRevy_2026/submitted/IcEE.tex",
     "createdAt": "2026-09-17T22:48:38"
+  },
+  {
+    "id": "6aac66315adb3574",
+    "type": "sang",
+    "title": "Ode til Blok 2 År 2",
+    "sender": "Adam '23",
+    "pdfPath": "archive/MatRevy_2026/submitted/Ode_til_Blok_2_År_2.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Ode_til_Blok_2_År_2.tex",
+    "createdAt": "2026-09-18T00:14:09"
   }
 ];
