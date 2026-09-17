@@ -325,7 +325,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "",
             "ansvarA": "Carl + Fred",
             "ansvarB": "Frede",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "blok1-r11",
@@ -335,7 +335,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "(Supplér med mat-kantinen)",
             "ansvarA": "Carl + Fred",
             "ansvarB": "Frede",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "blok1-r12",
@@ -345,7 +345,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "",
             "ansvarA": "Carl + Fred",
             "ansvarB": "Frede",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "blok1-r13",
@@ -355,7 +355,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Giv folk adgang til lokaler",
             "ansvarA": "Carl + Fred",
             "ansvarB": "Frede",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r14",
