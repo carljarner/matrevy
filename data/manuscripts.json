@@ -116,6 +116,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_3.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Løvens_A-lokale_3.tex",
             "createdAt": "2026-09-17T11:21:39"
+        },
+        {
+            "id": "6aabd9501c60ff0e",
+            "type": "sketch",
+            "title": "Vinsmagning",
+            "sender": "Carl '21",
+            "pdfPath": "archive/MatRevy_2026/submitted/Vinsmagning.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Vinsmagning.tex",
+            "createdAt": "2026-09-17T14:13:04"
         }
     ]
 }
