@@ -774,7 +774,7 @@ function siteOpenDropdownPicker(anchor, options, currentValue, onSelect) {
   const close = siteOpenFieldPopup(anchor, pop);
 }
 
-function siteCreateDropdownField(options, initialValue) {
+function siteCreateDropdownField(options, initialValue, placeholder) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'site-field-btn';
@@ -789,7 +789,7 @@ function siteCreateDropdownField(options, initialValue) {
   let _value = initialValue != null ? initialValue : '';
   function render() {
     const opt = options.find((o) => o.value === _value);
-    text.textContent = opt ? opt.label : 'Vælg';
+    text.textContent = opt ? opt.label : (placeholder || 'Vælg');
     text.classList.toggle('site-field-placeholder', !opt);
   }
   Object.defineProperty(btn, 'value', {

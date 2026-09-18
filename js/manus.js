@@ -663,7 +663,7 @@ function openUpdateModal() {
   const { form, error, actions, close } = siteOpenModalWithClose('Opdater manus');
 
   const sceneOptions = eligible.map(item => ({ value: item.id, label: item.title }));
-  const sceneField = siteCreateDropdownField(sceneOptions, eligible[0].id);
+  const sceneField = siteCreateDropdownField(sceneOptions, '', 'Vælg scene');
   form.appendChild(siteEditField('Vælg scene', sceneField));
 
   const titleInput = document.createElement('input');
@@ -700,7 +700,6 @@ function openUpdateModal() {
     texInput.value = '';
     error.textContent = '';
   }
-  populateFromItem(eligible[0]);
 
   sceneField.addEventListener('change', () => {
     const item = eligible.find(s => s.id === sceneField.value);
