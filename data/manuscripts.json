@@ -161,6 +161,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Ode_til_Blok_2_År_2.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Ode_til_Blok_2_År_2.tex",
             "createdAt": "2026-09-18T00:14:09"
+        },
+        {
+            "id": "6aac9519b7e919a7",
+            "type": "sang",
+            "title": "Matematik på mellemtrinnet",
+            "sender": "Julius Pallesen '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/Matematik_på_mellemtrinnet.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Matematik_på_mellemtrinnet.tex",
+            "createdAt": "2026-09-18T03:34:17"
         }
     ]
 }
