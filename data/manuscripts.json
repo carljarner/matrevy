@@ -179,6 +179,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Λλ.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Λλ.tex",
             "createdAt": "2026-09-18T04:16:20"
+        },
+        {
+            "id": "6aad339d3a806976",
+            "type": "sketch",
+            "title": "Didaktikdukken",
+            "sender": "Carl '21",
+            "pdfPath": "archive/MatRevy_2026/submitted/Didaktikdukken.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Didaktikdukken.tex",
+            "createdAt": "2026-09-18T14:50:37"
         }
     ]
 }
