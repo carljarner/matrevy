@@ -189,5 +189,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Didaktikdukken.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Didaktikdukken.tex",
     "createdAt": "2026-09-18T14:50:37"
+  },
+  {
+    "id": "6aad6f7b67489d1a",
+    "type": "sketch",
+    "title": "Mine rus kan tæve dine rus",
+    "sender": "Julius Pallesen '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Mine_rus_kan_tæve_dine_rus.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Mine_rus_kan_tæve_dine_rus.tex",
+    "createdAt": "2026-09-18T19:06:03"
   }
 ];
