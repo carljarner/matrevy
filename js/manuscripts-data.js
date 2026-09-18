@@ -193,7 +193,7 @@ const MANUSCRIPTS_DATA = [
   {
     "id": "6aad6f7b67489d1a",
     "type": "sketch",
-    "title": "Mine rus kan tæve dine rus",
+    "title": "Mine rus kan tæve dine rus!",
     "sender": "Julius Pallesen '24",
     "pdfPath": "archive/MatRevy_2026/submitted/Mine_rus_kan_tæve_dine_rus.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Mine_rus_kan_tæve_dine_rus.tex",
