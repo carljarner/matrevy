@@ -171,5 +171,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Matematik_på_mellemtrinnet.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Matematik_på_mellemtrinnet.tex",
     "createdAt": "2026-09-18T03:34:17"
+  },
+  {
+    "id": "6aac9ef45e6825b6",
+    "type": "sang",
+    "title": "Λλ",
+    "sender": "Juλius Paλλesen '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Λλ.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Λλ.tex",
+    "createdAt": "2026-09-18T04:16:20"
   }
 ];
