@@ -15,6 +15,12 @@ const POSTS_DATA = [
         "author": "Carl J",
         "text": "Damn, det er sku smart. Tak for det!",
         "date": "2026-09-04T17:40:42"
+      },
+      {
+        "id": "6aaed35304451cca",
+        "author": "MaWeK",
+        "text": "Arkivet virker en smule bekendt :sweat_smile:",
+        "date": "2026-09-19T20:24:19"
       }
     ]
   },
