@@ -207,5 +207,23 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Instruktorshopping.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Instruktorshopping.tex",
     "createdAt": "2026-09-18T22:36:58"
+  },
+  {
+    "id": "6aae41beba7a1d9e",
+    "type": "sketch",
+    "title": "Dørvagterne 1",
+    "sender": "Carl '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Dørvagterne_1.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Dørvagterne_1.tex",
+    "createdAt": "2026-09-19T10:03:10"
+  },
+  {
+    "id": "6aae41d1a5a29ab9",
+    "type": "sketch",
+    "title": "Dørvagterne 2",
+    "sender": "Carl '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Dørvagterne_2.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Dørvagterne_2.tex",
+    "createdAt": "2026-09-19T10:03:29"
   }
 ];
