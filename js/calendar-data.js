@@ -853,5 +853,16 @@ const CALENDAR_DATA = [
     "category": "manus",
     "location": "S01",
     "note": ""
+  },
+  {
+    "id": "mu863cli",
+    "date": "2026-10-06",
+    "endDate": "2026-10-06",
+    "start": "15:15",
+    "end": "21:00",
+    "title": "Manusmøde",
+    "category": "manus",
+    "location": "S01",
+    "note": ""
   }
 ];
