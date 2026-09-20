@@ -242,6 +242,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Fuldstændiggøre_Q.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Fuldstændiggøre_Q.tex",
             "createdAt": "2026-09-20T17:15:38"
+        },
+        {
+            "id": "6ab03df8292d5349",
+            "type": "sang",
+            "title": "Spøgelsessangen",
+            "sender": "Augusta '20",
+            "pdfPath": "archive/MatRevy_2026/submitted/Spøgelsessangen.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Spøgelsessangen.tex",
+            "createdAt": "2026-09-20T22:11:36"
         }
     ]
 }
