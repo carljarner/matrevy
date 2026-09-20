@@ -225,5 +225,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Dørvagterne_2.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Dørvagterne_2.tex",
     "createdAt": "2026-09-19T10:03:29"
+  },
+  {
+    "id": "6aaf9b74a760fafd",
+    "type": "sang",
+    "title": "Op på fjerde",
+    "sender": "Carl '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Op_på_fjerde.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Op_på_fjerde.tex",
+    "createdAt": "2026-09-20T10:38:12"
   }
 ];
