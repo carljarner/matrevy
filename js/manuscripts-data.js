@@ -234,5 +234,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Op_på_fjerde.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Op_på_fjerde.tex",
     "createdAt": "2026-09-20T10:38:12"
+  },
+  {
+    "id": "6aaff89a8371fd36",
+    "type": "sang",
+    "title": "Fuldstændiggøre Q",
+    "sender": "Adam '23",
+    "pdfPath": "archive/MatRevy_2026/submitted/Fuldstændiggøre_Q.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Fuldstændiggøre_Q.tex",
+    "createdAt": "2026-09-20T17:15:38"
   }
 ];
