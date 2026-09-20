@@ -304,6 +304,8 @@ const MANUS_PENDING_MESSAGES = [
   'Vente vente...',
   'Hvad har du lavet i dag?...',
   'God sketch!...',
+  'God sang!...',
+  'Skriv lige en til...',
 ];
 const MANUS_PENDING_MESSAGE_INTERVAL_MS = 10000;
 
