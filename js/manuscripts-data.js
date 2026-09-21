@@ -261,5 +261,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Ses_til_Reeksamen.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Ses_til_Reeksamen.tex",
     "createdAt": "2026-09-21T09:22:34"
+  },
+  {
+    "id": "6ab1bc614994472a",
+    "type": "sang",
+    "title": "Brand",
+    "sender": "Julius Pallesen '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Brand.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Brand.tex",
+    "createdAt": "2026-09-22T01:23:13"
   }
 ];
