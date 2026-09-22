@@ -245,7 +245,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Afhold infomøde",
             "ansvarA": "Fred og Carl",
             "ansvarB": "Carl, Thea, Frederikke",
-            "status": "faerdig"
+            "status": "mangler"
           },
           {
             "id": "blok1-r3",
@@ -265,7 +265,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Vælg dato og book hytte",
             "ansvarA": "Louise",
             "ansvarB": "Louise",
-            "status": "faerdig"
+            "status": "igang"
           },
           {
             "id": "blok1-r5",
@@ -275,7 +275,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Find eksterne instruktører",
             "ansvarA": "TT",
             "ansvarB": "Fælles",
-            "status": "faerdig"
+            "status": "mangler"
           },
           {
             "id": "blok1-r6",
