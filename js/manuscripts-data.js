@@ -279,5 +279,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/AI.pdf",
     "texPath": "archive/MatRevy_2026/submitted/AI.tex",
     "createdAt": "2026-09-22T10:17:33"
+  },
+  {
+    "id": "6ab23a1486e6d637",
+    "type": "sang",
+    "title": "Georg Mohr",
+    "sender": "Victoria 19'",
+    "pdfPath": "archive/MatRevy_2026/submitted/Georg_Mohr.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Georg_Mohr.tex",
+    "createdAt": "2026-09-22T10:19:32"
   }
 ];
