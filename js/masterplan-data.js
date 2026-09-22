@@ -78,7 +78,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Snak med sammenholdet",
             "ansvarA": "Fælles",
             "ansvarB": "Carl",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "august-r3",
@@ -208,7 +208,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "",
             "ansvarA": "Louise",
             "ansvarB": "Louise",
-            "status": "mangler"
+            "status": "faerdig"
           },
           {
             "id": "august-r16",
