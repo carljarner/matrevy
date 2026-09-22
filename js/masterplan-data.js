@@ -525,7 +525,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Snak med dem",
             "ansvarA": "Fælles",
             "ansvarB": "",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r31",
@@ -535,7 +535,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Aftal med bio hvornår scenen sættes op/tages ned",
             "ansvarA": "Fælles",
             "ansvarB": "",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r32",
@@ -545,7 +545,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Skriv til instituttet og få penge",
             "ansvarA": "Louise",
             "ansvarB": "Louise",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "blok1-g2",
