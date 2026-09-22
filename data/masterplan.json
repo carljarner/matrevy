@@ -243,7 +243,7 @@
                         "beskrivelse": "Afhold infomøde",
                         "ansvarA": "Fred og Carl",
                         "ansvarB": "Carl, Thea, Frederikke",
-                        "status": "mangler"
+                        "status": "faerdig"
                     },
                     {
                         "id": "blok1-r3",
@@ -263,7 +263,7 @@
                         "beskrivelse": "Vælg dato og book hytte",
                         "ansvarA": "Louise",
                         "ansvarB": "Louise",
-                        "status": "igang"
+                        "status": "faerdig"
                     },
                     {
                         "id": "blok1-r5",
@@ -273,7 +273,7 @@
                         "beskrivelse": "Find eksterne instruktører",
                         "ansvarA": "TT",
                         "ansvarB": "Fælles",
-                        "status": "mangler"
+                        "status": "faerdig"
                     },
                     {
                         "id": "blok1-r6",
