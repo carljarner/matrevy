@@ -270,5 +270,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Brand.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Brand.tex",
     "createdAt": "2026-09-22T01:23:13"
+  },
+  {
+    "id": "6ab2399dc898c961",
+    "type": "sang",
+    "title": "AI",
+    "sender": "Victoria Snow 19'",
+    "pdfPath": "archive/MatRevy_2026/submitted/AI.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/AI.tex",
+    "createdAt": "2026-09-22T10:17:33"
   }
 ];
