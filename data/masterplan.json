@@ -599,6 +599,16 @@
                         "ansvarA": "Fælles",
                         "ansvarB": "",
                         "status": "mangler"
+                    },
+                    {
+                        "id": "r-mucjqzmf-6u11n",
+                        "type": "task",
+                        "emne": "",
+                        "todo": "Facebook",
+                        "beskrivelse": "Reklamér for Matrevy i \"Bosser for KUs revyer\"",
+                        "ansvarA": "",
+                        "ansvarB": "",
+                        "status": "mangler"
                     }
                 ],
                 "revyen": [
