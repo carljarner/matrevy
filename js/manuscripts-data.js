@@ -306,5 +306,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Ikk_Lyst.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Ikk_Lyst.tex",
     "createdAt": "2026-09-23T13:35:09"
+  },
+  {
+    "id": "6ab41ec573ac1af9",
+    "type": "sang",
+    "title": "Den røde tråd",
+    "sender": "Thea '24, Louis '24, Carl '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Den_røde_tråd.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Den_røde_tråd.tex",
+    "createdAt": "2026-09-23T20:47:33"
   }
 ];
