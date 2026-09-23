@@ -296,6 +296,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Tællelig.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Tællelig.tex",
             "createdAt": "2026-09-23T05:06:11"
+        },
+        {
+            "id": "6ab3b96d4e9fd247",
+            "type": "sang",
+            "title": "Ikk' Lyst",
+            "sender": "Flemming '25",
+            "pdfPath": "archive/MatRevy_2026/submitted/Ikk_Lyst.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Ikk_Lyst.tex",
+            "createdAt": "2026-09-23T13:35:09"
         }
     ]
 }
