@@ -288,5 +288,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Georg_Mohr.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Georg_Mohr.tex",
     "createdAt": "2026-09-22T10:19:32"
+  },
+  {
+    "id": "6ab342238b02df9d",
+    "type": "sang",
+    "title": "Tællelig",
+    "sender": "Julius Pallesen '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Tællelig.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Tællelig.tex",
+    "createdAt": "2026-09-23T05:06:11"
   }
 ];
