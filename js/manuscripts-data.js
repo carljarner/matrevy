@@ -315,5 +315,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Den_røde_tråd.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Den_røde_tråd.tex",
     "createdAt": "2026-09-23T20:47:33"
+  },
+  {
+    "id": "6ab4d03efba177bf",
+    "type": "sang",
+    "title": "På Caféen? igen",
+    "sender": "Thea '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/På_Caféen_igen.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/På_Caféen_igen.tex",
+    "createdAt": "2026-09-24T09:24:46"
   }
 ];
