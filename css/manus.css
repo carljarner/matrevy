@@ -1523,7 +1523,7 @@ a.manus-pdf-title:focus-visible {
   @page { size: A4 portrait; margin: 15mm; }
 
   .site-header, .site-footer, .manus-layout, .manus-main-view,
-  .manus-pdf-links, .page-content > h1 {
+  .manus-pdf-links, .page-content > h1, #manus-admin-settings {
     display: none !important;
   }
 
