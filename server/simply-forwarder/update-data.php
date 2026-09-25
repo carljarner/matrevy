@@ -19,6 +19,10 @@ const PUBLIC_HOST = 'manus.matematikrevy.dk';
 
 set_time_limit(120);
 
+// Marker so `curl -sI` can confirm this forwarder (not the old endpoint, and
+// not a host-level handler) is what answered a request.
+header('X-Matrevy-Forwarder: 1');
+
 function forwarder_fail($code, $error, $detail = null) {
   http_response_code($code);
   header('Content-Type: application/json; charset=utf-8');
