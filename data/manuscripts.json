@@ -332,6 +332,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Jeg_Hader_Matematik_I_Dag.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Jeg_Hader_Matematik_I_Dag.tex",
             "createdAt": "2026-09-25T16:00:51"
+        },
+        {
+            "id": "6ab6a15fcc8d03b8",
+            "type": "sang",
+            "title": "Matematik",
+            "sender": "Julius Pallesen '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/Matematik.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Matematik.tex",
+            "createdAt": "2026-09-25T18:29:19"
         }
     ]
 }
