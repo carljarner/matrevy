@@ -1,0 +1,8 @@
+# Add these lines to the .htaccess in Simply's manus.matematikrevy.dk web root
+# (merge with any existing rules; keep the file named ".htaccess" there).
+# Relays Let's Encrypt HTTP-01 challenges to the new server via
+# update-data.php's ?acme= branch. Files Simply itself places under
+# .well-known (its own certificate renewal) are still served normally.
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^\.well-known/acme-challenge/([A-Za-z0-9_-]+)$ update-data.php?acme=$1 [L]

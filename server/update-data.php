@@ -19,6 +19,9 @@
 //
 // Deploy this file + a real config.php (see config.example.php) to
 // the Simply.com PHP hosting. Never commit config.php.
+// (Moving to Coolify on the Hetzner server — see hosting.md Part 6:
+// there, server/Dockerfile builds it with config.docker.php, which
+// reads every value from environment variables.)
 
 require __DIR__ . '/config.php';
 
