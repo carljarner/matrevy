@@ -323,6 +323,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/På_Caféen_igen.pdf",
             "texPath": "archive/MatRevy_2026/submitted/På_Caféen_igen.tex",
             "createdAt": "2026-09-24T09:24:46"
+        },
+        {
+            "id": "6ab67e934a6a332b",
+            "type": "sang",
+            "title": "Jeg Hader Matematik I Dag",
+            "sender": "Thea '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/Jeg_Hader_Matematik_I_Dag.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Jeg_Hader_Matematik_I_Dag.tex",
+            "createdAt": "2026-09-25T16:00:51"
         }
     ]
 }
