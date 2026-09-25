@@ -5,5 +5,6 @@ COPY php.ini /usr/local/etc/php/conf.d/matrevy.ini
 COPY apache-matrevy.conf /etc/apache2/conf-enabled/matrevy.conf
 COPY update-data.php /var/www/html/update-data.php
 COPY config.docker.php /var/www/html/config.php
+COPY health.php /var/www/html/health.php
 
 RUN mkdir -p /data && chown www-data:www-data /data
