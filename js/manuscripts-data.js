@@ -351,5 +351,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Klemmelemma.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Klemmelemma.tex",
     "createdAt": "2026-09-27T19:55:53"
+  },
+  {
+    "id": "6ab988f544da6b8b",
+    "type": "sang",
+    "title": "Problematisk publikum",
+    "sender": "Thais '22",
+    "pdfPath": "archive/MatRevy_2026/submitted/Problematisk_publikum.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Problematisk_publikum.tex",
+    "createdAt": "2026-09-27T23:21:57"
   }
 ];
