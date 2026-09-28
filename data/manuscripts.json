@@ -395,6 +395,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Natmad.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Natmad.tex",
             "createdAt": "2026-09-28T14:35:17"
+        },
+        {
+            "id": "6aba78131fb249e4",
+            "type": "sang",
+            "title": "Blokuge 8",
+            "sender": "Augusta '20",
+            "pdfPath": "archive/MatRevy_2026/submitted/Blokuge_8.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Blokuge_8.tex",
+            "createdAt": "2026-09-28T16:22:11"
         }
     ]
 }
