@@ -414,5 +414,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Forkerte_fortegn.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Forkerte_fortegn.tex",
     "createdAt": "2026-09-28T19:36:45"
+  },
+  {
+    "id": "6ababa685c260d96",
+    "type": "sketch",
+    "title": "Ny i job",
+    "sender": "Victoria 19'",
+    "pdfPath": "archive/MatRevy_2026/submitted/Ny_i_job.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Ny_i_job.tex",
+    "createdAt": "2026-09-28T21:05:12"
   }
 ];
