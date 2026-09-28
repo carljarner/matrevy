@@ -360,5 +360,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Problematisk_publikum.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Problematisk_publikum.tex",
     "createdAt": "2026-09-27T23:21:57"
+  },
+  {
+    "id": "6ab9fecae0444498",
+    "type": "sang",
+    "title": "Ik' spild papir",
+    "sender": "Carl '21",
+    "pdfPath": "archive/MatRevy_2026/submitted/Ik_spild_papir.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Ik_spild_papir.tex",
+    "createdAt": "2026-09-28T07:44:42"
   }
 ];
