@@ -405,5 +405,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Blokuge_8.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Blokuge_8.tex",
     "createdAt": "2026-09-28T16:22:11"
+  },
+  {
+    "id": "6abaa5ad3b354a49",
+    "type": "sang",
+    "title": "Forkerte fortegn",
+    "sender": "Victoria 19'",
+    "pdfPath": "archive/MatRevy_2026/submitted/Forkerte_fortegn.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Forkerte_fortegn.tex",
+    "createdAt": "2026-09-28T19:36:45"
   }
 ];
