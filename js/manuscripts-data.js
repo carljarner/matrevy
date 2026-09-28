@@ -387,5 +387,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Instruktor.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Instruktor.tex",
     "createdAt": "2026-09-28T14:29:17"
+  },
+  {
+    "id": "6aba5f051b594394",
+    "type": "sang",
+    "title": "Natmad",
+    "sender": "Carl '21 & Thais '22",
+    "pdfPath": "archive/MatRevy_2026/submitted/Natmad.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Natmad.tex",
+    "createdAt": "2026-09-28T14:35:17"
   }
 ];
