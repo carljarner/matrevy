@@ -378,5 +378,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Alt_Det_Der_Ikke_Blev_Bevist.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Alt_Det_Der_Ikke_Blev_Bevist.tex",
     "createdAt": "2026-09-28T09:28:55"
+  },
+  {
+    "id": "6aba5d9d3b344e83",
+    "type": "sang",
+    "title": "Instruktor",
+    "sender": "Daniel '23, Philip '23, Johan '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Instruktor.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Instruktor.tex",
+    "createdAt": "2026-09-28T14:29:17"
   }
 ];
