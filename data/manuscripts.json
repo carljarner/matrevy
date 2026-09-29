@@ -548,6 +548,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/SU_lån.pdf",
             "texPath": "archive/MatRevy_2026/submitted/SU_lån.tex",
             "createdAt": "2026-09-29T23:52:57"
+        },
+        {
+            "id": "6abc33a53ed1e89a",
+            "type": "sang",
+            "title": "Brush up på græsk",
+            "sender": "Klejne '24, Louie '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/Brush_up_på_græsk.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Brush_up_på_græsk.tex",
+            "createdAt": "2026-09-29T23:54:45"
         }
     ]
 }
