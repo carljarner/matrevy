@@ -585,5 +585,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Bomber_på_Cafeen.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Bomber_på_Cafeen.tex",
     "createdAt": "2026-09-30T00:15:31"
+  },
+  {
+    "id": "6abc3c1f55aefb1a",
+    "type": "sang",
+    "title": "Henrik Holm (yeah)",
+    "sender": "Adam '23",
+    "pdfPath": "archive/MatRevy_2026/submitted/Henrik_Holm_yeah.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Henrik_Holm_yeah.tex",
+    "createdAt": "2026-09-30T00:30:55"
   }
 ];
