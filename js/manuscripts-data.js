@@ -450,5 +450,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Cauchyfølge.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Cauchyfølge.tex",
     "createdAt": "2026-09-29T13:46:18"
+  },
+  {
+    "id": "6abbabed2776967a",
+    "type": "sang",
+    "title": "Faktorisere",
+    "sender": "Philip '26",
+    "pdfPath": "archive/MatRevy_2026/submitted/Faktorisere.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Faktorisere.tex",
+    "createdAt": "2026-09-29T14:15:41"
   }
 ];
