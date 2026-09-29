@@ -531,5 +531,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Haralds_profet.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Haralds_profet.tex",
     "createdAt": "2026-09-29T23:50:47"
+  },
+  {
+    "id": "6abc3309c535f56f",
+    "type": "sang",
+    "title": "Studerende for en dag",
+    "sender": "Julius '24, Christian '24, Thea '24, Louie '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Studerende_for_en_dag.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Studerende_for_en_dag.tex",
+    "createdAt": "2026-09-29T23:52:09"
   }
 ];
