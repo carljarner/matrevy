@@ -458,6 +458,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Faktorisere.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Faktorisere.tex",
             "createdAt": "2026-09-29T14:15:41"
+        },
+        {
+            "id": "6abbcb3b0be4bcd3",
+            "type": "sketch",
+            "title": "Hvad er forskellen?",
+            "sender": "Carl '21 & Thais '22",
+            "pdfPath": "archive/MatRevy_2026/submitted/Hvad_er_forskellen.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Hvad_er_forskellen.tex",
+            "createdAt": "2026-09-29T16:29:15"
         }
     ]
 }
