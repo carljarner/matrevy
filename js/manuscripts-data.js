@@ -441,5 +441,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/100_selvproduceret_intro.pdf",
     "texPath": "archive/MatRevy_2026/submitted/100_selvproduceret_intro.tex",
     "createdAt": "2026-09-29T02:31:58"
+  },
+  {
+    "id": "6abba50a86d9daad",
+    "type": "sang",
+    "title": "Cauchyfølge",
+    "sender": "Adam '23 (undskyld)",
+    "pdfPath": "archive/MatRevy_2026/submitted/Cauchyfølge.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Cauchyfølge.tex",
+    "createdAt": "2026-09-29T13:46:18"
   }
 ];
