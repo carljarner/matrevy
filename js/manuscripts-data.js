@@ -59,7 +59,7 @@ const MANUSCRIPTS_DATA = [
     "id": "6aaa9f0e15ab335c",
     "type": "sang",
     "title": "Instruktorat",
-    "sender": "Louie '24",
+    "sender": "Louie '24, Christian '24",
     "pdfPath": "archive/MatRevy_2026/submitted/Instruktorat.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Instruktorat.tex",
     "createdAt": "2026-09-16T15:52:14"
