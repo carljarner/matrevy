@@ -476,6 +476,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/STORT_TAL.pdf",
             "texPath": "archive/MatRevy_2026/submitted/STORT_TAL.tex",
             "createdAt": "2026-09-29T18:38:13"
+        },
+        {
+            "id": "6abc0e6e1ddc2fa5",
+            "type": "sang",
+            "title": "Akademisk kvarter",
+            "sender": "Flemming '25 & Vibe '25",
+            "pdfPath": "archive/MatRevy_2026/submitted/Akademisk_kvarter.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Akademisk_kvarter.tex",
+            "createdAt": "2026-09-29T21:15:58"
         }
     ]
 }
