@@ -512,6 +512,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Flade.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Flade.tex",
             "createdAt": "2026-09-29T23:48:32"
+        },
+        {
+            "id": "6abc3289505ac852",
+            "type": "sang",
+            "title": "Epic math battles of history",
+            "sender": "Christian '24, Michael '24, Klejne '24, Louie '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/Epic_math_battles_of_history.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Epic_math_battles_of_history.tex",
+            "createdAt": "2026-09-29T23:50:01"
         }
     ]
 }
