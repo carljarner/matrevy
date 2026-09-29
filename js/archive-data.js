@@ -6,10 +6,10 @@ const ARCHIVE_DATA = [
     "name": "MatRevy 2025",
     "folder": "MatRevy_2025",
     "coverImage": "archive/MatRevy_2025/cover.jpg",
-    "youtubeUrl": "",
+    "youtubeUrl": "https://youtu.be/MSOWTLiluCc",
     "spotifyUrl": "",
     "driveUrl": "https://drive.google.com/drive/folders/1jhra2CPQLb2Tf3W8Rog9oru4B3HJZYDO",
-    "manusPdf": "archive/MatRevy_2025/manus.pdf"
+    "manusPdf": "archive/MatRevy_2025/Manuskript.pdf"
   },
   {
     "year": 2024,
