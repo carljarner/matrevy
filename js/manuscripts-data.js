@@ -522,5 +522,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Epic_math_battles_of_history.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Epic_math_battles_of_history.tex",
     "createdAt": "2026-09-29T23:50:01"
+  },
+  {
+    "id": "6abc32b78e1d236a",
+    "type": "sang",
+    "title": "Haralds profet",
+    "sender": "Christian '24, Louie '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Haralds_profet.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Haralds_profet.tex",
+    "createdAt": "2026-09-29T23:50:47"
   }
 ];
