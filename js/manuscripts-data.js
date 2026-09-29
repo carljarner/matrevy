@@ -486,5 +486,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Akademisk_kvarter.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Akademisk_kvarter.tex",
     "createdAt": "2026-09-29T21:15:58"
+  },
+  {
+    "id": "6abc309f275d5112",
+    "type": "sang",
+    "title": "CumAn/KomAnal",
+    "sender": "Daniel '23",
+    "pdfPath": "archive/MatRevy_2026/submitted/CumAnKomAnal.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/CumAnKomAnal.tex",
+    "createdAt": "2026-09-29T23:41:51"
   }
 ];
