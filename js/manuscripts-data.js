@@ -468,5 +468,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Hvad_er_forskellen.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Hvad_er_forskellen.tex",
     "createdAt": "2026-09-29T16:29:15"
+  },
+  {
+    "id": "6abbd0dd59385f7e",
+    "type": "sang",
+    "title": "Jeg Studerer Dagen Lang",
+    "sender": "Daniel '23, Lise '20",
+    "pdfPath": "archive/MatRevy_2026/submitted/Jeg_Studerer_Dagen_Lang.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Jeg_Studerer_Dagen_Lang.tex",
+    "createdAt": "2026-09-29T16:53:17"
   }
 ];
