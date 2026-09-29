@@ -503,6 +503,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Fagklog.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Fagklog.tex",
             "createdAt": "2026-09-29T23:47:48"
+        },
+        {
+            "id": "6abc3230d7cd14f1",
+            "type": "sang",
+            "title": "Flade",
+            "sender": "Christian '24, Louie '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/Flade.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/Flade.tex",
+            "createdAt": "2026-09-29T23:48:32"
         }
     ]
 }
