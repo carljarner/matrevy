@@ -432,5 +432,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Jeg_er_ikke_rus.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Jeg_er_ikke_rus.tex",
     "createdAt": "2026-09-29T00:27:52"
+  },
+  {
+    "id": "6abb06fe38227997",
+    "type": "sang",
+    "title": "100% selvproduceret (intro)",
+    "sender": "Sirius '23",
+    "pdfPath": "archive/MatRevy_2026/submitted/100_selvproduceret_intro.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/100_selvproduceret_intro.tex",
+    "createdAt": "2026-09-29T02:31:58"
   }
 ];
