@@ -246,7 +246,7 @@ const ARCHIVE_DATA = [
     "name": "MatRevy 2026",
     "folder": "MatRevy_2026",
     "coverImage": "",
-    "youtubeUrl": "",
+    "youtubeUrl": "https://youtu.be/MSOWTLiluCc",
     "spotifyUrl": "",
     "driveUrl": "https://drive.google.com/drive/folders/16CR5evUJuXUStN09cMpGGNIw1rh6HzY2?usp=drive_link",
     "manusPdf": "archive/MatRevy_2026/Manuskript.pdf"
