@@ -467,6 +467,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Jeg_Studerer_Dagen_Lang.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Jeg_Studerer_Dagen_Lang.tex",
             "createdAt": "2026-09-29T16:53:17"
+        },
+        {
+            "id": "6abbe975ced8aa8a",
+            "type": "sang",
+            "title": "STORT TAL",
+            "sender": "Markus '20",
+            "pdfPath": "archive/MatRevy_2026/submitted/STORT_TAL.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/STORT_TAL.tex",
+            "createdAt": "2026-09-29T18:38:13"
         }
     ]
 }
