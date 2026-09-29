@@ -558,5 +558,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Brush_up_på_græsk.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Brush_up_på_græsk.tex",
     "createdAt": "2026-09-29T23:54:45"
+  },
+  {
+    "id": "6abc34291a652748",
+    "type": "sang",
+    "title": "Forelæser",
+    "sender": "Christian '24, Louie '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/Forelæser.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Forelæser.tex",
+    "createdAt": "2026-09-29T23:56:57"
   }
 ];
