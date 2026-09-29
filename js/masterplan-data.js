@@ -305,7 +305,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Person til at tage billeder backstage",
             "ansvarA": "TFT",
             "ansvarB": "Thea",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r9",
@@ -315,7 +315,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Aftal med sammenholdet, hvem der står for hvad",
             "ansvarA": "Fælles",
             "ansvarB": "Fælles",
-            "status": "mangler"
+            "status": "igang"
           },
           {
             "id": "blok1-r10",
