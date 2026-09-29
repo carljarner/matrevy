@@ -539,6 +539,15 @@
             "pdfPath": "archive/MatRevy_2026/submitted/Studerende_for_en_dag.pdf",
             "texPath": "archive/MatRevy_2026/submitted/Studerende_for_en_dag.tex",
             "createdAt": "2026-09-29T23:52:09"
+        },
+        {
+            "id": "6abc33395e4c3f6f",
+            "type": "sang",
+            "title": "SU lån",
+            "sender": "Klejne '24, Christian '24, Louie '24",
+            "pdfPath": "archive/MatRevy_2026/submitted/SU_lån.pdf",
+            "texPath": "archive/MatRevy_2026/submitted/SU_lån.tex",
+            "createdAt": "2026-09-29T23:52:57"
         }
     ]
 }
