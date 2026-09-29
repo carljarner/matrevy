@@ -88,7 +88,7 @@ const MASTERPLAN_DATA = {
             "beskrivelse": "Skaf film",
             "ansvarA": "Louise + Baldur",
             "ansvarB": "Louise",
-            "status": "igang"
+            "status": "faerdig"
           },
           {
             "id": "august-r4",
