@@ -603,5 +603,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/Eduroam.pdf",
     "texPath": "archive/MatRevy_2026/submitted/Eduroam.tex",
     "createdAt": "2026-09-30T01:14:35"
+  },
+  {
+    "id": "6abd61ca8a8893fe",
+    "type": "sang",
+    "title": "W, Frokost i Kantinen",
+    "sender": "Louie '24",
+    "pdfPath": "archive/MatRevy_2026/submitted/W_Frokost_i_Kantinen.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/W_Frokost_i_Kantinen.tex",
+    "createdAt": "2026-09-30T21:23:54"
   }
 ];
