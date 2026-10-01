@@ -157,6 +157,7 @@ const MANUSCRIPTS_DATA = [
   {
     "id": "6aac9519b7e919a7",
     "type": "sang",
+    "fisk": true,
     "title": "Matematik på mellemtrinnet",
     "sender": "Julius Pallesen '24",
     "pdfPath": "archive/MatRevy_2026/submitted/Matematik_på_mellemtrinnet.pdf",
@@ -301,6 +302,7 @@ const MANUSCRIPTS_DATA = [
   {
     "id": "6ab41ec573ac1af9",
     "type": "sang",
+    "fisk": true,
     "title": "Den røde tråd",
     "sender": "Thea '24, Louis '24, Carl '21",
     "pdfPath": "archive/MatRevy_2026/submitted/Den_røde_tråd.pdf",
@@ -598,6 +600,7 @@ const MANUSCRIPTS_DATA = [
   {
     "id": "6abc465b0b9e9e84",
     "type": "sang",
+    "fisk": true,
     "title": "Eduroam",
     "sender": "Louie '24",
     "pdfPath": "archive/MatRevy_2026/submitted/Eduroam.pdf",

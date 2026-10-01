@@ -3760,6 +3760,13 @@ function manus_uploads_closed_for_revyst($type) {
   return $flag === true;
 }
 
+// Optional submission `duration` (minutes, parsed from \eta{}): null or a
+// plain non-negative number. Hoisted function, not a const — see the
+// const-ordering landmine note in CLAUDE.md.
+function manus_valid_submission_duration($d) {
+  return $d === null || ((is_int($d) || is_float($d)) && $d >= 0 && $d <= 600);
+}
+
 function manuscripts_create($body) {
   global $level;
   $type      = $body['type'] ?? '';
@@ -3767,7 +3774,13 @@ function manuscripts_create($body) {
   $sender    = $body['sender'] ?? '';
   $pdfBase64 = $body['pdfBase64'] ?? '';
   $texBase64 = $body['texBase64'] ?? '';
+  $fisk      = $body['fisk'] ?? false;
+  $duration  = $body['duration'] ?? null;
+  if (!manus_valid_submission_duration($duration)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
   if (!in_array($type, ['sketch', 'sang'], true)
+      || !is_bool($fisk) || ($fisk && $type !== 'sang')
       || !is_string($title) || trim($title) === ''
       || !is_string($sender) || trim($sender) === ''
       || !is_string($pdfBase64) || $pdfBase64 === ''
@@ -3827,6 +3840,12 @@ function manuscripts_create($body) {
     'texPath'   => $texPath,
     'createdAt' => date('Y-m-d\TH:i:s'),
   ];
+  // A "Sang (fisk)" upload: still type 'sang' everywhere, the flag only
+  // affects ordering/labelling in the Manus page's selection-stage lists.
+  if ($fisk) $submission['fisk'] = true;
+  // Running time (minutes) parsed client-side from the .tex's \eta{} — only
+  // the default for the boss/admin duration field, editable afterwards.
+  if ($duration !== null) $submission['duration'] = $duration;
   update_file('data/manuscripts.json', function ($json) use ($submission) {
     if (!isset($json['submissions']) || !is_array($json['submissions'])) $json['submissions'] = [];
     $json['submissions'][] = $submission;
@@ -3848,8 +3867,14 @@ function manuscripts_update($body) {
   $sender    = $body['sender'] ?? '';
   $pdfBase64 = $body['pdfBase64'] ?? '';
   $texBase64 = $body['texBase64'] ?? '';
+  $fisk      = $body['fisk'] ?? false;
+  $duration  = $body['duration'] ?? null;
+  if (!manus_valid_submission_duration($duration)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
   if (!is_string($id) || $id === ''
       || !in_array($type, ['sketch', 'sang'], true)
+      || !is_bool($fisk) || ($fisk && $type !== 'sang')
       || !is_string($title) || trim($title) === ''
       || !is_string($sender) || trim($sender) === ''
       || !is_string($pdfBase64) || $pdfBase64 === ''
@@ -3945,11 +3970,15 @@ function manuscripts_update($body) {
     delete_file($oldTexPath, 'Opdater manus (omdøbt): ' . trim($title));
   }
 
-  update_file('data/manuscripts.json', function ($json) use ($id, $type, $title, $sender, $pdfPath, $texPath) {
+  update_file('data/manuscripts.json', function ($json) use ($id, $type, $fisk, $duration, $title, $sender, $pdfPath, $texPath) {
     $list = (is_array($json['submissions'] ?? null)) ? $json['submissions'] : [];
     foreach ($list as $i => $s) {
       if (($s['id'] ?? null) === $id) {
         $list[$i]['type']    = $type;
+        if ($fisk) $list[$i]['fisk'] = true;
+        else unset($list[$i]['fisk']);
+        if ($duration !== null) $list[$i]['duration'] = $duration;
+        else unset($list[$i]['duration']);
         $list[$i]['title']   = trim($title);
         $list[$i]['sender']  = trim($sender);
         $list[$i]['pdfPath'] = $pdfPath;
@@ -4138,6 +4167,8 @@ function save_manuscripts($payload) {
         || !isset($s['id'], $s['type'], $s['title'], $s['sender'], $s['pdfPath'], $s['texPath'], $s['createdAt'])
         || !is_string($s['id']) || $s['id'] === ''
         || !in_array($s['type'], ['sketch', 'sang'], true)
+        || (isset($s['fisk']) && !is_bool($s['fisk']))
+        || !manus_valid_submission_duration($s['duration'] ?? null)
         || !is_string($s['title']) || trim($s['title']) === ''
         || !is_string($s['sender'])
         || !is_string($s['pdfPath']) || !preg_match(ARCHIVE_MANUS_ANY_RE, $s['pdfPath'])

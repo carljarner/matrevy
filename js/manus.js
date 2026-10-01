@@ -104,6 +104,57 @@ const MANUS_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const MANUS_TYPES = ['sang', 'sketch'];
 const MANUS_TYPE_COLUMN_LABEL = { sketch: 'Sketches', sang: 'Sange' };
 
+// ── "Sang (fisk)" ─────────────────────────────────────────────
+// A fisk is an ordinary song (type 'sang' everywhere — folders, scenes,
+// PDFs, Øveplan) carrying an extra `fisk: true` on its submission record.
+// The flag only matters at the selection stage: the Sange column lists fisk
+// songs last, below a divider, as `Fisk: Title` (upload pool, Vælg scener,
+// Stemmeark/Indtast point). The upload type toggle exposes it as a third
+// pseudo-type value, split back into {type, fisk} before sending.
+const MANUS_FISK_TOGGLE_VALUE = 'sangFisk';
+const MANUS_TYPE_TOGGLE_OPTIONS = [
+  { value: 'sang', label: 'Sang' },
+  { value: 'sketch', label: 'Sketch' },
+  { value: MANUS_FISK_TOGGLE_VALUE, label: 'Sang (fisk)' },
+];
+
+function manusSplitToggleValue(value) {
+  return value === MANUS_FISK_TOGGLE_VALUE ? { type: 'sang', fisk: true } : { type: value, fisk: false };
+}
+
+function manusFiskLabel(title) {
+  return `Fisk: ${title}`;
+}
+
+// Alphabetical non-fisk items first, then alphabetical fisk items — the one
+// ordering shared by every selection-stage song list.
+function manusSortWithFisk(items, isFisk, titleOf) {
+  const byTitle = (a, b) => titleOf(a).localeCompare(titleOf(b), 'da');
+  return {
+    normal: items.filter(i => !isFisk(i)).sort(byTitle),
+    fisk: items.filter(isFisk).sort(byTitle),
+  };
+}
+
+function manusCreateFiskDivider() {
+  const hr = document.createElement('hr');
+  hr.className = 'manus-fisk-divider';
+  return hr;
+}
+
+// Submissions sorted + labelled for the Stemmeark/Indtast point lists.
+// Returns shallow copies with `title` swapped for the Fisk label, so both
+// the printed sheet and the point-entry modal show it (votes stay keyed by
+// the unchanged submission id).
+function manusVotingItems(type) {
+  const { normal, fisk } = manusSortWithFisk(
+    getEffectiveManuscripts().filter(s => s.type === type),
+    s => s.fisk === true,
+    s => s.title
+  );
+  return normal.concat(fisk.map(s => ({ ...s, title: manusFiskLabel(s.title) })));
+}
+
 // Public-repo raw base for the .tex auto-import below (see
 // manusImportFromTex()) — the repo has no auth needs for a read of its own
 // public content, so a plain fetch() needs no server round-trip.
@@ -240,8 +291,8 @@ function manusUploadsClosed(type) {
 // The Sketch/Sang options still open for revyst upload, in the same order
 // createManusTypeToggle's own default uses.
 function manusOpenTypeOptions() {
-  return [{ value: 'sang', label: 'Sang' }, { value: 'sketch', label: 'Sketch' }]
-    .filter(opt => !manusUploadsClosed(opt.value));
+  return MANUS_TYPE_TOGGLE_OPTIONS
+    .filter(opt => !manusUploadsClosed(manusSplitToggleValue(opt.value).type));
 }
 
 // ── Any-level authenticated API (revyst-level manuscripts_create) ──
@@ -372,14 +423,14 @@ function manusStartPendingPoll() {
 }
 
 // ── Upload pool: two-column render ────────────────────────────
-function renderPdfRow(item) {
+function renderPdfRow(item, displayTitle = item.title) {
   const row = document.createElement('div');
   row.className = 'manus-pdf-row';
 
   if (item.pendingDeploy) {
     const pending = document.createElement('span');
     pending.className = 'manus-pdf-title manus-pdf-pending';
-    pending.textContent = item.title;
+    pending.textContent = displayTitle;
     row.appendChild(pending);
 
     const status = document.createElement('span');
@@ -392,7 +443,7 @@ function renderPdfRow(item) {
     link.href = item.pdfPath;
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
-    link.textContent = item.title;
+    link.textContent = displayTitle;
     row.appendChild(link);
   }
 
@@ -423,10 +474,8 @@ function renderColumn(type) {
   const section = document.createElement('section');
   section.className = 'card manus-column';
 
-  const items = getEffectiveManuscripts()
-    .filter(s => s.type === type)
-    .slice()
-    .sort((a, b) => a.title.localeCompare(b.title, 'da'));
+  const items = getEffectiveManuscripts().filter(s => s.type === type);
+  const { normal, fisk } = manusSortWithFisk(items, s => s.fisk === true, s => s.title);
 
   let expanded = !siteHasLevel('boss');
 
@@ -461,7 +510,9 @@ function renderColumn(type) {
     empty.textContent = 'Ingen upload endnu.';
     list.appendChild(empty);
   } else {
-    for (const item of items) list.appendChild(renderPdfRow(item));
+    for (const item of normal) list.appendChild(renderPdfRow(item));
+    if (fisk.length) list.appendChild(manusCreateFiskDivider());
+    for (const item of fisk) list.appendChild(renderPdfRow(item, manusFiskLabel(item.title)));
   }
   list.style.display = expanded ? '' : 'none';
   section.appendChild(list);
@@ -538,10 +589,10 @@ function manusIsPendingSubmission(item) {
   return typeof item.pdfPath === 'string' && item.pdfPath.includes('/submitted/');
 }
 
-// Two mutually-exclusive clickable boxes (Sketch/Sang) replacing a plain
-// dropdown, since there are only two options and neither is a sensible
+// Mutually-exclusive clickable boxes (Sang/Sketch/Sang (fisk)) replacing a
+// plain dropdown, since there are only a few options and none is a sensible
 // default — the uploader must actively choose one.
-function createManusTypeToggle(options = [{ value: 'sang', label: 'Sang' }, { value: 'sketch', label: 'Sketch' }]) {
+function createManusTypeToggle(options = MANUS_TYPE_TOGGLE_OPTIONS) {
   const wrap = document.createElement('div');
   wrap.className = 'manus-type-toggle';
   let selected = null;
@@ -608,7 +659,7 @@ function openUploadModal() {
   actions.appendChild(save);
 
   save.addEventListener('click', async () => {
-    const type = typeToggle.value;
+    const { type, fisk } = manusSplitToggleValue(typeToggle.value);
     const title = titleInput.value.trim();
     const sender = senderInput.value.trim();
     const pdfFile = pdfInput.files[0] || null;
@@ -638,9 +689,10 @@ function openUploadModal() {
     save.textContent = 'Uploader…';
     error.textContent = '';
 
-    let pdfBase64, texBase64;
+    let pdfBase64, texBase64, duration;
     try {
       [pdfBase64, texBase64] = await Promise.all([manusFileToBase64(pdfFile), manusFileToBase64(texFile)]);
+      duration = extractTexDuration(await texFile.text());
     } catch (e) {
       save.disabled = false;
       save.textContent = 'Upload';
@@ -648,15 +700,17 @@ function openUploadModal() {
       return;
     }
 
-    const result = await manusApi('manuscripts_create', { type, title, sender, pdfBase64, texBase64 });
+    const result = await manusApi('manuscripts_create', { type, fisk, title, sender, duration, pdfBase64, texBase64 });
     save.disabled = false;
     save.textContent = 'Upload';
     if (result.ok) {
       const local = {
         id: result.data.id,
         type,
+        ...(fisk ? { fisk: true } : {}),
         title,
         sender,
+        duration,
         pdfPath: result.data.pdfPath,
         texPath: result.data.texPath,
         createdAt: nowIso(),
@@ -729,7 +783,7 @@ function openUpdateModal() {
   function populateFromItem(item) {
     titleInput.value = item.title;
     senderInput.value = item.sender;
-    typeToggle.select(item.type);
+    typeToggle.select(item.fisk ? MANUS_FISK_TOGGLE_VALUE : item.type);
     pdfInput.value = '';
     texInput.value = '';
     error.textContent = '';
@@ -747,7 +801,7 @@ function openUpdateModal() {
 
   save.addEventListener('click', () => {
     const selected = eligible.find(s => s.id === sceneField.value);
-    const type = typeToggle.value;
+    const { type, fisk } = manusSplitToggleValue(typeToggle.value);
     const title = titleInput.value.trim();
     const sender = senderInput.value.trim();
     const pdfFile = pdfInput.files[0] || null;
@@ -778,17 +832,21 @@ function openUpdateModal() {
     }
 
     openManuscriptUpdateConfirm(async () => {
-      let pdfBase64, texBase64;
+      let pdfBase64, texBase64, duration;
       try {
         [pdfBase64, texBase64] = await Promise.all([manusFileToBase64(pdfFile), manusFileToBase64(texFile)]);
+        duration = extractTexDuration(await texFile.text());
       } catch (e) {
         return { ok: false, message: 'Kunne ikke læse filerne. Prøv igen.' };
       }
-      const result = await manusApi('manuscripts_update', { id: selected.id, type, title, sender, pdfBase64, texBase64 });
+      const result = await manusApi('manuscripts_update', { id: selected.id, type, fisk, title, sender, duration, pdfBase64, texBase64 });
       if (result.ok) {
-        manuscriptsOverride = getEffectiveManuscripts().map(s => s.id === selected.id
-          ? { ...s, type, title, sender, pdfPath: result.data.pdfPath, texPath: result.data.texPath, pendingDeploy: true }
-          : s);
+        manuscriptsOverride = getEffectiveManuscripts().map(s => {
+          if (s.id !== selected.id) return s;
+          const next = { ...s, type, title, sender, duration, pdfPath: result.data.pdfPath, texPath: result.data.texPath, pendingDeploy: true };
+          if (fisk) next.fisk = true; else delete next.fisk;
+          return next;
+        });
         siteSaveOverride('manuscripts', manuscriptsOverride);
         renderColumns();
         manusStartPendingPoll();
@@ -940,10 +998,7 @@ function manusRenderPrintTable(titleText, rows) {
 }
 
 function manusOpenVotingSheet(type) {
-  const items = getEffectiveManuscripts()
-    .filter(s => s.type === type)
-    .slice()
-    .sort((a, b) => a.title.localeCompare(b.title, 'da'));
+  const items = manusVotingItems(type);
 
   manusRenderPrintTable(
     `Stemmeark – ${MANUS_TYPE_COLUMN_LABEL[type]}`,
@@ -1026,10 +1081,7 @@ function savePointsStore(store) {
 // Same source/filter/sort as manusOpenVotingSheet() so this modal's row
 // order always matches what's on the physical printed sheet.
 function pointsItemsForType(type) {
-  return getEffectiveManuscripts()
-    .filter(s => s.type === type)
-    .slice()
-    .sort((a, b) => a.title.localeCompare(b.title, 'da'));
+  return manusVotingItems(type);
 }
 
 function isPointsSheetEmpty(sheet) {
@@ -1712,7 +1764,9 @@ function manusInitDraft() {
       submission: sub,
       selected: manusSubmissionIsSelected(sub),
       appliedSelected: manusSubmissionIsSelected(sub),
-      duration: null,
+      // Seeded from the \eta{} parsed at upload time (see openUploadModal) —
+      // just the default; boss/admin can change it freely afterwards.
+      duration: typeof sub.duration === 'number' ? sub.duration : null,
       cast: [],
       priority: 0,
       dansPriority: null,
@@ -1764,6 +1818,16 @@ function manusRowTitle(row) {
   if (row.titleOverride) return row.titleOverride;
   if (row.origin === 'manual') return row.manualName;
   return row.origin === 'existing' ? row.scene.name : row.submission.title;
+}
+
+// A pool row reads its own submission; an already-graduated scene looks its
+// submission back up by sourcePdf, so a selected fisk keeps its place after
+// a save+reload.
+function manusRowIsFisk(row) {
+  if (row.origin === 'pool') return row.submission.fisk === true;
+  if (row.origin !== 'existing' || !row.scene.sourcePdf) return false;
+  const sub = getEffectiveManuscripts().find(s => s.pdfPath === row.scene.sourcePdf);
+  return !!sub && sub.fisk === true;
 }
 
 function manusRowType(row) {
@@ -2466,10 +2530,8 @@ function renderSelectColumn(type) {
   const section = document.createElement('section');
   section.className = 'card manus-column';
 
-  const rows = manusDraft.rows
-    .filter(r => manusRowType(r) === type)
-    .slice()
-    .sort((a, b) => manusRowTitle(a).localeCompare(manusRowTitle(b), 'da'));
+  const rows = manusDraft.rows.filter(r => manusRowType(r) === type);
+  const { normal, fisk } = manusSortWithFisk(rows, manusRowIsFisk, manusRowTitle);
   const selectedCount = rows.filter(r => r.selected === true).length;
 
   const header = document.createElement('div');
@@ -2491,7 +2553,9 @@ function renderSelectColumn(type) {
     empty.textContent = 'Ingen upload endnu.';
     list.appendChild(empty);
   } else {
-    for (const row of rows) list.appendChild(renderSelectRow(row));
+    for (const row of normal) list.appendChild(renderSelectRow(row));
+    if (fisk.length) list.appendChild(manusCreateFiskDivider());
+    for (const row of fisk) list.appendChild(renderSelectRow(row, { displayTitle: manusFiskLabel(manusRowTitle(row)) }));
   }
   section.appendChild(list);
 
@@ -2627,7 +2691,7 @@ function manusCreateDurationInput(row) {
 // (and therefore never affects the tab/Aktfordeling behind it) until its own
 // Gem commits the whole batch at once. The non-interactive (background tab)
 // call site below omits both and falls back to the row's real committed state.
-function renderSelectRow(row, { interactive = false, selected = row.selected === true, onToggle = null } = {}) {
+function renderSelectRow(row, { interactive = false, selected = row.selected === true, onToggle = null, displayTitle = manusRowTitle(row) } = {}) {
   const el = document.createElement('div');
   el.className = 'manus-select-row' + (selected ? ' manus-select-row-selected' : '');
 
@@ -2639,7 +2703,7 @@ function renderSelectRow(row, { interactive = false, selected = row.selected ===
   const pdfPath = !interactive ? manusRowPdfPath(row) : null;
   const title = document.createElement(pdfPath ? 'a' : 'span');
   title.className = 'manus-pdf-title';
-  title.textContent = manusRowTitle(row);
+  title.textContent = displayTitle;
   if (pdfPath) {
     title.href = pdfPath;
     title.target = '_blank';
@@ -2662,6 +2726,10 @@ function renderSelectRow(row, { interactive = false, selected = row.selected ===
 
   const durationInput = manusCreateDurationInput(row);
   durationInput.dataset.manusSelectDuration = row.key;
+  // Backfills a still-empty duration from the .tex's \eta{} (submissions
+  // uploaded before duration was stored at upload, and existing scenes that
+  // never got one) — see manusImportFromTex().
+  if (row.duration == null) manusImportFromTex(row);
   el.appendChild(durationInput);
   const suffix = document.createElement('span');
   suffix.className = 'manus-akt-duration-suffix';
@@ -2931,10 +2999,8 @@ function openSelectScenesOverlay() {
   function renderOverlayLists() {
     listsMount.textContent = '';
     for (const type of MANUS_TYPES) {
-      const rows = manusDraft.rows
-        .filter(r => manusRowType(r) === type)
-        .slice()
-        .sort((a, b) => manusRowTitle(a).localeCompare(manusRowTitle(b), 'da'));
+      const rows = manusDraft.rows.filter(r => manusRowType(r) === type);
+      const { normal, fisk } = manusSortWithFisk(rows, manusRowIsFisk, manusRowTitle);
 
       const group = document.createElement('div');
       group.className = 'manus-select-overlay-group';
@@ -2950,8 +3016,11 @@ function openSelectScenesOverlay() {
         empty.textContent = 'Ingen upload endnu.';
         list.appendChild(empty);
       } else {
-        for (const row of rows) {
-          list.appendChild(renderSelectRow(row, { interactive: true, selected: pending.get(row.key), onToggle: togglePending }));
+        const opts = row => ({ interactive: true, selected: pending.get(row.key), onToggle: togglePending });
+        for (const row of normal) list.appendChild(renderSelectRow(row, opts(row)));
+        if (fisk.length) list.appendChild(manusCreateFiskDivider());
+        for (const row of fisk) {
+          list.appendChild(renderSelectRow(row, { ...opts(row), displayTitle: manusFiskLabel(manusRowTitle(row)) }));
         }
       }
       group.appendChild(list);
