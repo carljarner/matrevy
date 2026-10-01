@@ -1800,6 +1800,34 @@ a.manus-pdf-title:focus-visible {
   }
 
   .manus-print-table tr { page-break-inside: avoid; }
+
+  /* Udskriv → Boxplot (manusPrintPointBoxplot): keeps the on-screen colors.
+     An A4 page is narrower than the 719px breakpoint, so this also undoes
+     the mobile rules (hidden legend, narrow title column) and lets long
+     titles wrap instead of truncating — the whole point is the full view. */
+  .manus-print-box,
+  .manus-print-box * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .manus-print-box .manus-points-box-head {
+    position: static;
+    background: #fff;
+  }
+
+  .manus-print-box .manus-points-box-row { page-break-inside: avoid; }
+
+  .manus-print-box .manus-points-box-title,
+  .manus-print-box .manus-points-box-legend { flex-basis: 30%; }
+
+  .manus-print-box .manus-points-box-title { white-space: normal; }
+
+  .manus-print-box .manus-points-box-legend { visibility: visible; }
+
+  .manus-print-box .manus-points-box-count { flex-basis: 3rem; }
+
+  .manus-print-box .manus-points-box-mean { box-shadow: 0 0 0 2px #fff; }
 }
 
 /* --- Program tab (Medvirkende / Ordliste / QR-koder) ------------- */

@@ -965,6 +965,26 @@ function manusPrintPointResults(type, rows) {
   );
 }
 
+// Udskriv → Boxplot: the very same buildPointsBoxplot() the results view
+// shows, in its on-screen colors (see .manus-print-box in manus.css's
+// @media print block) rather than the typewriter table style — it's meant
+// as a complete one-glance overview, not a sheet to fill in.
+function manusPrintPointBoxplot(type, rows) {
+  const sheet = document.getElementById('manus-print-sheet');
+  sheet.textContent = '';
+
+  const title = document.createElement('h2');
+  title.className = 'manus-print-title';
+  title.textContent = `Point – ${MANUS_TYPE_COLUMN_LABEL[type]}`;
+  sheet.appendChild(title);
+
+  const plot = buildPointsBoxplot(rows);
+  plot.classList.add('manus-print-box');
+  sheet.appendChild(plot);
+
+  window.print();
+}
+
 // ── "Indtast point": transcribe one paper Stemmeark at a time ──
 // Purely localStorage-based (matrevy-manus-points) — unlike every other
 // Manus resource this deliberately never syncs through the server/GitHub;
@@ -1277,15 +1297,27 @@ function openPointEntryModal(type) {
     const printBtn = document.createElement('button');
     printBtn.type = 'button';
     printBtn.className = 'site-btn-warm manus-points-col-center';
-    printBtn.textContent = 'Udskriv';
+    printBtn.textContent = 'Udskriv ▾';
+    // Small Tabel/Boxplot menu (the shared site-utils dropdown popup),
+    // pre-selecting whichever view is currently on screen.
     printBtn.addEventListener('click', () => {
-      // Close the modal first — otherwise it's still sitting on top of the
-      // actual print sheet at print time (it isn't hidden by the @media
-      // print rules, since manusOpenVotingSheet never has a modal open when
-      // it prints), which is what made the printout look like a screenshot
-      // of the app instead of the plain typewriter-style sheet.
-      close();
-      manusPrintPointResults(type, rows);
+      siteToggleFieldPopup(printBtn, () => {
+        siteOpenDropdownPicker(
+          printBtn,
+          [{ value: 'table', label: 'Tabel' }, { value: 'boxplot', label: 'Boxplot' }],
+          resultsView,
+          (choice) => {
+            // Close the modal first — otherwise it's still sitting on top of
+            // the actual print sheet at print time (it isn't hidden by the
+            // @media print rules, since manusOpenVotingSheet never has a
+            // modal open when it prints), which is what made the printout
+            // look like a screenshot of the app instead of the print sheet.
+            close();
+            if (choice === 'boxplot') manusPrintPointBoxplot(type, rows);
+            else manusPrintPointResults(type, rows);
+          }
+        );
+      });
     });
 
     const backBtn = document.createElement('button');
