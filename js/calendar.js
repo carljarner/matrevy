@@ -4,7 +4,9 @@
    data/calendar.json); admins add/edit/delete events, saved
    globally via siteSaveResource ('calendar' resource in
    server/update-data.php). Below it, an admin-edited Gantt chart of
-   the revy period (GANTT_DATA, 'gantt' resource — see renderGantt).
+   the revy period (GANTT_DATA, 'gantt' resource — see renderGantt), and
+   below that the revyst-only "Revyugen" week schedule (REVYUGEN_DATA,
+   'revyugen' resource — see renderRevyugen).
 
    DOM is built via createElement/textContent only — no innerHTML.
    ========================================================= */
@@ -403,19 +405,26 @@ async function saveEvents(next) {
 // (site-utils.js) directly — only the category field is Kalender-specific
 // (it needs a coloured dot per option), built on the same siteOpenFieldPopup
 // primitive those share.
-function openCalCategoryPicker(anchor, currentKey, onSelect) {
+// Kalender's own categories as {key, label, dotClass} options — the
+// default for calCreateCategoryField; Revyugen passes its own list.
+function calEventCategoryOptions() {
+  return Object.entries(CAL_CATEGORIES).map(([key, def]) => ({ key, label: def.label, dotClass: calCategoryClass(key) }));
+}
+
+function openCalCategoryPicker(anchor, currentKey, options, onSelect) {
   const pop = document.createElement('div');
   pop.className = 'site-field-pop site-dd-pop';
 
-  for (const [key, def] of Object.entries(CAL_CATEGORIES)) {
+  for (const opt of options) {
+    const key = opt.key;
     const row = document.createElement('button');
     row.type = 'button';
     row.className = 'site-list-row cal-cp-row';
     if (key === currentKey) row.classList.add('site-list-selected');
     const dot = document.createElement('span');
-    dot.className = `cal-dot ${calCategoryClass(key)}`;
+    dot.className = `cal-dot ${opt.dotClass}`;
     row.appendChild(dot);
-    row.appendChild(document.createTextNode(def.label));
+    row.appendChild(document.createTextNode(opt.label));
     row.addEventListener('click', () => { close(); onSelect(key); });
     pop.appendChild(row);
   }
@@ -423,7 +432,7 @@ function openCalCategoryPicker(anchor, currentKey, onSelect) {
   const close = siteOpenFieldPopup(anchor, pop);
 }
 
-function calCreateCategoryField(initialKey) {
+function calCreateCategoryField(initialKey, options = calEventCategoryOptions()) {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'site-field-btn';
@@ -442,10 +451,11 @@ function calCreateCategoryField(initialKey) {
   btn.appendChild(left);
   btn.appendChild(chevron);
 
-  let _value = initialKey || 'ove';
+  let _value = initialKey || options[0].key;
   function render() {
-    dot.className = `cal-dot ${calCategoryClass(_value)}`;
-    text.textContent = calCategoryLabel(_value);
+    const opt = options.find(o => o.key === _value) || options[0];
+    dot.className = `cal-dot ${opt.dotClass}`;
+    text.textContent = opt.label;
   }
   Object.defineProperty(btn, 'value', {
     get() { return _value; },
@@ -455,7 +465,7 @@ function calCreateCategoryField(initialKey) {
 
   btn.addEventListener('click', () => {
     siteToggleFieldPopup(btn, () => {
-      openCalCategoryPicker(btn, _value, (key) => {
+      openCalCategoryPicker(btn, _value, options, (key) => {
         _value = key;
         render();
         btn.dispatchEvent(new Event('change'));
@@ -663,7 +673,7 @@ let ganttDraft = null; // non-null while admin edit mode is open
 let ganttSaving = false;
 let ganttError = '';
 let ganttDragId = null;
-let ganttTooltipEl = null;
+let calTooltipEl = null;
 
 function getEffectiveGantt() {
   const data = ganttOverride || (typeof GANTT_DATA !== 'undefined' ? GANTT_DATA : null);
@@ -722,23 +732,30 @@ function ganttBarRangeLabel(bar) {
   return bar.start === bar.end ? formatDaDate(bar.start) : `${formatDaDate(bar.start)} – ${formatDaDate(bar.end)}`;
 }
 
-// Hover tooltip on a bar: the bar's date range (a single date for a
-// one-day bar), with its label above when it has one — a short bar
-// truncates its own label. Same look as faellesspisning.js's
-// faellesShowFieldTooltip (duplicated per the per-feature convention).
-function ganttShowTooltip(anchor, bar) {
-  ganttHideTooltip();
+// Hover tooltip on a Gantt bar or Revyugen block: `text` (a bar's date
+// range, a block's time range), with `label` above when there is one — a
+// short bar/block truncates its own label — and an optional `note` below. Same look as
+// faellesspisning.js's faellesShowFieldTooltip (duplicated per the
+// per-feature convention).
+function calShowTooltip(anchor, label, text, note) {
+  calHideTooltip();
   const tip = document.createElement('div');
   tip.className = 'gantt-tooltip';
-  if (bar.label) {
-    const label = document.createElement('div');
-    label.className = 'gantt-tooltip-label';
-    label.textContent = bar.label;
-    tip.appendChild(label);
+  if (label) {
+    const labelEl = document.createElement('div');
+    labelEl.className = 'gantt-tooltip-label';
+    labelEl.textContent = label;
+    tip.appendChild(labelEl);
   }
   const range = document.createElement('div');
-  range.textContent = ganttBarRangeLabel(bar);
+  range.textContent = text;
   tip.appendChild(range);
+  if (note) {
+    const noteEl = document.createElement('div');
+    noteEl.className = 'gantt-tooltip-note';
+    noteEl.textContent = note;
+    tip.appendChild(noteEl);
+  }
   document.body.appendChild(tip);
   const anchorRect = anchor.getBoundingClientRect();
   const tipRect = tip.getBoundingClientRect();
@@ -749,15 +766,15 @@ function ganttShowTooltip(anchor, bar) {
   if (left < 4) left = 4;
   tip.style.top = `${top}px`;
   tip.style.left = `${left}px`;
-  ganttTooltipEl = tip;
+  calTooltipEl = tip;
 }
 
-function ganttHideTooltip() {
-  if (ganttTooltipEl) { ganttTooltipEl.remove(); ganttTooltipEl = null; }
+function calHideTooltip() {
+  if (calTooltipEl) { calTooltipEl.remove(); calTooltipEl = null; }
 }
 // position:fixed — any scroll (page or the chart's own horizontal
 // scroller, hence capture) would leave it floating away from its bar.
-window.addEventListener('scroll', ganttHideTooltip, true);
+window.addEventListener('scroll', calHideTooltip, true);
 
 // Off-screen drag image for row reordering — see forms.js's
 // formsGetDragImageEl for the rationale (CLAUDE.md's drag-image recipe).
@@ -815,7 +832,7 @@ function renderGantt() {
   if (!canEdit) ganttDraft = null;
   const editing = ganttDraft !== null;
   const data = editing ? ganttDraft : getEffectiveGantt();
-  ganttHideTooltip(); // its bar is about to be replaced
+  calHideTooltip(); // its bar is about to be replaced
 
   card.textContent = '';
   card.hidden = !canEdit && data.rows.length === 0;
@@ -1002,9 +1019,9 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
     bar.style.setProperty('--gantt-lane', String(v.lane));
     bar.textContent = v.bar.label;
     bar.setAttribute('aria-label', v.bar.label ? `${v.bar.label}: ${ganttBarRangeLabel(v.bar)}` : ganttBarRangeLabel(v.bar));
-    bar.addEventListener('mouseenter', () => ganttShowTooltip(bar, v.bar));
-    bar.addEventListener('mouseleave', ganttHideTooltip);
-    if (editing) bar.addEventListener('click', () => { ganttHideTooltip(); ganttOpenBarEditor(row, v.bar); });
+    bar.addEventListener('mouseenter', () => calShowTooltip(bar, v.bar.label, ganttBarRangeLabel(v.bar)));
+    bar.addEventListener('mouseleave', calHideTooltip);
+    if (editing) bar.addEventListener('click', () => { calHideTooltip(); ganttOpenBarEditor(row, v.bar); });
     track.appendChild(bar);
   }
 
@@ -1124,6 +1141,32 @@ function ganttRemoveRow(row) {
   actions.appendChild(confirmBtn);
 }
 
+// Colour swatches (GANTT_COLORS) for the Gantt bar editor — the chosen one gets the site-wide orange "selected" ring.
+function calBuildColorSwatches(initial, onPick) {
+  let color = initial;
+  const swatches = document.createElement('div');
+  swatches.className = 'gantt-swatches';
+  swatches.setAttribute('role', 'radiogroup');
+  swatches.setAttribute('aria-label', 'Farve');
+  function render() {
+    swatches.textContent = '';
+    for (const c of GANTT_COLORS) {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = `gantt-swatch gantt-color-${c.key}`;
+      if (c.key === color) sw.classList.add('gantt-swatch-selected');
+      sw.title = c.label;
+      sw.setAttribute('role', 'radio');
+      sw.setAttribute('aria-label', c.label);
+      sw.setAttribute('aria-checked', String(c.key === color));
+      sw.addEventListener('click', () => { color = c.key; onPick(c.key); render(); });
+      swatches.appendChild(sw);
+    }
+  }
+  render();
+  return swatches;
+}
+
 // Add/edit one bar in the draft. Nothing is saved here — the card's own Gem
 // sends the whole chart.
 function ganttOpenBarEditor(row, bar, defaultStart) {
@@ -1162,30 +1205,8 @@ function ganttOpenBarEditor(row, bar, defaultStart) {
   dateRow.appendChild(siteEditField('Til', endField));
   form.appendChild(dateRow);
 
-  // Colour swatches — the chosen one gets the site-wide orange
-  // "selected" ring.
   let color = ganttBarColor(bar, ganttDraft.rows.indexOf(row));
-  const swatches = document.createElement('div');
-  swatches.className = 'gantt-swatches';
-  swatches.setAttribute('role', 'radiogroup');
-  swatches.setAttribute('aria-label', 'Farve');
-  function renderSwatches() {
-    swatches.textContent = '';
-    for (const c of GANTT_COLORS) {
-      const sw = document.createElement('button');
-      sw.type = 'button';
-      sw.className = `gantt-swatch gantt-color-${c.key}`;
-      if (c.key === color) sw.classList.add('gantt-swatch-selected');
-      sw.title = c.label;
-      sw.setAttribute('role', 'radio');
-      sw.setAttribute('aria-label', c.label);
-      sw.setAttribute('aria-checked', String(c.key === color));
-      sw.addEventListener('click', () => { color = c.key; renderSwatches(); });
-      swatches.appendChild(sw);
-    }
-  }
-  renderSwatches();
-  form.appendChild(siteEditField('Farve', swatches));
+  form.appendChild(siteEditField('Farve', calBuildColorSwatches(color, (c) => { color = c; })));
 
   if (bar) {
     const del = calPillBtn('Slet', 'site-btn-danger');
@@ -1297,6 +1318,480 @@ async function ganttSave() {
   renderGantt();
 }
 
+// ── Revyugen (week schedule) ─────────────────────────────────
+// Hour-by-hour plan for the revy's final days, below the Gantt chart, from
+// data/revyugen.json (REVYUGEN_DATA) via the admin-only 'revyugen'
+// resource. Days run across the top (`startDate`–`endDate`), time
+// down the side (`startHour`–`endHour`); each block is one timed entry on
+// one day, and overlapping blocks share their day column side by side.
+// Visible to revyst+ only (hidden while empty below admin); admin edits a
+// local draft (revyugenDraft) and nothing is saved until "Gem".
+const REVYUGEN_DEFAULT_DAYS = 9;
+const REVYUGEN_MAX_DAYS = 31; // mirrored by save_revyugen
+const REVYUGEN_SNAP_MINUTES = 30;
+// What a block's colour means — the same five hues as Kalender's own
+// categories (.revyugen-color-<color> in calendar.css), but with
+// Revyugen's own meanings. Order = legend/dropdown order. Mirrored by
+// save_revyugen's allow-list.
+const REVYUGEN_CATEGORIES = [
+  { key: 'ove',          label: 'Øvning',       color: 'blue' },
+  { key: 'frivillig',    label: 'Frivillig',    color: 'green' },
+  { key: 'scenefolk',    label: 'Scenefolk',    color: 'yellow' },
+  { key: 'obligatorisk', label: 'Obligatorisk', color: 'red' },
+  { key: 'andet',        label: 'Andet',        color: 'purple' },
+];
+
+let revyugenOverride = siteLoadOverride('revyugen');
+let revyugenDraft = null; // non-null while admin edit mode is open
+let revyugenSaving = false;
+let revyugenError = '';
+
+function getEffectiveRevyugen() {
+  const data = revyugenOverride || (typeof REVYUGEN_DATA !== 'undefined' ? REVYUGEN_DATA : null);
+  if (data && Array.isArray(data.blocks)) return data;
+  const startDate = todayIso();
+  return { startDate, endDate: calAddDaysIso(startDate, REVYUGEN_DEFAULT_DAYS - 1), startHour: 8, endHour: 24, blocks: [] };
+}
+
+// `endDate` is optional on read — a file saved without one shows the
+// default nine days.
+function revyugenEndDate(data) {
+  return data.endDate || calAddDaysIso(data.startDate, REVYUGEN_DEFAULT_DAYS - 1);
+}
+
+function revyugenDays(data) {
+  const days = [];
+  const end = revyugenEndDate(data);
+  for (let iso = data.startDate; iso <= end && days.length < REVYUGEN_MAX_DAYS; iso = calAddDaysIso(iso, 1)) days.push(iso);
+  return days;
+}
+
+// "Lør 14/11" — compact enough for many columns side by side.
+function revyugenDayLabel(iso) {
+  const d = parseIsoDate(iso);
+  const wd = DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7];
+  return `${wd.charAt(0).toUpperCase() + wd.slice(1)} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+function revyugenToMinutes(hhmm) {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function revyugenFromMinutes(min) {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+function revyugenCategory(key) {
+  return REVYUGEN_CATEGORIES.find(c => c.key === key) || REVYUGEN_CATEGORIES[REVYUGEN_CATEGORIES.length - 1];
+}
+
+function revyugenRangeLabel(block) {
+  return `${block.start} – ${block.end}`;
+}
+
+// Clips one day's blocks to the visible hours, then lays out overlapping
+// ones side by side: blocks that (transitively) overlap form a cluster, and
+// each gets the first free column within it — the usual week-view layout.
+function revyugenLayoutDay(blocks, minStart, minEnd) {
+  const items = [];
+  for (const block of blocks) {
+    const s = Math.max(minStart, revyugenToMinutes(block.start));
+    const e = Math.min(minEnd, revyugenToMinutes(block.end));
+    if (s >= e) continue;
+    items.push({ block, s, e, col: 0, cols: 1 });
+  }
+  items.sort((a, b) => a.s - b.s || b.e - a.e);
+  let cluster = [];
+  let clusterEnd = -1;
+  function flush() {
+    const cols = cluster.reduce((n, it) => Math.max(n, it.col + 1), 1);
+    for (const it of cluster) it.cols = cols;
+    cluster = [];
+  }
+  const colEnds = [];
+  for (const it of items) {
+    if (it.s >= clusterEnd) {
+      flush();
+      colEnds.length = 0;
+      clusterEnd = -1;
+    }
+    let col = colEnds.findIndex(end => end <= it.s);
+    if (col === -1) { col = colEnds.length; colEnds.push(it.e); } else colEnds[col] = it.e;
+    it.col = col;
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.e);
+  }
+  flush();
+  return items;
+}
+
+function renderRevyugen() {
+  const card = document.getElementById('revyugen-card');
+  if (!card) return;
+  const canEdit = siteHasLevel('admin');
+  if (!canEdit) revyugenDraft = null;
+  const editing = revyugenDraft !== null;
+  const data = editing ? revyugenDraft : getEffectiveRevyugen();
+  calHideTooltip(); // its block is about to be replaced
+
+  card.textContent = '';
+  card.hidden = !siteHasLevel('revyst') || (!canEdit && data.blocks.length === 0);
+  if (card.hidden) return;
+
+  const head = document.createElement('div');
+  head.className = 'gantt-head revyugen-head';
+  const title = document.createElement('h2');
+  title.className = 'gantt-title';
+  title.textContent = `Revyugen ${data.startDate.slice(0, 4)}`;
+  head.appendChild(title);
+  if (editing) {
+    head.appendChild(revyugenBuildSettings());
+  } else {
+    head.classList.add('revyugen-head-view');
+    head.appendChild(revyugenBuildLegend());
+  }
+  if (!editing && canEdit) {
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'btn-small gantt-edit-btn';
+    editBtn.textContent = 'Rediger';
+    editBtn.addEventListener('click', () => {
+      revyugenDraft = structuredClone(getEffectiveRevyugen());
+      revyugenDraft.endDate = revyugenEndDate(revyugenDraft);
+      revyugenError = '';
+      renderRevyugen();
+    });
+    head.appendChild(editBtn);
+  }
+  card.appendChild(head);
+
+  const days = revyugenDays(data);
+  const minStart = data.startHour * 60;
+  const minEnd = data.endHour * 60;
+  const hours = data.endHour - data.startHour;
+  const today = todayIso();
+
+  const scroll = document.createElement('div');
+  scroll.className = 'revyugen-scroll';
+  const grid = document.createElement('div');
+  grid.className = editing ? 'revyugen revyugen-editing' : 'revyugen';
+  grid.style.setProperty('--revyugen-hours', String(hours));
+  grid.style.setProperty('--revyugen-days', String(days.length));
+
+  // Header row: an empty corner over the time column, then one cell per day.
+  const corner = document.createElement('div');
+  corner.className = 'revyugen-corner';
+  grid.appendChild(corner);
+  for (const iso of days) {
+    const cell = document.createElement('div');
+    cell.className = 'revyugen-day-head';
+    if (iso === today) cell.classList.add('revyugen-today');
+    cell.textContent = revyugenDayLabel(iso);
+    grid.appendChild(cell);
+  }
+
+  const times = document.createElement('div');
+  times.className = 'revyugen-times';
+  for (let h = data.startHour; h < data.endHour; h++) {
+    const label = document.createElement('div');
+    label.className = 'revyugen-time';
+    label.style.setProperty('--revyugen-at', String(h - data.startHour));
+    label.textContent = `${String(h).padStart(2, '0')}:00`;
+    times.appendChild(label);
+  }
+  grid.appendChild(times);
+
+  for (const iso of days) {
+    const col = document.createElement('div');
+    col.className = 'revyugen-day';
+    if (iso === today) col.classList.add('revyugen-today');
+    const dayBlocks = data.blocks.filter(b => b.date === iso);
+    for (const it of revyugenLayoutDay(dayBlocks, minStart, minEnd)) {
+      col.appendChild(revyugenBuildBlock(it, minStart, editing));
+    }
+    if (editing) {
+      // Clicking an empty spot adds a block starting at that (snapped) time.
+      col.classList.add('revyugen-day-editable');
+      col.addEventListener('click', (e) => {
+        if (e.target !== col) return;
+        const rect = col.getBoundingClientRect();
+        const frac = Math.min(Math.max((e.clientY - rect.top) / rect.height, 0), 0.999);
+        const snapped = minStart + Math.floor((frac * hours * 60) / REVYUGEN_SNAP_MINUTES) * REVYUGEN_SNAP_MINUTES;
+        revyugenOpenBlockEditor(null, iso, snapped);
+      });
+    }
+    grid.appendChild(col);
+  }
+
+  scroll.appendChild(grid);
+  card.appendChild(scroll);
+
+  if (editing) card.appendChild(revyugenBuildEditFooter());
+}
+
+function revyugenBuildBlock(it, minStart, editing) {
+  const { block } = it;
+  const el = document.createElement(editing ? 'button' : 'div');
+  if (editing) el.type = 'button';
+  const cat = revyugenCategory(block.category);
+  el.className = `revyugen-block revyugen-color-${cat.color}`;
+  el.style.setProperty('--revyugen-top', String((it.s - minStart) / 60));
+  el.style.setProperty('--revyugen-len', String((it.e - it.s) / 60));
+  // 1px gap on each side so neighbouring blocks and the column lines
+  // don't run together.
+  el.style.left = `calc(${(it.col / it.cols) * 100}% + 1px)`;
+  el.style.width = `calc(${100 / it.cols}% - 2px)`;
+
+  const title = document.createElement('span');
+  title.className = 'revyugen-block-title';
+  title.textContent = block.title;
+  el.appendChild(title);
+  if (block.text) {
+    const text = document.createElement('span');
+    text.className = 'revyugen-block-text';
+    text.textContent = block.text;
+    el.appendChild(text);
+  }
+  const range = `${revyugenRangeLabel(block)} · ${cat.label}`;
+  el.setAttribute('aria-label', `${block.title}: ${range}${block.text ? `. ${block.text}` : ''}`);
+  el.addEventListener('mouseenter', () => calShowTooltip(el, block.title, range, block.text));
+  el.addEventListener('mouseleave', calHideTooltip);
+  if (editing) el.addEventListener('click', () => { calHideTooltip(); revyugenOpenBlockEditor(block); });
+  return el;
+}
+
+// Colour key, centered in the head (view mode only).
+function revyugenBuildLegend() {
+  const legend = document.createElement('div');
+  legend.className = 'revyugen-legend';
+  for (const cat of REVYUGEN_CATEGORIES) {
+    const item = document.createElement('span');
+    item.className = 'cal-legend-item';
+    const dot = document.createElement('span');
+    dot.className = `cal-dot revyugen-dot-${cat.color}`;
+    item.appendChild(dot);
+    item.appendChild(document.createTextNode(cat.label));
+    legend.appendChild(item);
+  }
+  return legend;
+}
+
+// Edit-mode header controls: the first/last day and the visible hour range.
+// Moving the first day moves the whole period — last day and every block —
+// by the same number of days (same constant-span behaviour as the event
+// editor's Dato/Slutdato pair), so next year's plan can start from this
+// year's; moving the last day only changes where the period ends.
+function revyugenBuildSettings() {
+  const wrap = document.createElement('div');
+  wrap.className = 'revyugen-settings';
+
+  const startField = siteCreateDateField(revyugenDraft.startDate);
+  startField.setAttribute('aria-label', 'Første dag');
+  startField.addEventListener('change', () => {
+    const next = startField.value;
+    const prev = revyugenDraft.startDate;
+    if (!next || next === prev) return;
+    const delta = calDaysBetweenIso(prev, next);
+    revyugenDraft.startDate = next;
+    revyugenDraft.endDate = calAddDaysIso(revyugenDraft.endDate, delta);
+    for (const block of revyugenDraft.blocks) block.date = calAddDaysIso(block.date, delta);
+    renderRevyugen();
+  });
+  wrap.appendChild(revyugenSettingsField('Første dag', startField));
+
+  const endField = siteCreateDateField(revyugenDraft.endDate);
+  endField.setAttribute('aria-label', 'Sidste dag');
+  endField.addEventListener('change', () => {
+    const start = revyugenDraft.startDate;
+    let next = endField.value;
+    if (!next) return;
+    if (next < start) next = start;
+    const maxEnd = calAddDaysIso(start, REVYUGEN_MAX_DAYS - 1);
+    if (next > maxEnd) next = maxEnd;
+    revyugenDraft.endDate = next;
+    renderRevyugen();
+  });
+  wrap.appendChild(revyugenSettingsField('Sidste dag', endField));
+
+  function hourInput(key, min, max, label) {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'revyugen-hour-input';
+    input.min = String(min);
+    input.max = String(max);
+    input.value = String(revyugenDraft[key]);
+    input.setAttribute('aria-label', label);
+    input.addEventListener('change', () => {
+      const v = parseInt(input.value, 10);
+      const other = key === 'startHour' ? revyugenDraft.endHour : revyugenDraft.startHour;
+      const ok = Number.isInteger(v) && v >= min && v <= max
+        && (key === 'startHour' ? v < other : v > other);
+      if (!ok) { input.value = String(revyugenDraft[key]); return; }
+      revyugenDraft[key] = v;
+      renderRevyugen();
+    });
+    return revyugenSettingsField(label, input);
+  }
+  wrap.appendChild(hourInput('startHour', 0, 23, 'Fra kl.'));
+  wrap.appendChild(hourInput('endHour', 1, 24, 'Til kl.'));
+  return wrap;
+}
+
+function revyugenSettingsField(labelText, control) {
+  const label = document.createElement('label');
+  label.className = 'revyugen-setting';
+  const text = document.createElement('span');
+  text.textContent = labelText;
+  label.appendChild(text);
+  label.appendChild(control);
+  return label;
+}
+
+// Add/edit one block in the draft. Nothing is saved here — the card's own
+// Gem sends the whole schedule. The time field can't type "24:00", so an
+// end of "00:00" means midnight at the end of that day.
+function revyugenOpenBlockEditor(block, defaultDate, defaultStartMin) {
+  const { form, error, actions, close } = siteOpenModalWithClose(block ? 'Rediger punkt' : 'Nyt punkt');
+  actions.classList.add('cal-event-actions');
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.maxLength = 200;
+  titleInput.placeholder = 'Fx Generalprøve';
+  titleInput.value = block ? block.title : '';
+  form.appendChild(siteEditField('Titel', titleInput));
+
+  const textInput = document.createElement('textarea');
+  textInput.rows = 3;
+  textInput.maxLength = 1000;
+  textInput.placeholder = 'Valgfri';
+  textInput.value = block ? block.text : '';
+  form.appendChild(siteEditField('Tekst', textInput));
+
+  const days = revyugenDays(revyugenDraft);
+  const dateValue = block ? block.date : defaultDate;
+  const dayOptions = days.map(iso => ({ value: iso, label: revyugenDayLabel(iso) }));
+  if (!days.includes(dateValue)) dayOptions.push({ value: dateValue, label: formatDaDate(dateValue) });
+  const dayField = siteCreateDropdownField(dayOptions, dateValue);
+  form.appendChild(siteEditField('Dag', dayField));
+
+  const startMin = block ? revyugenToMinutes(block.start) : defaultStartMin;
+  const endMin = block ? revyugenToMinutes(block.end) : Math.min(startMin + 60, 24 * 60);
+  const startField = siteCreateTimeField(revyugenFromMinutes(startMin));
+  const endField = siteCreateTimeField(revyugenFromMinutes(endMin % (24 * 60)));
+  const timeRow = document.createElement('div');
+  timeRow.className = 'edit-field-row';
+  timeRow.appendChild(siteEditField('Fra', startField));
+  timeRow.appendChild(siteEditField('Til', endField));
+  form.appendChild(timeRow);
+
+  const catField = calCreateCategoryField(
+    revyugenCategory(block ? block.category : REVYUGEN_CATEGORIES[0].key).key,
+    REVYUGEN_CATEGORIES.map(c => ({ key: c.key, label: c.label, dotClass: `revyugen-dot-${c.color}` })),
+  );
+  form.appendChild(siteEditField('Kategori', catField));
+
+  if (block) {
+    const del = calPillBtn('Slet', 'site-btn-danger');
+    del.addEventListener('click', () => {
+      revyugenDraft.blocks = revyugenDraft.blocks.filter(b => b !== block);
+      close();
+      renderRevyugen();
+    });
+    actions.appendChild(del);
+  }
+  const save = calPillBtn('Gem', 'site-btn-success');
+  save.addEventListener('click', () => {
+    const title = titleInput.value.trim();
+    if (!title) {
+      error.textContent = 'Giv punktet en titel.';
+      return;
+    }
+    const start = startField.value;
+    let end = endField.value;
+    if (!start || !end) {
+      error.textContent = 'Udfyld både start- og sluttid.';
+      return;
+    }
+    if (end === '00:00') end = '24:00';
+    if (end <= start) {
+      error.textContent = 'Sluttiden skal ligge efter starttiden.';
+      return;
+    }
+    const item = { id: block ? block.id : ganttNewId(), date: dayField.value, start, end, title, text: textInput.value.trim(), category: catField.value };
+    if (block) revyugenDraft.blocks = revyugenDraft.blocks.map(b => (b === block ? item : b));
+    else revyugenDraft.blocks.push(item);
+    close();
+    renderRevyugen();
+  });
+  actions.appendChild(save);
+
+  titleInput.focus();
+}
+
+function revyugenBuildEditFooter() {
+  const footer = document.createElement('div');
+  footer.className = 'gantt-edit-footer';
+
+  const hint = document.createElement('p');
+  hint.className = 'gantt-hint';
+  hint.textContent = 'Klik på en tom plads for at tilføje et punkt, eller på et punkt for at rette det.';
+  footer.appendChild(hint);
+
+  const error = document.createElement('div');
+  error.className = 'login-error gantt-error';
+  error.textContent = revyugenError;
+  footer.appendChild(error);
+
+  const actions = document.createElement('div');
+  actions.className = 'gantt-edit-actions';
+  const cancel = calPillBtn('Annuller');
+  cancel.disabled = revyugenSaving;
+  cancel.addEventListener('click', () => {
+    revyugenDraft = null;
+    revyugenError = '';
+    renderRevyugen();
+  });
+  const save = calPillBtn(revyugenSaving ? 'Gemmer…' : 'Gem', 'site-btn-success');
+  save.disabled = revyugenSaving;
+  save.addEventListener('click', revyugenSave);
+  actions.appendChild(cancel);
+  actions.appendChild(save);
+  footer.appendChild(actions);
+  return footer;
+}
+
+async function revyugenSave() {
+  if (!revyugenDraft || revyugenSaving) return;
+  const d = revyugenDraft;
+  const payload = {
+    startDate: d.startDate,
+    endDate: revyugenEndDate(d),
+    startHour: d.startHour,
+    endHour: d.endHour,
+    blocks: d.blocks
+      .slice()
+      .sort((a, b) => (a.date + a.start < b.date + b.start ? -1 : a.date + a.start > b.date + b.start ? 1 : 0))
+      .map(b => ({ id: b.id, date: b.date, start: b.start, end: b.end, title: b.title, text: b.text, category: b.category })),
+  };
+  revyugenSaving = true;
+  revyugenError = '';
+  renderRevyugen();
+  const result = await siteSaveResource('revyugen', payload);
+  revyugenSaving = false;
+  if (result.ok) {
+    revyugenOverride = payload;
+    siteSaveOverride('revyugen', payload);
+    revyugenDraft = null;
+    siteShowToast('Gemt');
+  } else {
+    // message === '' means the password prompt was cancelled — stay silent.
+    revyugenError = result.message;
+  }
+  renderRevyugen();
+}
+
 // ── Calendar-subscribe (.ics) ─────────────────────────────────
 // Static file served by GitHub Pages — the underlying data is already fully
 // public (this page has no login gate), so there's no server round-trip.
@@ -1339,4 +1834,5 @@ document.addEventListener('DOMContentLoaded', () => {
   renderLegend();
   renderCalendar();
   renderGantt();
+  renderRevyugen();
 });

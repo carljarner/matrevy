@@ -128,6 +128,15 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/revyugen-data.js',
+    sources: 'data/revyugen.json',
+    globals: () => {
+      const revyugen = readJson('data/revyugen.json');
+      console.log(`  revyugen: fra ${revyugen.startDate}, ${revyugen.blocks.length} blokke`);
+      return { REVYUGEN_DATA: revyugen };
+    },
+  },
+  {
     // Static .ics feed, served directly by GitHub Pages at
     // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
     // the calendar data is already fully public (see CLAUDE.md's access-level

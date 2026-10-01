@@ -601,6 +601,12 @@ button.gantt-bar:focus-visible {
   pointer-events: none;
 }
 
+.gantt-tooltip-note {
+  margin-top: 0.2rem;
+  white-space: pre-line;
+  overflow-wrap: break-word;
+}
+
 .gantt-tooltip-label {
   font-weight: 600;
   white-space: normal;
@@ -782,6 +788,222 @@ button.gantt-bar:focus-visible {
   color: var(--text-muted);
 }
 
+/* --- Revyugen week schedule (calendar.js's renderRevyugen) ----
+   A time column + nine day columns. Each day column is as tall as the
+   visible hour range; blocks are absolutely positioned from their start
+   time (--revyugen-top, in hours) and length (--revyugen-len), and split
+   the column's width with any blocks they overlap. */
+.revyugen-card[hidden] {
+  display: none;
+}
+
+.revyugen-head {
+  flex-wrap: wrap;
+}
+
+/* View mode: title left, colour key centered, Rediger right — a 3-column
+   grid so the key stays centered on the card regardless of whether a
+   Rediger button is there. */
+.revyugen-head.revyugen-head-view {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+}
+
+.revyugen-head-view .gantt-edit-btn {
+  grid-column: 3;
+  justify-self: end;
+}
+
+.revyugen-legend {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 1.25rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* Solid category dots — the same hexes as Kalender's own
+   .cal-dot.cal-cat-* rules. */
+.cal-dot.revyugen-dot-blue   { background: #3b82d4; }
+.cal-dot.revyugen-dot-green  { background: var(--success); }
+.cal-dot.revyugen-dot-yellow { background: #d4a017; }
+.cal-dot.revyugen-dot-red    { background: var(--danger); }
+.cal-dot.revyugen-dot-purple { background: #8e44ad; }
+
+.revyugen-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+.revyugen-setting {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.revyugen-setting .site-field-btn {
+  width: auto;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  border-radius: 4px;
+}
+
+.revyugen-hour-input {
+  width: 3.5rem;
+  padding: 0.25rem 0.4rem;
+  font: inherit;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.revyugen-hour-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+}
+
+.revyugen-scroll {
+  overflow-x: auto;
+}
+
+.revyugen {
+  --revyugen-hour: 2.75rem;
+  --revyugen-time-width: 3.25rem;
+  display: grid;
+  grid-template-columns: var(--revyugen-time-width) repeat(var(--revyugen-days), minmax(6.5rem, 1fr));
+  grid-template-rows: auto calc(var(--revyugen-hours) * var(--revyugen-hour));
+}
+
+.revyugen-corner,
+.revyugen-times {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--surface);
+}
+
+.revyugen-day-head {
+  padding: 0.3rem 0.25rem 0.6rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.revyugen-day-head.revyugen-today {
+  color: var(--accent-warm-text);
+}
+
+.revyugen-time {
+  position: absolute;
+  top: calc(var(--revyugen-at) * var(--revyugen-hour));
+  right: 0.45rem;
+  transform: translateY(-50%);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.revyugen-time:first-child {
+  transform: none;
+}
+
+/* Hour lines solid, half-hour lines faint, drawn as backgrounds so the
+   column itself stays the click target for adding a block. */
+.revyugen-day {
+  position: relative;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background-image:
+    linear-gradient(to bottom, var(--border) 1px, transparent 1px),
+    linear-gradient(to bottom, transparent calc(var(--revyugen-hour) / 2), rgba(0, 0, 0, 0.05) calc(var(--revyugen-hour) / 2), rgba(0, 0, 0, 0.05) calc(var(--revyugen-hour) / 2 + 1px), transparent calc(var(--revyugen-hour) / 2 + 1px));
+  background-size: 100% var(--revyugen-hour);
+}
+
+.revyugen-day:last-child {
+  border-right: 1px solid var(--border);
+}
+
+.revyugen-day.revyugen-today {
+  background-color: var(--accent-warm-fill);
+}
+
+.revyugen-day-editable {
+  cursor: copy;
+}
+
+.revyugen-block {
+  position: absolute;
+  top: calc(var(--revyugen-top) * var(--revyugen-hour) + 1px);
+  height: calc(var(--revyugen-len) * var(--revyugen-hour) - 2px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.1rem 0.3rem;
+  /* Same look as Kalender's own .cal-chip: no outline, just a coloured
+     left bar on a pale fill (.revyugen-color-<color> below). */
+  border: none;
+  border-left: 3px solid var(--text-muted);
+  border-radius: 3px;
+  background: var(--surface-2);
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-align: left;
+  color: var(--header);
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Block colours — exactly Kalender's .cal-cat-* / .cal-chip.cal-cat-*
+   pairs. Compound selectors so they win over .revyugen-block's own
+   border/background regardless of rule order. */
+.revyugen-block.revyugen-color-blue   { background: #e8f0fb; border-left-color: #3b82d4; }
+.revyugen-block.revyugen-color-green  { background: #e6f4ea; border-left-color: var(--success); }
+.revyugen-block.revyugen-color-yellow { background: #fdf1d6; border-left-color: #d4a017; }
+.revyugen-block.revyugen-color-red    { background: #fbeae8; border-left-color: var(--danger); }
+.revyugen-block.revyugen-color-purple { background: #f2e8f6; border-left-color: #8e44ad; }
+
+.revyugen-block-title,
+.revyugen-block-text {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.revyugen-block-title {
+  font-weight: 700;
+}
+
+.revyugen-block-text {
+  white-space: pre-line;
+}
+
+button.revyugen-block {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  button.revyugen-block:hover { filter: brightness(0.95); }
+}
+
+button.revyugen-block:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 1px;
+  z-index: 2;
+}
+
 /* --- Mobile (≤719px, same breakpoint as style.css) ---------- */
 @media (max-width: 719px) {
   /* When the toolbar wraps, push the month switcher onto its own centered
@@ -885,5 +1107,32 @@ button.gantt-bar:focus-visible {
 
   .gantt.gantt-editing {
     --gantt-label-width: 12rem;
+  }
+
+  /* Revyugen: narrower day columns; the nine days scroll sideways inside
+     .revyugen-scroll with the time column sticky. */
+  .revyugen {
+    --revyugen-time-width: 2.75rem;
+    grid-template-columns: var(--revyugen-time-width) repeat(var(--revyugen-days), minmax(5.5rem, 1fr));
+  }
+
+  .revyugen-settings {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  /* Colour key drops onto its own row below the title/Rediger. */
+  .revyugen-head.revyugen-head-view {
+    grid-template-columns: 1fr auto;
+  }
+
+  .revyugen-head-view .gantt-edit-btn {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .revyugen-legend {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }

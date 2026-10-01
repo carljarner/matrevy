@@ -4597,6 +4597,59 @@ function save_gantt($payload) {
   }, 'Opdater gantt.json via kalenderen');
 }
 
+// Admin-only "Revyugen" week schedule, shown below the Gantt chart on
+// Kalender (js/calendar.js's renderRevyugen). The days `startDate`–`endDate`
+// (at most 31, REVYUGEN_MAX_DAYS client-side), drawn between `startHour`
+// and `endHour`; each block is one
+// timed entry on one day. "24:00" is allowed as an end time (midnight at the
+// end of that day). Like save_gantt, a block's date isn't required to fall
+// inside the window — it simply isn't drawn if it doesn't.
+function save_revyugen($payload) {
+  $startDate = $payload['startDate'] ?? null;
+  $endDate = $payload['endDate'] ?? null;
+  $startHour = $payload['startHour'] ?? null;
+  $endHour = $payload['endHour'] ?? null;
+  $blocks = $payload['blocks'] ?? null;
+  if (!is_string($startDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $startDate)
+      || !is_string($endDate) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $endDate)
+      || $endDate < $startDate
+      || (strtotime($endDate) - strtotime($startDate)) / 86400 > 30
+      || !is_int($startHour) || !is_int($endHour)
+      || $startHour < 0 || $endHour > 24 || $startHour >= $endHour
+      || !is_array($blocks)) {
+    respond(400, ['error' => 'invalid_revyugen_shape']);
+  }
+
+  $timeRe = '/^(?:[01]\d|2[0-3]):[0-5]\d$|^24:00$/';
+  $seenId = [];
+  foreach ($blocks as $block) {
+    if (!is_array($block)
+        || !isset($block['id'], $block['date'], $block['start'], $block['end'], $block['title'], $block['text'], $block['category'])
+        || !is_string($block['id']) || !preg_match('#^[A-Za-z0-9_-]+$#', $block['id'])
+        || isset($seenId[$block['id']])
+        || !is_string($block['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $block['date'])
+        || !is_string($block['start']) || !preg_match($timeRe, $block['start']) || $block['start'] === '24:00'
+        || !is_string($block['end']) || !preg_match($timeRe, $block['end'])
+        || $block['end'] <= $block['start']
+        || !is_string($block['title']) || trim($block['title']) === '' || mb_strlen($block['title']) > 200
+        || !is_string($block['text']) || mb_strlen($block['text']) > 1000
+        // REVYUGEN_CATEGORIES in js/calendar.js.
+        || !in_array($block['category'], ['ove', 'frivillig', 'scenefolk', 'obligatorisk', 'andet'], true)) {
+      respond(400, ['error' => 'invalid_revyugen_shape']);
+    }
+    $seenId[$block['id']] = true;
+  }
+
+  update_file('data/revyugen.json', function ($json) use ($startDate, $endDate, $startHour, $endHour, $blocks) {
+    $json['startDate'] = $startDate;
+    $json['endDate'] = $endDate;
+    $json['startHour'] = $startHour;
+    $json['endHour'] = $endHour;
+    $json['blocks'] = $blocks;
+    return $json;
+  }, 'Opdater revyugen.json via kalenderen');
+}
+
 // data/scenes.json's own top-level `production` field (e.g. "Matematikrevyen
 // 2026") — distinct from config.json's currentProductionFolder (an archive
 // *folder slug* like "MatRevy_2026"). scripts/generate-pdfs.js reads this
@@ -4643,6 +4696,7 @@ $RESOURCES = [
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
   'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
   'gantt'         => ['level' => 'admin', 'save' => 'save_gantt'],
+  'revyugen'      => ['level' => 'admin', 'save' => 'save_revyugen'],
   'production'    => ['level' => 'admin', 'save' => 'save_production'],
 ];
 

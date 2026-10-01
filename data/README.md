@@ -20,6 +20,7 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 | `program.json` | Medvirkende/Ordliste/QR-codes content for the printed programme booklet, edited on the Manus page's Program tab and rendered into three layouts, `archive/<folder>/Program.pdf`, `ProgramHaefte.pdf`, and `ProgramHaefteHorisontal.pdf` |
 | `masterplan.json` | Koordinator page's "Masterplan" checklist — recurring production to-dos across 5 fixed phase-tabs, replacing an externally-maintained spreadsheet |
 | `gantt.json` | Gantt chart of the revy period (September–November) shown below the calendar on Kalender |
+| `revyugen.json` | Hour-by-hour week schedule of the revy's final nine days ("Revyugen"), shown below the Gantt chart on Kalender |
 
 ## Updating for a New Production
 
@@ -354,6 +355,25 @@ comments.
 - `year` picks the window drawn: September 1 – November 30 of that year. Changing it in the editor offers to shift every bar's dates by the same number of years.
 - `rows` is the ordered list of sections on the y-axis (`id` matches `^[A-Za-z0-9_-]+$`, unique; `title` non-empty). Each row holds any number of `bars`: `start`/`end` are `YYYY-MM-DD` (`end >= start`), and `label` is optional (it may be `""`). A bar `id` is unique across the whole file.
 - Bars keep full dates and aren't limited to the window: a bar partly outside it is clipped at the edge, and one entirely outside is simply not drawn. Overlapping bars in the same row stack into extra lanes. `color` is optional, one of `green`/`blue`/`yellow`/`purple`/`red`/`teal` (`GANTT_COLORS` in `js/calendar.js`), chosen per bar in the editor. A bar without one falls back to a colour cycled by its row's position, and the editor writes that fallback in explicitly on the next save.
+- Not reset by Koordinator's `koordCloseYear()`.
+
+## Schema: revyugen.json
+
+```json
+{
+  "startDate": "2026-11-14",
+  "endDate": "2026-11-22",
+  "startHour": 8,
+  "endHour": 24,
+  "blocks": [
+    { "id": "mt3kb1x0", "date": "2026-11-14", "start": "10:00", "end": "12:30", "title": "Opstilling", "text": "Alle mødes i salen", "category": "obligatorisk" }
+  ]
+}
+```
+
+- Backs the "Revyugen" week schedule below the Gantt chart on Kalender (`js/calendar.js`'s `renderRevyugen`). Visible to **revyst**+ only (hidden below admin while `blocks` is empty), edited only by **admin** (`server/update-data.php`'s `revyugen` resource), as a local draft saved with "Gem".
+- The days `startDate`–`endDate` (inclusive, at most 31 days) are drawn as columns; a file without `endDate` shows nine days from `startDate`. `startHour`/`endHour` (integers, `0 <= startHour < endHour <= 24`) set the visible time range. Changing `startDate` in the editor moves `endDate` and every block by the same number of days; changing `endDate` only moves the end.
+- Each block: `id` (`^[A-Za-z0-9_-]+$`, unique), `date` (`YYYY-MM-DD`), `start`/`end` (`HH:MM`, `end > start`; `end` may be `"24:00"` for midnight), `title` (non-empty, shown bold), `text` (may be `""`, shown below the title), `category` — one of `ove` (Øvning, blue), `frivillig` (Frivillig, green), `scenefolk` (Scenefolk, yellow), `obligatorisk` (Obligatorisk, red), `andet` (Andet, purple) — `REVYUGEN_CATEGORIES` in `js/calendar.js`. A block outside the days or the hour range is clipped or simply not drawn; overlapping blocks on the same day share the column side by side.
 - Not reset by Koordinator's `koordCloseYear()`.
 
 ## Adding a year to the archive
