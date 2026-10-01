@@ -4,6 +4,36 @@ const GANTT_DATA = {
   "year": 2026,
   "rows": [
     {
+      "id": "mupl9cvmdn7h",
+      "title": "Studie",
+      "bars": [
+        {
+          "id": "mupla224418y",
+          "start": "2026-09-01",
+          "end": "2026-11-01",
+          "label": "Blok 1"
+        },
+        {
+          "id": "muplabdb61vt",
+          "start": "2026-11-16",
+          "end": "2026-11-30",
+          "label": "Blok 2"
+        },
+        {
+          "id": "muplb6xery8g",
+          "start": "2026-11-02",
+          "end": "2026-11-08",
+          "label": "Eksamen"
+        },
+        {
+          "id": "muplbjtryxu8",
+          "start": "2026-11-09",
+          "end": "2026-11-15",
+          "label": "Pause"
+        }
+      ]
+    },
+    {
       "id": "mupl1b3njcts",
       "title": "Manusskrivning",
       "bars": [
