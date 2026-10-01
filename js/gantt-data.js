@@ -12,28 +12,28 @@ const GANTT_DATA = {
           "start": "2026-09-01",
           "end": "2026-10-25",
           "label": "Blok 1",
-          "color": "teal"
+          "color": "green"
         },
         {
           "id": "muplabdb61vt",
           "start": "2026-11-16",
           "end": "2026-11-30",
           "label": "Blok 2",
-          "color": "teal"
+          "color": "green"
         },
         {
           "id": "muplb6xery8g",
           "start": "2026-10-26",
           "end": "2026-11-06",
           "label": "Blokuge 8 + 9",
-          "color": "teal"
+          "color": "green"
         },
         {
           "id": "muplbjtryxu8",
           "start": "2026-11-07",
           "end": "2026-11-15",
           "label": "Mellemuge",
-          "color": "teal"
+          "color": "green"
         }
       ]
     },
@@ -46,7 +46,7 @@ const GANTT_DATA = {
           "start": "2026-09-01",
           "end": "2026-10-07",
           "label": "Ugentlige manusmøder (ikke obligatorisk)",
-          "color": "green"
+          "color": "blue"
         }
       ]
     },
