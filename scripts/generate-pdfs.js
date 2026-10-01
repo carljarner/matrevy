@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-// Generates Aktoversigt.pdf / Rolleoversigt.pdf / Manuskript.pdf (plus one
+// Generates Aktoversigt.pdf / Rolleoversigt.pdf / manus.pdf (plus one
 // PDF per sketch/song) straight from data/scenes.json + data/cast.json —
 // the same three deliverables the revue's old Perl/LaTeX toolchain
 // (matrevy/RevyTeX's acts.pl/roles.pl/manus.pl) used to produce, reimplemented
@@ -23,7 +23,7 @@
 // scoped entirely to this one dev-only script, see package.json):
 //   - a local TeX Live/MacTeX install providing `pdflatex` on PATH
 //   - `npm install` once, for the pdf-lib dependency used to merge the
-//     per-scene PDFs into Manuskript.pdf
+//     per-scene PDFs into manus.pdf
 //
 // manus/revy.sty (the real DIKUrevy/RevyTeX style file, already vendored in
 // this repo) supplies every sketch/song document's actual typesetting
@@ -806,7 +806,7 @@ function writeBytesToRepo(bytes, repoRelativeOut) {
 // ── Manuskript: merge every per-scene PDF behind a title page ───
 // Mirrors RevyTeX's manus.pl (which used Perl's PDF::API2) — approximate,
 // not pixel-exact tab/bookmark fidelity for v1 (see the plan's noted
-// deferred scope). Shared by both the full Manuskript.pdf (no filter, no
+// deferred scope). Shared by both the full manus.pdf (no filter, no
 // name) and each per-actor manuscript (buildActorManuskripts, below) — a
 // scene filter and a personalized name are the only things that differ
 // between the two. The old "Skuespiller: ____" blank-line/label was dropped
@@ -851,7 +851,7 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
     });
   }
 
-  // The master Manuskript.pdf gets the just-compiled Aktoversigt spliced in
+  // The master manus.pdf gets the just-compiled Aktoversigt spliced in
   // right after the title page, ahead of the per-scene scripts (per explicit
   // request) — individual/Sangboss manuscripts don't pass this option, so
   // they stay title-page-then-scripts as before.
@@ -880,7 +880,7 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
 }
 
 // ── Individual manuscripts: one per cast.json roster entry ──────
-// Same merge helper as the master Manuskript.pdf, filtered to only the
+// Same merge helper as the master manus.pdf, filtered to only the
 // scenes that actor is cast in (in act order) and with their name centered
 // on the title page. Generated unconditionally for
 // every roster entry, even one cast in nothing this cycle (an empty
@@ -1016,7 +1016,7 @@ async function main() {
   // Aktoversigt spliced in right after the title page (per explicit
   // request).
   console.log('  Merging Manuskript...');
-  await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/Manuskript.pdf`), {
+  await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/manus.pdf`), {
     aktoversigtPdfPath: aktPdf,
   });
 
@@ -1119,7 +1119,7 @@ async function main() {
   }
 
   console.log(
-    `Done. Wrote Aktoversigt.pdf / Rolleoversigt.pdf / Manuskript.pdf plus ${castJson.cast.length} ` +
+    `Done. Wrote Aktoversigt.pdf / Rolleoversigt.pdf / manus.pdf plus ${castJson.cast.length} ` +
     `individual manuscripts (+ Sangboss) to archive/${currentFolder}/`
   );
 }

@@ -249,6 +249,6 @@ const ARCHIVE_DATA = [
     "youtubeUrl": "",
     "spotifyUrl": "",
     "driveUrl": "https://drive.google.com/drive/folders/16CR5evUJuXUStN09cMpGGNIw1rh6HzY2?usp=drive_link",
-    "manusPdf": "archive/MatRevy_2026/Manuskript.pdf"
+    "manusPdf": "archive/MatRevy_2026/manus.pdf"
   }
 ];

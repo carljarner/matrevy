@@ -4178,7 +4178,7 @@ async function manusSaveMain() {
 // real git commit history (via the public GitHub Commits API — see
 // manusFetchPdfStatus below for why a same-origin HEAD request's
 // Last-Modified header doesn't work here) for a change versus a snapshot
-// taken right before triggering. Manuskript.pdf is used as that reference
+// taken right before triggering. manus.pdf is used as that reference
 // file since it's the last file the build produces before the workflow's
 // single end-of-job commit, and every file in that commit goes live
 // together. This is plain in-memory state, not synced
@@ -4205,7 +4205,7 @@ let manusPdfLastGeneratedAt = null; // Date | null
 let manusPdfConfirmedAbsent = false; // true only when the file has no commit history at all — distinct from "couldn't check"
 let manusPdfCheckFailed = false; // true when the check itself couldn't run/complete at all
 // true only when manusPollPdfCompletion gave up after MANUS_PDF_POLL_TIMEOUT_MS without
-// ever observing a newer commit touching Manuskript.pdf — kept distinct from the idle state
+// ever observing a newer commit touching manus.pdf — kept distinct from the idle state
 // so the UI can say so explicitly instead of silently looking identical to a real success.
 // Cleared at the start of the next manusRegeneratePdfs() call.
 let manusPdfPollTimedOut = false;
@@ -4292,7 +4292,7 @@ async function manusFetchPdfExists(path) {
 // call site over a cosmetic rename).
 function manusPdfReferenceUrl() {
   const folder = getEffectiveConfig().currentProductionFolder || '';
-  return folder ? `archive/${folder}/Manuskript.pdf` : null;
+  return folder ? `archive/${folder}/manus.pdf` : null;
 }
 
 function manusFormatGeneratedAt(date) {
@@ -4727,7 +4727,7 @@ function renderManusPdfLinksSection() {
       .slice()
       .sort((a, b) => a.localeCompare(b, 'da'));
     const options = [
-      { value: 'Manuskript.pdf', label: 'Manus' },
+      { value: 'manus.pdf', label: 'Manus' },
       { value: `manuskripter/${manusSlugifyName('Sangboss')}.pdf`, label: 'Manus (Sang)' },
       ...names.map((name) => ({ value: `manuskripter/${manusSlugifyName(name)}.pdf`, label: name })),
     ];

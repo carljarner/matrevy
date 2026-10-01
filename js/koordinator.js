@@ -159,7 +159,7 @@ function koordCurrentFolder() {
 
 function koordPdfReferenceUrl() {
   const folder = koordCurrentFolder();
-  return folder ? `archive/${folder}/Manuskript.pdf` : null;
+  return folder ? `archive/${folder}/manus.pdf` : null;
 }
 
 function koordFormatGeneratedAt(date) {
@@ -260,7 +260,7 @@ function openArkivYearPicker(anchor) {
 // for why it's not cross-file-reused), trimmed down per Koordinator's own
 // simpler needs: no cover-image preview (just a link to the current file),
 // no manuscript upload (manusPdf is always the CI-generated
-// archive/<folder>/Manuskript.pdf, derived automatically — see
+// archive/<folder>/manus.pdf, derived automatically — see
 // scripts/generate-pdfs.js), and X-close/green-Gem-pill chrome instead of
 // the shared edit-modal's Annuller/blue-Gem pair. Edit-only — Koordinator's
 // own picker (openArkivYearPicker above) never offers "+ Tilføj"; adding a
@@ -373,7 +373,7 @@ function openKoordYearEditor(existing) {
       youtubeUrl: youtubeInput.value.trim(),
       spotifyUrl: spotifyInput.value.trim(),
       driveUrl: driveInput.value.trim(),
-      manusPdf: `archive/${folder}/Manuskript.pdf`,
+      manusPdf: `archive/${folder}/manus.pdf`,
     };
 
     save.disabled = true;
@@ -477,7 +477,7 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
       youtubeUrl: '',
       spotifyUrl: '',
       driveUrl: '',
-      manusPdf: `archive/${closingFolder}/Manuskript.pdf`,
+      manusPdf: `archive/${closingFolder}/manus.pdf`,
     }]);
     const archiveRes = await saveArchiveYears(nextYears);
     if (!archiveRes.ok) throw new Error(archiveRes.message || 'Kunne ikke oprette arkiv-indgangen.');
@@ -561,7 +561,7 @@ async function koordStartNewYear(newFolder, productionName, productionYear, onPr
       youtubeUrl: '',
       spotifyUrl: '',
       driveUrl: '',
-      manusPdf: `archive/${newFolder}/Manuskript.pdf`,
+      manusPdf: `archive/${newFolder}/manus.pdf`,
     }]);
     const archiveRes = await saveArchiveYears(nextYears);
     if (!archiveRes.ok) throw new Error(archiveRes.message || 'Kunne ikke oprette arkiv-indgangen.');
