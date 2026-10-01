@@ -51,6 +51,19 @@ const GANTT_DATA = {
       ]
     },
     {
+      "id": "muplq11rfy6v",
+      "title": "Revyvisning",
+      "bars": [
+        {
+          "id": "muplq90cmk6c",
+          "start": "2026-10-01",
+          "end": "2026-10-01",
+          "label": "",
+          "color": "purple"
+        }
+      ]
+    },
+    {
       "id": "mupl1o391746",
       "title": "Aktfordeling",
       "bars": [
