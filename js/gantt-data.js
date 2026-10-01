@@ -11,25 +11,29 @@ const GANTT_DATA = {
           "id": "mupla224418y",
           "start": "2026-09-01",
           "end": "2026-10-25",
-          "label": "Blok 1"
+          "label": "Blok 1",
+          "color": "green"
         },
         {
           "id": "muplabdb61vt",
           "start": "2026-11-16",
           "end": "2026-11-30",
-          "label": "Blok 2"
+          "label": "Blok 2",
+          "color": "green"
         },
         {
           "id": "muplb6xery8g",
           "start": "2026-10-26",
           "end": "2026-11-08",
-          "label": "Oplæsning + Eksamen"
+          "label": "Oplæsning + Eksamen",
+          "color": "green"
         },
         {
           "id": "muplbjtryxu8",
           "start": "2026-11-09",
           "end": "2026-11-15",
-          "label": "Pause"
+          "label": "Pause",
+          "color": "green"
         }
       ]
     },
@@ -41,7 +45,8 @@ const GANTT_DATA = {
           "id": "mupl1mljas4r",
           "start": "2026-09-01",
           "end": "2026-10-07",
-          "label": "Ugentlige manusmøder"
+          "label": "Ugentlige manusmøder",
+          "color": "blue"
         }
       ]
     },
@@ -53,7 +58,8 @@ const GANTT_DATA = {
           "id": "mupl3am73e4f",
           "start": "2026-10-08",
           "end": "2026-10-18",
-          "label": ""
+          "label": "",
+          "color": "blue"
         }
       ]
     },
@@ -65,7 +71,8 @@ const GANTT_DATA = {
           "id": "mupl3krgcfok",
           "start": "2026-10-19",
           "end": "2026-10-23",
-          "label": ""
+          "label": "",
+          "color": "blue"
         }
       ]
     },
@@ -77,7 +84,8 @@ const GANTT_DATA = {
           "id": "mupl5lynno44",
           "start": "2026-10-19",
           "end": "2026-11-19",
-          "label": "Åbner d. 19/10"
+          "label": "Åbner d. 19/10",
+          "color": "yellow"
         }
       ]
     },
@@ -89,7 +97,8 @@ const GANTT_DATA = {
           "id": "mupl2wht6cor",
           "start": "2026-10-24",
           "end": "2026-11-18",
-          "label": "Ingen øvning oven i eksamener"
+          "label": "Ingen øvning oven i eksamener",
+          "color": "purple"
         }
       ]
     },
@@ -101,7 +110,8 @@ const GANTT_DATA = {
           "id": "mupl2bp7hepj",
           "start": "2026-11-19",
           "end": "2026-11-22",
-          "label": ""
+          "label": "",
+          "color": "red"
         }
       ]
     }
