@@ -584,6 +584,29 @@ button.gantt-bar:focus-visible {
   border-bottom-right-radius: 0;
 }
 
+/* Hover tooltip on a bar (ganttShowTooltip) — same look as
+   Fællesspisning's .faelles-field-tooltip. */
+.gantt-tooltip {
+  position: fixed;
+  z-index: 250;
+  max-width: 320px;
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.gantt-tooltip-label {
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
 /* Bar colours, chosen per bar (GANTT_COLORS in calendar.js) — same hues as
    the calendar categories above, plus teal. */
 .gantt-color-green  { background: #e6f4ea; border-color: var(--success); }

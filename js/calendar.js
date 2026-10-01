@@ -663,6 +663,7 @@ let ganttDraft = null; // non-null while admin edit mode is open
 let ganttSaving = false;
 let ganttError = '';
 let ganttDragId = null;
+let ganttTooltipEl = null;
 
 function getEffectiveGantt() {
   const data = ganttOverride || (typeof GANTT_DATA !== 'undefined' ? GANTT_DATA : null);
@@ -721,6 +722,43 @@ function ganttBarRangeLabel(bar) {
   return bar.start === bar.end ? formatDaDate(bar.start) : `${formatDaDate(bar.start)} – ${formatDaDate(bar.end)}`;
 }
 
+// Hover tooltip on a bar: the bar's date range (a single date for a
+// one-day bar), with its label above when it has one — a short bar
+// truncates its own label. Same look as faellesspisning.js's
+// faellesShowFieldTooltip (duplicated per the per-feature convention).
+function ganttShowTooltip(anchor, bar) {
+  ganttHideTooltip();
+  const tip = document.createElement('div');
+  tip.className = 'gantt-tooltip';
+  if (bar.label) {
+    const label = document.createElement('div');
+    label.className = 'gantt-tooltip-label';
+    label.textContent = bar.label;
+    tip.appendChild(label);
+  }
+  const range = document.createElement('div');
+  range.textContent = ganttBarRangeLabel(bar);
+  tip.appendChild(range);
+  document.body.appendChild(tip);
+  const anchorRect = anchor.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  let top = anchorRect.top - tipRect.height - 6;
+  if (top < 4) top = anchorRect.bottom + 6;
+  let left = anchorRect.left + anchorRect.width / 2 - tipRect.width / 2;
+  if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - tipRect.width - 4;
+  if (left < 4) left = 4;
+  tip.style.top = `${top}px`;
+  tip.style.left = `${left}px`;
+  ganttTooltipEl = tip;
+}
+
+function ganttHideTooltip() {
+  if (ganttTooltipEl) { ganttTooltipEl.remove(); ganttTooltipEl = null; }
+}
+// position:fixed — any scroll (page or the chart's own horizontal
+// scroller, hence capture) would leave it floating away from its bar.
+window.addEventListener('scroll', ganttHideTooltip, true);
+
 // Off-screen drag image for row reordering — see forms.js's
 // formsGetDragImageEl for the rationale (CLAUDE.md's drag-image recipe).
 function calGetDragImageEl() {
@@ -777,6 +815,7 @@ function renderGantt() {
   if (!canEdit) ganttDraft = null;
   const editing = ganttDraft !== null;
   const data = editing ? ganttDraft : getEffectiveGantt();
+  ganttHideTooltip(); // its bar is about to be replaced
 
   card.textContent = '';
   card.hidden = !canEdit && data.rows.length === 0;
@@ -962,8 +1001,10 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
     bar.style.width = `${((calDaysBetweenIso(v.s, v.e) + 1) / win.totalDays) * 100}%`;
     bar.style.setProperty('--gantt-lane', String(v.lane));
     bar.textContent = v.bar.label;
-    bar.title = v.bar.label ? `${v.bar.label}: ${ganttBarRangeLabel(v.bar)}` : ganttBarRangeLabel(v.bar);
-    if (editing) bar.addEventListener('click', () => ganttOpenBarEditor(row, v.bar));
+    bar.setAttribute('aria-label', v.bar.label ? `${v.bar.label}: ${ganttBarRangeLabel(v.bar)}` : ganttBarRangeLabel(v.bar));
+    bar.addEventListener('mouseenter', () => ganttShowTooltip(bar, v.bar));
+    bar.addEventListener('mouseleave', ganttHideTooltip);
+    if (editing) bar.addEventListener('click', () => { ganttHideTooltip(); ganttOpenBarEditor(row, v.bar); });
     track.appendChild(bar);
   }
 
