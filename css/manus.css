@@ -1738,6 +1738,248 @@ a.manus-pdf-title:focus-visible {
   gap: 0.5rem;
 }
 
+/* --- "Aktfordeling" tagging modal (js/manus.js's openAktTagModal) ------
+   Two label lists (Stil → shape, Tema → colour) side by side on top, then
+   the scrollable pick-and-tag list, then the shared 3-column button row
+   (.manus-points-grid-row). Same width as the Indtast point modal. */
+.manus-akt-modal {
+  width: min(1040px, 96vw);
+}
+
+.manus-akt-labels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.manus-akt-label-col h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.manus-akt-label-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.manus-akt-label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.manus-akt-swatch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.8rem;
+  height: 1.9rem;
+  padding: 0.2rem;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .manus-akt-swatch:hover { border-color: var(--border); }
+}
+
+.manus-akt-swatch:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.manus-akt-shape {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.manus-akt-label-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.manus-akt-label-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.manus-akt-label-add {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.3rem;
+}
+
+/* Both pages share one fixed height (tabs never change the modal's size),
+   with their list as the scrolling part. */
+.manus-akt-page {
+  height: 60vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.manus-akt-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.manus-akt-count {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* Scener page: the Vælg scener overlay's click-to-toggle rows
+   (.manus-select-row[role="button"]), three columns, best average first. */
+.manus-akt-scene-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.manus-akt-scene-grid .manus-select-row {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.manus-akt-scene-grid .manus-pdf-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.manus-akt-scene-avg {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.manus-select-row-selected .manus-akt-scene-avg {
+  color: var(--accent-warm-text);
+}
+
+/* Stil & Tema page: two columns of cards, each three lines (title, Stil
+   chips, Tema chips). */
+.manus-akt-item-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.manus-akt-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.manus-akt-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.manus-akt-item-preview {
+  flex: none;
+  width: 2.4rem;
+  height: 1.2rem;
+}
+
+.manus-akt-item-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.manus-akt-item-title {
+  font-weight: 600;
+}
+
+.manus-akt-item-avg {
+  flex: none;
+  min-width: 3rem;
+  text-align: right;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.manus-akt-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.manus-akt-chip-group-label {
+  flex: none;
+  width: 2.6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.manus-akt-chip-none {
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.manus-akt-chip {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+@media (hover: hover) {
+  .manus-akt-chip:hover { border-color: var(--accent-warm); }
+}
+
+.manus-akt-chip:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Orange = chosen (site-wide convention). */
+.manus-akt-chip-active {
+  border-color: var(--accent-warm);
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-weight: 600;
+}
+
+@media (max-width: 719px) {
+  .manus-akt-labels {
+    grid-template-columns: 1fr;
+  }
+
+  .manus-akt-scene-grid,
+  .manus-akt-item-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --- "Hent stemmeark" print view ----------------------------
    Hidden on screen; only shown (and only content shown) when
    window.print() is invoked, mirroring schedule.css's print
@@ -1839,6 +2081,101 @@ a.manus-pdf-title:focus-visible {
   .manus-print-box .manus-points-box-count { flex-basis: 3rem; }
 
   .manus-print-box .manus-points-box-mean { box-shadow: 0 0 0 2px #fff; }
+
+  /* Udskriv → Aktfordeling cut-out cards (manusPrintAktCards): legend, then
+     a 4-up grid of 2:1 of square cards with dashed cut lines. Keeps colours. */
+  .manus-akt-legend,
+  .manus-akt-cards,
+  .manus-akt-legend *,
+  .manus-akt-cards * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .manus-akt-legend {
+    margin-bottom: 1rem;
+  }
+
+  .manus-akt-legend-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 1.2rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .manus-akt-legend-entry {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+
+  .manus-akt-legend-entry .manus-akt-shape {
+    width: 28pt;
+    height: 14pt;
+  }
+
+  .manus-akt-cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .manus-akt-card {
+    position: relative;
+    aspect-ratio: 2 / 1;
+    border: 1px dashed #888;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .manus-akt-card-inner {
+    position: absolute;
+    inset: 2mm;
+  }
+
+  .manus-akt-card .manus-akt-shape {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Title box, inset per shape so the text stays inside the outline. */
+  .manus-akt-card-text {
+    position: absolute;
+    inset: 8% 6%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    text-align: center;
+    color: #000;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+
+  .manus-akt-card-rounded .manus-akt-card-text  { inset: 8% 10%; }
+  .manus-akt-card-rhombus .manus-akt-card-text  { inset: 14% 22%; }
+  .manus-akt-card-triangle .manus-akt-card-text { inset: 32% 24% 3%; }
+  .manus-akt-card-hexagon .manus-akt-card-text  { inset: 8% 18%; }
+  .manus-akt-card-octagon .manus-akt-card-text  { inset: 8% 12%; }
+
+  .manus-akt-card-title {
+    font-weight: 700;
+    font-size: 8pt;
+    line-height: 1.15;
+  }
+
+  .manus-akt-card-avg {
+    font-size: 7pt;
+    font-weight: 600;
+  }
+
+  /* Rhombus/triangle leave the least room inside the outline. */
+  .manus-akt-card-rhombus .manus-akt-card-title,
+  .manus-akt-card-triangle .manus-akt-card-title { font-size: 6.5pt; }
+
+  .manus-akt-card-rhombus .manus-akt-card-avg,
+  .manus-akt-card-triangle .manus-akt-card-avg { font-size: 6pt; }
 }
 
 /* --- Program tab (Medvirkende / Ordliste / QR-koder) ------------- */

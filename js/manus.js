@@ -1096,6 +1096,22 @@ function formatPointsAvg(avg) {
   return avg < 6 ? '< 6' : avg.toFixed(1);
 }
 
+// One submission's aggregate across every transcribed sheet in `bucket`
+// (store[type]). Top-level (not inside openPointEntryModal) so Aktfordeling's
+// tagging modal can show/sort by the same averages.
+function manusPointsStats(bucket, item) {
+  let sum = 0, count = 0;
+  const comments = [];
+  const points = [];
+  for (const sheet of (bucket && bucket.sheets) || []) {
+    const entry = sheet[item.id];
+    if (!entry) continue;
+    if (typeof entry.point === 'number') { sum += entry.point; count += 1; points.push(entry.point); }
+    if (entry.comment && entry.comment.trim()) comments.push(entry.comment.trim());
+  }
+  return { avg: count > 0 ? sum / count : null, count, comments, points };
+}
+
 function openPointEntryModal(type) {
   const store = loadPointsStore();
   if (!store[type] || !Array.isArray(store[type].sheets)) store[type] = { sheets: [] };
@@ -1282,22 +1298,9 @@ function openPointEntryModal(type) {
     return row;
   }
 
-  function computePointsStats(item) {
-    let sum = 0, count = 0;
-    const comments = [];
-    const points = [];
-    for (const sheet of bucket.sheets) {
-      const entry = sheet[item.id];
-      if (!entry) continue;
-      if (typeof entry.point === 'number') { sum += entry.point; count += 1; points.push(entry.point); }
-      if (entry.comment && entry.comment.trim()) comments.push(entry.comment.trim());
-    }
-    return { avg: count > 0 ? sum / count : null, count, comments, points };
-  }
-
   function renderResultsView() {
     const items = pointsItemsForType(type);
-    const rows = items.map(item => ({ title: item.title, ...computePointsStats(item) }));
+    const rows = items.map(item => ({ title: item.title, ...manusPointsStats(bucket, item) }));
     rows.sort((a, b) => {
       if (a.avg === null && b.avg === null) return a.title.localeCompare(b.title, 'da');
       if (a.avg === null) return 1;
@@ -1604,6 +1607,658 @@ function openResetPointsConfirm(bucket, store, onReset) {
 
   actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
+}
+
+// ── "Aktfordeling": pick + tag submissions, print cut-out cards ──
+// A pre-act-building scratchpad: the coordinator hand-picks a subset of
+// songs/sketches (shown with their Indtast point average, never picked
+// automatically), tags each picked one with one "Stil" label (→ the card's
+// shape) and any number of "Tema" labels (→ the card's fill, one vertical
+// stripe per theme), then prints them as cut-out cards to shuffle into acts
+// by hand. Same posture as Indtast point: localStorage only, private to this
+// browser, never synced; keyed by the stable submission `id`.
+//
+// store[type] = {
+//   styles: [{id, name, shape}],   // shape ∈ MANUS_AKT_SHAPES
+//   themes: [{id, name, color}],   // color ∈ MANUS_AKT_COLORS
+//   items:  { [submissionId]: { picked, style: styleId|null, themes: [themeId] } }
+// }
+const MANUS_AKT_TAGS_KEY = 'matrevy-manus-akt-tags';
+
+// 200×100 (2:1, matching the printed cards) viewBox outlines; order is the
+// order new Stil labels are assigned.
+const MANUS_AKT_SHAPES = ['rect', 'rounded', 'hexagon', 'rhombus', 'triangle', 'octagon'];
+const MANUS_AKT_SHAPE_PATHS = {
+  rect: 'M4 4H196V96H4Z',
+  rounded: 'M28 4H172A24 24 0 0 1 196 28V72A24 24 0 0 1 172 96H28A24 24 0 0 1 4 72V28A24 24 0 0 1 28 4Z',
+  rhombus: 'M100 2L198 50L100 98L2 50Z',
+  triangle: 'M100 4L196 96H4Z',
+  hexagon: 'M40 4H160L196 50L160 96H40L4 50Z',
+  octagon: 'M30 4H170L196 30V70L170 96H30L4 70V30Z',
+};
+// Shape keys from the first (square-card) version, still possibly in a
+// browser's stored labels.
+const MANUS_AKT_SHAPE_ALIASES = { square: 'rect', circle: 'rounded' };
+
+// Light, print-friendly fills (black title text stays readable on all).
+const MANUS_AKT_COLORS = [
+  '#fca5a5', '#93c5fd', '#86efac', '#fcd34d', '#c4b5fd',
+  '#f9a8d4', '#5eead4', '#fdba74', '#bef264', '#cbd5e1',
+];
+
+const MANUS_AKT_SEED_STYLES = {
+  sang: [['Sang', 'rect'], ['Rap', 'rounded'], ['Sang/rap', 'hexagon']],
+  sketch: [],
+};
+
+function manusAktId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function loadAktTagStore() {
+  try {
+    const raw = localStorage.getItem(MANUS_AKT_TAGS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAktTagStore(store) {
+  try {
+    localStorage.setItem(MANUS_AKT_TAGS_KEY, JSON.stringify(store));
+  } catch {
+    // localStorage unavailable — silently drop, same as savePointsStore.
+  }
+}
+
+function manusAktSeedBucket(type) {
+  return {
+    styles: (MANUS_AKT_SEED_STYLES[type] || []).map(([name, shape]) => ({ id: manusAktId(), name, shape })),
+    themes: [],
+    items: {},
+  };
+}
+
+function manusAktBucket(store, type) {
+  const b = store[type];
+  if (!b || !Array.isArray(b.styles) || !Array.isArray(b.themes) || !b.items) {
+    store[type] = manusAktSeedBucket(type);
+  }
+  for (const style of store[type].styles) {
+    if (MANUS_AKT_SHAPE_ALIASES[style.shape]) style.shape = MANUS_AKT_SHAPE_ALIASES[style.shape];
+  }
+  return store[type];
+}
+
+// First palette entry no existing label uses yet; cycles once all are taken.
+function manusAktNextFromPalette(palette, used) {
+  const free = palette.find(v => !used.includes(v));
+  return free || palette[used.length % palette.length];
+}
+
+// Submissions of `type` with their point averages, best first; unscored
+// ones last in manusVotingItems' own order (alphabetical, fisk last).
+function manusAktItems(type) {
+  const bucket = loadPointsStore()[type];
+  return manusVotingItems(type)
+    .map(item => ({ ...item, avg: manusPointsStats(bucket, item).avg }))
+    .sort((a, b) => {
+      if (a.avg === null && b.avg === null) return 0;
+      if (a.avg === null) return 1;
+      if (b.avg === null) return -1;
+      return b.avg - a.avg;
+    });
+}
+
+// Resolves one item's tags against the bucket's current label lists (a
+// removed label id is simply skipped) into {shape, colors}.
+function manusAktItemLook(bucket, itemId) {
+  const tags = bucket.items[itemId];
+  const style = tags && bucket.styles.find(s => s.id === tags.style);
+  const colors = tags
+    ? bucket.themes.filter(t => (tags.themes || []).includes(t.id)).map(t => t.color)
+    : [];
+  return { shape: style ? style.shape : 'rect', colors };
+}
+
+// The shape filled with one vertical stripe per colour (white if none),
+// outlined in black. createElementNS only — never innerHTML.
+let manusAktSvgCounter = 0;
+function manusBuildAktShapeSvg(shape, colors) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const d = MANUS_AKT_SHAPE_PATHS[shape] || MANUS_AKT_SHAPE_PATHS.rect;
+  const clipId = `manus-akt-clip-${++manusAktSvgCounter}`;
+
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 200 100');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.classList.add('manus-akt-shape');
+
+  const defs = document.createElementNS(NS, 'defs');
+  const clip = document.createElementNS(NS, 'clipPath');
+  clip.setAttribute('id', clipId);
+  const clipPath = document.createElementNS(NS, 'path');
+  clipPath.setAttribute('d', d);
+  clip.appendChild(clipPath);
+  defs.appendChild(clip);
+  svg.appendChild(defs);
+
+  const fills = colors.length > 0 ? colors : ['#ffffff'];
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('clip-path', `url(#${clipId})`);
+  const stripe = 200 / fills.length;
+  fills.forEach((color, i) => {
+    const rect = document.createElementNS(NS, 'rect');
+    rect.setAttribute('x', String(i * stripe));
+    rect.setAttribute('y', '0');
+    // A hair wider than the stripe so no anti-aliasing seam shows between.
+    rect.setAttribute('width', String(stripe + 0.5));
+    rect.setAttribute('height', '100');
+    rect.setAttribute('fill', color);
+    g.appendChild(rect);
+  });
+  svg.appendChild(g);
+
+  const outline = document.createElementNS(NS, 'path');
+  outline.setAttribute('d', d);
+  outline.setAttribute('fill', 'none');
+  outline.setAttribute('stroke', '#000');
+  outline.setAttribute('stroke-width', '2.5');
+  outline.setAttribute('stroke-linejoin', 'round');
+  outline.setAttribute('vector-effect', 'non-scaling-stroke');
+  svg.appendChild(outline);
+
+  return svg;
+}
+
+// Small styled "Er du sikker?" confirm stacked on top of the tagging modal
+// (same shape as openResetPointsConfirm).
+function manusAktOpenConfirm(subText, confirmLabel, onConfirm) {
+  const { modal, form, actions, close } = siteOpenEditModal('');
+  modal.classList.add('manus-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'manus-confirm-text';
+  info.textContent = 'Er du sikker?';
+  form.appendChild(info);
+
+  if (subText) {
+    const sub = document.createElement('p');
+    sub.className = 'manus-confirm-sub';
+    sub.textContent = subText;
+    form.appendChild(sub);
+  }
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'site-btn-warm';
+  cancelBtn.textContent = 'Annuller';
+  cancelBtn.addEventListener('click', close);
+
+  const confirmBtn = document.createElement('button');
+  confirmBtn.className = 'site-btn-danger';
+  confirmBtn.textContent = confirmLabel;
+  confirmBtn.addEventListener('click', () => {
+    close();
+    onConfirm();
+  });
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+function openAktTagModal(type) {
+  const store = loadAktTagStore();
+  let bucket = manusAktBucket(store, type);
+  const items = manusAktItems(type);
+  let page = 'scenes'; // 'scenes' | 'tags'
+
+  // Every change saves straight to localStorage (like Indtast point), so
+  // closing via backdrop/Escape never loses anything.
+  const { modal, form, actions, close } = siteOpenModalWithClose(
+    `Aktfordeling – ${MANUS_TYPE_COLUMN_LABEL[type]}`
+  );
+  modal.classList.add('manus-akt-modal');
+  actions.style.display = 'none';
+
+  function persist() {
+    saveAktTagStore(store);
+  }
+
+  function itemTags(id, create) {
+    let tags = bucket.items[id];
+    if (!tags && create) tags = bucket.items[id] = { picked: false, style: null, themes: [] };
+    return tags;
+  }
+
+  function renderBody() {
+    form.textContent = '';
+
+    // Two pages, same tab-bar look as Indtast point's Tabel/Boxplot toggle:
+    // first pick the scenes, then tag only the picked ones.
+    const tabs = document.createElement('div');
+    tabs.className = 'manus-points-view-tabs';
+    for (const [key, label] of [['scenes', 'Scener'], ['labels', 'Kategorier'], ['tags', 'Stil & Tema']]) {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'manus-points-view-tab';
+      tab.classList.toggle('active', page === key);
+      tab.textContent = label;
+      tab.addEventListener('click', () => {
+        if (page === key) return;
+        page = key;
+        renderBody();
+      });
+      tabs.appendChild(tab);
+    }
+    form.appendChild(tabs);
+
+    const pageEl = document.createElement('div');
+    pageEl.className = 'manus-akt-page';
+    form.appendChild(pageEl);
+    if (page === 'scenes') renderScenesPage(pageEl);
+    else if (page === 'labels') renderLabelsPage(pageEl);
+    else renderTagsPage(pageEl);
+
+    const buttonRow = document.createElement('div');
+    buttonRow.className = 'manus-points-grid-row';
+
+    const resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'site-btn-danger manus-points-col-start';
+    resetBtn.textContent = 'Nulstil';
+    resetBtn.addEventListener('click', () => {
+      manusAktOpenConfirm(
+        `Fjerner alle valg og etiketter for ${MANUS_TYPE_COLUMN_LABEL[type].toLowerCase()}.`,
+        'Nulstil',
+        () => {
+          store[type] = manusAktSeedBucket(type);
+          bucket = store[type];
+          persist();
+          renderBody();
+        }
+      );
+    });
+
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.className = 'site-btn-warm manus-points-col-center';
+    printBtn.textContent = 'Udskriv';
+    printBtn.addEventListener('click', () => {
+      // Close first so the modal isn't sitting on top of the print sheet
+      // (see the same note in openPointEntryModal's Udskriv).
+      close();
+      manusPrintAktCards(type);
+    });
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'site-btn-warm manus-points-col-end';
+    closeBtn.textContent = 'Luk';
+    closeBtn.addEventListener('click', close);
+
+    buttonRow.appendChild(resetBtn);
+    buttonRow.appendChild(printBtn);
+    buttonRow.appendChild(closeBtn);
+    form.appendChild(buttonRow);
+  }
+
+  // ── Etiketter: the two editable label lists ──
+  function buildLabelsSection() {
+    const wrap = document.createElement('div');
+    wrap.className = 'manus-akt-labels';
+    wrap.appendChild(buildLabelList('styles', 'Stil (form)'));
+    wrap.appendChild(buildLabelList('themes', 'Tema (farve)'));
+    return wrap;
+  }
+
+  function buildLabelList(kind, heading) {
+    const isStyle = kind === 'styles';
+    const col = document.createElement('div');
+    col.className = 'manus-akt-label-col';
+
+    const h3 = document.createElement('h3');
+    h3.textContent = heading;
+    col.appendChild(h3);
+
+    const list = document.createElement('div');
+    list.className = 'manus-akt-label-list';
+    for (const label of bucket[kind]) {
+      const row = document.createElement('div');
+      row.className = 'manus-akt-label-row';
+
+      // Click cycles this label through the shape/colour palette.
+      const swatch = document.createElement('button');
+      swatch.type = 'button';
+      swatch.className = 'manus-akt-swatch';
+      swatch.title = isStyle ? 'Skift form' : 'Skift farve';
+      swatch.appendChild(isStyle
+        ? manusBuildAktShapeSvg(label.shape, [])
+        : manusBuildAktShapeSvg('rect', [label.color]));
+      swatch.addEventListener('click', () => {
+        const palette = isStyle ? MANUS_AKT_SHAPES : MANUS_AKT_COLORS;
+        const key = isStyle ? 'shape' : 'color';
+        label[key] = palette[(palette.indexOf(label[key]) + 1) % palette.length];
+        persist();
+        renderBody();
+      });
+      row.appendChild(swatch);
+
+      // Renames apply live (chip texts updated in place) rather than via a
+      // re-render on blur — a blur-triggered re-render would swallow the
+      // click that caused the blur (e.g. on a chip below).
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'manus-akt-label-input';
+      input.value = label.name;
+      input.placeholder = isStyle ? 'Fx Sang' : 'Fx Kridt';
+      input.addEventListener('input', () => {
+        label.name = input.value;
+        persist();
+        for (const chip of form.querySelectorAll('[data-akt-label]')) {
+          if (chip.dataset.aktLabel === label.id) chip.textContent = label.name || '–';
+        }
+      });
+      row.appendChild(input);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'manus-select-remove';
+      removeBtn.textContent = '✕';
+      removeBtn.setAttribute('aria-label', 'Fjern etiket');
+      removeBtn.addEventListener('click', () => {
+        const remove = () => {
+          bucket[kind] = bucket[kind].filter(l => l.id !== label.id);
+          for (const tags of Object.values(bucket.items)) {
+            if (isStyle && tags.style === label.id) tags.style = null;
+            if (!isStyle) tags.themes = (tags.themes || []).filter(id => id !== label.id);
+          }
+          persist();
+          renderBody();
+        };
+        const inUse = Object.values(bucket.items).some(tags =>
+          isStyle ? tags.style === label.id : (tags.themes || []).includes(label.id));
+        if (inUse) manusAktOpenConfirm(`"${label.name}" fjernes fra alle numre.`, 'Fjern', remove);
+        else remove();
+      });
+      row.appendChild(removeBtn);
+
+      list.appendChild(row);
+    }
+    col.appendChild(list);
+
+    const addWrap = document.createElement('div');
+    addWrap.className = 'manus-akt-label-add';
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'boss-manage-add-plus';
+    addBtn.textContent = '+';
+    addBtn.setAttribute('aria-label', isStyle ? 'Tilføj stil' : 'Tilføj tema');
+    addBtn.addEventListener('click', () => {
+      const label = { id: manusAktId(), name: '' };
+      if (isStyle) label.shape = manusAktNextFromPalette(MANUS_AKT_SHAPES, bucket.styles.map(s => s.shape));
+      else label.color = manusAktNextFromPalette(MANUS_AKT_COLORS, bucket.themes.map(t => t.color));
+      bucket[kind].push(label);
+      persist();
+      renderBody();
+      const inputs = form.querySelectorAll('.manus-akt-label-col')[isStyle ? 0 : 1]
+        .querySelectorAll('.manus-akt-label-input');
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    });
+    addWrap.appendChild(addBtn);
+    col.appendChild(addWrap);
+
+    return col;
+  }
+
+  function isPicked(id) {
+    const tags = itemTags(id);
+    return !!(tags && tags.picked);
+  }
+
+  // ── Page 1, Scener: click-to-toggle rows, same look as Vælg scener ──
+  // Best average first (that's what the pick is based on), average shown
+  // on each row. Toggles update the row in place rather than re-rendering,
+  // so the scroll position never jumps.
+  function renderScenesPage(pageEl) {
+    const count = document.createElement('p');
+    count.className = 'manus-akt-count';
+    pageEl.appendChild(count);
+    const updateCount = () => {
+      count.textContent = `${items.filter(i => isPicked(i.id)).length} af ${items.length} valgt`;
+    };
+    updateCount();
+
+    const scroll = document.createElement('div');
+    scroll.className = 'manus-akt-scroll';
+    pageEl.appendChild(scroll);
+
+    if (items.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'manus-col-empty';
+      empty.textContent = 'Ingen uploads af denne type endnu.';
+      scroll.appendChild(empty);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'manus-col-list manus-akt-scene-grid';
+    for (const item of items) {
+      const el = document.createElement('div');
+      el.className = 'manus-select-row';
+      el.setAttribute('role', 'button');
+      el.tabIndex = 0;
+
+      const title = document.createElement('span');
+      title.className = 'manus-pdf-title';
+      title.textContent = item.title;
+      el.appendChild(title);
+
+      const avg = document.createElement('span');
+      avg.className = 'manus-akt-scene-avg';
+      // Blank (not a dash) when this browser has no points for the item.
+      avg.textContent = item.avg === null ? '' : formatPointsAvg(item.avg);
+      el.appendChild(avg);
+
+      const sync = () => {
+        const picked = isPicked(item.id);
+        el.classList.toggle('manus-select-row-selected', picked);
+        el.setAttribute('aria-pressed', String(picked));
+      };
+      const toggle = () => {
+        itemTags(item.id, true).picked = !isPicked(item.id);
+        persist();
+        sync();
+        updateCount();
+      };
+      el.addEventListener('click', toggle);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+      sync();
+      list.appendChild(el);
+    }
+    scroll.appendChild(list);
+  }
+
+  // ── Page 2, Kategorier: the editable Stil/Tema label lists ──
+  function renderLabelsPage(pageEl) {
+    const scroll = document.createElement('div');
+    scroll.className = 'manus-akt-scroll';
+    scroll.appendChild(buildLabelsSection());
+    pageEl.appendChild(scroll);
+  }
+
+  // ── Page 3, Stil & Tema: only the picked scenes, two columns of cards
+  // (title / Stil / Tema lines) ──
+  function renderTagsPage(pageEl) {
+    const list = document.createElement('div');
+    list.className = 'manus-akt-scroll manus-akt-items';
+    pageEl.appendChild(list);
+    renderItems(list);
+  }
+
+  function renderItems(list = form.querySelector('.manus-akt-items')) {
+    const scrollTop = list.scrollTop;
+    list.textContent = '';
+    const picked = items.filter(i => isPicked(i.id));
+    if (picked.length === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'manus-col-empty';
+      empty.textContent = 'Ingen scener valgt endnu – vælg dem under "Scener".';
+      list.appendChild(empty);
+    } else {
+      const grid = document.createElement('div');
+      grid.className = 'manus-akt-item-grid';
+      for (const item of picked) grid.appendChild(buildItemRow(item));
+      list.appendChild(grid);
+    }
+    list.scrollTop = scrollTop;
+  }
+
+  function buildItemRow(item) {
+    const row = document.createElement('div');
+    row.className = 'manus-akt-item';
+
+    const head = document.createElement('div');
+    head.className = 'manus-akt-item-head';
+
+    const look = manusAktItemLook(bucket, item.id);
+    const preview = document.createElement('span');
+    preview.className = 'manus-akt-item-preview';
+    preview.appendChild(manusBuildAktShapeSvg(look.shape, look.colors));
+    head.appendChild(preview);
+
+    const title = document.createElement('span');
+    title.className = 'manus-akt-item-title';
+    title.textContent = item.title;
+    head.appendChild(title);
+
+    const avg = document.createElement('span');
+    avg.className = 'manus-akt-item-avg';
+    avg.textContent = item.avg === null ? '' : formatPointsAvg(item.avg);
+    head.appendChild(avg);
+    row.appendChild(head);
+
+    row.appendChild(buildChipGroup(item, 'styles'));
+    row.appendChild(buildChipGroup(item, 'themes'));
+    return row;
+  }
+
+  // Stil chips are single-select (click the active one again to clear),
+  // Tema chips multi-select.
+  function buildChipGroup(item, kind) {
+    const isStyle = kind === 'styles';
+    const group = document.createElement('div');
+    group.className = 'manus-akt-chip-group';
+
+    const label = document.createElement('span');
+    label.className = 'manus-akt-chip-group-label';
+    label.textContent = isStyle ? 'Stil' : 'Tema';
+    group.appendChild(label);
+
+    if (bucket[kind].length === 0) {
+      const none = document.createElement('span');
+      none.className = 'manus-akt-chip-none';
+      none.textContent = isStyle ? 'Ingen stile' : 'Ingen temaer';
+      group.appendChild(none);
+    }
+
+    const tags = itemTags(item.id, true);
+    for (const l of bucket[kind]) {
+      const active = isStyle ? tags.style === l.id : (tags.themes || []).includes(l.id);
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'manus-akt-chip';
+      chip.classList.toggle('manus-akt-chip-active', active);
+      chip.dataset.aktLabel = l.id;
+      chip.textContent = l.name || '–';
+      chip.addEventListener('click', () => {
+        if (isStyle) {
+          tags.style = active ? null : l.id;
+        } else {
+          const set = new Set(tags.themes || []);
+          if (active) set.delete(l.id); else set.add(l.id);
+          // Keep label-list order so stripes match the legend's order.
+          tags.themes = bucket.themes.map(t => t.id).filter(id => set.has(id));
+        }
+        persist();
+        renderItems();
+      });
+      group.appendChild(chip);
+    }
+    return group;
+  }
+
+  renderBody();
+}
+
+// Udskriv: a legend, then one cut-out card per picked item (best average
+// first) — shape = Stil, striped fill = Tema(er). Keeps colours in print
+// (see .manus-akt-* in manus.css's @media print block).
+function manusPrintAktCards(type) {
+  const bucket = manusAktBucket(loadAktTagStore(), type);
+  const sheet = document.getElementById('manus-print-sheet');
+  sheet.textContent = '';
+
+  const title = document.createElement('h2');
+  title.className = 'manus-print-title';
+  title.textContent = `Aktfordeling – ${MANUS_TYPE_COLUMN_LABEL[type]}`;
+  sheet.appendChild(title);
+
+  const legend = document.createElement('div');
+  legend.className = 'manus-akt-legend';
+  for (const [heading, labels, isStyle] of [['Stil', bucket.styles, true], ['Tema', bucket.themes, false]]) {
+    if (labels.length === 0) continue;
+    const row = document.createElement('div');
+    row.className = 'manus-akt-legend-row';
+    const h = document.createElement('strong');
+    h.textContent = `${heading}:`;
+    row.appendChild(h);
+    for (const l of labels) {
+      const entry = document.createElement('span');
+      entry.className = 'manus-akt-legend-entry';
+      entry.appendChild(isStyle
+        ? manusBuildAktShapeSvg(l.shape, [])
+        : manusBuildAktShapeSvg('rect', [l.color]));
+      entry.appendChild(document.createTextNode(l.name || '–'));
+      row.appendChild(entry);
+    }
+    legend.appendChild(row);
+  }
+  sheet.appendChild(legend);
+
+  const picked = manusAktItems(type).filter(i => bucket.items[i.id] && bucket.items[i.id].picked);
+  const grid = document.createElement('div');
+  grid.className = 'manus-akt-cards';
+  for (const item of picked) {
+    const look = manusAktItemLook(bucket, item.id);
+    const card = document.createElement('div');
+    card.className = `manus-akt-card manus-akt-card-${look.shape}`;
+    const inner = document.createElement('div');
+    inner.className = 'manus-akt-card-inner';
+    inner.appendChild(manusBuildAktShapeSvg(look.shape, look.colors));
+    const text = document.createElement('div');
+    text.className = 'manus-akt-card-text';
+    const name = document.createElement('span');
+    name.className = 'manus-akt-card-title';
+    name.textContent = item.title;
+    text.appendChild(name);
+    if (item.avg !== null) {
+      const avg = document.createElement('span');
+      avg.className = 'manus-akt-card-avg';
+      avg.textContent = `avg. ${formatPointsAvg(item.avg)}`;
+      text.appendChild(avg);
+    }
+    inner.appendChild(text);
+    card.appendChild(inner);
+    grid.appendChild(card);
+  }
+  sheet.appendChild(grid);
+
+  window.print();
 }
 
 // ── Main Manus View (boss/admin only) — shared draft state ────
@@ -2886,6 +3541,20 @@ function renderSelectionColumn() {
   }
   pointGroup.appendChild(pointBtnRow);
   section.appendChild(pointGroup);
+
+  const aktGroup = renderSelectPanelGroup('Aktfordeling');
+  const aktBtnRow = document.createElement('div');
+  aktBtnRow.className = 'manus-select-panel-btn-row';
+  for (const type of MANUS_TYPES) {
+    const aktBtn = document.createElement('button');
+    aktBtn.type = 'button';
+    aktBtn.className = 'site-btn-warm';
+    aktBtn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
+    aktBtn.addEventListener('click', () => openAktTagModal(type));
+    aktBtnRow.appendChild(aktBtn);
+  }
+  aktGroup.appendChild(aktBtnRow);
+  section.appendChild(aktGroup);
 
   const selectGroup = renderSelectPanelGroup('Vælg Scener');
   const selectBtn = document.createElement('button');
