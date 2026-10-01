@@ -22,13 +22,13 @@
                 {
                     "id": "muplb6xery8g",
                     "start": "2026-10-26",
-                    "end": "2026-11-08",
-                    "label": "Oplæsning + Eksamen",
+                    "end": "2026-11-06",
+                    "label": "Blokuge 8 + 9",
                     "color": "green"
                 },
                 {
                     "id": "muplbjtryxu8",
-                    "start": "2026-11-09",
+                    "start": "2026-11-07",
                     "end": "2026-11-15",
                     "label": "Pause",
                     "color": "green"
@@ -43,7 +43,7 @@
                     "id": "mupl1mljas4r",
                     "start": "2026-09-01",
                     "end": "2026-10-07",
-                    "label": "Ugentlige manusmøder",
+                    "label": "Ugentlige manusmøder (ikke obligatorisk)",
                     "color": "blue"
                 }
             ]
@@ -94,8 +94,15 @@
                 {
                     "id": "mupl2wht6cor",
                     "start": "2026-10-24",
+                    "end": "2026-10-25",
+                    "label": "",
+                    "color": "purple"
+                },
+                {
+                    "id": "muplg97zmynz",
+                    "start": "2026-11-07",
                     "end": "2026-11-18",
-                    "label": "Ingen øvning oven i eksamener",
+                    "label": "",
                     "color": "purple"
                 }
             ]
