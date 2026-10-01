@@ -226,6 +226,24 @@ function getEffectiveConfig() {
   return Object.assign({}, (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {}), configOverride);
 }
 
+// Sketches and songs close for revyst uploads independently. Mirrors
+// update-data.php's manus_uploads_closed_for_revyst(): each per-type key
+// falls back to the legacy single uploadsClosedForRevyst flag when absent.
+const MANUS_UPLOADS_CLOSED_KEYS = { sketch: 'sketchUploadsClosedForRevyst', sang: 'songUploadsClosedForRevyst' };
+
+function manusUploadsClosed(type) {
+  const cfg = getEffectiveConfig();
+  const key = MANUS_UPLOADS_CLOSED_KEYS[type];
+  return (key in cfg ? cfg[key] : cfg.uploadsClosedForRevyst) === true;
+}
+
+// The Sketch/Sang options still open for revyst upload, in the same order
+// createManusTypeToggle's own default uses.
+function manusOpenTypeOptions() {
+  return [{ value: 'sang', label: 'Sang' }, { value: 'sketch', label: 'Sketch' }]
+    .filter(opt => !manusUploadsClosed(opt.value));
+}
+
 // ── Any-level authenticated API (revyst-level manuscripts_create) ──
 // Mirrors posts.js's postsApi()/postsResolvePassword() exactly — see the
 // file header for why this can't just use site-utils.js's siteSaveResource
@@ -465,16 +483,22 @@ function renderBottomActions() {
   mount.textContent = '';
   if (!siteHasLevel('revyst') || siteHasLevel('boss')) return;
 
-  // Admin's "Luk for uploads" toggle (renderAdminSettings) — boss/admin
+  // Admin's per-type upload toggles (renderAdminSettings) — boss/admin
   // never reach this branch (returned above), so this only ever affects a
   // plain revyst-level visitor, matching the server-side enforcement in
-  // manuscripts_create/manuscripts_update.
-  if (getEffectiveConfig().uploadsClosedForRevyst) {
+  // manuscripts_create/manuscripts_update. Both closed hides the buttons
+  // entirely; just one closed keeps them (the modals then only offer the
+  // still-open type) with a note saying which one is closed.
+  const sketchClosed = manusUploadsClosed('sketch');
+  const songClosed = manusUploadsClosed('sang');
+  if (sketchClosed || songClosed) {
     const notice = document.createElement('p');
     notice.className = 'manus-uploads-closed-notice';
-    notice.textContent = 'Upload af manus til årets revy er lukket.';
+    notice.textContent = sketchClosed && songClosed
+      ? 'Upload af manus til årets revy er lukket.'
+      : (sketchClosed ? 'Upload af sketches er lukket.' : 'Upload af sange er lukket.');
     mount.appendChild(notice);
-    return;
+    if (sketchClosed && songClosed) return;
   }
 
   const btn = document.createElement('button');
@@ -571,7 +595,11 @@ function openUploadModal() {
   texInput.className = 'site-file-input';
   form.appendChild(siteEditField('Kildefil (.tex)', texInput));
 
-  const typeToggle = createManusTypeToggle();
+  // Boss/admin aren't subject to the revyst upload toggles (server-side
+  // too), so they always get both types.
+  const typeOptions = siteHasLevel('boss') ? undefined : manusOpenTypeOptions();
+  const typeToggle = createManusTypeToggle(typeOptions);
+  if (typeOptions && typeOptions.length === 1) typeToggle.select(typeOptions[0].value);
   form.appendChild(siteEditField('Type', typeToggle.element));
 
   const save = document.createElement('button');
@@ -653,8 +681,12 @@ function openUploadModal() {
 // submitted/ (manusIsPendingSubmission) are eligible — anything boss has
 // already pulled into the show via Vælg scener is off-limits here.
 function openUpdateModal() {
+  // A plain revyst can only update submissions whose type is still open
+  // (manuscripts_update re-checks this server-side).
+  const restrictTypes = !siteHasLevel('boss');
   const eligible = getEffectiveManuscripts()
     .filter(manusIsPendingSubmission)
+    .filter(item => !restrictTypes || !manusUploadsClosed(item.type))
     .slice()
     .sort((a, b) => a.title.localeCompare(b.title, 'da'));
   if (eligible.length === 0) {
@@ -688,7 +720,7 @@ function openUpdateModal() {
   texInput.className = 'site-file-input';
   form.appendChild(siteEditField('Kildefil (.tex)', texInput));
 
-  const typeToggle = createManusTypeToggle();
+  const typeToggle = createManusTypeToggle(restrictTypes ? manusOpenTypeOptions() : undefined);
   form.appendChild(siteEditField('Type', typeToggle.element));
 
   // Files can't be pre-filled into a file input (browsers block assigning a
@@ -1014,6 +1046,7 @@ function openPointEntryModal(type) {
   actions.style.display = 'none';
 
   let mode = 'entry'; // 'entry' | 'results'
+  let resultsView = loadPointsResultsView(); // 'table' | 'boxplot'
 
   function renderBody() {
     form.textContent = '';
@@ -1180,13 +1213,14 @@ function openPointEntryModal(type) {
   function computePointsStats(item) {
     let sum = 0, count = 0;
     const comments = [];
+    const points = [];
     for (const sheet of bucket.sheets) {
       const entry = sheet[item.id];
       if (!entry) continue;
-      if (typeof entry.point === 'number') { sum += entry.point; count += 1; }
+      if (typeof entry.point === 'number') { sum += entry.point; count += 1; points.push(entry.point); }
       if (entry.comment && entry.comment.trim()) comments.push(entry.comment.trim());
     }
-    return { avg: count > 0 ? sum / count : null, count, comments };
+    return { avg: count > 0 ? sum / count : null, count, comments, points };
   }
 
   function renderResultsView() {
@@ -1199,46 +1233,30 @@ function openPointEntryModal(type) {
       return b.avg - a.avg;
     });
 
-    const table = document.createElement('table');
-    table.className = 'manus-points-results-table';
-
-    const thead = document.createElement('thead');
-    const headRow = document.createElement('tr');
-    for (const label of ['Navn', 'Gennemsnit', 'Antal', 'Kommentarer']) {
-      const th = document.createElement('th');
-      th.textContent = label;
-      headRow.appendChild(th);
+    // Tabel/Boxplot toggle — same tab-bar look as Budget's own
+    // Budget/Stregregnskab bar (.budget-mode-tabs, duplicated as
+    // .manus-points-view-tabs per the per-feature-duplication convention).
+    const tabs = document.createElement('div');
+    tabs.className = 'manus-points-view-tabs';
+    for (const [key, label] of [['table', 'Tabel'], ['boxplot', 'Boxplot']]) {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'manus-points-view-tab';
+      tab.classList.toggle('active', resultsView === key);
+      tab.textContent = label;
+      tab.addEventListener('click', () => {
+        if (resultsView === key) return;
+        resultsView = key;
+        savePointsResultsView(key);
+        renderBody();
+      });
+      tabs.appendChild(tab);
     }
-    thead.appendChild(headRow);
-    table.appendChild(thead);
-
-    const tbody = document.createElement('tbody');
-    for (const row of rows) {
-      const tr = document.createElement('tr');
-
-      const tdName = document.createElement('td');
-      tdName.textContent = row.title;
-      tr.appendChild(tdName);
-
-      const tdAvg = document.createElement('td');
-      tdAvg.textContent = row.avg === null ? '–' : formatPointsAvg(row.avg);
-      tr.appendChild(tdAvg);
-
-      const tdCount = document.createElement('td');
-      tdCount.textContent = String(row.count);
-      tr.appendChild(tdCount);
-
-      const tdComments = document.createElement('td');
-      tdComments.textContent = row.comments.join(' / ');
-      tr.appendChild(tdComments);
-
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
+    form.appendChild(tabs);
 
     const scroll = document.createElement('div');
     scroll.className = 'manus-points-results-scroll';
-    scroll.appendChild(table);
+    scroll.appendChild(resultsView === 'boxplot' ? buildPointsBoxplot(rows) : buildPointsResultsTable(rows));
     form.appendChild(scroll);
 
     // Button row directly below the scroll area (same .manus-points-grid-row
@@ -1286,6 +1304,201 @@ function openPointEntryModal(type) {
   }
 
   renderBody();
+}
+
+function buildPointsResultsTable(rows) {
+  const table = document.createElement('table');
+  table.className = 'manus-points-results-table';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  for (const label of ['Navn', 'Gennemsnit', 'Antal', 'Kommentarer']) {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
+  }
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+
+    const tdName = document.createElement('td');
+    tdName.textContent = row.title;
+    tr.appendChild(tdName);
+
+    const tdAvg = document.createElement('td');
+    tdAvg.textContent = row.avg === null ? '–' : formatPointsAvg(row.avg);
+    tr.appendChild(tdAvg);
+
+    const tdCount = document.createElement('td');
+    tdCount.textContent = String(row.count);
+    tr.appendChild(tdCount);
+
+    const tdComments = document.createElement('td');
+    tdComments.textContent = row.comments.join(' / ');
+    tr.appendChild(tdComments);
+
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  return table;
+}
+
+// ── Resultat: Boxplot view ─────
+// One row per submission, in the same order as the table (highest average
+// first), on a shared 0-10 axis: whisker min→max, box Q1→Q3 filled with the
+// median's own color from the entry view's red→green circle ramp, a median
+// line, and a diamond marking the average (the value the order is by).
+// Built from %-positioned divs, never innerHTML. On-screen only — Udskriv
+// always prints the table, so the "< 6" coarsening still holds on paper.
+const MANUS_POINTS_VIEW_KEY = 'matrevy-manus-points-view';
+
+function loadPointsResultsView() {
+  try {
+    return localStorage.getItem(MANUS_POINTS_VIEW_KEY) === 'boxplot' ? 'boxplot' : 'table';
+  } catch {
+    return 'table';
+  }
+}
+
+function savePointsResultsView(view) {
+  try {
+    localStorage.setItem(MANUS_POINTS_VIEW_KEY, view);
+  } catch {
+    // localStorage unavailable — the choice just isn't remembered.
+  }
+}
+
+// Linear-interpolation quantile (the same method spreadsheets use), on an
+// already-sorted non-empty array.
+function pointsQuantile(sorted, p) {
+  const pos = (sorted.length - 1) * p;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+function formatPointsStat(value) {
+  return value.toFixed(1).replace('.', ',');
+}
+
+function buildPointsBoxplot(rows) {
+  const wrap = document.createElement('div');
+  wrap.className = 'manus-points-box';
+
+  const pct = v => `${v * 10}%`;
+
+  // Axis header: 0-10 ticks over the plot column, plus a tiny legend for
+  // the two in-box marks on the left (in the title column's own space).
+  const head = document.createElement('div');
+  head.className = 'manus-points-box-row manus-points-box-head';
+  const legend = document.createElement('span');
+  legend.className = 'manus-points-box-legend';
+  const legMedian = document.createElement('span');
+  legMedian.className = 'manus-points-box-legend-median';
+  const legMean = document.createElement('span');
+  legMean.className = 'manus-points-box-legend-mean';
+  legend.append(legMedian, 'Median', legMean, 'Gns.');
+  head.appendChild(legend);
+  const axis = document.createElement('div');
+  axis.className = 'manus-points-box-track manus-points-box-axis';
+  for (let v = 0; v <= 10; v += 2) {
+    const tick = document.createElement('span');
+    tick.className = 'manus-points-box-tick';
+    tick.style.left = pct(v);
+    tick.textContent = String(v);
+    axis.appendChild(tick);
+  }
+  head.appendChild(axis);
+  const countHead = document.createElement('span');
+  countHead.className = 'manus-points-box-count';
+  countHead.textContent = 'Antal';
+  head.appendChild(countHead);
+  wrap.appendChild(head);
+
+  for (const row of rows) {
+    const line = document.createElement('div');
+    line.className = 'manus-points-box-row';
+
+    const title = document.createElement('span');
+    title.className = 'manus-points-box-title';
+    title.textContent = row.title;
+    line.appendChild(title);
+
+    const track = document.createElement('div');
+    track.className = 'manus-points-box-track';
+    for (let v = 0; v <= 10; v += 2) {
+      const grid = document.createElement('span');
+      grid.className = 'manus-points-box-grid';
+      grid.style.left = pct(v);
+      track.appendChild(grid);
+    }
+
+    if (row.points.length === 0) {
+      const none = document.createElement('span');
+      none.className = 'manus-points-box-none';
+      none.textContent = '–';
+      track.appendChild(none);
+    } else {
+      const sorted = row.points.slice().sort((a, b) => a - b);
+      const min = sorted[0];
+      const max = sorted[sorted.length - 1];
+      const q1 = pointsQuantile(sorted, 0.25);
+      const median = pointsQuantile(sorted, 0.5);
+      const q3 = pointsQuantile(sorted, 0.75);
+
+      const whisker = document.createElement('span');
+      whisker.className = 'manus-points-box-whisker';
+      whisker.style.left = pct(min);
+      whisker.style.width = pct(max - min);
+      track.appendChild(whisker);
+
+      for (const v of [min, max]) {
+        const cap = document.createElement('span');
+        cap.className = 'manus-points-box-cap';
+        cap.style.left = pct(v);
+        track.appendChild(cap);
+      }
+
+      const box = document.createElement('span');
+      box.className = `manus-points-box-iqr manus-points-box-v${Math.round(median)}`;
+      if (q3 === q1) box.classList.add('manus-points-box-iqr-flat');
+      box.style.left = pct(q1);
+      box.style.width = pct(q3 - q1);
+      track.appendChild(box);
+
+      const medianEl = document.createElement('span');
+      medianEl.className = 'manus-points-box-median';
+      medianEl.style.left = pct(median);
+      track.appendChild(medianEl);
+
+      const mean = document.createElement('span');
+      mean.className = 'manus-points-box-mean';
+      mean.style.left = pct(row.avg);
+      track.appendChild(mean);
+
+      line.title = [
+        `Min ${formatPointsStat(min)}`,
+        `Q1 ${formatPointsStat(q1)}`,
+        `Median ${formatPointsStat(median)}`,
+        `Q3 ${formatPointsStat(q3)}`,
+        `Maks ${formatPointsStat(max)}`,
+        `Gns. ${formatPointsStat(row.avg)}`,
+      ].join(' · ');
+    }
+    line.appendChild(track);
+
+    const count = document.createElement('span');
+    count.className = 'manus-points-box-count';
+    count.textContent = String(row.count);
+    line.appendChild(count);
+
+    wrap.appendChild(line);
+  }
+
+  return wrap;
 }
 
 // Same "Er du sikker?" narrow-confirm shape as openManuscriptDeleteConfirm
@@ -4580,9 +4793,10 @@ function renderPoolLayoutVisibility() {
 // on the site, rather than a bespoke status box just for this card.
 // `checked`/`onChange` let each column phrase its own on/off state
 // independently of the raw
-// configKey — the uploads column shows/writes the *inverse* of
-// uploadsClosedForRevyst so its label can read as a positive "revyster kan
-// uploade" rather than a double-negative "luk ikke for uploads".
+// configKey — the two uploads columns show/write the *inverse* of
+// sketchUploadsClosedForRevyst/songUploadsClosedForRevyst so their labels
+// can read as a positive "revyster kan uploade" rather than a double-negative
+// "luk ikke for uploads".
 function renderAdminToggleColumn(container, { id, label: labelText, checked, onChange, savedText }) {
   const col = document.createElement('div');
   col.className = 'manus-admin-toggle-col';
@@ -4640,24 +4854,36 @@ function renderAdminSettings() {
   const columns = document.createElement('div');
   columns.className = 'manus-admin-toggle-columns';
 
-  // Off (uploads open) by default — flipping this off blocks a plain
-  // revyst-level visitor's Upload/Opdater actions further up this page
-  // (renderBottomActions), enforced server-side too (manuscripts_create/
+  // On (uploads open) by default — flipping one off blocks a plain
+  // revyst-level visitor from uploading/updating that type further up this
+  // page (renderBottomActions), enforced server-side too (manuscripts_create/
   // manuscripts_update in update-data.php), not just a client-side hide.
-  renderAdminToggleColumn(columns, {
-    id: 'manus-uploads-open-toggle',
-    label: 'Revyster kan uploade sketches/sange',
-    checked: !getEffectiveConfig().uploadsClosedForRevyst,
-    onChange: async (next) => {
-      const res = await siteSaveResource('config', { uploadsClosedForRevyst: !next });
-      if (res.ok) {
-        configOverride = Object.assign({}, configOverride, { uploadsClosedForRevyst: !next });
-        siteSaveOverride('config', configOverride);
-      }
-      return res;
-    },
-    savedText: 'Slår igennem for revyster om 1-2 minutter.',
-  });
+  // Each save sends *both* per-type keys (the other one's current effective
+  // value unchanged), since save_config drops the legacy shared
+  // uploadsClosedForRevyst key the first time either is written — sending
+  // only one would silently flip the other's legacy fallback open.
+  for (const [type, label] of [['sang', 'Revyster kan uploade sange'], ['sketch', 'Revyster kan uploade sketches']]) {
+    renderAdminToggleColumn(columns, {
+      id: `manus-uploads-open-toggle-${type}`,
+      label,
+      checked: !manusUploadsClosed(type),
+      onChange: async (next) => {
+        const flags = {
+          sketchUploadsClosedForRevyst: manusUploadsClosed('sketch'),
+          songUploadsClosedForRevyst: manusUploadsClosed('sang'),
+        };
+        flags[MANUS_UPLOADS_CLOSED_KEYS[type]] = !next;
+        const res = await siteSaveResource('config', flags);
+        if (res.ok) {
+          configOverride = Object.assign({}, configOverride, flags);
+          delete configOverride.uploadsClosedForRevyst;
+          siteSaveOverride('config', configOverride);
+        }
+        return res;
+      },
+      savedText: 'Slår igennem for revyster om 1-2 minutter.',
+    });
+  }
 
   renderAdminToggleColumn(columns, {
     id: 'manus-pdf-toggle',

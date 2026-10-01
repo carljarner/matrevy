@@ -224,6 +224,7 @@ a.manus-pdf-title:focus-visible {
 
 .manus-bottom-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 0.6rem;
 }
@@ -233,6 +234,7 @@ a.manus-pdf-title:focus-visible {
 }
 
 .manus-uploads-closed-notice {
+  flex-basis: 100%; /* own line above the buttons when only one type is closed */
   text-align: center;
   color: var(--text-muted);
   font-style: italic;
@@ -840,6 +842,219 @@ a.manus-pdf-title:focus-visible {
 .manus-points-results-table th:nth-child(4),
 .manus-points-results-table td:nth-child(4) {
   width: 56%;
+}
+
+/* Resultat's Tabel/Boxplot toggle — duplicated from budget.css's
+   .budget-mode-tabs/.budget-mode-tab (per-feature-duplication convention). */
+.manus-points-view-tabs {
+  display: flex;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.manus-points-view-tab {
+  flex: 1 1 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.manus-points-view-tab.active {
+  color: var(--accent-warm-text);
+  border-bottom-color: var(--accent-warm-text);
+}
+
+@media (hover: hover) {
+  .manus-points-view-tab:not(.active):hover { color: var(--text); }
+}
+
+.manus-points-view-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  border-radius: 4px;
+}
+
+/* Resultat's Boxplot view (buildPointsBoxplot in manus.js) — title column,
+   a 0-10 plot track (every mark %-positioned against it), and a narrow
+   Antal column. The axis header row is sticky so the ticks stay visible
+   while the list scrolls inside .manus-points-results-scroll. */
+.manus-points-box-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.1rem;
+  padding: 0.2rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.manus-points-box-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.manus-points-box-title {
+  flex: 0 0 24%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manus-points-box-legend {
+  flex: 0 0 24%;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.manus-points-box-legend-median {
+  width: 2px;
+  height: 12px;
+  background: var(--header);
+}
+
+.manus-points-box-legend-mean {
+  width: 8px;
+  height: 8px;
+  margin-left: 0.4rem;
+  background: var(--header);
+  transform: rotate(45deg);
+}
+
+/* Horizontal padding keeps the 0/10 end marks (and their tick labels)
+   inside the track rather than clipped against the columns beside it. */
+.manus-points-box-track {
+  position: relative;
+  flex: 1 1 auto;
+  align-self: stretch;
+  margin: 0 0.6rem;
+}
+
+.manus-points-box-axis {
+  min-height: 1.2rem;
+}
+
+.manus-points-box-tick {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-variant-numeric: tabular-nums;
+}
+
+.manus-points-box-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border);
+  opacity: 0.6;
+}
+
+.manus-points-box-none {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-muted);
+}
+
+.manus-points-box-whisker {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: var(--text-muted);
+}
+
+.manus-points-box-cap {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 10px;
+  margin: -5px 0 0 -1px;
+  background: var(--text-muted);
+}
+
+/* min-width keeps a zero-width box (Q1 = Q3, e.g. a single vote) visible
+   as a thin colored sliver behind the median line. */
+.manus-points-box-iqr {
+  position: absolute;
+  top: 50%;
+  height: 16px;
+  min-width: 4px;
+  margin-top: -8px;
+  border: 1px solid var(--text-muted);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* Centered on its single value instead of growing rightward from it (which
+   pushed a 10-only box past the axis end). */
+.manus-points-box-iqr-flat {
+  margin-left: -2px;
+}
+
+.manus-points-box-median {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 16px;
+  margin: -8px 0 0 -1px;
+  background: var(--header);
+}
+
+/* 2px surface ring so the mean stays legible where it overlaps the
+   median line or the box edge. */
+.manus-points-box-mean {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: var(--header);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: rotate(45deg);
+}
+
+.manus-points-box-count {
+  flex: 0 0 3rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Same red→green ramp as .manus-points-circle-vN-active above, keyed by
+   the box's (rounded) median. */
+.manus-points-box-v0  { background: rgb(252 165 165); }
+.manus-points-box-v1  { background: rgb(252 174 147); }
+.manus-points-box-v2  { background: rgb(252 183 130); }
+.manus-points-box-v3  { background: rgb(252 193 112); }
+.manus-points-box-v4  { background: rgb(252 202  95); }
+.manus-points-box-v5  { background: rgb(252 211  77); }
+.manus-points-box-v6  { background: rgb(228 217  96); }
+.manus-points-box-v7  { background: rgb(205 222 115); }
+.manus-points-box-v8  { background: rgb(181 228 134); }
+.manus-points-box-v9  { background: rgb(158 233 153); }
+.manus-points-box-v10 { background: rgb(134 239 172); }
+
+@media (max-width: 719px) {
+  .manus-points-box-title,
+  .manus-points-box-legend { flex-basis: 32%; }
+  /* Too cramped for the legend at this width — keep its column as a spacer
+     so the axis still lines up with the rows below. */
+  .manus-points-box-legend { visibility: hidden; }
+  .manus-points-box-count { flex-basis: 2.5rem; }
 }
 
 /* --- Tab: Aktfordeling — act columns in a row, "Ikke placeret" below --

@@ -3745,19 +3745,23 @@ function manus_current_production_folder() {
 // manus_current_production_folder()'s own fresh-read pattern (this file has
 // no in-process cache of config.json). Fails open (false = uploads allowed)
 // on a missing/malformed config.json, same posture as the folder lookup's
-// own "missing file" branch defaulting $folder to ''.
-function manus_uploads_closed_for_revyst() {
+// own "missing file" branch defaulting $folder to ''. Per-type: sketches and
+// songs close independently (sketchUploadsClosedForRevyst/
+// songUploadsClosedForRevyst), each falling back to the legacy single
+// uploadsClosedForRevyst flag when its own key is absent — save_config drops
+// that legacy key the first time either per-type key is written.
+function manus_uploads_closed_for_revyst($type) {
   [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
   if ($cfgStatus !== 200) return false;
   $decoded = json_decode(base64_decode($cfg['content']), true);
-  return is_array($decoded) && ($decoded['uploadsClosedForRevyst'] ?? false) === true;
+  if (!is_array($decoded)) return false;
+  $key = $type === 'sang' ? 'songUploadsClosedForRevyst' : 'sketchUploadsClosedForRevyst';
+  $flag = array_key_exists($key, $decoded) ? $decoded[$key] : ($decoded['uploadsClosedForRevyst'] ?? false);
+  return $flag === true;
 }
 
 function manuscripts_create($body) {
   global $level;
-  if ($level === 'revyst' && manus_uploads_closed_for_revyst()) {
-    respond(403, ['error' => 'uploads_closed']);
-  }
   $type      = $body['type'] ?? '';
   $title     = $body['title'] ?? '';
   $sender    = $body['sender'] ?? '';
@@ -3769,6 +3773,9 @@ function manuscripts_create($body) {
       || !is_string($pdfBase64) || $pdfBase64 === ''
       || !is_string($texBase64) || $texBase64 === '') {
     respond(400, ['error' => 'invalid_shape']);
+  }
+  if ($level === 'revyst' && manus_uploads_closed_for_revyst($type)) {
+    respond(403, ['error' => 'uploads_closed']);
   }
   $pdfRaw = base64_decode($pdfBase64, true);
   $texRaw = base64_decode($texBase64, true);
@@ -3835,9 +3842,6 @@ function manuscripts_create($body) {
 // its own current path and simply overwrites in place via put_file().
 function manuscripts_update($body) {
   global $level;
-  if ($level === 'revyst' && manus_uploads_closed_for_revyst()) {
-    respond(403, ['error' => 'uploads_closed']);
-  }
   $id        = $body['id'] ?? '';
   $type      = $body['type'] ?? '';
   $title     = $body['title'] ?? '';
@@ -3880,6 +3884,13 @@ function manuscripts_update($body) {
   }
   if ($existing === null) {
     respond(404, ['error' => 'not_found']);
+  }
+  // Checked against both the submission's current type and the requested
+  // one, so re-typing a closed-category submission can't sneak an update
+  // through (nor can an open-category one be re-typed into a closed one).
+  if ($level === 'revyst'
+      && (manus_uploads_closed_for_revyst($type) || manus_uploads_closed_for_revyst($existing['type'] ?? ''))) {
+    respond(403, ['error' => 'uploads_closed']);
   }
   // Eligibility re-check, defense in depth (mirrors manuscripts_sync_selection's
   // own "graduated" skip) — boss may have selected this submission into the
@@ -4329,12 +4340,14 @@ function save_wiki($payload) {
 // (koordCloseYear resets it) so a coordinator can proof freshly generated
 // PDFs before revealing them; flipped from Koordinator's own toggle.
 //
-// uploadsClosedForRevyst: blocks a plain revyst-level visitor's Upload/
-// Opdater actions on the Manus page (manuscripts_create/manuscripts_update,
-// enforced below — not just a client-side hide) once boss/admin has closed
-// submissions for the year, e.g. once every sketch/song is already in.
-// Off (uploads open) by default; flipped from Manus's own Admin-indstillinger
-// toggle (js/manus.js's renderAdminSettings).
+// sketchUploadsClosedForRevyst/songUploadsClosedForRevyst: block a plain
+// revyst-level visitor's Upload/Opdater actions on the Manus page for that
+// type (manuscripts_create/manuscripts_update, enforced above — not just a
+// client-side hide) once boss/admin has closed submissions for it, e.g. once
+// every sketch is already in. Off (uploads open) by default; flipped from
+// Manus's own Admin-indstillinger toggles (js/manus.js's renderAdminSettings).
+// uploadsClosedForRevyst is the legacy single flag both used to share — still
+// accepted and read as a fallback, removed once either per-type key is saved.
 function save_config($payload) {
   $hasFolder = array_key_exists('currentProductionFolder', $payload);
   $folder = $payload['currentProductionFolder'] ?? '';
@@ -4351,13 +4364,23 @@ function save_config($payload) {
   if ($hasUploadsClosedFlag && !is_bool($uploadsClosedFlag)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  if (!$hasFolder && !$hasPdfFlag && !$hasUploadsClosedFlag) {
+  $typeFlags = [];
+  foreach (['sketchUploadsClosedForRevyst', 'songUploadsClosedForRevyst'] as $key) {
+    if (!array_key_exists($key, $payload)) continue;
+    if (!is_bool($payload[$key])) respond(400, ['error' => 'invalid_shape']);
+    $typeFlags[$key] = $payload[$key];
+  }
+  if (!$hasFolder && !$hasPdfFlag && !$hasUploadsClosedFlag && !$typeFlags) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasUploadsClosedFlag, $uploadsClosedFlag) {
+  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasUploadsClosedFlag, $uploadsClosedFlag, $typeFlags) {
     if ($hasFolder) $json['currentProductionFolder'] = $folder;
     if ($hasPdfFlag) $json['pdfLinksVisibleToRevyst'] = $pdfFlag;
     if ($hasUploadsClosedFlag) $json['uploadsClosedForRevyst'] = $uploadsClosedFlag;
+    foreach ($typeFlags as $key => $flag) $json[$key] = $flag;
+    // The per-type keys supersede the legacy single flag — drop it once
+    // either is written so it can't linger as a stale fallback.
+    if ($typeFlags) unset($json['uploadsClosedForRevyst']);
     return $json;
   }, 'Opdater config.json');
 }

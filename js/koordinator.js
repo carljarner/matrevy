@@ -511,7 +511,7 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
   // save_config()'s own comment server-side and
   // manus_current_production_folder(), which treats '' as "no active
   // production" and rejects manuscripts_create with no_production_folder.
-  const configRes = await siteSaveResource('config', { currentProductionFolder: '', pdfLinksVisibleToRevyst: false, uploadsClosedForRevyst: false });
+  const configRes = await siteSaveResource('config', { currentProductionFolder: '', pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke lukke produktionsmappen.');
 
   onProgress('Færdig!');
@@ -568,7 +568,7 @@ async function koordStartNewYear(newFolder, productionName, productionYear, onPr
   }
 
   onProgress('Skifter til den nye produktionsmappe...');
-  const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false, uploadsClosedForRevyst: false });
+  const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false });
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
   onProgress('Færdig!');
 }
