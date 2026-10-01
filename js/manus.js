@@ -114,8 +114,8 @@ const MANUS_TYPE_COLUMN_LABEL = { sketch: 'Sketches', sang: 'Sange' };
 const MANUS_FISK_TOGGLE_VALUE = 'sangFisk';
 const MANUS_TYPE_TOGGLE_OPTIONS = [
   { value: 'sang', label: 'Sang' },
-  { value: 'sketch', label: 'Sketch' },
   { value: MANUS_FISK_TOGGLE_VALUE, label: 'Sang (fisk)' },
+  { value: 'sketch', label: 'Sketch' },
 ];
 
 function manusSplitToggleValue(value) {
@@ -589,7 +589,7 @@ function manusIsPendingSubmission(item) {
   return typeof item.pdfPath === 'string' && item.pdfPath.includes('/submitted/');
 }
 
-// Mutually-exclusive clickable boxes (Sang/Sketch/Sang (fisk)) replacing a
+// Mutually-exclusive clickable boxes (Sang/Sang (fisk)/Sketch) replacing a
 // plain dropdown, since there are only a few options and none is a sensible
 // default — the uploader must actively choose one.
 function createManusTypeToggle(options = MANUS_TYPE_TOGGLE_OPTIONS) {
