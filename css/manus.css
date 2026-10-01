@@ -1506,6 +1506,19 @@ a.manus-pdf-title:focus-visible {
   margin-bottom: 0.75rem;
 }
 
+/* Aktfordeling's remove-label warning: the titles that lose the label. */
+.login-modal .manus-akt-confirm-list {
+  margin: 0 auto 0.75rem;
+  padding-left: 1.2rem;
+  max-width: 22rem;
+  font-size: 0.9rem;
+}
+
+.login-modal .manus-akt-confirm-more {
+  list-style: none;
+  color: var(--text-muted);
+}
+
 .manus-script-roles-heading {
   font-size: 0.8rem;
   font-weight: 600;

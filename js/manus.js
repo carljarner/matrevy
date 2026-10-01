@@ -1618,10 +1618,14 @@ function openResetPointsConfirm(bucket, store, onReset) {
 // by hand. Same posture as Indtast point: localStorage only, private to this
 // browser, never synced; keyed by the stable submission `id`.
 //
-// store[type] = {
-//   styles: [{id, name, shape}],   // shape ∈ MANUS_AKT_SHAPES
-//   themes: [{id, name, color}],   // color ∈ MANUS_AKT_COLORS
-//   items:  { [submissionId]: { picked, style: styleId|null, themes: [themeId] } }
+// store = {
+//   themes: [{id, name, color}],   // color ∈ MANUS_AKT_COLORS — shared by
+//                                  // Sange and Sketches, so a theme is the
+//                                  // same colour on both kinds of card
+//   [type]: {
+//     styles: [{id, name, shape}], // shape ∈ MANUS_AKT_SHAPES, per type
+//     items:  { [submissionId]: { picked, style: styleId|null, themes: [themeId] } }
+//   }
 // }
 const MANUS_AKT_TAGS_KEY = 'matrevy-manus-akt-tags';
 
@@ -1647,9 +1651,11 @@ const MANUS_AKT_COLORS = [
 ];
 
 const MANUS_AKT_SEED_STYLES = {
-  sang: [['Sang', 'rect'], ['Rap', 'rounded'], ['Sang/rap', 'hexagon']],
-  sketch: [],
+  sang: [['Sang', 'rect'], ['Rap', 'rounded'], ['Sang/rap', 'hexagon'], ['Fisk', 'rhombus']],
+  sketch: [['Kort', 'rect'], ['Lang', 'rounded'], ['Serie', 'hexagon'], ['Musik', 'rhombus']],
 };
+
+const MANUS_AKT_SEED_THEMES = ['Kridt', 'Whist', 'Instruktor'];
 
 function manusAktId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -1675,14 +1681,48 @@ function saveAktTagStore(store) {
 function manusAktSeedBucket(type) {
   return {
     styles: (MANUS_AKT_SEED_STYLES[type] || []).map(([name, shape]) => ({ id: manusAktId(), name, shape })),
-    themes: [],
     items: {},
   };
 }
 
+// The shared theme list, created once per store. A store from before
+// themes were shared has a separate `themes` array per type instead —
+// merged here (same name, ignoring case, becomes one theme; the Sange one's
+// id/colour wins) with every item's theme ids remapped accordingly. Either
+// way, any standard theme (MANUS_AKT_SEED_THEMES) not already present by
+// name is added at creation — never again afterwards, so a removed one
+// stays removed.
+function manusAktThemes(store) {
+  if (Array.isArray(store.themes)) return store.themes;
+  const themes = [];
+  for (const type of ['sang', 'sketch']) {
+    const b = store[type];
+    if (!b || !Array.isArray(b.themes)) continue;
+    const idMap = {};
+    for (const t of b.themes) {
+      const key = (t.name || '').trim().toLowerCase();
+      const existing = key && themes.find(x => (x.name || '').trim().toLowerCase() === key);
+      if (existing) idMap[t.id] = existing.id;
+      else themes.push(t);
+    }
+    for (const tags of Object.values(b.items || {})) {
+      tags.themes = (tags.themes || []).map(id => idMap[id] || id);
+    }
+    delete b.themes;
+  }
+  for (const name of MANUS_AKT_SEED_THEMES) {
+    if (themes.some(t => (t.name || '').trim().toLowerCase() === name.toLowerCase())) continue;
+    const color = manusAktNextFromPalette(MANUS_AKT_COLORS, themes.map(t => t.color));
+    themes.push({ id: manusAktId(), name, color });
+  }
+  store.themes = themes;
+  return themes;
+}
+
 function manusAktBucket(store, type) {
+  manusAktThemes(store);
   const b = store[type];
-  if (!b || !Array.isArray(b.styles) || !Array.isArray(b.themes) || !b.items) {
+  if (!b || !Array.isArray(b.styles) || !b.items) {
     store[type] = manusAktSeedBucket(type);
   }
   for (const style of store[type].styles) {
@@ -1711,13 +1751,14 @@ function manusAktItems(type) {
     });
 }
 
-// Resolves one item's tags against the bucket's current label lists (a
-// removed label id is simply skipped) into {shape, colors}.
-function manusAktItemLook(bucket, itemId) {
+// Resolves one item's tags against the current label lists (a removed
+// label id is simply skipped) into {shape, colors}.
+function manusAktItemLook(store, type, itemId) {
+  const bucket = manusAktBucket(store, type);
   const tags = bucket.items[itemId];
   const style = tags && bucket.styles.find(s => s.id === tags.style);
   const colors = tags
-    ? bucket.themes.filter(t => (tags.themes || []).includes(t.id)).map(t => t.color)
+    ? manusAktThemes(store).filter(t => (tags.themes || []).includes(t.id)).map(t => t.color)
     : [];
   return { shape: style ? style.shape : 'rect', colors };
 }
@@ -1773,8 +1814,9 @@ function manusBuildAktShapeSvg(shape, colors) {
 }
 
 // Small styled "Er du sikker?" confirm stacked on top of the tagging modal
-// (same shape as openResetPointsConfirm).
-function manusAktOpenConfirm(subText, confirmLabel, onConfirm) {
+// (same shape as openResetPointsConfirm), optionally listing the affected
+// titles (`names`) below the explanation.
+function manusAktOpenConfirm(subText, confirmLabel, onConfirm, names = []) {
   const { modal, form, actions, close } = siteOpenEditModal('');
   modal.classList.add('manus-confirm-modal');
   const heading = modal.querySelector('h2');
@@ -1790,6 +1832,24 @@ function manusAktOpenConfirm(subText, confirmLabel, onConfirm) {
     sub.className = 'manus-confirm-sub';
     sub.textContent = subText;
     form.appendChild(sub);
+  }
+
+  if (names.length) {
+    const MAX = 8;
+    const ul = document.createElement('ul');
+    ul.className = 'manus-akt-confirm-list';
+    for (const name of names.slice(0, MAX)) {
+      const li = document.createElement('li');
+      li.textContent = name;
+      ul.appendChild(li);
+    }
+    if (names.length > MAX) {
+      const li = document.createElement('li');
+      li.className = 'manus-akt-confirm-more';
+      li.textContent = `+ ${names.length - MAX} flere`;
+      ul.appendChild(li);
+    }
+    form.appendChild(ul);
   }
 
   const cancelBtn = document.createElement('button');
@@ -1825,6 +1885,11 @@ function openAktTagModal(type) {
 
   function persist() {
     saveAktTagStore(store);
+  }
+
+  // Stil labels belong to this type; Tema labels are shared by both types.
+  function labelsOf(kind) {
+    return kind === 'themes' ? manusAktThemes(store) : bucket.styles;
   }
 
   function itemTags(id, create) {
@@ -1871,7 +1936,8 @@ function openAktTagModal(type) {
     resetBtn.textContent = 'Nulstil';
     resetBtn.addEventListener('click', () => {
       manusAktOpenConfirm(
-        `Fjerner alle valg og etiketter for ${MANUS_TYPE_COLUMN_LABEL[type].toLowerCase()}.`,
+        // Themes are shared with the other type, so they're left alone.
+        `Fjerner alle valg og stile for ${MANUS_TYPE_COLUMN_LABEL[type].toLowerCase()}. Temaerne deles med ${MANUS_TYPE_COLUMN_LABEL[MANUS_TYPES.find(t => t !== type)].toLowerCase()} og beholdes.`,
         'Nulstil',
         () => {
           store[type] = manusAktSeedBucket(type);
@@ -1925,7 +1991,7 @@ function openAktTagModal(type) {
 
     const list = document.createElement('div');
     list.className = 'manus-akt-label-list';
-    for (const label of bucket[kind]) {
+    for (const label of labelsOf(kind)) {
       const row = document.createElement('div');
       row.className = 'manus-akt-label-row';
 
@@ -1969,19 +2035,43 @@ function openAktTagModal(type) {
       removeBtn.textContent = '✕';
       removeBtn.setAttribute('aria-label', 'Fjern etiket');
       removeBtn.addEventListener('click', () => {
+        // A style only lives in this type; a theme is shared, so removing it
+        // touches both types' items.
+        const types = isStyle ? [type] : MANUS_TYPES;
         const remove = () => {
-          bucket[kind] = bucket[kind].filter(l => l.id !== label.id);
-          for (const tags of Object.values(bucket.items)) {
-            if (isStyle && tags.style === label.id) tags.style = null;
-            if (!isStyle) tags.themes = (tags.themes || []).filter(id => id !== label.id);
+          const labels = labelsOf(kind);
+          labels.splice(labels.indexOf(label), 1);
+          for (const t of types) {
+            for (const tags of Object.values(manusAktBucket(store, t).items)) {
+              if (isStyle && tags.style === label.id) tags.style = null;
+              if (!isStyle) tags.themes = (tags.themes || []).filter(id => id !== label.id);
+            }
           }
           persist();
           renderBody();
         };
-        const inUse = Object.values(bucket.items).some(tags =>
-          isStyle ? tags.style === label.id : (tags.themes || []).includes(label.id));
-        if (inUse) manusAktOpenConfirm(`"${label.name}" fjernes fra alle numre.`, 'Fjern', remove);
-        else remove();
+        // Titles of every item currently tagged with it (picked or not —
+        // un-picking keeps tags, so they'd come back on re-pick).
+        const users = [];
+        for (const t of types) {
+          const tagged = manusAktBucket(store, t).items;
+          for (const item of manusVotingItems(t)) {
+            const tags = tagged[item.id];
+            if (!tags) continue;
+            if (isStyle ? tags.style === label.id : (tags.themes || []).includes(label.id)) users.push(item.title);
+          }
+        }
+        if (users.length === 0) { remove(); return; }
+        const name = label.name || 'Unavngiven';
+        const n = users.length === 1 ? '1 nummer' : `${users.length} numre`;
+        manusAktOpenConfirm(
+          isStyle
+            ? `Stilen "${name}" bruges af ${n}, som mister deres stil:`
+            : `Temaet "${name}" bruges af ${n} (sange og sketches), som mister det:`,
+          'Fjern',
+          remove,
+          users
+        );
       });
       row.appendChild(removeBtn);
 
@@ -1999,8 +2089,8 @@ function openAktTagModal(type) {
     addBtn.addEventListener('click', () => {
       const label = { id: manusAktId(), name: '' };
       if (isStyle) label.shape = manusAktNextFromPalette(MANUS_AKT_SHAPES, bucket.styles.map(s => s.shape));
-      else label.color = manusAktNextFromPalette(MANUS_AKT_COLORS, bucket.themes.map(t => t.color));
-      bucket[kind].push(label);
+      else label.color = manusAktNextFromPalette(MANUS_AKT_COLORS, labelsOf('themes').map(t => t.color));
+      labelsOf(kind).push(label);
       persist();
       renderBody();
       const inputs = form.querySelectorAll('.manus-akt-label-col')[isStyle ? 0 : 1]
@@ -2125,7 +2215,7 @@ function openAktTagModal(type) {
     const head = document.createElement('div');
     head.className = 'manus-akt-item-head';
 
-    const look = manusAktItemLook(bucket, item.id);
+    const look = manusAktItemLook(store, type, item.id);
     const preview = document.createElement('span');
     preview.className = 'manus-akt-item-preview';
     preview.appendChild(manusBuildAktShapeSvg(look.shape, look.colors));
@@ -2159,7 +2249,7 @@ function openAktTagModal(type) {
     label.textContent = isStyle ? 'Stil' : 'Tema';
     group.appendChild(label);
 
-    if (bucket[kind].length === 0) {
+    if (labelsOf(kind).length === 0) {
       const none = document.createElement('span');
       none.className = 'manus-akt-chip-none';
       none.textContent = isStyle ? 'Ingen stile' : 'Ingen temaer';
@@ -2167,7 +2257,7 @@ function openAktTagModal(type) {
     }
 
     const tags = itemTags(item.id, true);
-    for (const l of bucket[kind]) {
+    for (const l of labelsOf(kind)) {
       const active = isStyle ? tags.style === l.id : (tags.themes || []).includes(l.id);
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -2182,7 +2272,7 @@ function openAktTagModal(type) {
           const set = new Set(tags.themes || []);
           if (active) set.delete(l.id); else set.add(l.id);
           // Keep label-list order so stripes match the legend's order.
-          tags.themes = bucket.themes.map(t => t.id).filter(id => set.has(id));
+          tags.themes = labelsOf('themes').map(t => t.id).filter(id => set.has(id));
         }
         persist();
         renderItems();
@@ -2199,7 +2289,8 @@ function openAktTagModal(type) {
 // first) — shape = Stil, striped fill = Tema(er). Keeps colours in print
 // (see .manus-akt-* in manus.css's @media print block).
 function manusPrintAktCards(type) {
-  const bucket = manusAktBucket(loadAktTagStore(), type);
+  const store = loadAktTagStore();
+  const bucket = manusAktBucket(store, type);
   const sheet = document.getElementById('manus-print-sheet');
   sheet.textContent = '';
 
@@ -2210,7 +2301,7 @@ function manusPrintAktCards(type) {
 
   const legend = document.createElement('div');
   legend.className = 'manus-akt-legend';
-  for (const [heading, labels, isStyle] of [['Stil', bucket.styles, true], ['Tema', bucket.themes, false]]) {
+  for (const [heading, labels, isStyle] of [['Stil', bucket.styles, true], ['Tema', manusAktThemes(store), false]]) {
     if (labels.length === 0) continue;
     const row = document.createElement('div');
     row.className = 'manus-akt-legend-row';
@@ -2234,7 +2325,7 @@ function manusPrintAktCards(type) {
   const grid = document.createElement('div');
   grid.className = 'manus-akt-cards';
   for (const item of picked) {
-    const look = manusAktItemLook(bucket, item.id);
+    const look = manusAktItemLook(store, type, item.id);
     const card = document.createElement('div');
     card.className = `manus-akt-card manus-akt-card-${look.shape}`;
     const inner = document.createElement('div');
