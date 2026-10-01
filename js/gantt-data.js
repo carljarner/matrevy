@@ -11,7 +11,7 @@ const GANTT_DATA = {
           "id": "mupl1mljas4r",
           "start": "2026-09-01",
           "end": "2026-10-07",
-          "label": ""
+          "label": "Ugentlige manusmøder"
         }
       ]
     },
@@ -47,7 +47,7 @@ const GANTT_DATA = {
           "id": "mupl5lynno44",
           "start": "2026-10-19",
           "end": "2026-11-19",
-          "label": ""
+          "label": "Åbner d. 19/10"
         }
       ]
     },
@@ -59,7 +59,7 @@ const GANTT_DATA = {
           "id": "mupl2wht6cor",
           "start": "2026-10-24",
           "end": "2026-11-18",
-          "label": ""
+          "label": "Se kalender for præcise datoer"
         }
       ]
     },
