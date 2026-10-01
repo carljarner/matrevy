@@ -10,7 +10,7 @@ const GANTT_DATA = {
         {
           "id": "mupla224418y",
           "start": "2026-09-01",
-          "end": "2026-11-01",
+          "end": "2026-10-25",
           "label": "Blok 1"
         },
         {
@@ -21,9 +21,9 @@ const GANTT_DATA = {
         },
         {
           "id": "muplb6xery8g",
-          "start": "2026-11-02",
+          "start": "2026-10-26",
           "end": "2026-11-08",
-          "label": "Eksamen"
+          "label": "Oplæsning + Eksamen"
         },
         {
           "id": "muplbjtryxu8",
@@ -89,7 +89,7 @@ const GANTT_DATA = {
           "id": "mupl2wht6cor",
           "start": "2026-10-24",
           "end": "2026-11-18",
-          "label": "Se kalender for præcise datoer"
+          "label": "Ingen øvning oven i eksamener"
         }
       ]
     },
