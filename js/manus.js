@@ -1001,7 +1001,7 @@ function manusOpenVotingSheet(type) {
   const items = manusVotingItems(type);
 
   manusRenderPrintTable(
-    `Stemmeark – ${MANUS_TYPE_COLUMN_LABEL[type]}`,
+    `Stemmeark (${MANUS_TYPE_COLUMN_LABEL[type]})`,
     items.map(item => ({ name: item.title }))
   );
 }
@@ -1011,7 +1011,7 @@ function manusOpenVotingSheet(type) {
 // already sorted by descending average with Point/Kommentar filled in.
 function manusPrintPointResults(type, rows) {
   manusRenderPrintTable(
-    `Stemmeark – ${MANUS_TYPE_COLUMN_LABEL[type]}`,
+    `Stemmeark (${MANUS_TYPE_COLUMN_LABEL[type]})`,
     rows.map(row => ({
       name: row.title,
       point: row.avg === null ? '' : formatPointsAvg(row.avg),
@@ -1124,7 +1124,7 @@ function openPointEntryModal(type) {
   // renderPointsRow() below), so there's no in-progress work a backdrop
   // click or Escape could lose — the modal closes normally.
   const { modal, form, actions, close } = siteOpenModalWithClose(
-    `Indtast point – ${MANUS_TYPE_COLUMN_LABEL[type]}`
+    `Indtast point (${MANUS_TYPE_COLUMN_LABEL[type]})`
   );
   modal.classList.add('manus-points-modal');
   // Both views put their own button row in `form` (see the sheet-navigator
@@ -1689,11 +1689,17 @@ function manusAktSeedBucket(type) {
 // themes were shared has a separate `themes` array per type instead —
 // merged here (same name, ignoring case, becomes one theme; the Sange one's
 // id/colour wins) with every item's theme ids remapped accordingly. Either
-// way, any standard theme (MANUS_AKT_SEED_THEMES) not already present by
-// name is added at creation — never again afterwards, so a removed one
-// stays removed.
+// way, the standard themes are added once (`themesSeeded` — also catches a
+// list saved empty before standard themes existed); after that a removed
+// one stays removed until Nulstil (manusAktAddSeedThemes) brings it back.
 function manusAktThemes(store) {
-  if (Array.isArray(store.themes)) return store.themes;
+  if (Array.isArray(store.themes)) {
+    if (!store.themesSeeded) {
+      manusAktAddSeedThemes(store.themes);
+      store.themesSeeded = true;
+    }
+    return store.themes;
+  }
   const themes = [];
   for (const type of ['sang', 'sketch']) {
     const b = store[type];
@@ -1710,13 +1716,20 @@ function manusAktThemes(store) {
     }
     delete b.themes;
   }
+  manusAktAddSeedThemes(themes);
+  store.themes = themes;
+  store.themesSeeded = true;
+  return themes;
+}
+
+// Adds any standard theme not already in `themes` by name (ignoring case);
+// existing themes, custom ones included, are left as they are.
+function manusAktAddSeedThemes(themes) {
   for (const name of MANUS_AKT_SEED_THEMES) {
     if (themes.some(t => (t.name || '').trim().toLowerCase() === name.toLowerCase())) continue;
     const color = manusAktNextFromPalette(MANUS_AKT_COLORS, themes.map(t => t.color));
     themes.push({ id: manusAktId(), name, color });
   }
-  store.themes = themes;
-  return themes;
 }
 
 function manusAktBucket(store, type) {
@@ -1878,7 +1891,7 @@ function openAktTagModal(type) {
   // Every change saves straight to localStorage (like Indtast point), so
   // closing via backdrop/Escape never loses anything.
   const { modal, form, actions, close } = siteOpenModalWithClose(
-    `Aktfordeling – ${MANUS_TYPE_COLUMN_LABEL[type]}`
+    `Aktfordeling (${MANUS_TYPE_COLUMN_LABEL[type]})`
   );
   modal.classList.add('manus-akt-modal');
   actions.style.display = 'none';
@@ -1936,12 +1949,15 @@ function openAktTagModal(type) {
     resetBtn.textContent = 'Nulstil';
     resetBtn.addEventListener('click', () => {
       manusAktOpenConfirm(
-        // Themes are shared with the other type, so they're left alone.
-        `Fjerner alle valg og stile for ${MANUS_TYPE_COLUMN_LABEL[type].toLowerCase()}. Temaerne deles med ${MANUS_TYPE_COLUMN_LABEL[MANUS_TYPES.find(t => t !== type)].toLowerCase()} og beholdes.`,
+        // Themes are shared with the other type, so existing ones are kept
+        // (their tags on the other type too) — only missing standard ones
+        // are added back.
+        `Fjerner alle valg og stile for ${MANUS_TYPE_COLUMN_LABEL[type].toLowerCase()}. Temaerne deles med ${MANUS_TYPE_COLUMN_LABEL[MANUS_TYPES.find(t => t !== type)].toLowerCase()} og beholdes – manglende standardtemaer tilføjes igen.`,
         'Nulstil',
         () => {
           store[type] = manusAktSeedBucket(type);
           bucket = store[type];
+          manusAktAddSeedThemes(manusAktThemes(store));
           persist();
           renderBody();
         }
@@ -2197,7 +2213,7 @@ function openAktTagModal(type) {
     if (picked.length === 0) {
       const empty = document.createElement('p');
       empty.className = 'manus-col-empty';
-      empty.textContent = 'Ingen scener valgt endnu – vælg dem under "Scener".';
+      empty.textContent = 'Ingen scener valgt endnu.';
       list.appendChild(empty);
     } else {
       const grid = document.createElement('div');
