@@ -612,5 +612,14 @@ const MANUSCRIPTS_DATA = [
     "pdfPath": "archive/MatRevy_2026/submitted/W_Frokost_i_Kantinen.pdf",
     "texPath": "archive/MatRevy_2026/submitted/W_Frokost_i_Kantinen.tex",
     "createdAt": "2026-09-30T21:23:54"
+  },
+  {
+    "id": "6abe3591c0b6e7d9",
+    "type": "sketch",
+    "title": "Kim Possible",
+    "sender": "Victoria 19'",
+    "pdfPath": "archive/MatRevy_2026/submitted/Kim_Possible.pdf",
+    "texPath": "archive/MatRevy_2026/submitted/Kim_Possible.tex",
+    "createdAt": "2026-10-01T12:27:29"
   }
 ];
