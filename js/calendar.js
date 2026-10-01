@@ -646,7 +646,17 @@ function renderLegend() {
 // draft (ganttDraft) and nothing is saved until "Gem".
 const GANTT_FIRST_MONTH = 8;  // September (0-based)
 const GANTT_LAST_MONTH = 10;  // November
-const GANTT_COLOR_COUNT = 6;  // .gantt-color-0..5 in calendar.css, cycled per row
+// Bar colours (.gantt-color-<key> in calendar.css). A bar stores its own
+// `color` key; a bar saved without one falls back to its row's position in
+// this list, cycled.
+const GANTT_COLORS = [
+  { key: 'green',  label: 'Grøn' },
+  { key: 'blue',   label: 'Blå' },
+  { key: 'yellow', label: 'Gul' },
+  { key: 'purple', label: 'Lilla' },
+  { key: 'red',    label: 'Rød' },
+  { key: 'teal',   label: 'Turkis' },
+];
 
 let ganttOverride = siteLoadOverride('gantt');
 let ganttDraft = null; // non-null while admin edit mode is open
@@ -700,6 +710,11 @@ function ganttLayoutBars(bars, win) {
     v.lane = lane;
   }
   return { visible, laneCount: Math.max(1, laneEnds.length) };
+}
+
+function ganttBarColor(bar, rowIdx) {
+  if (bar && GANTT_COLORS.some(c => c.key === bar.color)) return bar.color;
+  return GANTT_COLORS[Math.max(0, rowIdx) % GANTT_COLORS.length].key;
 }
 
 function ganttBarRangeLabel(bar) {
@@ -937,11 +952,10 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
     track.appendChild(todayLine);
   }
 
-  const colorClass = `gantt-color-${idx % GANTT_COLOR_COUNT}`;
   for (const v of visible) {
     const bar = document.createElement(editing ? 'button' : 'div');
     if (editing) bar.type = 'button';
-    bar.className = `gantt-bar ${colorClass}`;
+    bar.className = `gantt-bar gantt-color-${ganttBarColor(v.bar, idx)}`;
     if (v.s !== v.bar.start) bar.classList.add('gantt-bar-clip-start');
     if (v.e !== v.bar.end) bar.classList.add('gantt-bar-clip-end');
     bar.style.left = `${ganttPct(v.s, win)}%`;
@@ -1107,6 +1121,31 @@ function ganttOpenBarEditor(row, bar, defaultStart) {
   dateRow.appendChild(siteEditField('Til', endField));
   form.appendChild(dateRow);
 
+  // Colour swatches — the chosen one gets the site-wide orange
+  // "selected" ring.
+  let color = ganttBarColor(bar, ganttDraft.rows.indexOf(row));
+  const swatches = document.createElement('div');
+  swatches.className = 'gantt-swatches';
+  swatches.setAttribute('role', 'radiogroup');
+  swatches.setAttribute('aria-label', 'Farve');
+  function renderSwatches() {
+    swatches.textContent = '';
+    for (const c of GANTT_COLORS) {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = `gantt-swatch gantt-color-${c.key}`;
+      if (c.key === color) sw.classList.add('gantt-swatch-selected');
+      sw.title = c.label;
+      sw.setAttribute('role', 'radio');
+      sw.setAttribute('aria-label', c.label);
+      sw.setAttribute('aria-checked', String(c.key === color));
+      sw.addEventListener('click', () => { color = c.key; renderSwatches(); });
+      swatches.appendChild(sw);
+    }
+  }
+  renderSwatches();
+  form.appendChild(siteEditField('Farve', swatches));
+
   if (bar) {
     const del = calPillBtn('Slet', 'site-btn-danger');
     del.addEventListener('click', () => {
@@ -1124,7 +1163,7 @@ function ganttOpenBarEditor(row, bar, defaultStart) {
       error.textContent = 'Vælg både start- og slutdato.';
       return;
     }
-    const item = { id: bar ? bar.id : ganttNewId(), start, end: end >= start ? end : start, label: labelInput.value.trim() };
+    const item = { id: bar ? bar.id : ganttNewId(), start, end: end >= start ? end : start, label: labelInput.value.trim(), color };
     if (bar) row.bars = row.bars.map(b => (b === bar ? item : b));
     else row.bars.push(item);
     close();
@@ -1194,10 +1233,10 @@ async function ganttSave() {
   }
   const payload = {
     year: ganttDraft.year,
-    rows: ganttDraft.rows.map(r => ({
+    rows: ganttDraft.rows.map((r, idx) => ({
       id: r.id,
       title: r.title.trim(),
-      bars: r.bars.map(b => ({ id: b.id, start: b.start, end: b.end, label: b.label })),
+      bars: r.bars.map(b => ({ id: b.id, start: b.start, end: b.end, label: b.label, color: ganttBarColor(b, idx) })),
     })),
   };
   ganttSaving = true;

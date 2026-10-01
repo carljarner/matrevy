@@ -584,13 +584,42 @@ button.gantt-bar:focus-visible {
   border-bottom-right-radius: 0;
 }
 
-/* Cycled per row — same hues as the calendar categories above, plus teal. */
-.gantt-color-0 { background: #e6f4ea; border-color: var(--success); }
-.gantt-color-1 { background: #e8f0fb; border-color: #3b82d4; }
-.gantt-color-2 { background: #fdf1d6; border-color: #d4a017; }
-.gantt-color-3 { background: #f2e8f6; border-color: #8e44ad; }
-.gantt-color-4 { background: #fbeae8; border-color: var(--danger); }
-.gantt-color-5 { background: #e3f4f2; border-color: #16a085; }
+/* Bar colours, chosen per bar (GANTT_COLORS in calendar.js) — same hues as
+   the calendar categories above, plus teal. */
+.gantt-color-green  { background: #e6f4ea; border-color: var(--success); }
+.gantt-color-blue   { background: #e8f0fb; border-color: #3b82d4; }
+.gantt-color-yellow { background: #fdf1d6; border-color: #d4a017; }
+.gantt-color-purple { background: #f2e8f6; border-color: #8e44ad; }
+.gantt-color-red    { background: #fbeae8; border-color: var(--danger); }
+.gantt-color-teal   { background: #e3f4f2; border-color: #16a085; }
+
+/* Colour picker in the bar editor. */
+.gantt-swatches {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.gantt-swatch {
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  /* Width/style only — the colour comes from .gantt-color-<key>, which a
+     `border` shorthand here would override (this rule loads after it). */
+  border-style: solid;
+  border-width: 1px 1px 1px 3px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.gantt-swatch-selected {
+  outline: 2px solid var(--accent-warm-text);
+  outline-offset: 2px;
+}
+
+.gantt-swatch:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-warm-ring);
+}
 
 /* --- Gantt edit mode ----------------------------------------- */
 .gantt-year-input {

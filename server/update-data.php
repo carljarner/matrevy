@@ -4581,7 +4581,9 @@ function save_gantt($payload) {
           || !is_string($bar['start']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $bar['start'])
           || !is_string($bar['end']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $bar['end'])
           || $bar['end'] < $bar['start']
-          || !is_string($bar['label']) || mb_strlen($bar['label']) > 200) {
+          || !is_string($bar['label']) || mb_strlen($bar['label']) > 200
+          // Optional — a bar saved without one falls back to its row's colour.
+          || (isset($bar['color']) && !in_array($bar['color'], ['green', 'blue', 'yellow', 'purple', 'red', 'teal'], true))) {
         respond(400, ['error' => 'invalid_gantt_shape']);
       }
       $seenBarId[$bar['id']] = true;

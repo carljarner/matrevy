@@ -345,7 +345,7 @@ comments.
   "year": 2026,
   "rows": [
     { "id": "mt3k9q2a", "title": "Manusskrivning",
-      "bars": [ { "id": "mt3kb1x0", "start": "2026-08-15", "end": "2026-09-30", "label": "Sketches" } ] }
+      "bars": [ { "id": "mt3kb1x0", "start": "2026-08-15", "end": "2026-09-30", "label": "Sketches", "color": "green" } ] }
   ]
 }
 ```
@@ -353,7 +353,7 @@ comments.
 - Backs the Gantt chart below Kalender's calendar (`js/calendar.js`'s `renderGantt`). Visible to everyone (the card is hidden while `rows` is empty), edited only by **admin** (`server/update-data.php`'s `gantt` resource), as a local draft saved with "Gem".
 - `year` picks the window drawn: September 1 – November 30 of that year. Changing it in the editor offers to shift every bar's dates by the same number of years.
 - `rows` is the ordered list of sections on the y-axis (`id` matches `^[A-Za-z0-9_-]+$`, unique; `title` non-empty). Each row holds any number of `bars`: `start`/`end` are `YYYY-MM-DD` (`end >= start`), and `label` is optional (it may be `""`). A bar `id` is unique across the whole file.
-- Bars keep full dates and aren't limited to the window: a bar partly outside it is clipped at the edge, and one entirely outside is simply not drawn. Overlapping bars in the same row stack into extra lanes. Bar colours are cycled per row index in `css/calendar.css` and aren't stored.
+- Bars keep full dates and aren't limited to the window: a bar partly outside it is clipped at the edge, and one entirely outside is simply not drawn. Overlapping bars in the same row stack into extra lanes. `color` is optional, one of `green`/`blue`/`yellow`/`purple`/`red`/`teal` (`GANTT_COLORS` in `js/calendar.js`), chosen per bar in the editor. A bar without one falls back to a colour cycled by its row's position, and the editor writes that fallback in explicitly on the next save.
 - Not reset by Koordinator's `koordCloseYear()`.
 
 ## Adding a year to the archive
