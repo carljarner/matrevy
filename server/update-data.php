@@ -4547,6 +4547,54 @@ function save_masterplan($payload) {
   }, 'Opdater masterplan.json via Koordinator');
 }
 
+// Admin-only Gantt chart of the revy period, shown below Kalender's own
+// calendar (js/calendar.js's renderGantt). One chart total — `year` picks
+// which September–November window is drawn; each row is an admin-named
+// section holding any number of date-range bars. Bars keep full ISO dates
+// (a bar outside the window simply isn't drawn), so the window check is
+// deliberately not enforced here.
+function save_gantt($payload) {
+  $year = $payload['year'] ?? null;
+  $rows = $payload['rows'] ?? null;
+  if (!is_int($year) || $year < 1900 || $year > 2100 || !is_array($rows)) {
+    respond(400, ['error' => 'invalid_gantt_shape']);
+  }
+
+  $seenRowId = [];
+  $seenBarId = [];
+  foreach ($rows as $row) {
+    if (!is_array($row)
+        || !isset($row['id'], $row['title'], $row['bars'])
+        || !is_string($row['id']) || !preg_match('#^[A-Za-z0-9_-]+$#', $row['id'])
+        || isset($seenRowId[$row['id']])
+        || !is_string($row['title']) || trim($row['title']) === '' || mb_strlen($row['title']) > 200
+        || !is_array($row['bars'])) {
+      respond(400, ['error' => 'invalid_gantt_shape']);
+    }
+    $seenRowId[$row['id']] = true;
+
+    foreach ($row['bars'] as $bar) {
+      if (!is_array($bar)
+          || !isset($bar['id'], $bar['start'], $bar['end'], $bar['label'])
+          || !is_string($bar['id']) || !preg_match('#^[A-Za-z0-9_-]+$#', $bar['id'])
+          || isset($seenBarId[$bar['id']])
+          || !is_string($bar['start']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $bar['start'])
+          || !is_string($bar['end']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $bar['end'])
+          || $bar['end'] < $bar['start']
+          || !is_string($bar['label']) || mb_strlen($bar['label']) > 200) {
+        respond(400, ['error' => 'invalid_gantt_shape']);
+      }
+      $seenBarId[$bar['id']] = true;
+    }
+  }
+
+  update_file('data/gantt.json', function ($json) use ($year, $rows) {
+    $json['year'] = $year;
+    $json['rows'] = $rows;
+    return $json;
+  }, 'Opdater gantt.json via kalenderen');
+}
+
 // data/scenes.json's own top-level `production` field (e.g. "Matematikrevyen
 // 2026") — distinct from config.json's currentProductionFolder (an archive
 // *folder slug* like "MatRevy_2026"). scripts/generate-pdfs.js reads this
@@ -4592,6 +4640,7 @@ $RESOURCES = [
   'config'        => ['level' => 'admin', 'save' => 'save_config'],
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
   'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
+  'gantt'         => ['level' => 'admin', 'save' => 'save_gantt'],
   'production'    => ['level' => 'admin', 'save' => 'save_production'],
 ];
 

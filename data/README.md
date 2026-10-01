@@ -19,6 +19,7 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 | `config.json` | Small site-wide settings, currently just the active archive production folder |
 | `program.json` | Medvirkende/Ordliste/QR-codes content for the printed programme booklet, edited on the Manus page's Program tab and rendered into three layouts, `archive/<folder>/Program.pdf`, `ProgramHaefte.pdf`, and `ProgramHaefteHorisontal.pdf` |
 | `masterplan.json` | Koordinator page's "Masterplan" checklist — recurring production to-dos across 5 fixed phase-tabs, replacing an externally-maintained spreadsheet |
+| `gantt.json` | Gantt chart of the revy period (September–November) shown below the calendar on Kalender |
 
 ## Updating for a New Production
 
@@ -336,6 +337,24 @@ comments.
 - A row `id` must be a non-empty string, unique **within its own plan** (not globally across every plan — the client only ever edits one plan's rows at a time, so cross-plan uniqueness buys nothing).
 - `ansvarLabels` is a pair of admin-editable column-header strings (e.g. `["Ansvar 2026", "Ansvar 2027"]`) shared across that one plan's 5 tabs — replaces the source spreadsheet's inconsistent per-tab "Ansvar 2025/2026" vs "Ansvar 2024/2025" headers with one pair per plan, edited directly as the grid's own Ansvar column headers (no separate settings UI). A past year's plan keeps its own historical labels (e.g. "Ansvar 2024"/"Ansvar 2025") even after a newer plan exists.
 - Not reset by Koordinator's `koordCloseYear()` — a new production cycle doesn't touch `masterplan.json` at all; the admin creates that year's own plan by hand via "+ Tilføj" (typically once the previous year's plan is "done") and fills it in, optionally copying over recurring rows from the previous year's plan by hand.
+
+## Schema: gantt.json
+
+```json
+{
+  "year": 2026,
+  "rows": [
+    { "id": "mt3k9q2a", "title": "Manusskrivning",
+      "bars": [ { "id": "mt3kb1x0", "start": "2026-08-15", "end": "2026-09-30", "label": "Sketches" } ] }
+  ]
+}
+```
+
+- Backs the Gantt chart below Kalender's calendar (`js/calendar.js`'s `renderGantt`). Visible to everyone (the card is hidden while `rows` is empty), edited only by **admin** (`server/update-data.php`'s `gantt` resource), as a local draft saved with "Gem".
+- `year` picks the window drawn: September 1 – November 30 of that year. Changing it in the editor offers to shift every bar's dates by the same number of years.
+- `rows` is the ordered list of sections on the y-axis (`id` matches `^[A-Za-z0-9_-]+$`, unique; `title` non-empty). Each row holds any number of `bars`: `start`/`end` are `YYYY-MM-DD` (`end >= start`), and `label` is optional (it may be `""`). A bar `id` is unique across the whole file.
+- Bars keep full dates and aren't limited to the window: a bar partly outside it is clipped at the edge, and one entirely outside is simply not drawn. Overlapping bars in the same row stack into extra lanes. Bar colours are cycled per row index in `css/calendar.css` and aren't stored.
+- Not reset by Koordinator's `koordCloseYear()`.
 
 ## Adding a year to the archive
 

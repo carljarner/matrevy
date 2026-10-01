@@ -3,7 +3,8 @@
    Month-grid + list view over CALENDAR_DATA (embedded from
    data/calendar.json); admins add/edit/delete events, saved
    globally via siteSaveResource ('calendar' resource in
-   server/update-data.php).
+   server/update-data.php). Below it, an admin-edited Gantt chart of
+   the revy period (GANTT_DATA, 'gantt' resource — see renderGantt).
 
    DOM is built via createElement/textContent only — no innerHTML.
    ========================================================= */
@@ -636,6 +637,586 @@ function renderLegend() {
   }
 }
 
+// ── Gantt (revy-periode) ─────────────────────────────────────
+// Overview of the revy period below the calendar, from data/gantt.json
+// (GANTT_DATA) via the admin-only 'gantt' resource. One chart: `year` picks
+// the September–November window; each row is an admin-named section holding
+// any number of date-range bars (overlapping bars stack into extra lanes).
+// Visible to everyone (hidden entirely while empty); admin edits a local
+// draft (ganttDraft) and nothing is saved until "Gem".
+const GANTT_FIRST_MONTH = 8;  // September (0-based)
+const GANTT_LAST_MONTH = 10;  // November
+const GANTT_COLOR_COUNT = 6;  // .gantt-color-0..5 in calendar.css, cycled per row
+
+let ganttOverride = siteLoadOverride('gantt');
+let ganttDraft = null; // non-null while admin edit mode is open
+let ganttSaving = false;
+let ganttError = '';
+let ganttDragId = null;
+
+function getEffectiveGantt() {
+  const data = ganttOverride || (typeof GANTT_DATA !== 'undefined' ? GANTT_DATA : null);
+  return data && Array.isArray(data.rows) ? data : { year: new Date().getFullYear(), rows: [] };
+}
+
+function ganttNewId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function ganttWindow(year) {
+  const pad = n => String(n).padStart(2, '0');
+  const lastDay = new Date(year, GANTT_LAST_MONTH + 1, 0).getDate();
+  const start = `${year}-${pad(GANTT_FIRST_MONTH + 1)}-01`;
+  const end = `${year}-${pad(GANTT_LAST_MONTH + 1)}-${pad(lastDay)}`;
+  return { start, end, totalDays: calDaysBetweenIso(start, end) + 1 };
+}
+
+// Left edge of a day as a percentage of the window's width.
+function ganttPct(iso, win) {
+  return (calDaysBetweenIso(win.start, iso) / win.totalDays) * 100;
+}
+
+// Clips each bar to the window (dropping those entirely outside it) and
+// greedily assigns lanes so overlapping bars in one row never cover each
+// other.
+function ganttLayoutBars(bars, win) {
+  const visible = [];
+  for (const bar of bars) {
+    const s = bar.start > win.start ? bar.start : win.start;
+    const e = bar.end < win.end ? bar.end : win.end;
+    if (s > e) continue;
+    visible.push({ bar, s, e, lane: 0 });
+  }
+  visible.sort((a, b) => (a.s < b.s ? -1 : a.s > b.s ? 1 : 0));
+  const laneEnds = [];
+  for (const v of visible) {
+    let lane = laneEnds.findIndex(end => end < v.s);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(v.e);
+    } else {
+      laneEnds[lane] = v.e;
+    }
+    v.lane = lane;
+  }
+  return { visible, laneCount: Math.max(1, laneEnds.length) };
+}
+
+function ganttBarRangeLabel(bar) {
+  return bar.start === bar.end ? formatDaDate(bar.start) : `${formatDaDate(bar.start)} – ${formatDaDate(bar.end)}`;
+}
+
+// Off-screen drag image for row reordering — see forms.js's
+// formsGetDragImageEl for the rationale (CLAUDE.md's drag-image recipe).
+function calGetDragImageEl() {
+  let ghost = document.getElementById('gantt-drag-image');
+  if (!ghost) {
+    ghost = document.createElement('div');
+    ghost.id = 'gantt-drag-image';
+    ghost.className = 'gantt-drag-image';
+    document.body.appendChild(ghost);
+  }
+  return ghost;
+}
+
+// Mirrors wiki.js's wikiWireDropHighlight (not loaded on this page).
+function ganttWireDropHighlight(el, onDrop) {
+  let depth = 0;
+  el.addEventListener('dragenter', (e) => {
+    if (!ganttDragId) return;
+    e.preventDefault();
+    depth++;
+    el.classList.add('gantt-drop-target');
+  });
+  el.addEventListener('dragover', (e) => {
+    if (ganttDragId) e.preventDefault(); // required for 'drop' to fire at all
+  });
+  el.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) el.classList.remove('gantt-drop-target');
+  });
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    depth = 0;
+    el.classList.remove('gantt-drop-target');
+    onDrop();
+  });
+}
+
+// Moves the dragged row before `beforeId` (or to the end when null).
+function ganttMoveRow(id, beforeId) {
+  const rows = ganttDraft.rows;
+  const idx = rows.findIndex(r => r.id === id);
+  if (idx === -1 || id === beforeId) return;
+  const [item] = rows.splice(idx, 1);
+  const beforeIdx = beforeId ? rows.findIndex(r => r.id === beforeId) : -1;
+  if (beforeIdx === -1) rows.push(item);
+  else rows.splice(beforeIdx, 0, item);
+  renderGantt();
+}
+
+function renderGantt() {
+  const card = document.getElementById('gantt-card');
+  if (!card) return;
+  const canEdit = siteHasLevel('admin');
+  if (!canEdit) ganttDraft = null;
+  const editing = ganttDraft !== null;
+  const data = editing ? ganttDraft : getEffectiveGantt();
+
+  card.textContent = '';
+  card.hidden = !canEdit && data.rows.length === 0;
+  if (card.hidden) return;
+
+  const head = document.createElement('div');
+  head.className = 'gantt-head';
+  const title = document.createElement('h2');
+  title.className = 'gantt-title';
+  if (editing) {
+    title.textContent = 'Revyperiode';
+    head.appendChild(title);
+    head.appendChild(ganttBuildYearInput());
+  } else {
+    title.textContent = `Revyperiode ${data.year}`;
+    head.appendChild(title);
+    if (canEdit) {
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'btn-small gantt-edit-btn';
+      editBtn.textContent = 'Rediger';
+      editBtn.addEventListener('click', () => {
+        ganttDraft = structuredClone(getEffectiveGantt());
+        ganttError = '';
+        renderGantt();
+      });
+      head.appendChild(editBtn);
+    }
+  }
+  card.appendChild(head);
+
+  if (!editing && data.rows.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'gantt-empty';
+    empty.textContent = 'Ingen sektioner endnu.';
+    card.appendChild(empty);
+    return;
+  }
+
+  const win = ganttWindow(data.year);
+  const today = todayIso();
+  const todayPct = today >= win.start && today <= win.end
+    ? ((calDaysBetweenIso(win.start, today) + 0.5) / win.totalDays) * 100
+    : null;
+  const pad = n => String(n).padStart(2, '0');
+  const months = [];
+  for (let m = GANTT_FIRST_MONTH; m <= GANTT_LAST_MONTH; m++) {
+    months.push({
+      month: m,
+      startIso: `${data.year}-${pad(m + 1)}-01`,
+      days: new Date(data.year, m + 1, 0).getDate(),
+    });
+  }
+
+  const scroll = document.createElement('div');
+  scroll.className = 'gantt-scroll';
+  const chart = document.createElement('div');
+  chart.className = editing ? 'gantt gantt-editing' : 'gantt';
+
+  // Month header row.
+  const headerRow = document.createElement('div');
+  headerRow.className = 'gantt-row gantt-header-row';
+  const corner = document.createElement('div');
+  corner.className = 'gantt-label';
+  headerRow.appendChild(corner);
+  const monthsEl = document.createElement('div');
+  monthsEl.className = 'gantt-months';
+  for (const m of months) {
+    const cell = document.createElement('div');
+    cell.className = 'gantt-month';
+    cell.style.flex = `${m.days} 0 0`;
+    const name = DA_MONTHS[m.month];
+    cell.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+    monthsEl.appendChild(cell);
+  }
+  headerRow.appendChild(monthsEl);
+  chart.appendChild(headerRow);
+
+  data.rows.forEach((row, idx) => {
+    chart.appendChild(ganttBuildRow(row, idx, win, months, todayPct, editing));
+  });
+
+  if (editing) {
+    // Trailing drop zone so a row can be dragged to the very end (a
+    // per-row drop target can only ever insert *before* that row).
+    const tail = document.createElement('div');
+    tail.className = 'gantt-drop-tail';
+    ganttWireDropHighlight(tail, () => { if (ganttDragId) ganttMoveRow(ganttDragId, null); });
+    chart.appendChild(tail);
+  }
+
+  scroll.appendChild(chart);
+  card.appendChild(scroll);
+
+  if (editing) card.appendChild(ganttBuildEditFooter());
+}
+
+function ganttBuildRow(row, idx, win, months, todayPct, editing) {
+  const rowEl = document.createElement('div');
+  rowEl.className = 'gantt-row';
+
+  const label = document.createElement('div');
+  label.className = 'gantt-label';
+  if (editing) {
+    const handle = document.createElement('span');
+    handle.className = 'gantt-drag-handle';
+    handle.textContent = '⠿';
+    handle.draggable = true;
+    handle.title = 'Træk for at flytte';
+    handle.addEventListener('dragstart', (e) => {
+      ganttDragId = row.id;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.id);
+      const ghost = calGetDragImageEl();
+      ghost.textContent = row.title || 'Sektion';
+      e.dataTransfer.setDragImage(ghost, 12, 16);
+    });
+    handle.addEventListener('dragend', () => {
+      ganttDragId = null;
+      document.querySelectorAll('.gantt-drop-target').forEach(el => el.classList.remove('gantt-drop-target'));
+    });
+    label.appendChild(handle);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'gantt-label-input';
+    input.value = row.title;
+    input.maxLength = 200;
+    input.setAttribute('aria-label', 'Sektionens navn');
+    input.addEventListener('input', () => { row.title = input.value; });
+    label.appendChild(input);
+
+    const addBar = document.createElement('button');
+    addBar.type = 'button';
+    addBar.className = 'boss-manage-add-plus';
+    addBar.textContent = '+';
+    addBar.title = 'Tilføj periode';
+    addBar.setAttribute('aria-label', 'Tilføj periode');
+    addBar.addEventListener('click', () => ganttOpenBarEditor(row, null, win.start));
+    label.appendChild(addBar);
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'boss-edit-remove';
+    remove.textContent = '✕';
+    remove.title = 'Fjern sektion';
+    remove.setAttribute('aria-label', 'Fjern sektion');
+    remove.addEventListener('click', () => ganttRemoveRow(row));
+    label.appendChild(remove);
+
+    ganttWireDropHighlight(rowEl, () => { if (ganttDragId) ganttMoveRow(ganttDragId, row.id); });
+  } else {
+    label.textContent = row.title;
+    label.title = row.title;
+  }
+  rowEl.appendChild(label);
+
+  const { visible, laneCount } = ganttLayoutBars(row.bars, win);
+  const track = document.createElement('div');
+  track.className = 'gantt-track';
+  track.style.setProperty('--gantt-lanes', String(laneCount));
+
+  for (const m of months.slice(1)) {
+    const line = document.createElement('div');
+    line.className = 'gantt-month-line';
+    line.style.left = `${ganttPct(m.startIso, win)}%`;
+    track.appendChild(line);
+  }
+  if (todayPct !== null) {
+    const todayLine = document.createElement('div');
+    todayLine.className = 'gantt-today';
+    todayLine.style.left = `${todayPct}%`;
+    track.appendChild(todayLine);
+  }
+
+  const colorClass = `gantt-color-${idx % GANTT_COLOR_COUNT}`;
+  for (const v of visible) {
+    const bar = document.createElement(editing ? 'button' : 'div');
+    if (editing) bar.type = 'button';
+    bar.className = `gantt-bar ${colorClass}`;
+    if (v.s !== v.bar.start) bar.classList.add('gantt-bar-clip-start');
+    if (v.e !== v.bar.end) bar.classList.add('gantt-bar-clip-end');
+    bar.style.left = `${ganttPct(v.s, win)}%`;
+    bar.style.width = `${((calDaysBetweenIso(v.s, v.e) + 1) / win.totalDays) * 100}%`;
+    bar.style.setProperty('--gantt-lane', String(v.lane));
+    bar.textContent = v.bar.label;
+    bar.title = v.bar.label ? `${v.bar.label}: ${ganttBarRangeLabel(v.bar)}` : ganttBarRangeLabel(v.bar);
+    if (editing) bar.addEventListener('click', () => ganttOpenBarEditor(row, v.bar));
+    track.appendChild(bar);
+  }
+
+  if (editing) {
+    // Clicking an empty spot on the track adds a bar starting that day.
+    track.classList.add('gantt-track-editable');
+    track.addEventListener('click', (e) => {
+      if (e.target !== track) return;
+      const rect = track.getBoundingClientRect();
+      const dayIdx = Math.min(win.totalDays - 1,
+        Math.max(0, Math.floor(((e.clientX - rect.left) / rect.width) * win.totalDays)));
+      ganttOpenBarEditor(row, null, calAddDaysIso(win.start, dayIdx));
+    });
+  }
+  rowEl.appendChild(track);
+  return rowEl;
+}
+
+// Changing the year offers to move every bar along with it, so a new
+// production's chart can start from last year's layout in one step.
+function ganttBuildYearInput() {
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'gantt-year-input';
+  input.min = '1900';
+  input.max = '2100';
+  input.value = String(ganttDraft.year);
+  input.setAttribute('aria-label', 'År');
+  input.addEventListener('change', () => {
+    const next = parseInt(input.value, 10);
+    const prev = ganttDraft.year;
+    if (!Number.isInteger(next) || next < 1900 || next > 2100) {
+      input.value = String(prev);
+      return;
+    }
+    if (next === prev) return;
+    const hasBars = ganttDraft.rows.some(r => r.bars.length > 0);
+    if (!hasBars) {
+      ganttDraft.year = next;
+      renderGantt();
+      return;
+    }
+    ganttOpenShiftYearConfirm(prev, next);
+  });
+  return input;
+}
+
+function ganttShiftIsoYear(iso, delta) {
+  return String(parseInt(iso.slice(0, 4), 10) + delta) + iso.slice(4);
+}
+
+function ganttOpenShiftYearConfirm(prev, next) {
+  const { modal, form, actions, close } = siteOpenEditModal('');
+  modal.classList.add('cal-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'cal-confirm-text';
+  info.textContent = `Flyt alle perioder til ${next}?`;
+  form.appendChild(info);
+  const sub = document.createElement('p');
+  sub.className = 'cal-confirm-sub';
+  sub.textContent = `Ellers beholder de deres datoer i ${prev} og vises ikke i ${next}.`;
+  form.appendChild(sub);
+
+  function apply(shift) {
+    ganttDraft.year = next;
+    if (shift) {
+      const delta = next - prev;
+      for (const row of ganttDraft.rows) {
+        for (const bar of row.bars) {
+          bar.start = ganttShiftIsoYear(bar.start, delta);
+          bar.end = ganttShiftIsoYear(bar.end, delta);
+        }
+      }
+    }
+    close();
+    renderGantt();
+  }
+  const keepBtn = calPillBtn('Nej');
+  keepBtn.addEventListener('click', () => apply(false));
+  const shiftBtn = calPillBtn('Flyt', 'site-btn-success');
+  shiftBtn.addEventListener('click', () => apply(true));
+  actions.appendChild(keepBtn);
+  actions.appendChild(shiftBtn);
+}
+
+function ganttRemoveRow(row) {
+  function remove() {
+    ganttDraft.rows = ganttDraft.rows.filter(r => r !== row);
+    renderGantt();
+  }
+  if (row.bars.length === 0) {
+    remove();
+    return;
+  }
+  const { modal, form, actions, close } = siteOpenEditModal('');
+  modal.classList.add('cal-confirm-modal');
+  const heading = modal.querySelector('h2');
+  if (heading) heading.remove();
+
+  const info = document.createElement('p');
+  info.className = 'cal-confirm-text';
+  info.textContent = `Fjern "${row.title || 'sektion'}"?`;
+  form.appendChild(info);
+  const sub = document.createElement('p');
+  sub.className = 'cal-confirm-sub';
+  sub.textContent = 'Sektionen og alle dens perioder fjernes.';
+  form.appendChild(sub);
+
+  const cancelBtn = calPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = calPillBtn('Fjern', 'site-btn-danger');
+  confirmBtn.addEventListener('click', () => { close(); remove(); });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+}
+
+// Add/edit one bar in the draft. Nothing is saved here — the card's own Gem
+// sends the whole chart.
+function ganttOpenBarEditor(row, bar, defaultStart) {
+  const { form, error, actions, close } = siteOpenModalWithClose(bar ? 'Rediger periode' : 'Ny periode');
+  actions.classList.add('cal-event-actions');
+
+  const section = document.createElement('p');
+  section.className = 'gantt-editor-section';
+  section.textContent = row.title;
+  form.appendChild(section);
+
+  const labelInput = document.createElement('input');
+  labelInput.type = 'text';
+  labelInput.maxLength = 200;
+  labelInput.placeholder = 'Valgfri';
+  labelInput.value = bar ? bar.label : '';
+  form.appendChild(siteEditField('Tekst', labelInput));
+
+  const startIso = bar ? bar.start : defaultStart;
+  const startField = siteCreateDateField(startIso);
+  const endField = siteCreateDateField(bar ? bar.end : calAddDaysIso(startIso, 6));
+
+  // Same constant-span behavior as the event editor's Dato/Slutdato pair.
+  let spanDays = calDaysBetweenIso(startField.value, endField.value);
+  startField.addEventListener('change', () => {
+    if (startField.value) endField.value = calAddDaysIso(startField.value, spanDays);
+  });
+  endField.addEventListener('change', () => {
+    if (endField.value && endField.value < startField.value) endField.value = startField.value;
+    spanDays = calDaysBetweenIso(startField.value, endField.value);
+  });
+
+  const dateRow = document.createElement('div');
+  dateRow.className = 'edit-field-row';
+  dateRow.appendChild(siteEditField('Fra', startField));
+  dateRow.appendChild(siteEditField('Til', endField));
+  form.appendChild(dateRow);
+
+  if (bar) {
+    const del = calPillBtn('Slet', 'site-btn-danger');
+    del.addEventListener('click', () => {
+      row.bars = row.bars.filter(b => b !== bar);
+      close();
+      renderGantt();
+    });
+    actions.appendChild(del);
+  }
+  const save = calPillBtn('Gem', 'site-btn-success');
+  save.addEventListener('click', () => {
+    const start = startField.value;
+    const end = endField.value;
+    if (!start || !end) {
+      error.textContent = 'Vælg både start- og slutdato.';
+      return;
+    }
+    const item = { id: bar ? bar.id : ganttNewId(), start, end: end >= start ? end : start, label: labelInput.value.trim() };
+    if (bar) row.bars = row.bars.map(b => (b === bar ? item : b));
+    else row.bars.push(item);
+    close();
+    renderGantt();
+  });
+  actions.appendChild(save);
+
+  labelInput.focus();
+}
+
+function ganttBuildEditFooter() {
+  const footer = document.createElement('div');
+  footer.className = 'gantt-edit-footer';
+
+  const addWrap = document.createElement('div');
+  addWrap.className = 'gantt-add-row-wrap';
+  const addRow = document.createElement('button');
+  addRow.type = 'button';
+  addRow.className = 'boss-manage-add-plus';
+  addRow.textContent = '+';
+  addRow.title = 'Tilføj sektion';
+  addRow.setAttribute('aria-label', 'Tilføj sektion');
+  addRow.addEventListener('click', () => {
+    ganttDraft.rows.push({ id: ganttNewId(), title: 'Ny sektion', bars: [] });
+    renderGantt();
+    const inputs = document.querySelectorAll('#gantt-card .gantt-label-input');
+    const last = inputs[inputs.length - 1];
+    if (last) { last.focus(); last.select(); }
+  });
+  addWrap.appendChild(addRow);
+  footer.appendChild(addWrap);
+
+  const hint = document.createElement('p');
+  hint.className = 'gantt-hint';
+  hint.textContent = 'Klik på en tom plads i en sektion for at tilføje en periode, eller på en periode for at rette den.';
+  footer.appendChild(hint);
+
+  const error = document.createElement('div');
+  error.className = 'login-error gantt-error';
+  error.textContent = ganttError;
+  footer.appendChild(error);
+
+  const actions = document.createElement('div');
+  actions.className = 'gantt-edit-actions';
+  const cancel = calPillBtn('Annuller');
+  cancel.disabled = ganttSaving;
+  cancel.addEventListener('click', () => {
+    ganttDraft = null;
+    ganttError = '';
+    renderGantt();
+  });
+  const save = calPillBtn(ganttSaving ? 'Gemmer…' : 'Gem', 'site-btn-success');
+  save.disabled = ganttSaving;
+  save.addEventListener('click', ganttSave);
+  actions.appendChild(cancel);
+  actions.appendChild(save);
+  footer.appendChild(actions);
+  return footer;
+}
+
+async function ganttSave() {
+  if (!ganttDraft || ganttSaving) return;
+  if (ganttDraft.rows.some(r => !r.title.trim())) {
+    ganttError = 'Alle sektioner skal have et navn.';
+    renderGantt();
+    return;
+  }
+  const payload = {
+    year: ganttDraft.year,
+    rows: ganttDraft.rows.map(r => ({
+      id: r.id,
+      title: r.title.trim(),
+      bars: r.bars.map(b => ({ id: b.id, start: b.start, end: b.end, label: b.label })),
+    })),
+  };
+  ganttSaving = true;
+  ganttError = '';
+  renderGantt();
+  const result = await siteSaveResource('gantt', payload);
+  ganttSaving = false;
+  if (result.ok) {
+    ganttOverride = payload;
+    siteSaveOverride('gantt', payload);
+    ganttDraft = null;
+    siteShowToast('Gemt');
+  } else {
+    // message === '' means the password prompt was cancelled — stay silent.
+    ganttError = result.message;
+  }
+  renderGantt();
+}
+
 // ── Calendar-subscribe (.ics) ─────────────────────────────────
 // Static file served by GitHub Pages — the underlying data is already fully
 // public (this page has no login gate), so there's no server round-trip.
@@ -677,4 +1258,5 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('cal-subscribe').addEventListener('click', openSubscribeModal);
   renderLegend();
   renderCalendar();
+  renderGantt();
 });

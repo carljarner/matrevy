@@ -118,6 +118,16 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/gantt-data.js',
+    sources: 'data/gantt.json',
+    globals: () => {
+      const gantt = readJson('data/gantt.json');
+      const barCount = gantt.rows.reduce((n, row) => n + row.bars.length, 0);
+      console.log(`  gantt: ${gantt.year}, ${gantt.rows.length} sektioner, ${barCount} perioder`);
+      return { GANTT_DATA: gantt };
+    },
+  },
+  {
     // Static .ics feed, served directly by GitHub Pages at
     // matematikrevy.dk/calendar.ics — no server/PHP round-trip needed since
     // the calendar data is already fully public (see CLAUDE.md's access-level

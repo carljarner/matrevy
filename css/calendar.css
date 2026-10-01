@@ -419,6 +419,317 @@
   justify-content: center;
 }
 
+/* --- Revy-period Gantt chart (calendar.js's renderGantt) ------
+   A label column + a timeline track per row. Bars are absolutely
+   positioned by percentage of the Sep–Nov window; overlapping bars
+   in one row stack into lanes (--gantt-lanes / --gantt-lane). */
+.gantt-card[hidden] {
+  display: none;
+}
+
+.gantt-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.page-content .gantt-title {
+  margin-bottom: 0;
+}
+
+.gantt-edit-btn {
+  margin-left: auto;
+}
+
+.gantt-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.gantt-scroll {
+  overflow-x: auto;
+}
+
+.gantt {
+  --gantt-label-width: 11rem;
+  --gantt-lane-height: 1.75rem;
+  min-width: 640px;
+}
+
+.gantt.gantt-editing {
+  --gantt-label-width: 16rem;
+}
+
+.gantt-row {
+  position: relative;
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.gantt-row:last-of-type {
+  border-bottom: none;
+}
+
+.gantt-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  flex: 0 0 var(--gantt-label-width);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.6rem 0.25rem 0;
+  background: var(--surface);
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt:not(.gantt-editing) .gantt-label {
+  display: block;
+  align-self: center;
+}
+
+.gantt-months {
+  flex: 1;
+  display: flex;
+}
+
+.gantt-month {
+  padding: 0.2rem 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-left: 1px solid var(--border);
+}
+
+.gantt-track {
+  position: relative;
+  flex: 1;
+  height: calc(var(--gantt-lanes, 1) * var(--gantt-lane-height) + 0.5rem);
+  border-left: 1px solid var(--border);
+}
+
+.gantt-track-editable {
+  cursor: copy;
+}
+
+.gantt-month-line,
+.gantt-today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.gantt-month-line {
+  width: 1px;
+  background: var(--border);
+}
+
+.gantt-today {
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent-warm-text);
+  z-index: 1;
+}
+
+.gantt-bar {
+  position: absolute;
+  top: calc(var(--gantt-lane, 0) * var(--gantt-lane-height) + 0.25rem);
+  height: calc(var(--gantt-lane-height) - 0.25rem);
+  box-sizing: border-box;
+  min-width: 4px;
+  padding: 0 0.35rem;
+  border: 1px solid;
+  border-left-width: 3px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: calc(var(--gantt-lane-height) - 0.25rem - 2px);
+  text-align: left;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 1;
+}
+
+button.gantt-bar {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  button.gantt-bar:hover { filter: brightness(0.95); }
+}
+
+button.gantt-bar:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 1px;
+}
+
+/* A bar running past the window's edge gets a square, borderless end so
+   it reads as continuing off-chart. */
+.gantt-bar-clip-start {
+  border-left-width: 1px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.gantt-bar-clip-end {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Cycled per row — same hues as the calendar categories above, plus teal. */
+.gantt-color-0 { background: #e6f4ea; border-color: var(--success); }
+.gantt-color-1 { background: #e8f0fb; border-color: #3b82d4; }
+.gantt-color-2 { background: #fdf1d6; border-color: #d4a017; }
+.gantt-color-3 { background: #f2e8f6; border-color: #8e44ad; }
+.gantt-color-4 { background: #fbeae8; border-color: var(--danger); }
+.gantt-color-5 { background: #e3f4f2; border-color: #16a085; }
+
+/* --- Gantt edit mode ----------------------------------------- */
+.gantt-year-input {
+  width: 5.5rem;
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .gantt-year-input:hover { border-color: var(--border); }
+}
+
+.gantt-year-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  background: var(--input-bg);
+}
+
+.gantt-drag-handle {
+  flex: none;
+  padding: 0 0.15rem;
+  color: var(--text-muted);
+  cursor: grab;
+}
+
+.gantt-drag-handle:active {
+  cursor: grabbing;
+}
+
+.gantt-label-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.35rem;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .gantt-label-input:hover { border-color: var(--border); }
+}
+
+.gantt-label-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  background: var(--input-bg);
+}
+
+.gantt-label .boss-edit-remove {
+  padding: 0.25rem 0.3rem;
+  font-size: 0.95rem;
+}
+
+/* Drop-target highlight: an orange line in the gap above the row (same
+   recipe as wiki.css's .wiki-manage-row::before). */
+.gantt-editing .gantt-row::before,
+.gantt-drop-tail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 3px;
+  border-radius: 2px;
+  background: transparent;
+  transition: background-color 0.15s;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.gantt-editing .gantt-row.gantt-drop-target::before,
+.gantt-drop-tail.gantt-drop-target::before {
+  background: var(--accent-warm);
+}
+
+.gantt-drop-tail {
+  position: relative;
+  min-height: 0.75rem;
+}
+
+/* calGetDragImageEl()'s shared off-screen drag image (CLAUDE.md's
+   drag-image recipe — never display:none). */
+.gantt-drag-image {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: var(--modal-shadow);
+}
+
+.gantt-add-row-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+.gantt-hint {
+  margin-top: 0.4rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.gantt-error:empty {
+  display: none;
+}
+
+.gantt-edit-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+/* Site-wide button-width floor (see style.css's .login-actions > button). */
+.gantt-edit-actions > button {
+  min-width: 5rem;
+}
+
+.login-modal .gantt-editor-section {
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 /* --- Mobile (≤719px, same breakpoint as style.css) ---------- */
 @media (max-width: 719px) {
   /* When the toolbar wraps, push the month switcher onto its own centered
@@ -512,5 +823,15 @@
   .cal-list-date,
   .cal-list-time {
     min-width: 0;
+  }
+
+  /* Gantt: narrower label column; the timeline keeps .gantt's own
+     min-width and scrolls inside .gantt-scroll, with labels sticky. */
+  .gantt {
+    --gantt-label-width: 7.5rem;
+  }
+
+  .gantt.gantt-editing {
+    --gantt-label-width: 12rem;
   }
 }
