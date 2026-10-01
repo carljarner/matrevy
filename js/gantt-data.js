@@ -32,7 +32,7 @@ const GANTT_DATA = {
           "id": "muplbjtryxu8",
           "start": "2026-11-07",
           "end": "2026-11-15",
-          "label": "Pause",
+          "label": "Mellemuge",
           "color": "green"
         }
       ]
