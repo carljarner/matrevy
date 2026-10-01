@@ -12,28 +12,28 @@ const GANTT_DATA = {
           "start": "2026-09-01",
           "end": "2026-10-25",
           "label": "Blok 1",
-          "color": "green"
+          "color": "teal"
         },
         {
           "id": "muplabdb61vt",
           "start": "2026-11-16",
           "end": "2026-11-30",
           "label": "Blok 2",
-          "color": "green"
+          "color": "teal"
         },
         {
           "id": "muplb6xery8g",
           "start": "2026-10-26",
           "end": "2026-11-06",
           "label": "Blokuge 8 + 9",
-          "color": "green"
+          "color": "teal"
         },
         {
           "id": "muplbjtryxu8",
           "start": "2026-11-07",
           "end": "2026-11-15",
           "label": "Mellemuge",
-          "color": "green"
+          "color": "teal"
         }
       ]
     },
@@ -46,7 +46,7 @@ const GANTT_DATA = {
           "start": "2026-09-01",
           "end": "2026-10-07",
           "label": "Ugentlige manusmøder (ikke obligatorisk)",
-          "color": "blue"
+          "color": "green"
         }
       ]
     },
@@ -85,7 +85,7 @@ const GANTT_DATA = {
           "start": "2026-10-19",
           "end": "2026-11-19",
           "label": "Åbner d. 19/10",
-          "color": "yellow"
+          "color": "purple"
         }
       ]
     },
@@ -98,14 +98,14 @@ const GANTT_DATA = {
           "start": "2026-10-24",
           "end": "2026-10-25",
           "label": "",
-          "color": "purple"
+          "color": "yellow"
         },
         {
           "id": "muplg97zmynz",
           "start": "2026-11-07",
           "end": "2026-11-18",
           "label": "",
-          "color": "purple"
+          "color": "yellow"
         }
       ]
     },
