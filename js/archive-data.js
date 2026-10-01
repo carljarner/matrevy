@@ -9,7 +9,7 @@ const ARCHIVE_DATA = [
     "youtubeUrl": "https://youtu.be/MSOWTLiluCc",
     "spotifyUrl": "",
     "driveUrl": "https://drive.google.com/drive/folders/1jhra2CPQLb2Tf3W8Rog9oru4B3HJZYDO",
-    "manusPdf": "archive/MatRevy_2025/Manuskript.pdf"
+    "manusPdf": "archive/MatRevy_2025/manus.pdf"
   },
   {
     "year": 2024,
