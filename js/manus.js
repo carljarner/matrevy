@@ -1412,10 +1412,6 @@ function pointsQuantile(sorted, p) {
   return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
-function formatPointsStat(value) {
-  return value.toFixed(1).replace('.', ',');
-}
-
 function buildPointsBoxplot(rows) {
   const wrap = document.createElement('div');
   wrap.className = 'manus-points-box';
@@ -1510,15 +1506,6 @@ function buildPointsBoxplot(rows) {
       mean.className = 'manus-points-box-mean';
       mean.style.left = pct(row.avg);
       track.appendChild(mean);
-
-      line.title = [
-        `Min ${formatPointsStat(min)}`,
-        `Q1 ${formatPointsStat(q1)}`,
-        `Median ${formatPointsStat(median)}`,
-        `Q3 ${formatPointsStat(q3)}`,
-        `Maks ${formatPointsStat(max)}`,
-        `Gns. ${formatPointsStat(row.avg)}`,
-      ].join(' · ');
     }
     line.appendChild(track);
 
