@@ -34,4 +34,13 @@ services:
       ARCHIVE_SYNC_QUIET_SECONDS: ${ARCHIVE_SYNC_QUIET_SECONDS:-300}
     volumes:
       - /srv/matrevy/data:/data
+    # worker.sh touches the heartbeat every loop pass (every 2 s when idle);
+    # 15 min of silence means the loop is stuck. start_period covers the
+    # startup embed before the first pass.
+    healthcheck:
+      test: ["CMD-SHELL", "find /tmp/worker-heartbeat -mmin -15 | grep -q ."]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
     restart: unless-stopped

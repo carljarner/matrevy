@@ -101,6 +101,9 @@ else
 fi
 
 while true; do
+  # Heartbeat for the container healthcheck (docker-compose.yml): stale only
+  # if the loop itself hangs, e.g. a stuck PDF build.
+  touch /tmp/worker-heartbeat
   # The flag is removed before each run, so a save that lands mid-run
   # triggers one more run instead of being lost.
   if [ -e "$SITE/.embed-requested" ]; then
