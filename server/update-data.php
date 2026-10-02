@@ -318,6 +318,8 @@ if ($action !== 'save') {
 // (server/worker.sh), which replace the two GitHub Actions:
 //   .embed-requested       any change under data/  -> rerun embed-scenes.js
 //   .regen-pdfs-requested  message has [regen-pdfs] -> rerun generate-pdfs.js
+//   .archive-sync-requested any change under archive/ -> mirror archive/ to
+//                           the GitHub repo once writes have gone quiet
 function github_api($method, $path, $payload = null) {
   if (strpos($path, 'contents/') !== 0) {
     respond(500, ['error' => 'unsupported_api_path']);
@@ -378,6 +380,9 @@ function github_api($method, $path, $payload = null) {
 
     if (strpos($rel, 'data/') === 0) {
       touch($root . '/.embed-requested');
+    }
+    if (strpos($rel, 'archive/') === 0) {
+      touch($root . '/.archive-sync-requested');
     }
     if (strpos((string) ($payload['message'] ?? ''), '[regen-pdfs]') !== false) {
       touch($root . '/.regen-pdfs-requested');

@@ -47,14 +47,16 @@ There are four levels: public, revyst, boss and admin. Each level beyond public 
 └── data/README.md       Schemas for every data file
 ```
 
-The `data/`, `archive/`, `posts/` and `wiki/` folders, `calendar.ics` and the generated `js/*-data.js` files in the repo are **old copies from Oct 2, 2026**. The live data is on the server, and `migration-guide.md` lists when these copies get removed from git.
+The `data/`, `posts/` and `wiki/` folders, `calendar.ics` and the generated `js/*-data.js` files in the repo are **old copies from Oct 2, 2026**. The live data is on the server, and `migration-guide.md` lists when these copies get removed from git.
+
+`archive/` is different: the worker mirrors the server's archive into it (one-way), about 5 minutes after the last change, so old and current productions stay browsable on GitHub. Don't edit it in the repo. Because the worker pushes to `main`, run `git pull --rebase` before you push.
 
 ## How it runs
 
 Everything runs on **web-1**, a Hetzner server (`188.245.30.36`) managed with **Coolify**, as one Docker Compose app built from this repo's `main` branch:
 
 - **web:** Apache + PHP. Serves every page and `update-data.php`.
-- **worker:** TeX Live + Node. Regenerates `js/*-data.js` and `calendar.ics` within a couple of seconds of any save, and builds the PDFs when someone clicks "Generér PDF'er" on Manus (about 15 seconds).
+- **worker:** TeX Live + Node. Regenerates `js/*-data.js` and `calendar.ics` within a couple of seconds of any save, and builds the PDFs when someone clicks "Generér PDF'er" on Manus (about 15 seconds). It also pushes `archive/` to GitHub once archive changes have been quiet for 5 minutes (needs `ARCHIVE_SYNC_DEPLOY_KEY` in Coolify).
 
 Data lives on the server's disk under `/srv/matrevy/data`:
 
@@ -143,5 +145,6 @@ chown -R 33:33 /srv/matrevy/data
 | `Permission denied` under `/data` | Wrong owner on the host folder | `chown -R 33:33 /srv/matrevy/data` (Apache and the worker run as user 33) |
 | Saved data doesn't show up | Worker stopped or failing | `worker` logs in Coolify; a lingering `/srv/matrevy/data/site/.embed-requested` means the worker isn't running |
 | "Generér PDF'er" fails | No scenes in the production yet, or a LaTeX package missing from the medium TeX image | Worker log. For a missing package, change `Dockerfile.worker` to `texlive/texlive:latest`. |
+| Archive not updating on GitHub | No or wrong deploy key, or a push failed | `worker` logs (`archive sync: …`). Check `ARCHIVE_SYNC_DEPLOY_KEY` in Coolify and that the deploy key has write access |
 | Disk filling up | Old Docker images | Coolify **Settings → Docker cleanup**, or `docker system prune -af` |
 | Locked out of SSH | Key lost or config mistake | Hetzner Console → server → **Console** gives a browser terminal |

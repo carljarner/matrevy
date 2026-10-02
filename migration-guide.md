@@ -42,7 +42,8 @@ By now every DNS resolver has left GitHub Pages.
    - delete `CNAME` and `.nojekyll`
    - untrack the live-data copies, which are stale since Oct 2 (the real data is on web-1):
      - `data/*.json` (keeping `data/README.md`)
-     - `archive/`, `posts/`, `wiki/`, `calendar.ics`
+     - `posts/`, `wiki/`, `calendar.ics`
+     - **not** `archive/`: it stays tracked, because the worker now mirrors the server's archive into it (see "Archive mirror" below)
      - every `js/*-data.js` except `js/manus-data.js`
    - add them to `.gitignore`
    - delete `.github/workflows/embed-scenes.yml` and `generate-pdfs.yml`
@@ -68,6 +69,25 @@ By now every DNS resolver has left GitHub Pages.
    ```
    The latest snapshot should cover `/srv`, which includes `/srv/matrevy/data/site`.
 9. [ ] **web-1:** remove the repo clone used for the data copy: `rm -rf /root/mr-src`
+
+## Archive mirror to GitHub (set up once, any time)
+
+The worker pushes the server's `archive/` to this repo (CLAUDE.md → Hosting & data flow). Until the key is set, the mirror is off and the worker logs `archive sync: off`.
+
+1. [ ] **Laptop:** create a deploy key:
+   ```bash
+   ssh-keygen -t ed25519 -f matrevy-archive -N '' -C matrevy-archive
+   ```
+2. [ ] **GitHub** → repo **Settings → Deploy keys → Add deploy key**: paste `matrevy-archive.pub` and tick **Allow write access**.
+3. [ ] **Coolify**, Compose app → **Environment variables**: set `ARCHIVE_SYNC_DEPLOY_KEY` to the output of
+   ```bash
+   base64 < matrevy-archive | tr -d '\n'
+   ```
+   then Redeploy.
+4. [ ] **Laptop:** `rm matrevy-archive matrevy-archive.pub`.
+5. [ ] **Coolify**, `worker` logs: expect `archive sync: pushed <sha>` within a minute of the redeploy (the first push catches up everything since Oct 2).
+6. [ ] **Coolify** deployments list: check that the bot's `[skip ci]` commit did **not** start a deployment. If it did, add a Watch Path that excludes `archive/**`, and update the "no Watch Path" note in the Oct 3 list.
+7. [ ] **Laptop:** `git pull --rebase` to pick up the mirrored archive.
 
 ## From Oct 4: Simply forwarder (48 h after the API moved)
 

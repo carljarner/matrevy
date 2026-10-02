@@ -27,6 +27,11 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile.worker
+    environment:
+      # Mirrors archive/ to the GitHub repo (server/worker.sh). Base64 of a
+      # deploy key with write access; leave empty to turn the mirror off.
+      ARCHIVE_SYNC_DEPLOY_KEY: ${ARCHIVE_SYNC_DEPLOY_KEY:-}
+      ARCHIVE_SYNC_QUIET_SECONDS: ${ARCHIVE_SYNC_QUIET_SECONDS:-300}
     volumes:
       - /srv/matrevy/data:/data
     restart: unless-stopped

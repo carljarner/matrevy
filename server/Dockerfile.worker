@@ -2,7 +2,7 @@
 # when update-data.php asks for it (server/worker.sh). Build context is the
 # repo root. Same TeX image as the old generate-pdfs.yml Action.
 FROM texlive/texlive:latest-medium
-RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm git openssh-client rsync \
  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
