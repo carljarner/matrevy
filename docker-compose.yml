@@ -6,6 +6,10 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile.site
+    # Apache's port inside the container, for Coolify/Traefik routing. Not
+    # published on the host.
+    expose:
+      - "80"
     environment:
       REVYST_PASSWORD: ${REVYST_PASSWORD}
       BOSS_PASSWORD: ${BOSS_PASSWORD}
