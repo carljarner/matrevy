@@ -1,8 +1,8 @@
 # data/
 
-This folder contains the source-of-truth data files for the site.
+Schemas for the site's public data files.
 
-These files can be edited by hand (see below) or via the site's in-page admin tools (the scheduling tool's "Rediger Manus" button, the Forside posts board, the Kalender event editor, the Arkiv year editor), which all save globally through `server/update-data.php` — see CLAUDE.md. A GitHub Action regenerates the embedded `*-data.js` files automatically after either kind of change lands on `main`; `node scripts/embed-scenes.js` only needs to be run by hand after editing these JSON files directly.
+**The live files are on the server**, in `/srv/matrevy/data/site/data/` on web-1, not in this repo folder (the repo copies are stale snapshots from Oct 2, 2026 until the cleanup in `migration-guide.md` untracks them). They're edited through the site's own tools (Manus, Kalender, Forside, Wiki, Koordinator, …), which save through `server/update-data.php`. The worker container regenerates the embedded `js/*-data.js` files a couple of seconds after every save (see CLAUDE.md → Hosting & data flow). After a hand edit on the server, trigger the same with `touch /srv/matrevy/data/site/.embed-requested`. Locally, run `node scripts/embed-scenes.js`.
 
 ## Files
 
@@ -16,7 +16,7 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 | `bosses.json` | The static "Bosser for ..." info card on Forside |
 | `wiki.json` | Flat list of rich-text chapters shown on the Wiki page |
 | `manuscripts.json` | Upload pool of submitted sketch/song `.pdf`/`.tex` pairs, shown on the Manus page |
-| `config.json` | Small site-wide settings, currently just the active archive production folder |
+| `config.json` | Small site-wide settings: the active production folder and three revyst toggles |
 | `program.json` | Medvirkende/Ordliste/QR-codes content for the printed programme booklet, edited on the Manus page's Program tab and rendered into three layouts, `archive/<folder>/Program.pdf`, `ProgramHaefte.pdf`, and `ProgramHaefteHorisontal.pdf` |
 | `masterplan.json` | Koordinator page's "Masterplan" checklist — recurring production to-dos across 5 fixed phase-tabs, replacing an externally-maintained spreadsheet |
 | `gantt.json` | Gantt chart of the revy period (September–November) shown below the calendar on Kalender |
@@ -24,16 +24,17 @@ These files can be edited by hand (see below) or via the site's in-page admin to
 
 ## Updating for a New Production
 
-1. **`scenes.json`** — Replace the `acts` array with the new production's scenes.
+Normally done from **Koordinator → Arkivering** ("Afslut revyen", then "Start ny revy"), which resets `scenes.json`, `cast.json` and `manuscripts.json` and sets `config.json`. Scenes then come in through Manus's upload pool and Main Manus View. The notes below describe the fields if you ever edit by hand.
+
+1. **`scenes.json`** — the `acts` array holds the production's scenes.
    - Set `schedulable: false` for videos, band jingles, and anything else with no rehearsable cast.
-   - Set `priority` values to `0` for a fresh start — the Manus page's Stjerneark tab is where real 0-3 priorities get entered by Boss going forward; this is a different concept from the scheduling tool's own per-rehearsal-day priority selector, which only reads this field once as its starting seed and otherwise lives entirely in `localStorage` (see `CLAUDE.md`'s "Data schemas" note).
+   - `priority` (0-3) is set on the Manus page's Stjerneark tab. Øveplan shows it read-only as a badge; there's no separate per-rehearsal priority any more.
    - The `id` field must be unique (format: `"act-number"`, e.g. `"1-3"` or `"E-2"`).
-   - `types` is optional but recommended: an array from `sketch`/`sang`/`dans`/`bandsang`/`video` (e.g. `["sang", "dans"]` for a choreographed song). Without it, the scheduling tool and manus editor can only guess `sketch` vs `video` from `schedulable` — a real `types` array is what drives correct role classification (Sang/Rap vs. Skuespil, etc. — see `CLAUDE.md`) and the dance/actor-split feature (a `dans`+`sketch`/`sang` combo splits into two independently-schedulable placements).
-   - `duration` (optional, minutes) and `sourcePdf`/`sourceTex` (optional, repo-relative paths back into `manus/<type>/`) are written by the Manus page's Aktfordeling tab — `duration` is entered by hand by Boss during selection (not derived), `sourcePdf`/`sourceTex` carry over the originating upload-pool submission's files for a future `.tex`→PDF compile phase. `dansPriority` (optional int 0-3) is written only for a dance-split-candidate scene by the Stjerneark tab, holding the "(Dans)" half's priority independently from the main `priority`. `repeat`/`dansRepeat` (optional booleans, same main/dance-half split as `priority`/`dansPriority`) mark a scene that wants a second rehearsal the next day, set via Stjerneark's clickable priority/repeat circles. All six are safe to omit on hand-edited/legacy scenes.
+   - `types` is optional but recommended: an array from `sketch`/`sang`/`dans`/`bandsang`/`video`. It drives role classification (Sang/Rap vs. Skuespil, etc. — see `CLAUDE.md`) and video/bandsang handling. The dance/actor split no longer depends on `types`: Øveplan splits any scene where a cast member is tagged Dans or Koreograf into two independently-schedulable halves.
+   - `duration` (optional, minutes) defaults from the submission's `\eta{}` and is edited in Manus's Vælg scener. `sourcePdf`/`sourceTex` (optional) point at the originating submission's files under `archive/<folder>/{submitted,sketches,songs}/`; `generate-pdfs.js` overwrites `sourceTex` with the composed scene on every regeneration. `dansPriority` (optional int 0-3) holds the "(Dans)" half's priority for a dance-split scene, set by Stjerneark. `repeat`/`dansRepeat` (optional booleans) mark a scene (or its dance half) that wants a second rehearsal, also from Stjerneark. All are safe to omit on hand-edited/legacy scenes.
 
 2. **`cast.json`** — Replace the `cast` array with the new cast list.
-   - Keep the `index` values sequential starting from 0 (they match the column order in the LaTeX Rolleoversigt table).
-   - Add any new role type codes to `role_type_legend`.
+   - Keep the `index` values sequential starting from 0 (Manus rebuilds them on every save).
 
 ## Schema: scenes.json
 
@@ -55,8 +56,8 @@ These files can be edited by hand (see below) or via the site's in-page admin to
           "repeat": false,
           "dansRepeat": null,
           "duration": 3,
-          "sourcePdf": "manus/sketch/Scene_name.pdf",
-          "sourceTex": "manus/sketch/Scene_name.tex",
+          "sourcePdf": "archive/MatRevy_2026/sketches/Scene_name.pdf",
+          "sourceTex": "archive/MatRevy_2026/sketches/Scene_name.tex",
           "cast": [
             {
               "name": "Cast member name",
@@ -158,10 +159,10 @@ way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus
 - `year` — integer; auto-detected from `name` when creating a new entry (still editable); the archive page sorts newest first. **Not required to be unique** — e.g. a jubilee revy can share the year of a regular one; `folder` is the sole unique key.
 - `name` — required free-text display name, e.g. `"MatRevy 2024"`.
 - `folder` — the repo-relative folder slug (`archive/<folder>/...`), derived once from `name` when the entry is created (spaces → `_`, Danish `æøå` transliterated, everything else stripped) and **never recomputed** — editing `name` later must not change `folder`, or every already-uploaded file would orphan. Also the source for the overlay's **GitHub** button (`github.com/carljarner/matrevy/tree/main/archive/<folder>`) — derived in `archive.js`, not stored.
-- `coverImage`/`manusPdf` — repo-relative paths (`archive/<folder>/cover.jpg` / `archive/<folder>/manus.pdf`) or `""`. **Uploaded directly through the Arkiv admin UI** (no manual git step) — the browser reads the file, the site's PHP endpoint (`server/update-data.php`'s `upload` action) commits it to the repo via the GitHub Contents API. Cover photos are always re-encoded to JPEG client-side (canvas-resized, max ~1600px wide) before upload, so the filename/extension never changes across re-uploads.
+- `coverImage`/`manusPdf` — repo-relative paths (`archive/<folder>/cover.jpg` / `archive/<folder>/manus.pdf`) or `""`. **Uploaded directly through Koordinator's Arkiv editor** (no manual git step) — the browser reads the file, the site's PHP endpoint (`server/update-data.php`'s `upload` action) commits it to the repo via the GitHub Contents API. Cover photos are always re-encoded to JPEG client-side (canvas-resized, max ~1600px wide) before upload, so the filename/extension never changes across re-uploads.
 - `youtubeUrl` / `spotifyUrl` / `driveUrl` — optional external links (or `""`); each renders a matching link pill on the detail overlay. All three are validated against a host regex in `save_archive` only when non-empty (never required, so entries lacking them still validate).
-- The archive does **not** track individual sketch/song/other-material files. Those `.tex`/`.pdf` sources live in the repo under `archive/<folder>/{sketches,songs,other}/` and are browsed via the overlay's **GitHub** (or **Drive**) button — not listed in `archive.json`.
-- Uploads (cover / manus) are capped at ~5 MB each (client- and server-side) — Simply.com's actual PHP upload limits aren't documented, so this is a conservative guess.
+- The archive does **not** track individual sketch/song/other-material files. Those `.tex`/`.pdf` files live on the server under `archive/<folder>/{sketches,songs,other,…}/`. The overlay's GitHub button points at the repo's old copy and goes away with the cleanup.
+- Uploads (cover / manus) are capped at ~5 MB each, client- and server-side.
 
 ## Schema: posts.json
 
@@ -193,8 +194,8 @@ way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus
 - `pinned` — boolean, defaults to `false`. Only boss/admin can set it `true`, via the post's edit modal (which goes through the full-array `posts` resource, not `posts_create` — a revyst-level create can never produce a pre-pinned post). Pinning **moves** a post from the normal list into the pinned column on Forside; it does not duplicate it.
 - `date` — `YYYY-MM-DDTHH:MM:SS`, a floating local (Europe/Copenhagen) timestamp with no `Z`/offset — same "everyone's in the same timezone" convention as the calendar `.ics` feed. Server-assigned to the current time on create; editable afterwards only via the boss/admin edit modal.
 - `author` — free-typed string (no per-user login to attribute a post otherwise).
-- `title` — required, non-empty string; the only body text shown in the list view (Forside shows date/title/author there — the full `text` only appears once a post is opened).
-- `text` — free text body; Forside splits on `\n` into separate paragraphs.
+- `title` — optional string (may be `""`); shown as a small tag on the post.
+- `text` — the body: sanitized rich-text HTML (`POST_ALLOWED_TAGS` in `posts.js`, same approach as Wiki). Older plain-text posts are still rendered by splitting on `\n` into paragraphs and auto-linking URLs.
 - `image` — optional repo-relative path (`posts/<id>/image.jpg`) or `""`. Uploaded inline as part of `posts_create` itself (not the generic admin-only `upload` action, since post creation is revyst-level) — the client sends raw base64 image bytes alongside the post fields, and the server writes the file via the GitHub Contents API before appending the post's JSON entry. Always re-encoded to JPEG client-side (canvas-resized, max ~1600px wide) before upload, capped at ~5 MB. Not re-uploadable from the edit modal in this pass — changing a post's picture means deleting and recreating the post.
 - `comments` — array of `{id, author, text, date}`, defaulting to `[]` on a freshly created post. `id`/`date` are server-assigned by a separate append-only action, `comments_create`, the same way a post's own `id`/`date` are assigned by `posts_create`. Any revyst+ visitor can comment on any post — there's no per-post visibility restriction to gate against. Deleting an individual comment is boss/admin only and needs no dedicated server action: the client filters the comment out of that post's `comments` array and calls the same full-array-replace `posts` resource used to edit/delete a whole post.
 
@@ -257,8 +258,8 @@ comments.
       "type": "sketch",
       "title": "Hej",
       "sender": "Ida",
-      "pdfPath": "manus/sketch/Hej.pdf",
-      "texPath": "manus/sketch/Hej.tex",
+      "pdfPath": "archive/MatRevy_2026/submitted/Hej.pdf",
+      "texPath": "archive/MatRevy_2026/submitted/Hej.tex",
       "createdAt": "2026-08-01T12:00:00"
     }
   ]
@@ -266,23 +267,28 @@ comments.
 ```
 
 - `id` — unique string, server-assigned (`dechex(time()) . bin2hex(random_bytes(4))`, same convention as `posts.json`) — never client-supplied.
-- `type` — `"sketch"` or `"sang"`, chosen by the uploader; determines which of the Manus page's two columns the submission appears in, and matches the `types` vocabulary used in `scenes.json`.
+- `type` — `"sketch"` or `"sang"`, chosen by the uploader; determines which of the Manus page's two columns the submission appears in, and matches the `types` vocabulary used in `scenes.json`. A "Sang (fisk)" upload is `type: "sang"` plus `fisk: true`.
 - `title`/`sender` — required, non-empty free text.
-- `pdfPath`/`texPath` — repo-relative paths, `manus/<type>/<slug>.pdf`/`.tex`. `slug` is the title with spaces replaced by `_` (server-side, in `manuscripts_create`'s `manus_slugify()`), deduplicated with a `_2`/`_3`/… suffix on a same-type title collision so two submissions never overwrite each other's files. Uploaded inline as part of `manuscripts_create` (revyst-level, like `posts_create`'s image) — both files are required, capped at ~5 MB each.
+- `pdfPath`/`texPath` — site-relative paths, `archive/<currentProductionFolder>/submitted/<slug>.pdf`/`.tex` on upload. `slug` is the title with spaces replaced by `_` (`manus_slugify()`), deduplicated with a `_2`/`_3`/… suffix so two submissions never overwrite each other. Both files are uploaded inline by `manuscripts_create` (revyst-level), ~5 MB each; `manuscripts_update` (revyst, "Opdater") replaces them while they're still in `submitted/`. When a submission is selected or deselected and Manus is saved, `manuscripts_sync_selection` moves its files between `submitted/`, `sketches/` and `songs/` and updates these paths.
 - `createdAt` — server-assigned floating local timestamp, same convention as `posts.json`'s `date`.
 - `duration` — optional, minutes (0.5-step), parsed client-side from the uploaded `.tex`'s `\eta{}` at upload/update time. Only the default for the Vælg scener duration field; boss/admin can change it, and the edited value lives on the scene in `scenes.json` once selected.
-- Boss/admin remove a submission via the full-array-replace `manuscripts` resource (`save_manuscripts`) — the client filters the array and re-saves; the underlying pdf/tex files are **not** deleted from the repo (left as harmless orphans, same accepted trade-off as a deleted post's leftover `image` file).
-- Deselecting a submission on the Manus page's "Vælg scener" tab and confirming "Bekræft fravalg" instead calls the boss-level `manuscripts_discard` action: the submission is **removed** from this file (not just filtered client-side) and its `pdfPath`/`texPath` files are **moved** (not left as orphans) to `archive/<currentProductionFolder>/not_selected/` — see `config.json` below for where the target folder comes from.
+- Removing a submission: the pool's "Fjern" (boss, full-array `manuscripts` resource) drops only the record and leaves the files; "Slet" in Vælg scener (admin, `manuscripts_delete`) deletes the files **and** the record.
 
 ## Schema: config.json
 
 ```json
 {
-  "currentProductionFolder": "MatRevy_2026"
+  "currentProductionFolder": "MatRevy_2026",
+  "pdfLinksVisibleToRevyst": false,
+  "sketchUploadsClosedForRevyst": false,
+  "songUploadsClosedForRevyst": false
 }
 ```
 
-- `currentProductionFolder` — the active `archive/<folder>` this production's discarded manus submissions get moved into (see `manuscripts.json`'s `manuscripts_discard` note above), or `""` if not yet set. Server-trusted target only — **not read or shown anywhere client-side**; an admin-editable dropdown on the Manus page was tried and removed (twice — first as an edit control, then even the read-only display), so for now this is simply hand-edited in this file (then `node scripts/embed-scenes.js`, though nothing currently loads the regenerated `config-data.js`) each production cycle. Not a real "current season" concept — there's no such thing site-wide yet (season-switching is a documented, unbuilt future phase) — just a small, manually-maintained stand-in scoped to this one need.
+- `currentProductionFolder` — the active production's `archive/<folder>`: where new submissions land and where `generate-pdfs.js` writes. `""` means no active production, which blocks `manuscripts_create`. Set by Koordinator's "Afslut revyen" (→ `""`) and "Start ny revy" (→ the new folder). Read client-side as `CONFIG_DATA`.
+- `pdfLinksVisibleToRevyst` — shows Manus's PDF quick links to revyster too.
+- `sketchUploadsClosedForRevyst`/`songUploadsClosedForRevyst` — close the upload pool per type for revyster.
+- Admin-only `config` resource. Koordinator resets all three toggles to `false` when it closes or starts a production.
 
 ## Schema: program.json
 
@@ -301,8 +307,8 @@ comments.
 - `qrCodes` — `url` generates a QR code image at PDF-build time (via the `qrcode` npm package, `scripts/generate-pdfs.js`'s one other real dependency alongside `pdf-lib`) — no image is ever uploaded or stored; `label` is the heading printed above each QR code. Unlike `medvirkende`/`ordliste`, `label`/`url` are plain text typed into small structured fields and are **always** LaTeX-escaped when composed into Program.pdf — the opposite convention, easy to get backwards (see `buildProgramSections()`'s own comment).
 - Program.pdf's Aktoversigt section is built from `scenes.json`'s real `acts`/`scenes` (styled centered/`\Huge`, matching the original `program.tex`, not the internal `Aktoversigt.pdf`'s numbered/time-estimate layout) and **excludes the `E`/Ekstranumre act** — unlike `Aktoversigt.pdf`, which includes it. The front cover image is the current production's Arkiv cover photo (`archive.json`'s `coverImage` for the `config.json`-selected `currentProductionFolder`), falling back to `archive/_assets/placeholder-cover.jpg` when unset; the back cover is always that same sitewide placeholder.
 - The booklet layouts' reordering is a **fixed template** tuned so a normal year's Ordliste+Medvirkende content fits exactly two folded A4 sheets, with Aktoversigt/QR-koder facing each other on the sheet nearest the covers and Medvirkende landing as one unbroken spread on the innermost sheet — by explicit product decision this does not auto-rebalance for a future year whose content outgrows that budget (imposeBooklet still pads to a foldable multiple of 4 pages regardless, it just won't recreate this exact pairing once content overflows two sheets).
-- `data/program.json` must already exist in the repo (even in its empty seed shape) before the first Program-tab save — `update_file()` (the shared GitHub-Contents-API helper every `$RESOURCES` save uses) reads-before-writing and has no create-if-missing branch.
-- None of the three layouts has a dedicated regeneration trigger — all ride the existing "Generér PDF'er" button/`generate-pdfs.yml` job alongside Aktoversigt/Rolleoversigt/Manuskript. If `data/program.json` is missing entirely, `scripts/generate-pdfs.js` skips all three Program PDFs with a log notice rather than failing the whole run.
+- `data/program.json` must already exist on the server (even in its empty seed shape) before the first Program-tab save — `update_file()`, which every `$RESOURCES` save uses, reads before writing and has no create-if-missing branch.
+- None of the three layouts has its own regeneration trigger — they're rebuilt by Manus's "Generér PDF'er" along with Aktoversigt/Rolleoversigt/Manuskript (the worker runs `generate-pdfs.js`). If `data/program.json` is missing entirely, `generate-pdfs.js` skips the three Program PDFs with a log notice rather than failing the whole run.
 
 ## Schema: masterplan.json
 
@@ -378,10 +384,10 @@ comments.
 
 ## Adding a year to the archive
 
-No manual git steps needed — everything happens in the browser:
+Everything happens in the browser:
 
-1. Open `arkiv.html`, log in as admin.
-2. Click the grey **+** tile at the end of the grid.
-3. Fill in the Navn (required — e.g. "MatRevy 2024"; Årstal auto-fills from a year in the name), optionally a cover photo, the manuscript PDF, and YouTube / Spotify / Google Drive links.
-4. Click **Gem** — the cover/manus files upload first (with a progress indicator), then the year's metadata saves to `data/archive.json` via `server/update-data.php`; a GitHub Action then regenerates `archive-data.js` automatically.
-5. Sketch/song/other `.tex` sources are committed to the repo under `archive/<folder>/{sketches,songs,other}/` (by hand or separately) — the overlay's GitHub button links there; the archive doesn't track them per file.
+1. Open **Koordinator** (admin) → **Arkivering**.
+2. In the Arkiv section, add a year (or pick an existing one to edit).
+3. Fill in the Navn (required, e.g. "MatRevy 2024"; Årstal auto-fills from a year in the name), optionally a cover photo, the manuscript PDF, and YouTube / Spotify / Google Drive links.
+4. Click **Gem**. The cover/manus files upload first, then the year saves to `archive.json` through `server/update-data.php`, and the worker regenerates `archive-data.js` within seconds.
+5. Individual sketch/song/other files go under `archive/<folder>/{sketches,songs,other}/` on the server. For the current production, `generate-pdfs.js` and the Manus upload pool fill these in. For older years, copy them to `/srv/matrevy/data/site/archive/<folder>/` on web-1 and `chown -R 33:33` them.

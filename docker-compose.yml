@@ -1,4 +1,4 @@
-# matrevy on web-1 (hosting.md Part 7), deployed by Coolify as one Docker
+# matrevy on web-1, deployed by Coolify as one Docker
 # Compose resource. Coolify lists the ${...} variables for you to fill in;
 # give only the `web` service a domain.
 services:

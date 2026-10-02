@@ -4,7 +4,7 @@
 // PDF per sketch/song) straight from data/scenes.json + data/cast.json —
 // the same three deliverables the revue's old Perl/LaTeX toolchain
 // (matrevy/RevyTeX's acts.pl/roles.pl/manus.pl) used to produce, reimplemented
-// here in Node per matrevy-plan.md's Phase 4.4.
+// here in Node.
 //
 // data/scenes.json stays the sole source of truth (edited via manus.html's
 // Main Manus View, particularly the "Manus" tab's scriptBody/status/melody/

@@ -31,6 +31,6 @@ define('FORMS_DATA_DIR', matrevy_env('FORMS_DATA_DIR', '/data/forms'));
 define('FAELLESSPISNING_DATA_DIR', matrevy_env('FAELLESSPISNING_DATA_DIR', '/data/faellesspisning'));
 
 // Writable public site files (data/, archive/, posts/, wiki/, plus the
-// worker's generated/ output) — hosting.md Part 7. Served by Apache via the
+// worker's generated/ output). Served by Apache via the
 // aliases in apache-site.conf; github_api() writes here instead of GitHub.
 define('SITE_DATA_DIR', matrevy_env('SITE_DATA_DIR', '/data/site'));

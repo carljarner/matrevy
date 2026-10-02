@@ -1,6 +1,6 @@
-# Web container: serves the whole site plus update-data.php (hosting.md
-# Part 7). Build context is the repo root; .dockerignore keeps the data
-# folders out, since those live on the shared disk (/data/site) instead.
+# Web container: serves the whole site plus update-data.php. Build context
+# is the repo root; .dockerignore keeps the data folders out, since those
+# live on the shared disk (/data/site) instead.
 FROM php:8.3-apache
 RUN a2enmod headers rewrite
 COPY server/php.ini /usr/local/etc/php/conf.d/matrevy.ini

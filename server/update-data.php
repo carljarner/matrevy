@@ -18,7 +18,7 @@
 // Legacy shape { pin, scenes, cast } (the original manus-tool save)
 // is still accepted and mapped onto action=save/resource=manus.
 //
-// Deployed by Coolify on web-1 (hosting.md Part 7): server/Dockerfile.site
+// Deployed by Coolify on web-1 (CLAUDE.md → Hosting & data flow): server/Dockerfile.site
 // builds it into the site image with config.docker.php, which reads every
 // value from environment variables. Never commit config.php.
 
@@ -308,7 +308,7 @@ if ($action !== 'save') {
 // ── Local stand-in for the GitHub Contents API ───────────────
 // The site's writable public files (data/, archive/, posts/, wiki/) live on
 // the server's disk under SITE_DATA_DIR instead of in the GitHub repo (see
-// hosting.md Part 7). This keeps github_api()'s old signature and return
+// CLAUDE.md → Hosting & data flow). This keeps github_api()'s old signature and return
 // shape (status, decoded body with base64 `content` + `sha`), so
 // update_file()/put_file()/delete_file() and every direct caller below work
 // unchanged — including the stale-sha 409 that guards concurrent edits.
@@ -4407,9 +4407,9 @@ function save_wiki($payload) {
 // currentProductionFolder: which archive/MatRevy_<year> folder is the
 // active production, used server-side (never a client-supplied value) as the
 // base of every path manuscripts_create/manuscripts_sync_selection build.
-// There's no real "current season" concept yet (see matrevy-plan.md's
-// Phase 13) — this is a small, deliberately minimal stand-in, set by hand
-// once per production cycle via the Manus page.
+// There's no real "current season" concept — this is a small, deliberately
+// minimal stand-in, set once per production cycle by Koordinator's
+// "Afslut revyen" / "Start ny revy".
 //
 // pdfLinksVisibleToRevyst: whether manus.js's PDF quick-links box
 // (renderManusPdfLinksSection) is shown to plain revyst-level visitors —

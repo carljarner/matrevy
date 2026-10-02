@@ -2367,7 +2367,7 @@ function manusPrintAktCards(type) {
 // act code) — the same shape import.js's flat scene list uses with an
 // actCode, reimplemented independently here since the input shape (pool
 // submissions vs. already-cast-assigned scenes) differs too much to share
-// import.js's code directly (see matrevy-plan.md's Phase 4 notes). Lives for
+// import.js's code directly. Lives for
 // the page session — built once when the section first renders, NOT rebuilt
 // on a bare tab switch (that would drop in-progress edits), only after a
 // successful main save or discard-finalize.
