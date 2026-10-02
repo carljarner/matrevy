@@ -489,8 +489,8 @@ function openLoginModal() {
 // Hints the browser to fetch every other reachable page's HTML at
 // idle priority, so a later nav click is a cache hit instead of a
 // fresh request. Skipped over file:// (nothing to prefetch from).
-// Only the page's HTML is hinted — its own JS/data bundles are
-// small and get cached the first time it's actually visited.
+// Only the page's HTML is hinted — hovering a link loads the rest
+// (see "Nav hover preload" below).
 function injectSitePrefetchLinks() {
   if (siteIsFileProtocol()) return;
   const current = siteCurrentPage();
@@ -501,6 +501,64 @@ function injectSitePrefetchLinks() {
     link.href = page.href;
     document.head.appendChild(link);
   }
+}
+
+// ── Nav hover preload ────────────────────────────────────────
+// Starts loading a nav link's page as soon as the visitor hovers,
+// touches or focuses it, so the click itself is near-instant.
+// Chromium: a Speculation Rules `prerender` with `moderate`
+// eagerness (~200 ms hover or pointerdown) renders the whole page
+// in the background. Document rules also match links created later
+// (Redskaber dropdown, mobile menu). Other browsers (Safari,
+// Firefox): fetch the page's HTML plus its scripts/stylesheets into
+// the HTTP cache, so the real navigation only revalidates (304s).
+const SITE_NAV_LINK_SELECTOR = '.site-nav a[href], .site-menu-nav a[href]';
+
+function setupSiteNavPreload() {
+  if (siteIsFileProtocol()) return;
+  if (HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
+    const rules = document.createElement('script');
+    rules.type = 'speculationrules';
+    rules.textContent = JSON.stringify({
+      prerender: [{
+        where: { selector_matches: SITE_NAV_LINK_SELECTOR },
+        eagerness: 'moderate',
+      }],
+    });
+    document.head.appendChild(rules);
+    return;
+  }
+
+  const warmed = new Set([location.href.split('#')[0]]);
+  const warm = (url) => {
+    if (warmed.has(url)) return null;
+    warmed.add(url);
+    return fetch(url, { credentials: 'same-origin' }).catch(() => null);
+  };
+  const onIntent = (e) => {
+    const a = e.target instanceof Element ? e.target.closest(SITE_NAV_LINK_SELECTOR) : null;
+    if (!a || a.origin !== location.origin) return;
+    const pageUrl = a.href.split('#')[0];
+    const req = warm(pageUrl);
+    if (!req) return;
+    req.then(res => (res && res.ok ? res.text() : null)).then(html => {
+      if (!html) return;
+      // Detached document: parsed only to read URLs, never executed.
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const refs = doc.querySelectorAll('script[src], link[rel="stylesheet"][href]');
+      for (const el of refs) {
+        const url = new URL(el.getAttribute('src') || el.getAttribute('href'), pageUrl);
+        if (url.origin === location.origin) warm(url.href);
+      }
+    }).catch(() => {});
+  };
+  // Assets this page already loaded are in the cache — don't refetch.
+  for (const el of document.querySelectorAll('script[src], link[rel="stylesheet"][href]')) {
+    warmed.add(el.src || el.href);
+  }
+  document.addEventListener('pointerover', onIntent);
+  document.addEventListener('touchstart', onIntent, { passive: true });
+  document.addEventListener('focusin', onIntent);
 }
 
 // ── Page-level gate ──────────────────────────────────────────
@@ -542,4 +600,5 @@ document.addEventListener('DOMContentLoaded', () => {
   renderSiteHeader();
   applyPageGate();
   injectSitePrefetchLinks();
+  setupSiteNavPreload();
 });
