@@ -1,0 +1,15 @@
+# Build context for server/Dockerfile.site and server/Dockerfile.worker.
+# The live data lives on the server's disk (/srv/matrevy/data/site), never
+# in the images.
+.git
+.DS_Store
+node_modules
+.pdf-build
+data
+archive
+posts
+wiki
+calendar.ics
+js/*-data.js
+!js/manus-data.js
+server/config.php

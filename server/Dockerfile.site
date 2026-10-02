@@ -1,0 +1,16 @@
+# Web container: serves the whole site plus update-data.php (hosting.md
+# Part 7). Build context is the repo root; .dockerignore keeps the data
+# folders out, since those live on the shared disk (/data/site) instead.
+FROM php:8.3-apache
+RUN a2enmod headers rewrite
+COPY server/php.ini /usr/local/etc/php/conf.d/matrevy.ini
+# zz- so it loads after Debian's own security.conf (see server/Dockerfile).
+COPY server/apache-matrevy.conf /etc/apache2/conf-enabled/zz-matrevy.conf
+COPY server/apache-site.conf /etc/apache2/sites-available/000-default.conf
+COPY . /var/www/html/
+RUN cd /var/www/html \
+ && mv server/update-data.php update-data.php \
+ && mv server/config.docker.php config.php \
+ && mv server/health.php health.php \
+ && rm -rf server scripts .github .claude .nojekyll CNAME package.json package-lock.json *.md \
+ && mkdir -p /data && chown www-data:www-data /data

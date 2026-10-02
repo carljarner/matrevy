@@ -1,0 +1,24 @@
+# Worker container: reruns scripts/embed-scenes.js and scripts/generate-pdfs.js
+# when update-data.php asks for it (server/worker.sh). Build context is the
+# repo root. Same TeX image as the old generate-pdfs.yml Action.
+FROM texlive/texlive:latest-medium
+RUN apt-get update && apt-get install -y --no-install-recommends nodejs npm \
+ && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY scripts ./scripts
+COPY manus ./manus
+COPY server/worker.sh ./worker.sh
+# The scripts resolve every path relative to the repo root (/app); point the
+# data folders and the generated outputs at the shared disk.
+RUN ln -s /data/site/data data \
+ && ln -s /data/site/archive archive \
+ && ln -s /data/site/generated/js js \
+ && ln -s /data/site/generated/calendar.ics calendar.ics \
+ && chown -R 33:33 /app
+# Run as www-data's uid, so the web container can still overwrite and move
+# the files the worker writes (and vice versa).
+USER 33:33
+ENV HOME=/tmp
+CMD ["bash", "/app/worker.sh"]

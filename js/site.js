@@ -13,7 +13,13 @@
 'use strict';
 
 // ── Configuration ────────────────────────────────────────────
-const SITE_API_ENDPOINT = 'https://manus.matematikrevy.dk/update-data.php';
+// The site and the API are served by the same container on web-1. On the
+// live domain the absolute manus. URL keeps working for visitors still on
+// GitHub Pages during the DNS move; anywhere else (beta., www) the page
+// calls its own host, so a test copy writes to its own data.
+const SITE_API_ENDPOINT = location.hostname === 'matematikrevy.dk'
+  ? 'https://manus.matematikrevy.dk/update-data.php'
+  : '/update-data.php';
 const SITE_AUTH_KEY = 'matrevy-auth';
 
 // The one place a page is registered. level:
