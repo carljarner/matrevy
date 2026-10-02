@@ -111,46 +111,18 @@ async function saveArchiveYears(next) {
   return result;
 }
 
-// ── PDF freshness poll (duplicated from manus.js's manusFetchPdfStatus/
-// manusPdfReferenceUrl — see file header). Queries GitHub's Commits API
-// scoped to the file's own path rather than a same-origin HEAD request's
-// Last-Modified/ETag headers: those reflect when the *site* was last
-// redeployed (any push to main, not just one touching this file), not when
-// this file's content last actually changed — confirmed live 2026-08-21 via
-// a completely unrelated, untouched file (CNAME) still reporting "today" as
-// its Last-Modified. This is a one-shot manual check (the "Tjek om klar"
-// button below), not a repeating poll, so the unauthenticated 60/hour rate
-// limit isn't a practical concern here the way it is for manus.js's own
-// repeating MANUS_PDF_POLL_INTERVAL_MS poll — hence checking existence via
-// a first Contents API call before ever trusting the Commits API's own
-// date: a *deleted* file still has commit history (its own removal is a
-// commit touching that path), so commits.length alone can't tell "was
-// generated" from "was generated, then later removed" — confirmed live
-// 2026-09 after archive/MatRevy_2026's test PDFs were cleared out, which
-// left this check still reporting a stale generated-date for a file that
-// no longer existed (same bug manus.js's own manusFetchPdfExists fixes).
+// ── PDF freshness check (mirrors manus.js's manusFetchPdfStatus) ──
+// One-shot check behind the "Tjek om klar" button: does the file exist, and
+// when was it last written? Same-origin HEAD via siteFileStatus
+// (site-utils.js) — on the server a file's Last-Modified only changes when
+// that file is actually rewritten.
 async function koordFetchPdfStatus(path) {
-  if (!path) return { date: null, confirmedAbsent: false, checkFailed: true };
-  try {
-    const existsRes = await fetch(
-      `https://api.github.com/repos/carljarner/matrevy/contents/${path.split('/').map(encodeURIComponent).join('/')}`,
-      { cache: 'no-store' }
-    );
-    if (existsRes.status === 404) return { date: null, confirmedAbsent: true, checkFailed: false };
-    if (!existsRes.ok) return { date: null, confirmedAbsent: false, checkFailed: true };
-
-    const res = await fetch(
-      `https://api.github.com/repos/carljarner/matrevy/commits?path=${encodeURIComponent(path)}&per_page=1`,
-      { cache: 'no-store' }
-    );
-    if (!res.ok) return { date: null, confirmedAbsent: false, checkFailed: true };
-    const commits = await res.json();
-    if (!Array.isArray(commits) || !commits.length) return { date: null, confirmedAbsent: false, checkFailed: true };
-    const date = new Date(commits[0].commit.committer.date);
-    return { date: isNaN(date.getTime()) ? null : date, confirmedAbsent: false, checkFailed: isNaN(date.getTime()) };
-  } catch (e) {
-    return { date: null, confirmedAbsent: false, checkFailed: true };
-  }
+  const { exists, date, checkFailed } = await siteFileStatus(path);
+  return {
+    date,
+    confirmedAbsent: !exists && !checkFailed,
+    checkFailed: checkFailed || (exists && !date),
+  };
 }
 
 function koordCurrentFolder() {
@@ -418,7 +390,7 @@ function openDeleteArchiveYearConfirm(entry) {
   const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${entry.name}"?`);
   modal.classList.add('koord-arkiv-confirm-modal');
 
-  form.appendChild(el('p', 'koord-arkiv-confirm-text', 'De tilhørende filer bliver ikke slettet fra github.'));
+  form.appendChild(el('p', 'koord-arkiv-confirm-text', 'De tilhørende filer bliver ikke slettet.'));
 
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -458,12 +430,12 @@ function openDeleteArchiveYearConfirm(entry) {
 // can close a revy without immediately having to name the next one.
 async function koordCloseYear({ closingFolder, closingName, closingYear }, onProgress) {
   onProgress('Henter nuværende scenes.json og cast.json...');
-  const rawBase = 'https://raw.githubusercontent.com/carljarner/matrevy/main/';
+  const rawBase = '/';
   const [scenesText, castText] = await Promise.all([
     fetch(rawBase + 'data/scenes.json', { cache: 'no-store' })
-      .then((r) => { if (!r.ok) throw new Error('Kunne ikke hente data/scenes.json fra GitHub.'); return r.text(); }),
+      .then((r) => { if (!r.ok) throw new Error('Kunne ikke hente data/scenes.json.'); return r.text(); }),
     fetch(rawBase + 'data/cast.json', { cache: 'no-store' })
-      .then((r) => { if (!r.ok) throw new Error('Kunne ikke hente data/cast.json fra GitHub.'); return r.text(); }),
+      .then((r) => { if (!r.ok) throw new Error('Kunne ikke hente data/cast.json.'); return r.text(); }),
   ]);
 
   const currentYears = getEffectiveArchiveYears();

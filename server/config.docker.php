@@ -16,10 +16,6 @@ function matrevy_env($name, $default = null) {
   return $value;
 }
 
-define('GITHUB_TOKEN', matrevy_env('GITHUB_TOKEN'));
-define('GITHUB_OWNER', matrevy_env('GITHUB_OWNER', 'carljarner'));
-define('GITHUB_REPO', matrevy_env('GITHUB_REPO', 'matrevy'));
-
 define('REVYST_PASSWORD', matrevy_env('REVYST_PASSWORD'));
 define('BOSS_PASSWORD', matrevy_env('BOSS_PASSWORD'));
 define('ADMIN_PASSWORD', matrevy_env('ADMIN_PASSWORD'));
@@ -33,3 +29,8 @@ if (getenv('SHARED_PIN') !== false && getenv('SHARED_PIN') !== '') {
 define('BUDGET_DATA_DIR', matrevy_env('BUDGET_DATA_DIR', '/data/budget'));
 define('FORMS_DATA_DIR', matrevy_env('FORMS_DATA_DIR', '/data/forms'));
 define('FAELLESSPISNING_DATA_DIR', matrevy_env('FAELLESSPISNING_DATA_DIR', '/data/faellesspisning'));
+
+// Writable public site files (data/, archive/, posts/, wiki/, plus the
+// worker's generated/ output) — hosting.md Part 7. Served by Apache via the
+// aliases in apache-site.conf; github_api() writes here instead of GitHub.
+define('SITE_DATA_DIR', matrevy_env('SITE_DATA_DIR', '/data/site'));

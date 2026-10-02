@@ -8,20 +8,19 @@
 //     "payload": { ... resource-specific ... } }
 //     -> { "ok": true }
 //
-// Passwords are the two shared site passwords (REVYST_PASSWORD /
-// ADMIN_PASSWORD in config.php). Saves commit JSON files in data/
-// to GitHub via the Contents API using a server-side-only PAT; a
-// push to main triggers the embed-scenes.yml Action which
-// regenerates the embedded *-data.js globals.
+// Passwords are the shared site passwords (REVYST_PASSWORD /
+// BOSS_PASSWORD / ADMIN_PASSWORD in config.php). Saves write JSON files in
+// data/ to the server's disk under SITE_DATA_DIR through github_api() (a
+// local stand-in for the GitHub Contents API, kept so every caller and the
+// stale-sha 409 work unchanged); the worker container then regenerates the
+// embedded *-data.js globals and, on request, the manuscript PDFs.
 //
 // Legacy shape { pin, scenes, cast } (the original manus-tool save)
 // is still accepted and mapped onto action=save/resource=manus.
 //
-// Deploy this file + a real config.php (see config.example.php) to
-// the Simply.com PHP hosting. Never commit config.php.
-// (Moving to Coolify on the Hetzner server — see hosting.md Part 6:
-// there, server/Dockerfile builds it with config.docker.php, which
-// reads every value from environment variables.)
+// Deployed by Coolify on web-1 (hosting.md Part 7): server/Dockerfile.site
+// builds it into the site image with config.docker.php, which reads every
+// value from environment variables. Never commit config.php.
 
 require __DIR__ . '/config.php';
 
@@ -306,42 +305,88 @@ if ($action !== 'save') {
   respond(400, ['error' => 'unknown_action']);
 }
 
-// ── GitHub Contents API helpers ──────────────────────────────
+// ── Local stand-in for the GitHub Contents API ───────────────
+// The site's writable public files (data/, archive/, posts/, wiki/) live on
+// the server's disk under SITE_DATA_DIR instead of in the GitHub repo (see
+// hosting.md Part 7). This keeps github_api()'s old signature and return
+// shape (status, decoded body with base64 `content` + `sha`), so
+// update_file()/put_file()/delete_file() and every direct caller below work
+// unchanged — including the stale-sha 409 that guards concurrent edits.
+// `sha` is the sha1 of the file's bytes, read and compared under one lock.
+//
+// After a write it drops flag files for the worker container
+// (server/worker.sh), which replace the two GitHub Actions:
+//   .embed-requested       any change under data/  -> rerun embed-scenes.js
+//   .regen-pdfs-requested  message has [regen-pdfs] -> rerun generate-pdfs.js
 function github_api($method, $path, $payload = null) {
-  // $path is always 'contents/<file-path>' — a file path can contain
-  // non-ASCII characters (e.g. a manuscript title with æ/ø/å, left as
-  // real UTF-8 by manus_slugify() on purpose), which must be percent-encoded
-  // per path segment to form a valid request line; encode only here, at the
-  // point of building the URL, so the raw UTF-8 path is still what's
-  // validated, stored in JSON, and returned to the client everywhere else.
-  $encodedPath = implode('/', array_map('rawurlencode', explode('/', $path)));
-  $ch = curl_init('https://api.github.com/repos/' . GITHUB_OWNER . '/' . GITHUB_REPO . '/' . $encodedPath);
-  curl_setopt_array($ch, [
-    CURLOPT_HTTPHEADER => [
-      'Authorization: Bearer ' . GITHUB_TOKEN,
-      'Accept: application/vnd.github+json',
-      'User-Agent: matrevy-update-data',
-    ],
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_CUSTOMREQUEST => $method,
-    // Without an explicit timeout, a stalled connection to GitHub's API can
-    // run long enough to hit the host's own gateway timeout, which kills the
-    // PHP process outright — losing the CORS header along with it (see the
-    // shutdown handler above). Failing fast here keeps us inside our own
-    // respond()-based error handling instead.
-    CURLOPT_CONNECTTIMEOUT => 10,
-    CURLOPT_TIMEOUT => 20,
-  ]);
-  if ($payload !== null) {
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+  if (strpos($path, 'contents/') !== 0) {
+    respond(500, ['error' => 'unsupported_api_path']);
   }
-  $response = curl_exec($ch);
-  if ($response === false) {
-    respond(502, ['error' => 'github_unreachable', 'detail' => curl_error($ch)]);
+  $rel = substr($path, strlen('contents/'));
+  // Callers already validate paths against strict allow-list regexes; this
+  // is a second, generic guard that nothing can escape SITE_DATA_DIR.
+  $segments = explode('/', $rel);
+  if ($rel === '' || strpos($rel, "\0") !== false
+      || in_array('', $segments, true) || in_array('.', $segments, true) || in_array('..', $segments, true)) {
+    respond(400, ['error' => 'bad_path']);
   }
-  $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-  return [$status, json_decode($response, true)];
+  $root = rtrim(SITE_DATA_DIR, '/');
+  $full = $root . '/' . $rel;
+
+  $lock = fopen($root . '/.write.lock', 'c');
+  if ($lock === false) {
+    respond(500, ['error' => 'lock_failed']);
+  }
+  flock($lock, $method === 'GET' ? LOCK_SH : LOCK_EX);
+  try {
+    $exists = is_file($full);
+    $current = $exists ? file_get_contents($full) : null;
+    $sha = $exists ? sha1($current) : null;
+
+    if ($method === 'GET') {
+      if (!$exists) return [404, ['message' => 'Not Found']];
+      return [200, ['path' => $rel, 'sha' => $sha, 'content' => base64_encode($current)]];
+    }
+
+    // Same rule as GitHub: updating or deleting an existing file needs the
+    // sha it was read at; a mismatch means someone else wrote in between.
+    $givenSha = $payload['sha'] ?? null;
+    if ($exists && $givenSha !== $sha) return [409, ['message' => 'sha mismatch']];
+
+    if ($method === 'PUT') {
+      $bytes = base64_decode((string) ($payload['content'] ?? ''), true);
+      if ($bytes === false) return [422, ['message' => 'invalid base64']];
+      $dir = dirname($full);
+      if (!is_dir($dir) && !mkdir($dir, 0775, true)) return [500, ['message' => 'mkdir failed']];
+      // Write to a temp file and rename, so a reader (Apache, the worker)
+      // never sees a half-written file.
+      $tmp = $full . '.tmp-' . bin2hex(random_bytes(4));
+      if (file_put_contents($tmp, $bytes) === false || !rename($tmp, $full)) {
+        @unlink($tmp);
+        return [500, ['message' => 'write failed']];
+      }
+      $status = $exists ? 200 : 201;
+      $result = ['content' => ['path' => $rel, 'sha' => sha1($bytes)]];
+    } elseif ($method === 'DELETE') {
+      if (!$exists) return [404, ['message' => 'Not Found']];
+      if (!unlink($full)) return [500, ['message' => 'delete failed']];
+      $status = 200;
+      $result = ['commit' => null];
+    } else {
+      return [405, ['message' => 'method not supported']];
+    }
+
+    if (strpos($rel, 'data/') === 0) {
+      touch($root . '/.embed-requested');
+    }
+    if (strpos((string) ($payload['message'] ?? ''), '[regen-pdfs]') !== false) {
+      touch($root . '/.regen-pdfs-requested');
+    }
+    return [$status, $result];
+  } finally {
+    flock($lock, LOCK_UN);
+    fclose($lock);
+  }
 }
 
 // Fetches the current file, applies $mutate to its decoded JSON, and writes
@@ -376,9 +421,10 @@ function update_file($filePath, $mutate, $commitMessage) {
 }
 
 // ── File uploads (binary content at boss/admin-chosen paths) ────
-// GITHUB_TOKEN has whole-repo write access, so matching against an allow-listed
-// path regex is the only thing standing between an arbitrary "path" in the
-// request body and overwriting any file in the repo. Keep both regexes strict.
+// github_api() can write any file under SITE_DATA_DIR (the whole public
+// site data: data/, archive/, posts/, wiki/), so matching against an
+// allow-listed path regex is the only thing standing between an arbitrary
+// "path" in the request body and overwriting any of it. Keep both regexes strict.
 // A function, not a `const` array, so it's safely callable from the early
 // upload/delete dispatch regardless of where in the file it's defined (PHP
 // hoists function declarations, unlike top-level `const` — see the
