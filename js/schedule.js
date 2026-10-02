@@ -515,8 +515,8 @@ function buildSlots(startTime, endTime, segmentMinutes, gapMinutes = 0) {
 // siteSaveOverride/siteLoadOverride: manus.js's Gem (manusSaveMain, via
 // manus-data.js's setManusSavedOverride) persists its saved scenes/cast to
 // this same localStorage key so a freshly-loaded Øveplan session — nothing
-// built on the grid yet — can start from it instead of waiting ~1-2 min for
-// the GitHub Action to regenerate scenes-data.js. Never consulted once a
+// built on the grid yet — can start from it instead of waiting the few seconds
+// it takes the worker to regenerate scenes-data.js. Never consulted once a
 // grid already exists (see loadScenes()/clearSchedule() below) — swapping
 // scene/cast data out from under an in-progress schedule could silently
 // invalidate placements (e.g. a dance-split boundary shifting a cast member

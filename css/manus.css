@@ -163,22 +163,6 @@ a.manus-pdf-title:focus-visible {
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
-.manus-pdf-pending {
-  color: var(--text-muted);
-  cursor: default;
-}
-
-.manus-pdf-pending-label {
-  flex: none;
-  font-size: 0.78rem;
-  font-style: italic;
-  color: var(--text-muted);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .manus-pdf-pending-label { animation: manus-pending-pulse 1.4s ease-in-out infinite; }
-}
-
 @keyframes manus-pending-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.45; }
@@ -359,10 +343,9 @@ a.manus-pdf-title:focus-visible {
   margin-bottom: 1.25rem;
 }
 
-/* Reuses the manus-pending-pulse keyframes above (already used by the
-   upload-pending-deploy indicator) so both the quick-link buttons and the
-   main "Generér PDF'er" trigger button pulse identically while a rebuild is
-   in flight. */
+/* Uses the manus-pending-pulse keyframes above so both the quick-link
+   buttons and the main "Generér PDF'er" trigger button pulse identically
+   while a rebuild is in flight. */
 @media (prefers-reduced-motion: no-preference) {
   .manus-pdf-generating {
     animation: manus-pending-pulse 1.4s ease-in-out infinite;

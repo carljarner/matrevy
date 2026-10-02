@@ -99,7 +99,7 @@ async function compressCoverImage(file, { maxWidth = 1600, quality = 0.8 } = {})
 
 // Full-array-replace save, mirroring archive.js's own saveYears() — keeps the
 // localStorage-backed override shadow (siteLoadOverride/siteSaveOverride) in
-// sync so this tab reflects the change immediately, before the GitHub Action
+// sync so this tab reflects the change immediately, before the worker
 // regenerates archive-data.js.
 async function saveArchiveYears(next) {
   const result = await siteSaveResource('archive', { years: next });
@@ -370,7 +370,7 @@ function openKoordYearEditor(existing) {
 
     const result = await saveArchiveYears(next);
     if (result.ok) {
-      progress.textContent = 'Gemt! Det kan tage et par minutter, før ændringen er synlig for andre eller efter en genindlæsning.';
+      progress.textContent = 'Gemt!';
       save.textContent = 'Gemt';
       setTimeout(close, 1400);
     } else {
@@ -555,7 +555,7 @@ function renderKoordCloseYearGuide(container) {
   container.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Klargør filerne'));
   container.appendChild(el('p', null,
     'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
-    'endelige tekst og rollebesætning og gemmer dem i arkivet (tager et par minutter). Bekræft herunder, at det er landet, ' +
+    'endelige tekst og rollebesætning og gemmer dem i arkivet. Bekræft herunder, at det er landet, ' +
     'før du afslutter revyen nedenfor.'));
   const checkRow = el('div', 'koord-check-row');
   const checkBtn = el('button', 'btn-small', 'Tjek om klar');
@@ -633,10 +633,10 @@ function openCloseYearModal(closingFolder) {
       // no localStorage override mechanism (unlike calendar/archive/posts/
       // wiki/manus), so the status cards above can't reflect the closed
       // production folder until a reload picks up the regenerated
-      // config-data.js (~1-2 min, same GitHub Action lag as everywhere else
-      // on this site). Say so explicitly rather than silently re-rendering
+      // config-data.js (a few seconds after the save, once the worker has
+      // re-embedded it). Say so explicitly rather than silently re-rendering
       // a status card that would still show the old folder.
-      progress.textContent = 'Revyen er afsluttet, og produktionsmappen er lukket. Genindlæs siden om et par minutter for at se det afspejlet ovenfor.';
+      progress.textContent = 'Revyen er afsluttet, og produktionsmappen er lukket. Genindlæs siden for at se det afspejlet ovenfor.';
       siteShowToast('Revyen er afsluttet');
       cancelBtn.textContent = 'Luk';
       cancelBtn.disabled = false;
@@ -727,7 +727,7 @@ function openStartNewYearModal(currentFolder) {
     confirmBtn.disabled = true;
     try {
       await koordStartNewYear(newFolder, productionName, productionYear, (text) => { progress.textContent = text; });
-      progress.textContent = `Ny produktionsmappe startet (${newFolder}). Genindlæs siden om et par minutter for at se det afspejlet ovenfor.`;
+      progress.textContent = `Ny produktionsmappe startet (${newFolder}). Genindlæs siden for at se det afspejlet ovenfor.`;
       siteShowToast('Ny produktionsmappe startet');
       cancelBtn.textContent = 'Luk';
       cancelBtn.disabled = false;

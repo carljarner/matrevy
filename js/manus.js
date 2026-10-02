@@ -346,100 +346,18 @@ function manusFileToBase64(file) {
   });
 }
 
-// ── Poll a just-uploaded file until GitHub Pages has actually deployed it
-// (a push to main takes ~1-2 min to go live, per CLAUDE.md's Deployment
-// section) so the pool never shows a link that 404s in the meantime. The
-// pending flag lives only in the local override (never sent to/read from
-// the server), so it just falls away once the override's TTL expires.
-let manusPendingPollTimer = null;
-
-// Rotates every MANUS_PENDING_MESSAGE_INTERVAL_MS based on elapsed time
-// since the upload, not a per-row timer — renderPdfRow just recomputes the
-// index each time it's called, and the poll interval below re-renders
-// often enough to keep it moving.
-const MANUS_PENDING_MESSAGES = [
-  'Uploading...',
-  'Forbinder til Github...',
-  'Gratis services tager tid...',
-  'Et øjeblik mere...',
-  'Næsten færdig...',
-  'Ups, forkert vej...',
-  'Vente vente...',
-  'Hvad har du lavet i dag?...',
-  'God sketch!...',
-  'God sang!...',
-  'Skriv lige en til...',
-];
-const MANUS_PENDING_MESSAGE_INTERVAL_MS = 10000;
-
-// Deterministic per-step pseudo-random pick (classic sine hash) so the
-// message stays stable across re-renders within the same 10s window but
-// still looks random step to step, with no per-row timer needed.
-function manusPendingMessage(item) {
-  const startedAt = item.createdAt ? new Date(item.createdAt).getTime() : Date.now();
-  const step = Math.floor((Date.now() - startedAt) / MANUS_PENDING_MESSAGE_INTERVAL_MS);
-  const rand = Math.sin(step * 12.9898) * 43758.5453;
-  const idx = Math.floor((rand - Math.floor(rand)) * MANUS_PENDING_MESSAGES.length);
-  return MANUS_PENDING_MESSAGES[idx];
-}
-
-function manusHasPendingDeploys() {
-  return getEffectiveManuscripts().some(s => s.pendingDeploy);
-}
-
-async function manusCheckPendingDeploys() {
-  const items = getEffectiveManuscripts();
-  const anyPending = items.some(s => s.pendingDeploy);
-  let changed = false;
-  for (const item of items) {
-    if (!item.pendingDeploy) continue;
-    try {
-      const res = await fetch(item.pdfPath, { method: 'HEAD', cache: 'no-store' });
-      if (res.ok) { item.pendingDeploy = false; changed = true; }
-    } catch (e) { /* not live yet, or offline — keep polling */ }
-  }
-  if (changed) {
-    manuscriptsOverride = items;
-    siteSaveOverride('manuscripts', manuscriptsOverride);
-  }
-  // Re-render even when nothing became ready yet, so the rotating wait
-  // message stays in sync with elapsed time.
-  if (anyPending) renderColumns();
-  if (!manusHasPendingDeploys() && manusPendingPollTimer) {
-    clearInterval(manusPendingPollTimer);
-    manusPendingPollTimer = null;
-  }
-}
-
-function manusStartPendingPoll() {
-  if (manusPendingPollTimer || !manusHasPendingDeploys()) return;
-  manusPendingPollTimer = setInterval(manusCheckPendingDeploys, 2000);
-}
-
 // ── Upload pool: two-column render ────────────────────────────
 function renderPdfRow(item, displayTitle = item.title) {
   const row = document.createElement('div');
   row.className = 'manus-pdf-row';
 
-  if (item.pendingDeploy) {
-    const pending = document.createElement('span');
-    pending.className = 'manus-pdf-title manus-pdf-pending';
-    pending.textContent = displayTitle;
-    row.appendChild(pending);
-
-    const status = document.createElement('span');
-    status.className = 'manus-pdf-pending-label';
-    status.textContent = manusPendingMessage(item);
-    row.appendChild(status);
-  } else {
-    const link = document.createElement('a');
-    link.className = 'manus-pdf-title';
-    link.href = item.pdfPath;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.textContent = displayTitle;
-    row.appendChild(link);
-  }
+  const link = document.createElement('a');
+  link.className = 'manus-pdf-title';
+  link.href = item.pdfPath;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = displayTitle;
+  row.appendChild(link);
 
   const sender = document.createElement('span');
   sender.className = 'manus-pdf-sender';
@@ -708,14 +626,12 @@ function openUploadModal() {
         pdfPath: result.data.pdfPath,
         texPath: result.data.texPath,
         createdAt: nowIso(),
-        pendingDeploy: true,
       };
       manuscriptsOverride = getEffectiveManuscripts().concat([local]);
       siteSaveOverride('manuscripts', manuscriptsOverride);
       renderColumns();
-      manusStartPendingPoll();
       close();
-      siteShowToast('Der går 1-2 min før siden er opdateret');
+      siteShowToast('Manus uploadet');
     } else {
       error.textContent = result.message;
     }
@@ -837,15 +753,14 @@ function openUpdateModal() {
       if (result.ok) {
         manuscriptsOverride = getEffectiveManuscripts().map(s => {
           if (s.id !== selected.id) return s;
-          const next = { ...s, type, title, sender, duration, pdfPath: result.data.pdfPath, texPath: result.data.texPath, pendingDeploy: true };
+          const next = { ...s, type, title, sender, duration, pdfPath: result.data.pdfPath, texPath: result.data.texPath };
           if (fisk) next.fisk = true; else delete next.fisk;
           return next;
         });
         siteSaveOverride('manuscripts', manuscriptsOverride);
         renderColumns();
-        manusStartPendingPoll();
         close();
-        siteShowToast('Der går 1-2 min før siden er opdateret');
+        siteShowToast('Manus opdateret');
       }
       return result;
     });
@@ -4995,7 +4910,7 @@ async function manusSaveMain() {
   }
 
   manusResourceSaveInFlight = false;
-  // "Manus gemt" only fires here, once the real GitHub commit has actually
+  // "Manus gemt" only fires here, once the server write has actually
   // landed — the earlier renderAll() above already optimistically shows the
   // saved content (so there's no flash back to stale data, and edits made
   // while this request was in flight safely landed in a fresh, separately
@@ -5173,21 +5088,17 @@ function manusPollPdfCompletion(beforeDate, url) {
 }
 
 // Re-triggers the PDF pipeline (scripts/generate-pdfs.js, run by the
-// generate-pdfs.yml GitHub Action) without touching any in-progress edit:
-// unlike manusSaveMain, this never reads or clears manusDraft, so it's safe
-// to click mid-edit on any tab. It just re-saves the already-saved data
-// as-is through the same boss-level `manus` resource path Gem uses — the
-// server always stamps a fresh `generatedAt` timestamp on every save
-// (save_manus() in update-data.php), so this reliably produces a fresh,
-// non-empty commit even with zero real content change (a bare `version`
-// re-stamp alone used to only manage this on the first save of each
-// calendar day — see CLAUDE.md). The three buttons below all call this
-// same function. The `regeneratePdfs: true` flag sent below is what
-// actually asks generate-pdfs.yml to run: save_manus() turns it into a
-// `[regen-pdfs]` commit-message marker, which the workflow's job-level
-// `if:` checks for — a plain Gem (manusSaveMain, no flag) still saves
-// normally but leaves the last-generated PDFs untouched, so frequent
-// in-progress Gem clicks don't each force a ~2.5 min CI regen:
+// worker) without touching any in-progress edit: unlike manusSaveMain, this
+// never reads or clears manusDraft, so it's safe to click mid-edit on any
+// tab. It just re-saves the already-saved data as-is through the same
+// boss-level `manus` resource path Gem uses. The three buttons below all
+// call this same function. The `regeneratePdfs: true` flag sent below is
+// what actually asks the worker to run: save_manus() turns it into a
+// `[regen-pdfs]` write-message marker, which makes update-data.php touch
+// the worker's `.regen-pdfs-requested` flag file — a plain Gem
+// (manusSaveMain, no flag) still saves normally but leaves the
+// last-generated PDFs untouched, so frequent in-progress Gem clicks don't
+// each force a full rebuild:
 // "full rebuild every time" was a deliberate choice over a --only flag,
 // since Manuskript is a merge of every other scene PDF and a partial
 // rebuild risks the three documents drifting out of sync with each other.
@@ -5223,7 +5134,7 @@ async function manusRegeneratePdfs() {
   // since that phase does no further writes and other saves are meant to
   // stay possible while PDFs regenerate in the background.
   renderMainViewActions();
-  siteShowToast('PDF-generering startet. Det tager et par minutter');
+  siteShowToast('PDF-generering startet');
   manusPollPdfCompletion(before, referenceUrl);
 }
 
@@ -5340,7 +5251,7 @@ function manusSlugifyName(name) {
 // below, which show a toast instead of opening a broken link in that case,
 // rather than hiding the row (that read as broken, not "nothing here yet").
 // Unlike Main Manus View below (boss-only), this is a
-// shortcut to the files scripts/generate-pdfs.js (run via generate-pdfs.yml)
+// shortcut to the files scripts/generate-pdfs.js (run by the worker)
 // already produced, not a trigger to (re)build them ("Generér PDF'er" moved
 // to Main Manus View's own action row, since that's the one boss-only write
 // action here — see renderMainViewActions).
@@ -5365,25 +5276,9 @@ function renderManusPdfLinksSection() {
 
   const folder = getEffectiveConfig().currentProductionFolder || '';
 
-  // GitHub Pages serves everything under archive/ with a 10-minute
-  // Cache-Control (confirmed live: max-age=600, via the Fastly CDN in
-  // front of Pages). manusFetchPdfStatus's own HEAD check bypasses this
-  // with {cache: 'no-store'}, so the completion poll/toast are honest about
-  // when the file actually changed server-side — but a plain window.open()
-  // here is a normal navigation, subject to that same 10-minute cache, so a
-  // browser that had ever opened this exact URL before could still serve
-  // the pre-regeneration bytes straight from its own cache for up to that
-  // long after the poll already confirmed the real file was updated
-  // (reported live 2026-08-21). Appending manusPdfLastGeneratedAt as a
-  // cache-busting query string forces a fresh fetch exactly when this tab's
-  // own last-known-good timestamp actually changes (i.e. right after a
-  // regeneration this tab observed), while still letting repeat clicks
-  // between regenerations reuse the cache normally. Falls back to
-  // Date.now() before that timestamp has ever loaded. Doesn't help a tab
-  // that never observed a newer regeneration at all (e.g. another
-  // coordinator's tab triggered it) — same accepted cross-tab limitation as
-  // the pulse/poll state themselves (see the "PDF regeneration status"
-  // comment above).
+  // Appends manusPdfLastGeneratedAt as a cache-busting query string — a
+  // leftover from GitHub Pages' 10-minute cache. The server now sends
+  // Cache-Control: no-cache on everything, so it's redundant but harmless.
   // Buttons always render (see the file header's own note) even with no
   // active production or before anything's ever been generated — clicking
   // one then shows the same black bottom-of-page toast every other write
@@ -5552,7 +5447,7 @@ function renderPoolLayoutVisibility() {
 // field via siteSaveResource('config', ...) + getEffectiveConfig()'s
 // localStorage-backed configOverride (same shape as every other page's own
 // override shadow — see the comment above configOverride's declaration),
-// so a refresh during the ~1-2 min embed-regen window still shows the
+// so a refresh during the few seconds before the worker re-embeds still shows the
 // just-saved state instead of reverting to the stale embedded CONFIG_DATA.
 // Reports the result via the site-wide bottom-of-screen siteShowToast
 // (site-utils.js) — same brief black confirmation used for every other save
@@ -5647,7 +5542,7 @@ function renderAdminSettings() {
         }
         return res;
       },
-      savedText: 'Slår igennem for revyster om 1-2 minutter.',
+      savedText: 'Gemt',
     });
   }
 
@@ -5663,7 +5558,7 @@ function renderAdminSettings() {
       }
       return res;
     },
-    savedText: 'Slår igennem for revyster om 1-2 minutter.',
+    savedText: 'Gemt',
   });
 
   section.appendChild(columns);
@@ -5701,7 +5596,6 @@ function renderAll() {
   renderManusPdfLinksSection();
   renderMainManusView();
   renderAdminSettings();
-  manusStartPendingPoll();
 }
 
 // Site-styled stand-in for the native beforeunload dialog, for the one case
