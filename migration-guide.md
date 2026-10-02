@@ -27,7 +27,8 @@ Commands are marked with where they run: **laptop**, **web-1** (after `ssh web-1
 | `manus` | A | `188.245.30.36` | was CNAME `matematikrevy.dk.linux32.unoeuro-server.com.` (Simply) |
 | `api-new` | A | `188.245.30.36` | temporary, delete Oct 4 |
 | `beta` | A | `188.245.30.36` | temporary, delete Oct 3 |
-| MX, `_dmarc`, `_domainkey`, autoconfig, SRV | | Simply mail | leave alone; mail stays at Simply |
+| `matematikrevy.dk` | MX | `mx1.forwardemail.net.`, `mx2.forwardemail.net.` | done Oct 2: Simply mail replaced by Forward Email forwarding; Simply's mail records removed |
+| `matematikrevy.dk` | TXT | `forward-email=<address>` | forwarding target |
 
 TTLs are 600 s everywhere.
 
@@ -106,7 +107,7 @@ The worker pushes the server's `archive/` to this repo (CLAUDE.md → Hosting & 
 2. [ ] **web-1:** `rm -r /root/simply-backup`. This is the copy of Simply's original API files, and it holds old secrets.
 3. [ ] **Laptop:** delete `~/matrevy-migration/` (old backups and data copies), or move it to an encrypted disk.
 4. [ ] **Simply** → **Website → SSH access**: remove web-1's key. On **web-1**, delete it and the sync script: `rm /root/.ssh/simply /root/.ssh/simply.pub /root/sync-from-simply`
-5. [ ] **Simply:** check whether anything else (email, other sites) uses the webhotel before you consider cancelling it. Mail for `@matematikrevy.dk` runs there (the MX record), and so does DNS.
+5. [ ] **Simply:** downgrade the package from the basic suite to **DNS only**. Mail no longer depends on it (Forward Email since Oct 2) and nothing else uses the webhotel. Do it after steps 1–4, since the downgrade removes the webhotel files and SSH access. Afterwards, check that the DNS records in README.md → "DNS (Simply.com)" are unchanged and send a test mail to any `@matematikrevy.dk` address.
 6. [ ] **web-1:** practise restoring one folder from the backup:
    ```bash
    . /root/.restic-env

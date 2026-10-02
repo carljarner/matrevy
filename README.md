@@ -70,14 +70,15 @@ The passwords are environment variables in Coolify. They're never in the repo.
 
 ### DNS (Simply.com)
 
-DNS for `matematikrevy.dk` is at Simply.com, which also hosts the domain's email:
+DNS for `matematikrevy.dk` is at Simply.com (DNS-only plan; nothing else is hosted there):
 
 | Name | Type | Value |
 | --- | --- | --- |
 | `matematikrevy.dk` | A | `188.245.30.36` |
 | `www` | CNAME | `matematikrevy.dk.` (the server redirects `www` to the main domain) |
 | `manus` | A | `188.245.30.36` (the API's old address, still used by the site) |
-| MX, `_dmarc`, `_domainkey`, autoconfig, SRV | | Simply mail. Leave these alone. |
+| `matematikrevy.dk` | MX | `mx1.forwardemail.net.` and `mx2.forwardemail.net.` (priority 10) |
+| `matematikrevy.dk` | TXT | `forward-email=<address>`: Forward Email (forwardemail.net, free plan) forwards all mail for `@matematikrevy.dk` to that address. Receive-only; no mailboxes, no sending as `@matematikrevy.dk`. To change where mail goes, edit this TXT record. |
 
 TLS certificates come from Let's Encrypt automatically, through Coolify's Traefik proxy.
 
