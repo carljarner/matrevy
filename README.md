@@ -53,4 +53,9 @@ The apex domain `matematikrevy.dk` uses four A records pointing to GitHub Pages:
 185.199.111.153
 ```
 
+`manus.matematikrevy.dk` (the PHP write endpoint, `server/`) is an A record pointing at
+the Hetzner server web-1 (`188.245.30.36`), where Coolify runs it as a Docker container.
+A push to `main` that touches `server/**` redeploys it automatically; secrets live in
+Coolify's environment variables, not in the repo. See `hosting.md`/`migration-guide.md`.
+
 See `matrevy-plan.md` at the repo root for the full project plan.

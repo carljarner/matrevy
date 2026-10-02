@@ -1,6 +1,8 @@
 <?php
 // Copy this file to config.php (gitignored, never commit it) and fill in real values.
-// config.php lives only on the Simply.com server.
+// Reference for the config values. In production (Coolify on web-1) config.php
+// is generated from config.docker.php + environment variables; a hand-written
+// config.php like this one is only for running update-data.php elsewhere.
 
 // Fine-grained GitHub PAT scoped to just this repo, Contents: read & write only.
 define('GITHUB_TOKEN', 'github_pat_XXXXXXXXXXXXXXXXXXXXXXXX');
@@ -21,7 +23,7 @@ define('ADMIN_PASSWORD', 'skift-mig-admin');
 // uses the new login.
 // define('SHARED_PIN', 'gammel-pin');
 
-// Absolute path on the Simply.com host for the PRIVATE budget datastore
+// Absolute path on the server for the PRIVATE budget datastore
 // (expense requests, paid ledger, receipt images). This data is deliberately
 // kept OUT of the public GitHub repo — it holds names, phone numbers and
 // receipt photos. The directory must be writable by PHP, and ideally sit
@@ -41,7 +43,7 @@ define('ADMIN_PASSWORD', 'skift-mig-admin');
 // here will work; budget_submit responds 409 with "no_active_year" until then.
 define('BUDGET_DATA_DIR', '/absolute/path/to/matrevy-budget-data');
 
-// Absolute path on the Simply.com host for the PRIVATE forms datastore
+// Absolute path on the server for the PRIVATE forms datastore
 // ("Formularer" page — self-hosted sign-up forms replacing the Google
 // Forms coordinators built each year). Holds form/template definitions
 // and every submitted response, which may contain names, phone numbers,
@@ -53,7 +55,7 @@ define('BUDGET_DATA_DIR', '/absolute/path/to/matrevy-budget-data');
 // needed (unlike Budget, there's no "active year" to seed first).
 define('FORMS_DATA_DIR', '/absolute/path/to/matrevy-forms-data');
 
-// Absolute path on the Simply.com host for the PRIVATE Fællesspisning
+// Absolute path on the server for the PRIVATE Fællesspisning
 // datastore (communal-meal rehearsal-day sign-up sheet). Holds a single
 // JSON document (the extra-field list plus every signed-up row: name,
 // food preferences, and which rehearsal days each person is eating on) —
