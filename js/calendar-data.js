@@ -864,16 +864,5 @@ const CALENDAR_DATA = [
     "category": "manus",
     "location": "S01",
     "note": ""
-  },
-  {
-    "id": "muqqjnot",
-    "date": "2026-10-09",
-    "endDate": "2026-10-09",
-    "start": "17:00",
-    "end": "19:00",
-    "title": "Test (ignorer)",
-    "category": "andet",
-    "location": "S01",
-    "note": ""
   }
 ];
