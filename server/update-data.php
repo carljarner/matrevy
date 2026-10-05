@@ -266,6 +266,7 @@ $BAND_ACTIONS = [
   'band_save_columns'       => 'revyst', // add/remove sheet columns (custom + hidden built-ins)
   'band_upload_file'      => 'revyst', // one file into one row's folder
   'band_delete_file'      => 'revyst', // idempotent
+  'band_rename_file'      => 'revyst', // the shown/download name only; bytes and extension stay
   'band_file'             => 'revyst', // streams one file's bytes (not JSON)
   'band_archive_read'     => 'revyst', // every song of every revy (+ the _arkiv store), for the Arkiv tab
   'band_instances_read'   => 'revyst', // extra band folders beside Arkiv's revys (e.g. "MatGalla 2025")
@@ -4113,6 +4114,34 @@ function band_delete_file($body) {
   respond(200, ['ok' => true, 'row' => $savedRow]);
 }
 
+// {folder, rowId, fileId, name} — `name` without extension; the stored
+// extension is kept (the file on disk is keyed by id, so nothing moves).
+function band_rename_file($body) {
+  $folder = band_folder_from_body($body);
+  $rowId = $body['rowId'] ?? '';
+  $fileId = $body['fileId'] ?? '';
+  $name = is_string($body['name'] ?? null) ? trim(str_replace(['/', '\\', "\0"], '-', $body['name'])) : '';
+  if (!band_valid_id($rowId) || !band_valid_id($fileId) || $name === '' || mb_strlen($name) > 190) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $savedRow = null;
+  band_mutate($folder, function ($doc) use ($rowId, $fileId, $name, &$savedRow) {
+    foreach ($doc['rows'] as &$row) {
+      if ($row['id'] !== $rowId || !isset($row['files']) || !is_array($row['files'])) continue;
+      foreach ($row['files'] as $i => $file) {
+        if (($file['id'] ?? '') !== $fileId) continue;
+        $row['files'][$i]['name'] = $name . '.' . $file['ext'];
+        $savedRow = $row;
+      }
+      break;
+    }
+    unset($row);
+    if ($savedRow === null) respond(404, ['error' => 'not_found']);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'row' => $savedRow]);
+}
+
 // Streams one file (fetched with the password, so files are never at a
 // public URL). Overrides the JSON content-type header, like budget_receipt().
 function band_file($body) {
@@ -4302,6 +4331,7 @@ function handle_band($action, $body) {
     case 'band_save_columns':       return band_save_columns($body);
     case 'band_upload_file':      return band_upload_file($body);
     case 'band_delete_file':      return band_delete_file($body);
+    case 'band_rename_file':      return band_rename_file($body);
     case 'band_file':             return band_file($body);
     case 'band_archive_read':     return band_archive_read($body);
     case 'band_instances_read':   return band_instances_read($body);

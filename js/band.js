@@ -101,6 +101,27 @@ function bandDownloadIcon() {
   return svg;
 }
 
+// Pencil glyph — same drawing as calendar.js's calPencilIcon.
+function bandPencilIcon() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']) {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
 // ── Authenticated API (mirrors faellesspisning.js's faellesApi) ──
 function bandResolvePassword() {
   const auth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
@@ -225,7 +246,9 @@ function bandSelectFolder(folder, root) {
   bandFolder = folder;
   try { localStorage.setItem(BAND_REVY_KEY, bandFolder); } catch (e) { /* ignore */ }
   bandRenderPicker(root);
-  bandLoad(root);
+  // Arkiv spans every revy, so it doesn't change; the choice applies once
+  // you're back on Oversigt/Noder.
+  if (bandActiveTab !== 'arkiv') bandLoad(root);
 }
 
 function bandRenderPicker(root) {
@@ -418,7 +441,6 @@ function bandRowHasContent(row) {
 // ── Load + render ────────────────────────────────────────────
 async function bandLoad(root) {
   root.replaceChildren(el('p', 'band-muted', 'Indlæser…'));
-  bandUpdatePickerVisibility();
   if (bandActiveTab === 'arkiv') {
     const archive = await bandApi('band_archive_read', {});
     if (!archive.ok) {
@@ -454,7 +476,6 @@ async function bandLoad(root) {
 
 function bandRender(root) {
   root.replaceChildren();
-  bandUpdatePickerVisibility();
   if (bandActiveTab === 'arkiv') {
     if (!bandArchiveCards) return;
     bandRenderTabs(root);
@@ -465,12 +486,6 @@ function bandRender(root) {
   bandRenderTabs(root);
   if (bandActiveTab === 'noder') bandRenderNoder(root);
   else bandRenderOversigt(root);
-}
-
-// The revy picker doesn't apply to Arkiv (it spans every revy).
-function bandUpdatePickerVisibility() {
-  const mount = document.getElementById('band-revy-picker');
-  if (mount) mount.classList.toggle('band-picker-hidden', bandActiveTab === 'arkiv');
 }
 
 // Styled like Koordinator's page tabs (.koord-mode-tabs, duplicated as
@@ -1239,16 +1254,6 @@ function bandRenderNoder(root) {
   root.appendChild(card);
 }
 
-function bandFormatSize(bytes) {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1).replace('.', ',')} MB`;
-  return `${Math.max(1, Math.round(bytes / 1024))} kB`;
-}
-
-function bandFormatDate(iso) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
-  return m ? formatDaDate(`${m[1]}-${m[2]}-${m[3]}`) : '';
-}
-
 function bandBuildFolder(row) {
   const folder = el('div', 'band-folder');
   folder.dataset.rowId = row.id;
@@ -1302,7 +1307,7 @@ function bandBuildFolder(row) {
   const body = el('div', 'band-folder-body');
   const files = row.files || [];
   if (!files.length) body.appendChild(el('p', 'band-muted', 'Ingen filer endnu.'));
-  for (const file of files) body.appendChild(bandBuildFileRow(row, file));
+  for (const file of bandSortedFiles(files)) body.appendChild(bandBuildFileRow(row, file));
 
   const uploadBar = el('div', 'band-upload-bar');
   const input = document.createElement('input');
@@ -1331,6 +1336,11 @@ function bandFileKind(ext) {
   return ext === 'pdf' ? 'PDF' : 'MSC';
 }
 
+// PDFs first, MuseScore files at the bottom; upload order within each.
+function bandSortedFiles(files) {
+  return files.filter((f) => f.ext === 'pdf').concat(files.filter((f) => f.ext !== 'pdf'));
+}
+
 // A file is shown by the name given at upload (e.g. "Trompet"); the type
 // badge already says PDF/XML, so the extension is left off.
 function bandFileDisplayName(file) {
@@ -1350,14 +1360,15 @@ function bandBuildFileRow(row, file) {
   } else {
     info.appendChild(el('span', 'band-file-name', bandFileDisplayName(file)));
   }
-  const meta = [bandFormatSize(file.size || 0), bandFormatDate(file.uploadedAt)].filter(Boolean).join(' · ');
-  info.appendChild(el('span', 'band-file-meta', meta));
   line.appendChild(info);
 
   const actions = el('div', 'band-file-actions');
   const downloadBtn = bandIconBtn(bandDownloadIcon(), 'Download');
   downloadBtn.addEventListener('click', () => bandDownloadFile(row, file, downloadBtn));
   actions.appendChild(downloadBtn);
+  const editBtn = bandIconBtn(bandPencilIcon(), 'Omdøb');
+  editBtn.addEventListener('click', () => bandOpenRenameFileModal(row, file));
+  actions.appendChild(editBtn);
   const removeBtn = bandRemoveBtn('Slet fil');
   removeBtn.addEventListener('click', () => {
     bandConfirm(`Slet "${bandFileDisplayName(file)}"?`, 'Dette kan ikke fortrydes.', 'Slet', async () => {
@@ -1371,6 +1382,44 @@ function bandBuildFileRow(row, file) {
   actions.appendChild(removeBtn);
   line.appendChild(actions);
   return line;
+}
+
+// Only the shown/download name changes; the extension is kept server-side.
+function bandOpenRenameFileModal(row, file) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Omdøb fil');
+  modal.classList.add('band-folder-modal');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 120;
+  input.value = bandFileDisplayName(file);
+  form.appendChild(siteEditField('Navn', input));
+
+  const cancelBtn = bandPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const saveBtn = bandPillBtn('Gem', 'site-btn-success');
+  async function submit() {
+    const name = input.value.trim();
+    if (!name) { error.textContent = 'Giv filen et navn.'; input.focus(); return; }
+    if (name === bandFileDisplayName(file)) { close(); return; }
+    saveBtn.disabled = true;
+    error.textContent = '';
+    const result = await bandApi('band_rename_file', { folder: row._folder || bandFolder, rowId: row.id, fileId: file.id, name });
+    saveBtn.disabled = false;
+    if (!result.ok) { if (result.message) error.textContent = result.message; return; }
+    row.files = result.data.row.files || [];
+    bandRefreshRow(row);
+    close();
+  }
+  saveBtn.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    submit();
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  input.focus();
+  input.select();
 }
 
 // Re-renders whatever shows `row`: its Arkiv card, or its Noder folder.
@@ -1761,13 +1810,13 @@ function bandBuildArkivCard(card) {
 
   if (!isOpen) return node;
 
+  // Every source is listed, even without files, so the card shows which
+  // revys the song was part of.
   const body = el('div', 'band-folder-body');
-  if (!count) body.appendChild(el('p', 'band-muted', 'Ingen filer endnu.'));
   const sources = card.sources.slice()
     .sort((a, b) => bandArchiveSourceRank(a._folder) - bandArchiveSourceRank(b._folder));
   for (const row of sources) {
     const isArchive = row._folder === BAND_ARCHIVE_FOLDER;
-    if (!(row.files || []).length && !isArchive) continue;
     const groupHead = el('div', 'band-arkiv-source');
     groupHead.appendChild(el('span', 'band-arkiv-source-name', bandArchiveFolderLabel(row._folder)));
     if (isArchive) {
@@ -1776,7 +1825,8 @@ function bandBuildArkivCard(card) {
       groupHead.appendChild(removeBtn);
     }
     body.appendChild(groupHead);
-    for (const file of row.files || []) body.appendChild(bandBuildFileRow(row, file));
+    if (!(row.files || []).length) body.appendChild(el('p', 'band-muted band-arkiv-source-empty', 'Ingen filer.'));
+    for (const file of bandSortedFiles(row.files || [])) body.appendChild(bandBuildFileRow(row, file));
   }
 
   const uploadBar = el('div', 'band-upload-bar');

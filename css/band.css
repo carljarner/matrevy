@@ -48,11 +48,6 @@
   .band-revy-picker .btn-small:hover { background: var(--accent-warm-fill); }
 }
 
-/* Hidden on the Arkiv tab, which spans every revy. */
-.band-revy-picker.band-picker-hidden {
-  display: none;
-}
-
 @media (max-width: 719px) {
   .band-revy-picker {
     position: static;
@@ -611,11 +606,6 @@
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
-.band-file-meta {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
 .band-file-actions {
   display: flex;
   align-items: center;
@@ -626,6 +616,7 @@
 .band-upload-bar {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 0.6rem;
@@ -682,10 +673,6 @@
 }
 
 /* --- Arkiv: a card's files grouped by source revy ----------------- */
-.band-arkiv-grid .band-upload-bar {
-  justify-content: center;
-}
-
 .band-arkiv-source {
   display: flex;
   align-items: center;
@@ -699,6 +686,11 @@
 
 .band-arkiv-source:first-child {
   margin-top: 0;
+}
+
+.band-arkiv-source-empty {
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
 }
 
 /* --- Upload modal: name each file (Trompet, Sax, …) ---------------- */
