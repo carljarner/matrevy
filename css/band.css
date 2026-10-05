@@ -405,6 +405,10 @@
   max-width: 42rem;
 }
 
+.band-instruments-table .band-col-handle {
+  width: 1%;
+}
+
 .band-instruments-add {
   margin: 0.5rem auto 0;
 }

@@ -808,22 +808,23 @@ function bandGetDragImageEl() {
   return ghost;
 }
 
-// Duplicated from koordinator.js's koordWireDropHighlight.
-function bandWireDropHighlight(rowEl, onDrop) {
+// Duplicated from koordinator.js's koordWireDropHighlight. `isActive` says
+// whether the current drag belongs to this list (default: the sheet's rows).
+function bandWireDropHighlight(rowEl, onDrop, isActive = () => !!bandDragRow) {
   let depth = 0;
   rowEl.addEventListener('dragenter', (e) => {
-    if (!bandDragRow) return;
+    if (!isActive()) return;
     e.preventDefault();
     depth++;
     rowEl.classList.add('band-drop-target');
   });
-  rowEl.addEventListener('dragover', (e) => { if (bandDragRow) e.preventDefault(); });
+  rowEl.addEventListener('dragover', (e) => { if (isActive()) e.preventDefault(); });
   rowEl.addEventListener('dragleave', () => {
     depth = Math.max(0, depth - 1);
     if (depth === 0) rowEl.classList.remove('band-drop-target');
   });
   rowEl.addEventListener('drop', (e) => {
-    if (!bandDragRow) return;
+    if (!isActive()) return;
     e.preventDefault();
     depth = 0;
     rowEl.classList.remove('band-drop-target');
@@ -1066,6 +1067,7 @@ function bandBuildInstrumentsCard() {
   const table = el('table', 'band-table band-instruments-table');
   const thead = el('thead');
   const headRow = el('tr');
+  headRow.appendChild(el('th', 'band-col-handle'));
   for (const [key, fallback] of [['instrumentNavn', 'Navn'], ['instrumentName', 'Instrument(er)'], ['instrumentStemme', 'Stemmer']]) {
     const th = el('th', 'band-col-mid');
     th.appendChild(bandColumnTitleInput(key, fallback));
@@ -1079,6 +1081,12 @@ function bandBuildInstrumentsCard() {
 
   function addRow(item) {
     const tr = el('tr');
+    const handleTd = el('td', 'band-col-handle');
+    const handle = el('span', 'boss-manage-drag-handle band-drag-handle', '⠿');
+    handle.title = 'Træk for at flytte';
+    handleTd.appendChild(handle);
+    tr.appendChild(handleTd);
+    bandWireMemberDrag(tr, handle, item);
     for (const key of ['navn', 'name', 'stemme']) {
       const td = el('td', 'band-col-mid');
       const input = document.createElement('input');
@@ -1103,9 +1111,17 @@ function bandBuildInstrumentsCard() {
     });
     actions.appendChild(removeBtn);
     tr.appendChild(actions);
-    tbody.appendChild(tr);
+    tbody.insertBefore(tr, tail);
     return tr;
   }
+
+  // Trailing drop zone, so a member can be moved to the end.
+  const tail = el('tr', 'band-drop-tail-row');
+  const tailTd = el('td');
+  tailTd.colSpan = 5;
+  tail.appendChild(tailTd);
+  bandWireDropHighlight(tail, () => bandMoveMember(bandDragMember, null), () => !!bandDragMember);
+  tbody.appendChild(tail);
 
   bandState.instruments.forEach(addRow);
   card.appendChild(table);
@@ -1120,6 +1136,41 @@ function bandBuildInstrumentsCard() {
   });
   card.appendChild(addBtn);
   return card;
+}
+
+// Same handle-only recipe as the sheet's rows (bandWireRowDrag).
+let bandDragMember = null;
+function bandWireMemberDrag(tr, handle, item) {
+  handle.addEventListener('mousedown', () => { tr.draggable = true; });
+  handle.addEventListener('touchstart', () => { tr.draggable = true; }, { passive: true });
+  tr.addEventListener('dragstart', (e) => {
+    bandDragMember = item;
+    e.dataTransfer.effectAllowed = 'move';
+    const ghost = bandGetDragImageEl();
+    ghost.textContent = (item.navn || '').trim() || (item.name || '').trim() || 'Bandmedlem';
+    e.dataTransfer.setDragImage(ghost, 12, 16);
+  });
+  tr.addEventListener('dragend', () => {
+    tr.draggable = false;
+    bandDragMember = null;
+  });
+  bandWireDropHighlight(tr, () => bandMoveMember(bandDragMember, item), () => !!bandDragMember);
+}
+
+// Moves `item` to just before `target` (null = the end) and saves the list.
+function bandMoveMember(item, target) {
+  const list = bandState.instruments;
+  if (!item || item === target) return;
+  const from = list.indexOf(item);
+  if (from === -1) return;
+  const previous = list.slice();
+  list.splice(from, 1);
+  const to = target ? list.indexOf(target) : list.length;
+  list.splice(to === -1 ? list.length : to, 0, item);
+  if (list.every((m, i) => m === previous[i])) return;
+  const card = document.querySelector('.band-instruments-card');
+  if (card) card.replaceWith(bandBuildInstrumentsCard());
+  bandSaveInstruments();
 }
 
 function bandMemberHasContent(item) {
@@ -1212,8 +1263,11 @@ function bandBuildFolder(row) {
   // Revy title, with the original song's title smaller underneath.
   const titles = el('span', 'band-folder-titles');
   titles.appendChild(el('span', 'band-folder-name', bandSongLabel(row)));
+  // Shown whenever both titles are set, even when they're identical (a song
+  // kept under its own name) — only skipped when the name above already fell
+  // back to the original title.
   const original = (row.originaltitel || '').trim();
-  if (original && original !== bandSongLabel(row)) {
+  if (original && (row.revytitel || '').trim()) {
     titles.appendChild(el('span', 'band-folder-sub', original));
   }
   headBtn.appendChild(titles);

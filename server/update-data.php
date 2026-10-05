@@ -3652,8 +3652,8 @@ function band_row_files_dir($folder, $rowId) {
 // revy has one to copy from.
 function band_seed_instruments($folder) {
   $seed = [
-    ['Bas', 'C'], ['Klaver', 'C'], ['Guitar', 'C'], ['Trommer', ''],
-    ['Trompet (2)', 'Bb'], ['Klarinet', 'Bb'], ['Alt (+baryton) saxofon', 'Eb'],
+    ['Vokal', 'C'], ['Klaver', 'C'], ['Guitar', 'C'], ['Bas', 'C'], ['Trommer', ''],
+    ['Trompet', 'Bb'], ['Alt Sax', 'Eb'], ['Tenor Sax', 'Bb'],
   ];
   $out = [];
   foreach ($seed as $i => $pair) {
@@ -3677,7 +3677,7 @@ function band_default_doc($folder) {
     return ['rows' => [], 'instruments' => [], 'updatedAt' => null];
   }
   $rows = [];
-  foreach (['Revysange', 'Pausefisk, sketchsange eller dansenumre', 'Bandintroer'] as $i => $title) {
+  foreach (['Revysange', 'Pausefisk, sketchsange eller dansenumre', 'Bandintroer og -jingles'] as $i => $title) {
     $rows[] = ['id' => band_default_id($folder, 'section' . $i), 'type' => 'section', 'title' => $title];
   }
   $instruments = null;
