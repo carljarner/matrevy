@@ -17,11 +17,18 @@ services:
       SHARED_PIN: ${SHARED_PIN:-}
     volumes:
       - /srv/matrevy/data:/data
+    # Traefik only routes to a container once its healthcheck has passed,
+    # and Docker runs the first check one `interval` after start — so the
+    # interval is also the 503 window on every deploy. 5 s keeps that short
+    # (a curl of health.php is cheap); start_period stops slow first checks
+    # from counting as failures. (start_interval would allow a longer steady
+    # interval, but needs Docker Engine 25+.)
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost/health.php"]
-      interval: 30s
+      interval: 5s
       timeout: 5s
       retries: 3
+      start_period: 20s
     restart: unless-stopped
   worker:
     build:
