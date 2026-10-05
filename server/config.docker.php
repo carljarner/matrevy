@@ -29,6 +29,7 @@ if (getenv('SHARED_PIN') !== false && getenv('SHARED_PIN') !== '') {
 define('BUDGET_DATA_DIR', matrevy_env('BUDGET_DATA_DIR', '/data/budget'));
 define('FORMS_DATA_DIR', matrevy_env('FORMS_DATA_DIR', '/data/forms'));
 define('FAELLESSPISNING_DATA_DIR', matrevy_env('FAELLESSPISNING_DATA_DIR', '/data/faellesspisning'));
+define('BAND_DATA_DIR', matrevy_env('BAND_DATA_DIR', '/data/band'));
 
 // Writable public site files (data/, archive/, posts/, wiki/, plus the
 // worker's generated/ output). Served by Apache via the

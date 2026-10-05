@@ -1,0 +1,734 @@
+/* =========================================================
+   Matematikrevyen – Bandet page styles (band.html only)
+   Page-scoped like faellesspisning.css; shared shell styles live in
+   style.css. 719px is the site-wide mobile breakpoint.
+   ========================================================= */
+
+/* --- Title row: centered h1, revy picker pinned top-right ---------- */
+.band-title-row {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.band-title-row h1 {
+  margin-bottom: 0;
+}
+
+.band-revy-picker {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.band-revy-select {
+  min-width: 10rem;
+  font-size: 0.85rem;
+  background: var(--surface);
+}
+
+/* Rediger + the picker: one height, same cream as the cards (not the
+   default white-ish .btn-small/.site-field-btn fill). */
+.band-revy-picker .btn-small,
+.band-revy-picker .band-revy-select {
+  height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.band-revy-picker .btn-small {
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+
+@media (hover: hover) {
+  .band-revy-picker .btn-small:hover { background: var(--accent-warm-fill); }
+}
+
+/* Hidden on the Arkiv tab, which spans every revy. */
+.band-revy-picker.band-picker-hidden {
+  display: none;
+}
+
+@media (max-width: 719px) {
+  .band-revy-picker {
+    position: static;
+    transform: none;
+    display: flex;
+    justify-content: center;
+    margin-top: 0.75rem;
+  }
+}
+
+/* --- Page tabs: Oversigt / Noder — copy of koordinator.css's
+   .koord-mode-tabs (per-feature duplication convention). ----------- */
+.band-mode-tabs {
+  display: flex;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.band-mode-tab {
+  flex: 1 1 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.band-mode-tab.active {
+  color: var(--accent-warm-text);
+  border-bottom-color: var(--accent-warm-text);
+}
+
+@media (hover: hover) {
+  .band-mode-tab:not(.active):hover { color: var(--text); }
+}
+
+.band-mode-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  border-radius: 4px;
+}
+
+/* --- Shared bits --------------------------------------------------- */
+.band-card-head {
+  margin-bottom: 0.75rem;
+}
+
+.band-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.band-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.band-error {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.band-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .band-remove-btn:hover { color: var(--danger); }
+}
+
+.band-remove-btn:focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Delete confirms: the shared one-liner confirm width formula (see
+   .post-confirm-modal in style.css) with a centered title, like
+   .faelles-confirm-modal / .koord-arkiv-confirm-modal. */
+.band-confirm-modal {
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(420px, 92vw);
+}
+
+.band-confirm-modal h2 {
+  text-align: center;
+}
+
+.band-confirm-text {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+
+/* --- Oversigt sheet ------------------------------------------------ */
+.band-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+}
+
+/* separate + inset box-shadow row lines (not border-collapse borders),
+   so the drop highlight below can't eat the row separators. */
+.band-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+}
+
+.band-table th,
+.band-table td {
+  box-shadow: inset 0 -1px 0 0 var(--border);
+  padding: 0.25rem 0.3rem;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.band-table thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  padding: 0.25rem 0.3rem 0.4rem;
+  vertical-align: bottom;
+}
+
+.band-table .band-col-mid { min-width: 5.5rem; }
+
+.band-table .band-col-status {
+  text-align: center;
+}
+
+.band-table .band-col-handle {
+  text-align: center;
+}
+
+.band-table .band-col-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* The sheet: fixed layout, widths from its <colgroup> (set in band.js,
+   draggable per column); the table is exactly as wide as its columns. */
+.band-table.band-sheet-table {
+  table-layout: fixed;
+}
+
+.band-sheet-table td {
+  overflow: hidden;
+}
+
+.band-sheet-table .band-col-actions {
+  width: auto;
+}
+
+.band-col-resizable {
+  position: relative;
+}
+
+/* Drag grip on a header's right edge. */
+.band-col-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 8px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.band-col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 20%;
+  bottom: 20%;
+  left: 3px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+@media (hover: hover) {
+  .band-col-resizer:hover::after { background: var(--border); }
+}
+
+.band-col-resizer.active::after {
+  background: var(--accent-warm);
+}
+
+.band-col-actions .boss-manage-add-plus {
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.band-drag-handle {
+  user-select: none;
+}
+
+/* Inline field-editing style (CLAUDE.md): transparent at rest, border on
+   hover, warm border + input background while focused. */
+.band-field {
+  width: 100%;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.25rem 0.35rem;
+  font: inherit;
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  .band-field:hover { border-color: var(--border); }
+}
+
+/* Keeps the cell's own colour while typing — only the border marks focus. */
+.band-field:focus-visible,
+.band-field:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Column titles are editable inputs styled like the old plain labels. */
+.band-head-input {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: text;
+  overflow-wrap: break-word;
+}
+
+@media (hover: hover) {
+  .band-head-input:hover { border-color: var(--border); }
+}
+
+.band-head-input:focus {
+  outline: none;
+  color: var(--text);
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Section heading rows ("Revysange", "Bandintroer", …). */
+.band-section-row td {
+  background: var(--surface-2);
+}
+
+.band-section-row td:first-child { border-radius: 6px 0 0 6px; }
+.band-section-row td:last-child { border-radius: 0 6px 6px 0; }
+
+.band-section-input {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* Drop highlight: an inset top line (never a real border on a table row). */
+.band-table tr > td { transition: box-shadow 0.15s; }
+.band-table tr.band-drop-target > td {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border);
+}
+
+.band-drop-tail-row td {
+  height: 0.9rem;
+  padding: 0;
+  box-shadow: none;
+}
+
+.band-table tr.band-drop-tail-row.band-drop-target > td {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
+}
+
+/* bandGetDragImageEl()'s off-screen drag ghost. */
+.band-drag-image {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.4rem 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: var(--modal-shadow);
+}
+
+/* 3-state status pill: – / (Tjek!) / Tjek! (Masterplan's status colors).
+   Shrinks with a narrowed Klar column. */
+.band-status {
+  width: 100%;
+  max-width: 4.6rem;
+  border: none;
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.band-status-none {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.band-status-delvis { background: var(--accent-warm-text); color: #fff; }
+.band-status-klar { background: var(--success); color: #fff; }
+
+.band-status:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.band-add-section {
+  margin: 0.5rem auto 0;
+}
+
+.band-card-title {
+  margin-bottom: 0.75rem;
+}
+
+/* --- Instruments card ---------------------------------------------- */
+.band-instruments-card {
+  max-width: 42rem;
+}
+
+.band-instruments-add {
+  margin: 0.5rem auto 0;
+}
+
+/* --- Noder: folders ------------------------------------------------ */
+.band-noder-hint {
+  margin-bottom: 1rem;
+}
+
+.band-folder-section {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.band-folder-section:first-child {
+  margin-top: 0;
+}
+
+.band-folder-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.band-folder-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.band-folder {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 0;
+  background: var(--surface);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.band-folder.open {
+  background: var(--surface-2);
+}
+
+.band-folder.band-folder-dragover {
+  border-color: var(--accent-warm);
+  background: var(--accent-warm-fill);
+}
+
+.band-folder-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+@media (hover: hover) {
+  .band-folder-head:hover .band-folder-name { color: var(--accent-warm-text); }
+}
+
+.band-folder-head:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.band-folder-chevron {
+  flex: none;
+  width: 0.8rem;
+  color: var(--text-muted);
+}
+
+.band-folder-titles {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.band-folder-name {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.band-folder-sub {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 0.05rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.band-folder-count {
+  margin-left: auto;
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.band-folder-body {
+  padding: 0 0.75rem 0.75rem;
+}
+
+.band-file {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.band-file-kind {
+  flex: none;
+  min-width: 2.6rem;
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  color: #fff;
+}
+
+.band-file-kind-pdf { background: var(--text-muted); }
+.band-file-kind-mscz { background: var(--accent); }
+
+.band-file-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.band-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A PDF's name is the "open" link. */
+.band-file-open {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+@media (hover: hover) {
+  .band-file-open:hover {
+    color: var(--accent-warm-text);
+    text-decoration: underline;
+  }
+}
+
+.band-file-open:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.band-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+.band-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+@media (hover: hover) {
+  .band-icon-btn:hover { color: var(--accent-warm-text); }
+}
+
+.band-icon-btn:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.band-file-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.band-file-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+}
+
+.band-upload-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+@media (max-width: 719px) {
+  .band-folder-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- Arkiv: head = title | centered search | "+ Ny sang" ---------- */
+.band-arkiv-head {
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 22rem) 1fr;
+}
+
+.band-arkiv-head > :last-child {
+  justify-self: end;
+}
+
+.band-arkiv-search {
+  width: 100%;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.band-arkiv-search:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* .band-folder sets display via the grid; keep [hidden] winning. */
+.band-arkiv-grid .band-folder[hidden],
+.band-arkiv-empty[hidden] {
+  display: none;
+}
+
+@media (max-width: 719px) {
+  .band-arkiv-head {
+    grid-template-columns: 1fr auto;
+  }
+
+  .band-arkiv-search {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+}
+
+/* --- Arkiv: a card's files grouped by source revy ----------------- */
+.band-arkiv-grid .band-upload-bar {
+  justify-content: center;
+}
+
+.band-arkiv-source {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.band-arkiv-source:first-child {
+  margin-top: 0;
+}
+
+/* --- Upload modal: name each file (Trompet, Sax, …) ---------------- */
+.band-upload-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.band-upload-item {
+  margin-bottom: 0.75rem;
+}
+
+.band-upload-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+  min-width: 0;
+}
+
+.band-upload-filename {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.band-upload-item input {
+  width: 100%;
+}
+
+/* Instance editor: Slet left, Gem right (CLAUDE.md editor-modal layout). */
+.login-actions.band-instance-actions {
+  justify-content: space-between;
+}

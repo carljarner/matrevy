@@ -249,6 +249,37 @@ if (isset($FAELLES_ACTIONS[$action])) {
   handle_faelles($action, $body);
 }
 
+// ── Bandet actions (private band folder per revy) ──
+// The band's Sangoversigt sheet + sheet-music files (pdf/MuseScore), one
+// document per Arkiv folder under BAND_DATA_DIR — private like the stores
+// above (sheet music is often copyrighted arrangements, so never a
+// web-served folder, never mirrored to GitHub). Fully open at the revyst
+// tier, like a shared Drive folder.
+$BAND_ACTIONS = [
+  'band_read'             => 'revyst', // {rows, instruments, updatedAt} for one revy folder
+  'band_upsert_row'       => 'revyst', // create (no id) or merge fields into one song/section row
+  'band_delete_row'       => 'revyst', // idempotent — also deletes the row's files
+  'band_reorder'          => 'revyst', // full permutation of row ids
+  'band_save_instruments' => 'revyst', // full replace of the small instrument table
+  'band_save_column_labels' => 'revyst', // the sheet's own (renamable) column titles
+  'band_save_column_widths' => 'revyst', // the sheet's dragged column widths (px)
+  'band_save_columns'       => 'revyst', // add/remove sheet columns (custom + hidden built-ins)
+  'band_upload_file'      => 'revyst', // one file into one row's folder
+  'band_delete_file'      => 'revyst', // idempotent
+  'band_file'             => 'revyst', // streams one file's bytes (not JSON)
+  'band_archive_read'     => 'revyst', // every song of every revy (+ the _arkiv store), for the Arkiv tab
+  'band_instances_read'   => 'revyst', // extra band folders beside Arkiv's revys (e.g. "MatGalla 2025")
+  'band_instance_create'  => 'revyst',
+  'band_instance_update'  => 'revyst', // name/year only — the folder never changes
+  'band_instance_delete'  => 'revyst', // registry entry + its whole band folder
+];
+if (isset($BAND_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BAND_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  handle_band($action, $body);
+}
+
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
 // posts_create is revyst-level append-only (mirrors budget_submit's shape,
 // against the public data/posts.json instead of the private budget store)
@@ -3539,6 +3570,744 @@ function handle_faelles($action, $body) {
     case 'faelles_add_day':         return faelles_add_day($body);
     case 'faelles_delete_day':      return faelles_delete_day($body);
     case 'faelles_hide_day':        return faelles_hide_day($body);
+  }
+  respond(400, ['error' => 'unknown_action']);
+}
+
+// ── Bandet datastore (private, local files under BAND_DATA_DIR) ──
+// One document per revy, keyed by its Arkiv folder:
+//   BAND_DATA_DIR/<folder>/band.json             {rows, instruments, updatedAt}
+//   BAND_DATA_DIR/<folder>/files/<rowId>/<fileId>.<ext>
+// rows is one flat ordered list of {type:'section', title} headings and
+// {type:'song', …sheet columns…, files:[…]} rows — each song row *is* a
+// folder in the page's Noder tab. Files are stored under server-generated
+// ids; the original filename is metadata only, so no client-chosen string
+// ever becomes part of a path. Dispatched early (above), so everything here
+// is a hoisted function rather than a top-level const.
+
+function band_dir() {
+  if (!defined('BAND_DATA_DIR') || !is_string(BAND_DATA_DIR) || BAND_DATA_DIR === '') {
+    respond(500, ['error' => 'band_not_configured']);
+  }
+  return rtrim(BAND_DATA_DIR, '/');
+}
+
+// Same charset as Arkiv's slugifyFolderName() output.
+function band_valid_folder($folder) {
+  return is_string($folder) && preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,80}$/', $folder) === 1;
+}
+
+// The archive store (songs created in the page's Arkiv tab, not tied to
+// any revy). Its leading underscore can never match band_valid_folder(),
+// so it can't collide with an Arkiv year folder.
+function band_archive_folder() {
+  return '_arkiv';
+}
+
+function band_folder_from_body($body) {
+  $folder = $body['folder'] ?? '';
+  if ($folder !== band_archive_folder() && !band_valid_folder($folder)) respond(400, ['error' => 'bad_folder']);
+  return $folder;
+}
+
+function band_valid_id($id) {
+  return is_string($id) && preg_match('/^[0-9a-f]{8,40}$/', $id) === 1;
+}
+
+function band_id() {
+  return dechex(time()) . bin2hex(random_bytes(4));
+}
+
+function band_allowed_exts() {
+  return ['pdf', 'mscz', 'mscx'];
+}
+
+function band_max_upload_bytes() {
+  return 15 * 1024 * 1024;
+}
+
+function band_song_text_fields() {
+  return ['originaltitel', 'revytitel', 'originalToneart', 'revytoneart', 'arrangement', 'instruktoer', 'sangere'];
+}
+
+function band_song_status_fields() {
+  return ['arrangementKlar'];
+}
+
+function band_ensure_dir($dir) {
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'band_storage_unavailable']);
+  }
+}
+
+function band_doc_path($folder) {
+  return band_dir() . '/' . $folder . '/band.json';
+}
+
+function band_row_files_dir($folder, $rowId) {
+  return band_dir() . '/' . $folder . '/files/' . $rowId;
+}
+
+// The instrument table from last year's sheet — only used when no other
+// revy has one to copy from.
+function band_seed_instruments($folder) {
+  $seed = [
+    ['Bas', 'C'], ['Klaver', 'C'], ['Guitar', 'C'], ['Trommer', ''],
+    ['Trompet (2)', 'Bb'], ['Klarinet', 'Bb'], ['Alt (+baryton) saxofon', 'Eb'],
+  ];
+  $out = [];
+  foreach ($seed as $i => $pair) {
+    $out[] = ['id' => band_default_id($folder, 'instrument' . $i), 'navn' => '', 'name' => $pair[0], 'stemme' => $pair[1]];
+  }
+  return $out;
+}
+
+// Ids for a not-yet-written default document must be stable across reads:
+// the page can act on a default row (rename a section, reorder) before
+// anything is saved, and band_mutate() rebuilds the default at that point.
+function band_default_id($folder, $salt) {
+  return substr(sha1($folder . '/' . $salt), 0, 16);
+}
+
+// A revy without a document yet: the three section headings from last
+// year's sheet, and the instrument table of the most recently edited other
+// revy (the band rarely changes year to year).
+function band_default_doc($folder) {
+  if ($folder === band_archive_folder()) {
+    return ['rows' => [], 'instruments' => [], 'updatedAt' => null];
+  }
+  $rows = [];
+  foreach (['Revysange', 'Pausefisk, sketchsange eller dansenumre', 'Bandintroer'] as $i => $title) {
+    $rows[] = ['id' => band_default_id($folder, 'section' . $i), 'type' => 'section', 'title' => $title];
+  }
+  $instruments = null;
+  $latest = '';
+  foreach (glob(band_dir() . '/*/band.json') ?: [] as $path) {
+    $other = basename(dirname($path));
+    if ($other === $folder || $other === band_archive_folder()) continue;
+    $doc = json_decode((string) @file_get_contents($path), true);
+    if (!is_array($doc) || empty($doc['instruments']) || !is_array($doc['instruments'])) continue;
+    $updatedAt = is_string($doc['updatedAt'] ?? null) ? $doc['updatedAt'] : '';
+    if ($instruments === null || strcmp($updatedAt, $latest) > 0) {
+      $instruments = $doc['instruments'];
+      $latest = $updatedAt;
+    }
+  }
+  return ['rows' => $rows, 'instruments' => $instruments ?? band_seed_instruments($folder), 'updatedAt' => null];
+}
+
+// Plain unlocked read, same posture as faelles_load().
+function band_load($folder) {
+  $path = band_doc_path($folder);
+  if (!is_file($path)) return band_default_doc($folder);
+  $doc = json_decode((string) file_get_contents($path), true);
+  return is_array($doc) ? $doc : band_default_doc($folder);
+}
+
+// Flock'd read-modify-write — copy of faelles_mutate(), per revy document.
+function band_mutate($folder, $mutate) {
+  band_ensure_dir(band_dir() . '/' . $folder);
+  $path = band_doc_path($folder);
+  $fh = @fopen($path, 'c+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'band_storage_unavailable']);
+  }
+  $raw = stream_get_contents($fh);
+  $doc = ($raw === '' || $raw === false) ? band_default_doc($folder) : json_decode($raw, true);
+  if (!is_array($doc)) $doc = band_default_doc($folder);
+  $doc = $mutate($doc);
+  $doc['updatedAt'] = date('c');
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  return $doc;
+}
+
+function band_read($body) {
+  $folder = band_folder_from_body($body);
+  $doc = band_load($folder);
+  respond(200, [
+    'ok' => true,
+    'rows' => $doc['rows'] ?? [],
+    'instruments' => $doc['instruments'] ?? [],
+    'columnLabels' => (object) ($doc['columnLabels'] ?? []),
+    'columnWidths' => (object) ($doc['columnWidths'] ?? []),
+    'customColumns' => band_custom_columns($doc),
+    'hiddenColumns' => band_hidden_columns($doc),
+    'updatedAt' => $doc['updatedAt'] ?? null,
+  ]);
+}
+
+// ── Sheet columns: built-ins can be hidden, custom ones added ──
+// customColumns [{key, label, type:'text'|'status'}] — values live on each
+// song row under `key` like a built-in column's. hiddenColumns = built-in
+// keys not shown; their values are kept, so re-adding brings them back.
+// originaltitel can't be hidden (the Arkiv tab is keyed on it).
+function band_custom_key_valid($key) {
+  return is_string($key) && preg_match('/^c[0-9a-f]{8,40}$/', $key) === 1;
+}
+
+function band_custom_columns($doc) {
+  $out = [];
+  foreach (is_array($doc['customColumns'] ?? null) ? $doc['customColumns'] : [] as $col) {
+    if (is_array($col) && band_custom_key_valid($col['key'] ?? null)) $out[] = $col;
+  }
+  return $out;
+}
+
+function band_custom_keys($doc, $type = null) {
+  $keys = [];
+  foreach (band_custom_columns($doc) as $col) {
+    if ($type === null || ($col['type'] ?? 'text') === $type) $keys[] = $col['key'];
+  }
+  return $keys;
+}
+
+function band_hideable_columns() {
+  return array_values(array_diff(array_merge(band_song_text_fields(), band_song_status_fields()), ['originaltitel']));
+}
+
+function band_hidden_columns($doc) {
+  $hidden = is_array($doc['hiddenColumns'] ?? null) ? $doc['hiddenColumns'] : [];
+  return array_values(array_intersect($hidden, band_hideable_columns()));
+}
+
+// {folder, customColumns:[{key?, label, type}], hiddenColumns:[keys]} — full
+// replace. A custom column without a key is new; one left out is deleted
+// together with its values, title and width.
+function band_save_columns($body) {
+  $folder = band_folder_from_body($body);
+  $customIn = $body['customColumns'] ?? null;
+  $hiddenIn = $body['hiddenColumns'] ?? null;
+  if (!is_array($customIn) || !is_array($hiddenIn) || count($customIn) > 30) respond(400, ['error' => 'invalid_shape']);
+  $custom = [];
+  foreach ($customIn as $col) {
+    $key = is_array($col) ? ($col['key'] ?? null) : null;
+    $label = is_array($col) && is_string($col['label'] ?? null) ? trim($col['label']) : '';
+    $type = is_array($col) ? ($col['type'] ?? 'text') : '';
+    if (($key !== null && !band_custom_key_valid($key)) || $label === '' || mb_strlen($label) > 100
+        || !in_array($type, ['text', 'status'], true)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $custom[] = ['key' => $key ?? ('c' . band_id() . bin2hex(random_bytes(2))), 'label' => $label, 'type' => $type];
+  }
+  $hidden = [];
+  foreach ($hiddenIn as $key) {
+    if (!in_array($key, band_hideable_columns(), true)) respond(400, ['error' => 'invalid_shape']);
+    if (!in_array($key, $hidden, true)) $hidden[] = $key;
+  }
+  $doc = band_mutate($folder, function ($doc) use ($custom, $hidden) {
+    $keep = array_column($custom, 'key');
+    $removed = array_diff(band_custom_keys($doc), $keep);
+    if ($removed) {
+      foreach ($doc['rows'] as &$row) {
+        foreach ($removed as $key) unset($row[$key]);
+      }
+      unset($row);
+      foreach (['columnLabels', 'columnWidths'] as $mapKey) {
+        $map = (array) ($doc[$mapKey] ?? []);
+        foreach ($removed as $key) unset($map[$key]);
+        $doc[$mapKey] = (object) $map;
+      }
+    }
+    $doc['customColumns'] = $custom;
+    $doc['hiddenColumns'] = $hidden;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'customColumns' => band_custom_columns($doc), 'hiddenColumns' => band_hidden_columns($doc)]);
+}
+
+// Validates the client's partial row. Returns the fields to merge (only the
+// keys actually sent), or null on a bad shape.
+function band_validate_row_fields($type, $rowIn, $doc) {
+  $out = [];
+  if ($type === 'section') {
+    if (array_key_exists('title', $rowIn)) {
+      if (!is_string($rowIn['title']) || mb_strlen($rowIn['title']) > 200) return null;
+      $out['title'] = $rowIn['title'];
+    }
+    return $out;
+  }
+  foreach (array_merge(band_song_text_fields(), band_custom_keys($doc, 'text')) as $key) {
+    if (!array_key_exists($key, $rowIn)) continue;
+    if (!is_string($rowIn[$key]) || mb_strlen($rowIn[$key]) > 1000) return null;
+    $out[$key] = $rowIn[$key];
+  }
+  foreach (array_merge(band_song_status_fields(), band_custom_keys($doc, 'status')) as $key) {
+    if (!array_key_exists($key, $rowIn)) continue;
+    if (!in_array($rowIn[$key], ['', 'delvis', 'klar'], true)) return null;
+    $out[$key] = $rowIn[$key];
+  }
+  return $out;
+}
+
+function band_blank_song() {
+  $row = ['type' => 'song'];
+  foreach (band_song_text_fields() as $key) $row[$key] = '';
+  foreach (band_song_status_fields() as $key) $row[$key] = '';
+  $row['files'] = [];
+  return $row;
+}
+
+// {folder, row:{id?, type, …fields}, afterId?} — create appends at the end
+// (or right after afterId, when given); update merges only the sent fields.
+function band_upsert_row($body) {
+  $folder = band_folder_from_body($body);
+  $rowIn = $body['row'] ?? null;
+  if (!is_array($rowIn)) respond(400, ['error' => 'invalid_shape']);
+  $rowId = $rowIn['id'] ?? null;
+  if ($rowId !== null && !band_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  $type = $rowIn['type'] ?? 'song';
+  if ($type !== 'song' && $type !== 'section') respond(400, ['error' => 'invalid_shape']);
+  // Validated against the current custom columns (a column removed in the
+  // same instant just drops that one value).
+  $fields = band_validate_row_fields($type, $rowIn, band_load($folder));
+  if ($fields === null) respond(400, ['error' => 'invalid_shape']);
+  $afterId = $body['afterId'] ?? null;
+  if ($afterId !== null && !band_valid_id($afterId)) respond(400, ['error' => 'invalid_shape']);
+
+  $savedRow = null;
+  band_mutate($folder, function ($doc) use ($rowId, $type, $fields, $afterId, &$savedRow) {
+    if ($rowId !== null) {
+      foreach ($doc['rows'] as &$row) {
+        if ($row['id'] === $rowId) {
+          if ($row['type'] !== $type) respond(400, ['error' => 'invalid_shape']);
+          $row = array_merge($row, $fields);
+          $savedRow = $row;
+          break;
+        }
+      }
+      unset($row);
+      if ($savedRow === null) respond(404, ['error' => 'not_found']);
+      return $doc;
+    }
+    $base = $type === 'section' ? ['type' => 'section', 'title' => ''] : band_blank_song();
+    $savedRow = array_merge(['id' => band_id()], $base, $fields);
+    $insertAt = count($doc['rows']);
+    if ($afterId !== null) {
+      foreach ($doc['rows'] as $i => $row) {
+        if ($row['id'] === $afterId) { $insertAt = $i + 1; break; }
+      }
+    }
+    array_splice($doc['rows'], $insertAt, 0, [$savedRow]);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'row' => $savedRow]);
+}
+
+function band_remove_dir($dir) {
+  if (!is_dir($dir)) return;
+  foreach (glob($dir . '/*') ?: [] as $file) {
+    if (is_file($file)) @unlink($file);
+  }
+  @rmdir($dir);
+}
+
+function band_delete_row($body) {
+  $folder = band_folder_from_body($body);
+  $rowId = $body['rowId'] ?? '';
+  if (!band_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  band_mutate($folder, function ($doc) use ($rowId) {
+    $doc['rows'] = array_values(array_filter($doc['rows'], function ($r) use ($rowId) {
+      return $r['id'] !== $rowId;
+    }));
+    return $doc;
+  });
+  band_remove_dir(band_row_files_dir($folder, $rowId));
+  respond(200, ['ok' => true]);
+}
+
+// {folder, order:[ids]} — must name exactly the current rows, so a reorder
+// built on a stale page can't silently drop a row someone else just added.
+function band_reorder($body) {
+  $folder = band_folder_from_body($body);
+  $order = $body['order'] ?? null;
+  if (!is_array($order)) respond(400, ['error' => 'invalid_shape']);
+  foreach ($order as $id) {
+    if (!band_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  }
+  $doc = band_mutate($folder, function ($doc) use ($order) {
+    $byId = [];
+    foreach ($doc['rows'] as $row) $byId[$row['id']] = $row;
+    if (count($order) !== count($byId) || count(array_unique($order)) !== count($order)) {
+      respond(409, ['error' => 'stale_rows']);
+    }
+    $next = [];
+    foreach ($order as $id) {
+      if (!isset($byId[$id])) respond(409, ['error' => 'stale_rows']);
+      $next[] = $byId[$id];
+    }
+    $doc['rows'] = $next;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'rows' => $doc['rows']]);
+}
+
+// {folder, instruments:[{id?, navn, name, stemme}]} — the Bandmedlemmer
+// table (member's name, instrument, which key they read in). Full replace; a missing id
+// is a new row.
+function band_save_instruments($body) {
+  $folder = band_folder_from_body($body);
+  $list = $body['instruments'] ?? null;
+  if (!is_array($list) || count($list) > 100) respond(400, ['error' => 'invalid_shape']);
+  $clean = [];
+  foreach ($list as $item) {
+    if (!is_array($item)) respond(400, ['error' => 'invalid_shape']);
+    $id = $item['id'] ?? null;
+    $navn = $item['navn'] ?? '';
+    $name = $item['name'] ?? '';
+    $stemme = $item['stemme'] ?? '';
+    if ($id !== null && !band_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+    foreach ([$navn, $name, $stemme] as $value) {
+      if (!is_string($value) || mb_strlen($value) > 200) respond(400, ['error' => 'invalid_shape']);
+    }
+    $clean[] = ['id' => $id ?? band_id() . bin2hex(random_bytes(2)), 'navn' => $navn, 'name' => $name, 'stemme' => $stemme];
+  }
+  $doc = band_mutate($folder, function ($doc) use ($clean) {
+    $doc['instruments'] = $clean;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'instruments' => $doc['instruments']]);
+}
+
+// Column keys whose title can be renamed: every sheet column plus the
+// Bandmedlemmer table's three.
+function band_column_label_keys($doc) {
+  return array_merge(band_song_text_fields(), band_song_status_fields(), band_custom_keys($doc), ['instrumentNavn', 'instrumentName', 'instrumentStemme']);
+}
+
+// {folder, columnLabels:{key: title}} — full replace; only renamed columns
+// are stored (a missing key shows the page's default title).
+function band_save_column_labels($body) {
+  $folder = band_folder_from_body($body);
+  $labels = $body['columnLabels'] ?? null;
+  if (!is_array($labels)) respond(400, ['error' => 'invalid_shape']);
+  $allowed = band_column_label_keys(band_load($folder));
+  $clean = [];
+  foreach ($labels as $key => $label) {
+    if (!in_array($key, $allowed, true)) respond(400, ['error' => 'invalid_shape']);
+    if (!is_string($label) || mb_strlen($label) > 100) respond(400, ['error' => 'invalid_shape']);
+    if (trim($label) !== '') $clean[$key] = $label;
+  }
+  $doc = band_mutate($folder, function ($doc) use ($clean) {
+    $doc['columnLabels'] = (object) $clean;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'columnLabels' => (object) $doc['columnLabels']]);
+}
+
+// {folder, columnWidths:{key: px}} — full replace; only resized columns are
+// stored (a missing key uses the page's default width). Shared per band
+// folder, like the old spreadsheet's column widths.
+function band_save_column_widths($body) {
+  $folder = band_folder_from_body($body);
+  $widths = $body['columnWidths'] ?? null;
+  if (!is_array($widths)) respond(400, ['error' => 'invalid_shape']);
+  $keys = array_merge(band_song_text_fields(), band_song_status_fields(), band_custom_keys(band_load($folder)));
+  $clean = [];
+  foreach ($widths as $key => $px) {
+    if (!in_array($key, $keys, true) || !is_int($px) || $px < 40 || $px > 1000) respond(400, ['error' => 'invalid_shape']);
+    $clean[$key] = $px;
+  }
+  $doc = band_mutate($folder, function ($doc) use ($clean) {
+    $doc['columnWidths'] = (object) $clean;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'columnWidths' => (object) $doc['columnWidths']]);
+}
+
+// {folder, rowId, name, contentBase64}. The file is written first (outside
+// the document lock), then recorded; if the row vanished meanwhile the file
+// is removed again.
+function band_upload_file($body) {
+  $folder = band_folder_from_body($body);
+  $rowId = $body['rowId'] ?? '';
+  $name = $body['name'] ?? '';
+  if (!band_valid_id($rowId) || !is_string($name) || trim($name) === '' || mb_strlen($name) > 200) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $name = str_replace(['/', '\\', "\0"], '_', $name);
+  $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+  if (!in_array($ext, band_allowed_exts(), true)) respond(400, ['error' => 'bad_extension']);
+  $raw = base64_decode((string) ($body['contentBase64'] ?? ''), true);
+  if ($raw === false || $raw === '') respond(400, ['error' => 'invalid_content']);
+  if (strlen($raw) > band_max_upload_bytes()) respond(413, ['error' => 'too_large']);
+
+  $existing = band_load($folder);
+  $rowExists = false;
+  foreach ($existing['rows'] ?? [] as $row) {
+    if ($row['id'] === $rowId && $row['type'] === 'song') { $rowExists = true; break; }
+  }
+  if (!$rowExists) respond(404, ['error' => 'not_found']);
+
+  $fileId = band_id();
+  $dir = band_row_files_dir($folder, $rowId);
+  band_ensure_dir($dir);
+  $path = $dir . '/' . $fileId . '.' . $ext;
+  $tmp = $path . '.tmp';
+  if (@file_put_contents($tmp, $raw) === false || !@rename($tmp, $path)) {
+    @unlink($tmp);
+    respond(500, ['error' => 'band_storage_unavailable']);
+  }
+
+  $meta = ['id' => $fileId, 'name' => $name, 'ext' => $ext, 'size' => strlen($raw), 'uploadedAt' => date('c')];
+  $savedRow = null;
+  band_mutate($folder, function ($doc) use ($rowId, $meta, $path, &$savedRow) {
+    foreach ($doc['rows'] as &$row) {
+      if ($row['id'] === $rowId && $row['type'] === 'song') {
+        if (!isset($row['files']) || !is_array($row['files'])) $row['files'] = [];
+        $row['files'][] = $meta;
+        $savedRow = $row;
+        break;
+      }
+    }
+    unset($row);
+    if ($savedRow === null) {
+      @unlink($path);
+      respond(404, ['error' => 'not_found']);
+    }
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'row' => $savedRow, 'file' => $meta]);
+}
+
+function band_find_file_meta($doc, $rowId, $fileId) {
+  foreach ($doc['rows'] ?? [] as $row) {
+    if ($row['id'] !== $rowId) continue;
+    foreach ($row['files'] ?? [] as $file) {
+      if (($file['id'] ?? '') === $fileId) return $file;
+    }
+  }
+  return null;
+}
+
+function band_delete_file($body) {
+  $folder = band_folder_from_body($body);
+  $rowId = $body['rowId'] ?? '';
+  $fileId = $body['fileId'] ?? '';
+  if (!band_valid_id($rowId) || !band_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  $removed = null;
+  $savedRow = null;
+  band_mutate($folder, function ($doc) use ($rowId, $fileId, &$removed, &$savedRow) {
+    foreach ($doc['rows'] as &$row) {
+      if ($row['id'] !== $rowId || !isset($row['files']) || !is_array($row['files'])) continue;
+      $kept = [];
+      foreach ($row['files'] as $file) {
+        if (($file['id'] ?? '') === $fileId) $removed = $file;
+        else $kept[] = $file;
+      }
+      $row['files'] = $kept;
+      $savedRow = $row;
+      break;
+    }
+    unset($row);
+    return $doc;
+  });
+  if ($removed !== null && in_array($removed['ext'] ?? '', band_allowed_exts(), true)) {
+    @unlink(band_row_files_dir($folder, $rowId) . '/' . $fileId . '.' . $removed['ext']);
+  }
+  respond(200, ['ok' => true, 'row' => $savedRow]);
+}
+
+// Streams one file (fetched with the password, so files are never at a
+// public URL). Overrides the JSON content-type header, like budget_receipt().
+function band_file($body) {
+  $folder = band_folder_from_body($body);
+  $rowId = $body['rowId'] ?? '';
+  $fileId = $body['fileId'] ?? '';
+  if (!band_valid_id($rowId) || !band_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  $meta = band_find_file_meta(band_load($folder), $rowId, $fileId);
+  if ($meta === null || !in_array($meta['ext'] ?? '', band_allowed_exts(), true)) respond(404, ['error' => 'not_found']);
+  $path = band_row_files_dir($folder, $rowId) . '/' . $fileId . '.' . $meta['ext'];
+  if (!is_file($path)) respond(404, ['error' => 'not_found']);
+  $asciiName = preg_replace('/[^A-Za-z0-9._ -]/', '_', $meta['name']);
+  header('Content-Type: ' . ($meta['ext'] === 'pdf' ? 'application/pdf' : 'application/octet-stream'));
+  header('Content-Length: ' . filesize($path));
+  header('Content-Disposition: attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($meta['name']));
+  readfile($path);
+  exit;
+}
+
+// Arkiv tab: every titled song row across every revy's document plus the
+// _arkiv store, as {folder, rowId, title, files}. The client merges equal
+// titles into one card. Plain unlocked reads, like band_load().
+function band_archive_read($body) {
+  $songs = [];
+  foreach (glob(band_dir() . '/*/band.json') ?: [] as $path) {
+    $folder = basename(dirname($path));
+    if ($folder !== band_archive_folder() && !band_valid_folder($folder)) continue;
+    $doc = json_decode((string) @file_get_contents($path), true);
+    if (!is_array($doc) || !is_array($doc['rows'] ?? null)) continue;
+    foreach ($doc['rows'] as $row) {
+      if (($row['type'] ?? '') !== 'song') continue;
+      $title = trim((string) ($row['originaltitel'] ?? ''));
+      if ($title === '') $title = trim((string) ($row['revytitel'] ?? ''));
+      if ($title === '') continue;
+      $songs[] = ['folder' => $folder, 'rowId' => $row['id'], 'title' => $title, 'files' => $row['files'] ?? []];
+    }
+  }
+  respond(200, ['ok' => true, 'songs' => $songs]);
+}
+
+// ── Extra band instances (Galla etc.) ──
+// Arkiv's revys are the default band folders; anything else the band plays
+// (e.g. the yearly Galla) is registered here as {folder, name, year}. Each
+// one's data is an ordinary band folder, so every row/file action and the
+// Arkiv tab work on it unchanged. `folder` is slugified from the name once
+// and never recomputed, so a rename can't orphan its data.
+function band_instances_path() {
+  return band_dir() . '/instances.json';
+}
+
+function band_instances_load() {
+  $path = band_instances_path();
+  if (!is_file($path)) return [];
+  $doc = json_decode((string) file_get_contents($path), true);
+  return (is_array($doc) && is_array($doc['instances'] ?? null)) ? $doc['instances'] : [];
+}
+
+// Flock'd read-modify-write of the registry (same pattern as band_mutate).
+function band_instances_mutate($mutate) {
+  band_ensure_dir(band_dir());
+  $fh = @fopen(band_instances_path(), 'c+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'band_storage_unavailable']);
+  }
+  $raw = stream_get_contents($fh);
+  $doc = ($raw === '' || $raw === false) ? null : json_decode($raw, true);
+  $list = (is_array($doc) && is_array($doc['instances'] ?? null)) ? $doc['instances'] : [];
+  $list = $mutate($list);
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode(['instances' => array_values($list)], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  return array_values($list);
+}
+
+// Port of koordinator.js's slugifyFolderName(), plus band_valid_folder()'s
+// constraints (alphanumeric first char, max length).
+function band_slugify_folder($name) {
+  $s = strtr(trim($name), ['æ' => 'ae', 'ø' => 'oe', 'å' => 'aa', 'Æ' => 'Ae', 'Ø' => 'Oe', 'Å' => 'Aa']);
+  $s = preg_replace('/\s+/', '_', $s);
+  $s = preg_replace('/[^A-Za-z0-9_-]/', '', $s);
+  $s = preg_replace('/^[_-]+|[_-]+$/', '', $s);
+  $s = substr($s, 0, 70);
+  return $s === '' ? 'Band' : $s;
+}
+
+function band_validate_instance_fields($body) {
+  $name = is_string($body['name'] ?? null) ? trim(preg_replace('/\s+/', ' ', $body['name'])) : '';
+  $year = $body['year'] ?? null;
+  if (is_string($year) && preg_match('/^\d{4}$/', $year)) $year = (int) $year;
+  if ($name === '' || mb_strlen($name) > 80 || !is_int($year) || $year < 1900 || $year > 2200) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  return [$name, $year];
+}
+
+function band_instances_read($body) {
+  respond(200, ['ok' => true, 'instances' => band_instances_load()]);
+}
+
+// {name, year, avoid?:[folders]} — `avoid` = Arkiv's year folders, which
+// only the client knows; the slug gets a _2, _3, … suffix past any clash.
+function band_instance_create($body) {
+  [$name, $year] = band_validate_instance_fields($body);
+  $avoid = [];
+  foreach ((is_array($body['avoid'] ?? null) ? $body['avoid'] : []) as $folder) {
+    if (is_string($folder) && strlen($folder) <= 100) $avoid[] = strtolower($folder);
+  }
+  $created = null;
+  $list = band_instances_mutate(function ($list) use ($name, $year, $avoid, &$created) {
+    $taken = $avoid;
+    $taken[] = strtolower(band_archive_folder());
+    foreach ($list as $inst) $taken[] = strtolower($inst['folder']);
+    foreach (glob(band_dir() . '/*', GLOB_ONLYDIR) ?: [] as $dir) $taken[] = strtolower(basename($dir));
+    $base = band_slugify_folder($name);
+    $folder = $base;
+    for ($n = 2; in_array(strtolower($folder), $taken, true); $n++) $folder = $base . '_' . $n;
+    if (!band_valid_folder($folder)) respond(400, ['error' => 'bad_folder']);
+    $created = ['folder' => $folder, 'name' => $name, 'year' => $year, 'createdAt' => date('c')];
+    $list[] = $created;
+    return $list;
+  });
+  respond(200, ['ok' => true, 'instance' => $created, 'instances' => $list]);
+}
+
+function band_instance_update($body) {
+  $folder = $body['folder'] ?? '';
+  if (!band_valid_folder($folder)) respond(400, ['error' => 'bad_folder']);
+  [$name, $year] = band_validate_instance_fields($body);
+  $list = band_instances_mutate(function ($list) use ($folder, $name, $year) {
+    foreach ($list as &$inst) {
+      if ($inst['folder'] === $folder) {
+        $inst['name'] = $name;
+        $inst['year'] = $year;
+        return $list;
+      }
+    }
+    unset($inst);
+    respond(404, ['error' => 'not_found']);
+  });
+  respond(200, ['ok' => true, 'instances' => $list]);
+}
+
+function band_remove_tree($dir) {
+  if (!is_dir($dir) || is_link($dir)) return;
+  foreach (scandir($dir) ?: [] as $entry) {
+    if ($entry === '.' || $entry === '..') continue;
+    $path = $dir . '/' . $entry;
+    if (is_dir($path) && !is_link($path)) band_remove_tree($path);
+    else @unlink($path);
+  }
+  @rmdir($dir);
+}
+
+// Only a registered instance — never one of Arkiv's revys or _arkiv. The
+// registry entry goes first, so a half-finished delete never leaves a
+// listed instance without its data.
+function band_instance_delete($body) {
+  $folder = $body['folder'] ?? '';
+  if (!band_valid_folder($folder)) respond(400, ['error' => 'bad_folder']);
+  $found = false;
+  $list = band_instances_mutate(function ($list) use ($folder, &$found) {
+    $kept = [];
+    foreach ($list as $inst) {
+      if ($inst['folder'] === $folder) $found = true;
+      else $kept[] = $inst;
+    }
+    return $kept;
+  });
+  if (!$found) respond(404, ['error' => 'not_found']);
+  band_remove_tree(band_dir() . '/' . $folder);
+  respond(200, ['ok' => true, 'instances' => $list]);
+}
+
+function handle_band($action, $body) {
+  switch ($action) {
+    case 'band_read':             return band_read($body);
+    case 'band_upsert_row':       return band_upsert_row($body);
+    case 'band_delete_row':       return band_delete_row($body);
+    case 'band_reorder':          return band_reorder($body);
+    case 'band_save_instruments': return band_save_instruments($body);
+    case 'band_save_column_labels': return band_save_column_labels($body);
+    case 'band_save_column_widths': return band_save_column_widths($body);
+    case 'band_save_columns':       return band_save_columns($body);
+    case 'band_upload_file':      return band_upload_file($body);
+    case 'band_delete_file':      return band_delete_file($body);
+    case 'band_file':             return band_file($body);
+    case 'band_archive_read':     return band_archive_read($body);
+    case 'band_instances_read':   return band_instances_read($body);
+    case 'band_instance_create':  return band_instance_create($body);
+    case 'band_instance_update':  return band_instance_update($body);
+    case 'band_instance_delete':  return band_instance_delete($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }

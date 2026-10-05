@@ -66,3 +66,11 @@ define('FORMS_DATA_DIR', '/absolute/path/to/matrevy-forms-data');
 // write — no bootstrap step, no manifest, no per-item subdirectories
 // (unlike Forms/Budget: this feature has exactly one document total).
 define('FAELLESSPISNING_DATA_DIR', '/absolute/path/to/matrevy-faellesspisning-data');
+
+// Absolute path on the server for the PRIVATE Bandet datastore (the band's
+// Sangoversigt sheet + sheet-music PDFs/MuseScore files, one folder per
+// revy). Same posture as the stores above — sheet music is often
+// copyrighted, so never a web-served folder. Must be PHP-writable.
+// Layout: <revyFolder>/band.json + <revyFolder>/files/<rowId>/<fileId>.<ext>,
+// all created on first write.
+define('BAND_DATA_DIR', '/absolute/path/to/matrevy-band-data');

@@ -29,7 +29,8 @@ const SITE_AUTH_KEY = 'matrevy-auth';
 // `group` (optional) folds a page into a single nav tab shared with every
 // other page carrying the same group key — see SITE_NAV_GROUP_LABELS and
 // buildSiteNavLinks(). A future tool just adds another entry with the same
-// group; no nav/CSS changes needed per tool.
+// group; no nav/CSS changes needed per tool. A group's members are always
+// listed alphabetically (Danish collation), whatever their order here.
 const SITE_PAGES = [
   { href: 'index.html',       label: 'Forside',     level: 'public' },
   { href: 'kalender.html',    label: 'Kalender',    level: 'public' },
@@ -39,6 +40,7 @@ const SITE_PAGES = [
   { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
   { href: 'forms.html',       label: 'Formularer',  level: 'revyst' },
   { href: 'faellesspisning.html', label: 'Fællesspisning', level: 'revyst' },
+  { href: 'band.html',        label: 'Bandet',      level: 'revyst', group: 'redskaber' },
   { href: 'schedule.html',    label: 'Øveplan',     level: 'revyst', group: 'redskaber' },
   { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
 ];
@@ -141,7 +143,8 @@ function renderNavItem(nav, page, current) {
 // (mirrors a locked item), or an interactive dropdown/accordion once
 // at least one sub-item is unlocked.
 function renderNavGroup(nav, groupKey, current, mobile) {
-  const items = SITE_PAGES.filter(p => p.group === groupKey);
+  const items = SITE_PAGES.filter(p => p.group === groupKey)
+    .sort((a, b) => a.label.localeCompare(b.label, 'da'));
   const visible = items.filter(p => siteNavItemVisibility(p) !== 'hidden');
   if (visible.length === 0) return;
 
