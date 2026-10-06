@@ -757,10 +757,10 @@ function openStartNewYearModal(currentFolder) {
 // 2026", "MatRevy 2025", ...); the admin switches which plan is being
 // viewed via a small "Viser plan for:" picker (same siteOpenDropdownPicker
 // primitive as this file's own Arkiv year picker above), which also offers
-// "+ Tilføj" to create a new plan. Always editable (mirrors budget.js's
-// Stregregnskab grid): every field writes straight into a local draft of
-// the *currently viewed plan only*, nothing reaches the server until "Gem"
-// re-saves the whole plans array with that one entry replaced. ──────
+// "+ Tilføj" to create a new plan. Always editable: every field writes
+// straight into a local draft of the *currently viewed plan only*, and
+// koordMpAutosave re-saves the whole plans array with that one entry
+// replaced about a second after the last change. ──────
 let koordMasterplanOverride = siteLoadOverride('masterplan');
 function getEffectiveMasterplanDoc() {
   return koordMasterplanOverride || MASTERPLAN_DATA;
@@ -818,10 +818,10 @@ function getCurrentMasterplan() {
 
 // Built once (a clone of getCurrentMasterplan(), i.e. just the single
 // currently-viewed plan — not the whole multi-plan document) the first
-// time the card renders after a fresh load/save/switch — mirrors
-// budget.js's own stregSheetDraft lifecycle. masterplanLastSavedSnapshot is
-// the serialized draft at that moment, compared against on every edit to
-// drive the Gemt/Ikke gemt status (see koordMpUpdateSaveStatus).
+// time the card renders after a fresh load/switch, and kept across
+// auto-saves (rebuilding it would re-render under the caret).
+// masterplanLastSavedSnapshot is the serialized draft as last sent to the
+// server, compared against to tell whether anything is still unsaved.
 let masterplanDraft = null;
 let masterplanLastSavedSnapshot = '';
 let koordMpDragItem = null;
@@ -979,17 +979,33 @@ function renderMpTabBar() {
   mount.appendChild(dropdown);
 }
 
-// Cheap, called on every keystroke — only touches the Gem button/status
-// text, never rebuilds the grid (rebuilding on every input would steal
-// focus mid-type, same reasoning as budget.js's own onDirtyChange callback
-// passed into stregBuildTable).
+// Called after every edit (cheap, also on every keystroke): queues an
+// auto-save and repaints the status text — never rebuilds the grid
+// (rebuilding on every input would steal focus mid-type).
 function koordMpUpdateSaveStatus() {
-  const status = document.getElementById('koord-mp-save-status');
-  const saveBtn = document.getElementById('koord-mp-save-btn');
-  if (!status || !saveBtn) return;
-  const dirty = masterplanIsDirty();
-  status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
-  status.className = 'koord-mp-save-status' + (dirty ? ' dirty' : '');
+  if (masterplanDraft && masterplanIsDirty()) koordMpAutosave.schedule();
+  koordMpPaintSaveStatus();
+}
+
+let koordMpSaveError = null; // message of the last failed save, null when it succeeded
+
+function koordMpPaintSaveStatus() {
+  koordPaintAutosaveStatus(document.getElementById('koord-mp-save-status'),
+    koordMpAutosave.isBusy(), koordMpSaveError, Boolean(masterplanDraft) && masterplanIsDirty());
+}
+
+// Shared by Masterplan and Lokalebooking: "Gemmer…" while a save is
+// pending/in flight, the error after a failed one, "Gemt" once everything
+// is on the server, and nothing for a draft not yet edited (Lokalebooking's
+// pre-filled default rooms).
+function koordPaintAutosaveStatus(status, busy, error, dirty) {
+  if (!status) return;
+  let text = 'Gemt';
+  if (busy) text = 'Gemmer…';
+  else if (error !== null) text = error ? `Ikke gemt: ${error}` : 'Ikke gemt';
+  else if (dirty) text = '';
+  status.textContent = text;
+  status.className = 'koord-mp-save-status' + (!busy && error !== null ? ' dirty' : '');
 }
 
 function koordMpCreateField(row, key, className) {
@@ -1139,7 +1155,10 @@ function renderMpGrid() {
   // same drop-tail recipe as wiki.js's/manus.js's own reorderable lists.
   const tailRow = el('div', 'koord-mp-drop-tail');
   koordWireDropHighlight(tailRow, () => {
-    if (koordMpDragItem) koordMoveDraftItem(rows, koordMpDragItem, null, renderMpGrid);
+    if (koordMpDragItem) {
+      koordMoveDraftItem(rows, koordMpDragItem, null, renderMpGrid);
+      koordMpUpdateSaveStatus();
+    }
   });
   mount.appendChild(tailRow);
 
@@ -1179,36 +1198,46 @@ function renderMpGrid() {
 
 // Saves the whole plans array with the currently-viewed plan's entry
 // replaced by the draft (full-array-replace, same convention as every
-// other resource on this site).
-async function koordMpSave() {
-  const saveBtn = document.getElementById('koord-mp-save-btn');
-  const status = document.getElementById('koord-mp-save-status');
-  saveBtn.disabled = true;
-  status.textContent = 'Gemmer...';
-  status.className = 'koord-mp-save-status';
-
+// other resource on this site). The plan is cloned from a snapshot so the
+// shadow never shares arrays with the still-edited draft.
+async function koordMpSaveNow() {
+  if (!masterplanDraft) return { ok: true, message: '' };
+  const snapshot = JSON.stringify(masterplanDraft);
+  const draft = JSON.parse(snapshot);
   const updatedPlan = {
-    id: masterplanDraft.id,
-    year: masterplanDraft.year,
-    label: masterplanDraft.label,
+    id: draft.id,
+    year: draft.year,
+    label: draft.label,
     tabs: {},
   };
-  KOORD_MP_TABS.forEach((tab) => { updatedPlan.tabs[tab.key] = masterplanDraft.tabs[tab.key]; });
+  KOORD_MP_TABS.forEach((tab) => { updatedPlan.tabs[tab.key] = draft.tabs[tab.key]; });
   const nextPlans = getMasterplanPlans().map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
 
   const result = await siteSaveResource('masterplan', { plans: nextPlans });
-  saveBtn.disabled = false;
   if (result.ok) {
     koordMasterplanOverride = { plans: nextPlans };
     siteSaveOverride('masterplan', koordMasterplanOverride);
-    masterplanDraft = null;
-    koordMpEnsureDraft();
-    renderMpGrid();
-    koordMpUpdateSaveStatus();
-  } else {
-    status.textContent = result.message || 'Kunne ikke gemme.';
-    status.className = 'koord-mp-save-status dirty';
+    masterplanLastSavedSnapshot = snapshot;
   }
+  return result;
+}
+
+const koordMpAutosave = siteCreateAutosave({
+  save: koordMpSaveNow,
+  onStatus(state, message) {
+    if (state === 'saved') koordMpSaveError = null;
+    else if (state === 'error') koordMpSaveError = message;
+    koordMpPaintSaveStatus();
+  },
+});
+
+// Any other full-array masterplan write (create/delete a plan) and a plan
+// switch first wait for pending row edits, so the shadow they build on
+// includes them. A failure is shown as a toast and aborts the action.
+async function koordMpFlushOrWarn() {
+  const result = await koordMpAutosave.flush();
+  if (!result.ok && result.message) siteShowToast(`Masterplanen kunne ikke gemmes: ${result.message}`);
+  return result.ok;
 }
 
 // Full top-level re-render — cheap (everything renders from local state),
@@ -1219,8 +1248,12 @@ function koordMpRerenderPage() {
   if (root) renderKoordinator(root);
 }
 
-function koordMpSwitchView(id) {
+async function koordMpSwitchView(id) {
   if (id === masterplanViewId) return;
+  if (!(await koordMpFlushOrWarn())) {
+    koordMpRerenderPage(); // put the plan picker back on the unsaved plan
+    return;
+  }
   masterplanViewId = id;
   if (id) localStorage.setItem(KOORD_MP_VIEW_KEY, id);
   else localStorage.removeItem(KOORD_MP_VIEW_KEY);
@@ -1318,11 +1351,14 @@ function openCreateMasterplanModal() {
       return;
     }
 
+    save.disabled = true;
+    if (!(await koordMpFlushOrWarn())) { save.disabled = false; return; }
     const id = koordMpSlugifyPlanId(label);
-    const newPlan = { id, year, label, tabs: koordMpTabsFromPrevious(prevPlan) };
+    // Re-read the source plan: it may have auto-saved edits since the modal opened.
+    const source = prevPlan ? (getMasterplanPlans().find((p) => p.id === prevPlan.id) || prevPlan) : null;
+    const newPlan = { id, year, label, tabs: koordMpTabsFromPrevious(source) };
     const nextPlans = getMasterplanPlans().concat([newPlan]);
 
-    save.disabled = true;
     const result = await siteSaveResource('masterplan', { plans: nextPlans });
     if (result.ok) {
       koordMasterplanOverride = { plans: nextPlans };
@@ -1357,11 +1393,14 @@ function openDeleteMasterplanPlanConfirm(plan) {
   confirmBtn.addEventListener('click', async () => {
     cancelBtn.disabled = true;
     confirmBtn.disabled = true;
+    // Let a pending row edit land first, so it can't race this write.
+    await koordMpAutosave.flush();
     const nextPlans = getMasterplanPlans().filter((p) => p.id !== plan.id);
     const result = await siteSaveResource('masterplan', { plans: nextPlans });
     if (result.ok) {
       koordMasterplanOverride = { plans: nextPlans };
       siteSaveOverride('masterplan', koordMasterplanOverride);
+      if (masterplanDraft && masterplanDraft.id === plan.id) masterplanDraft = null;
       close();
       koordMpSwitchView(null);
     } else {
@@ -1440,12 +1479,7 @@ function renderMasterplanCard(container) {
   const saveGroup = el('div', 'koord-mp-save-group');
   const status = el('span', 'koord-mp-save-status');
   status.id = 'koord-mp-save-status';
-  const saveBtn = el('button', 'site-btn-success', 'Gem');
-  saveBtn.id = 'koord-mp-save-btn';
-  saveBtn.type = 'button';
-  saveBtn.addEventListener('click', koordMpSave);
   saveGroup.appendChild(status);
-  saveGroup.appendChild(saveBtn);
   saveBar.appendChild(saveGroup);
   card.appendChild(saveBar);
 
@@ -1453,7 +1487,7 @@ function renderMasterplanCard(container) {
 
   renderMpTabBar();
   renderMpGrid();
-  koordMpUpdateSaveStatus();
+  koordMpPaintSaveStatus();
 }
 
 // ── Budget section (Arkivering tab: which budget is active, rename it) ──
@@ -1680,7 +1714,7 @@ function openKoordBudgetEditor() {
 // free text keyed by room id + ISO date (data/lokaler.json, admin
 // `lokaler` resource), so rooms carry over between years and moving a
 // Kalender event never orphans a cell. Grid + "Øvrige bookinger" are one
-// Gem-batched draft, like Masterplan. Signed booking forms are PDFs in a
+// auto-saved draft, like Masterplan. Signed booking forms are PDFs in a
 // private server store (lokaler_* actions), uploaded/removed live.
 let koordLokalerOverride = siteLoadOverride('lokaler');
 
@@ -1713,7 +1747,7 @@ let lokalerLastSavedSnapshot = '';
 let koordLokDragItem = null;
 
 // The rooms from the old Lokalebooking spreadsheet — offered (unsaved)
-// when nothing has ever been saved, so the first Gem stores them.
+// when nothing has ever been saved, so the first edit stores them.
 const KOORD_LOK_DEFAULT_ROOMS = [
   'Store UP1', 'Lille UP1', 'øv-1-0-04', 'øv-1-0-10', 'øv-1-0-14', 'øv-1-0-18',
   'øv-1-0-22', 'øv-1-0-26', 'øv-1-0-30', 'øv-1-0-34', 'øv-3-0-25', 'øv-1-0-17',
@@ -1735,12 +1769,19 @@ function lokalerIsDirty() {
   return JSON.stringify(lokalerDraft) !== lokalerLastSavedSnapshot;
 }
 
+// Called after every edit: queues an auto-save and repaints the status.
+// Never from a plain render — a never-saved sheet's pre-filled default
+// rooms are only stored once the admin actually edits something.
 function koordLokUpdateSaveStatus() {
-  const status = document.getElementById('koord-lok-save-status');
-  if (!status) return;
-  const dirty = lokalerIsDirty();
-  status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
-  status.className = 'koord-mp-save-status' + (dirty ? ' dirty' : '');
+  if (lokalerDraft && lokalerIsDirty()) koordLokAutosave.schedule();
+  koordLokPaintSaveStatus();
+}
+
+let koordLokSaveError = null; // message of the last failed save, null when it succeeded
+
+function koordLokPaintSaveStatus() {
+  koordPaintAutosaveStatus(document.getElementById('koord-lok-save-status'),
+    koordLokAutosave.isBusy(), koordLokSaveError, Boolean(lokalerDraft) && lokalerIsDirty());
 }
 
 // Same rolling half-year as faellesspisning.js's faellesCurrentHalfYearRange
@@ -2048,30 +2089,28 @@ function renderLokOther() {
   mount.appendChild(addRow);
 }
 
-async function koordLokSave() {
-  const saveBtn = document.getElementById('koord-lok-save-btn');
-  const status = document.getElementById('koord-lok-save-status');
-  saveBtn.disabled = true;
-  status.textContent = 'Gemmer...';
-  status.className = 'koord-mp-save-status';
-
-  const next = structuredClone(lokalerDraft);
+// Saves the draft as it is right now; the draft is kept (no re-render).
+async function koordLokSaveNow() {
+  if (!lokalerDraft) return { ok: true, message: '' };
+  const snapshot = JSON.stringify(lokalerDraft);
+  const next = JSON.parse(snapshot);
   const result = await siteSaveResource('lokaler', next);
-  saveBtn.disabled = false;
   if (result.ok) {
     koordLokalerOverride = next;
     siteSaveOverride('lokaler', next);
-    lokalerDraft = null;
-    koordLokEnsureDraft();
-    renderLokGrid();
-    renderLokOther();
-    koordLokUpdateSaveStatus();
-    siteShowToast('Lokalebooking gemt.');
-  } else {
-    status.textContent = result.message || 'Kunne ikke gemme.';
-    status.className = 'koord-mp-save-status dirty';
+    lokalerLastSavedSnapshot = snapshot;
   }
+  return result;
 }
+
+const koordLokAutosave = siteCreateAutosave({
+  save: koordLokSaveNow,
+  onStatus(state, message) {
+    if (state === 'saved') koordLokSaveError = null;
+    else if (state === 'error') koordLokSaveError = message;
+    koordLokPaintSaveStatus();
+  },
+});
 
 // ── Signed booking forms (private PDF store) ──
 const KOORD_LOK_COLLAPSED_KEY = 'matrevy-koord-lok-collapsed';
@@ -2387,7 +2426,7 @@ function renderLokalerTab(container) {
   topRow.appendChild(el('p', 'koord-lok-hint',
     'Kolonnerne er øvedage og forestillinger fra Kalenderen i den valgte periode, plus dagen efter sidste forestilling til rengøring.'));
 
-  // Fra/Til: which Kalender days become columns. Part of the Gem draft;
+  // Fra/Til: which Kalender days become columns. Part of the saved draft;
   // until an admin picks one, the window is the current half-year.
   const rangeRow = el('div', 'koord-lok-range');
   const range = koordLokRange();
@@ -2419,8 +2458,8 @@ function renderLokalerTab(container) {
   body.appendChild(grid);
 
   // Øvrige bookinger | Underskrevne blanketter side by side (stacked on a
-  // phone), then Gem bottom-right of the card — it saves the grid and
-  // Øvrige bookinger; the blanketter save live on their own.
+  // phone), then the auto-save status bottom-right of the card (grid and
+  // Øvrige bookinger; the blanketter save live on their own).
   const columns = el('div', 'koord-lok-columns');
 
   const otherCol = el('div', 'koord-lok-column');
@@ -2443,12 +2482,7 @@ function renderLokalerTab(container) {
   const saveGroup = el('div', 'koord-mp-save-group');
   const status = el('span', 'koord-mp-save-status');
   status.id = 'koord-lok-save-status';
-  const saveBtn = el('button', 'site-btn-success', 'Gem');
-  saveBtn.id = 'koord-lok-save-btn';
-  saveBtn.type = 'button';
-  saveBtn.addEventListener('click', koordLokSave);
   saveGroup.appendChild(status);
-  saveGroup.appendChild(saveBtn);
   saveBar.appendChild(saveGroup);
   body.appendChild(saveBar);
   container.appendChild(card);
@@ -2461,7 +2495,7 @@ function renderLokalerTab(container) {
 
   renderLokGrid();
   renderLokOther();
-  koordLokUpdateSaveStatus();
+  koordLokPaintSaveStatus();
   renderLokFiles();
   if (koordLokFiles === null) koordLokLoadFiles();
 }

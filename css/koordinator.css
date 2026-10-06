@@ -568,11 +568,8 @@
   margin-top: 1rem;
 }
 
-/* Not `> button` — Gem sits one level deeper, inside .koord-mp-save-group
-   alongside the status text (see renderMasterplanCard), so a direct-child
-   selector floored Slet (a direct child) to the site-wide 5rem width but
-   silently missed Gem entirely, leaving it narrower than every other
-   .site-btn-* button on the site. */
+/* Site-wide button-width floor for Masterplan's Slet (the bar's other
+   side is just the auto-save status). */
 .koord-mp-save-bar button {
   min-width: 5rem;
 }

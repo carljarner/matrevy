@@ -766,20 +766,18 @@ button.gantt-bar:focus-visible {
   color: var(--text-muted);
 }
 
-.gantt-error:empty {
-  display: none;
+/* Auto-save status under an edit-mode Gantt/Revyugen (calPaintSaveStatus);
+   same look as Koordinator's .koord-mp-save-status. */
+.gantt-save-status {
+  margin-top: 0.5rem;
+  min-height: 1.2em;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
-.gantt-edit-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.6rem;
-  margin-top: 0.75rem;
-}
-
-/* Site-wide button-width floor (see style.css's .login-actions > button). */
-.gantt-edit-actions > button {
-  min-width: 5rem;
+.gantt-save-status-error {
+  color: var(--accent-warm-text);
 }
 
 .login-modal .gantt-editor-section {
@@ -838,6 +836,11 @@ button.gantt-bar:focus-visible {
   align-items: center;
   gap: 0.75rem;
   margin-left: auto;
+}
+
+/* Edit mode: the settings already push right, so Færdig just follows them. */
+.revyugen-settings + .gantt-edit-btn {
+  margin-left: 0;
 }
 
 .revyugen-setting {
@@ -1116,9 +1119,15 @@ button.revyugen-block:focus-visible {
     grid-template-columns: var(--revyugen-time-width) repeat(var(--revyugen-days), minmax(5.5rem, 1fr));
   }
 
+  /* The settings take their own row below the title and Færdig. */
   .revyugen-settings {
     width: 100%;
     margin-left: 0;
+    order: 1;
+  }
+
+  .revyugen-settings + .gantt-edit-btn {
+    margin-left: auto;
   }
 
   /* Colour key drops onto its own row below the title/Rediger. */

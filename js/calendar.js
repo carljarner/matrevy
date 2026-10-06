@@ -653,7 +653,8 @@ function renderLegend() {
 // the September–November window; each row is an admin-named section holding
 // any number of date-range bars (overlapping bars stack into extra lanes).
 // Visible to everyone (hidden entirely while empty); admin edits a local
-// draft (ganttDraft) and nothing is saved until "Gem".
+// draft (ganttDraft) between "Rediger" and "Færdig", auto-saved on every
+// change (ganttAutosave).
 const GANTT_FIRST_MONTH = 8;  // September (0-based)
 const GANTT_LAST_MONTH = 10;  // November
 // Bar colours (.gantt-color-<key> in calendar.css). A bar stores its own
@@ -670,8 +671,8 @@ const GANTT_COLORS = [
 
 let ganttOverride = siteLoadOverride('gantt');
 let ganttDraft = null; // non-null while admin edit mode is open
-let ganttSaving = false;
 let ganttError = '';
+let ganttStatus = ''; // 'saving' | 'saved' | 'error' | '' (nothing saved yet)
 let ganttDragId = null;
 let calTooltipEl = null;
 
@@ -822,6 +823,7 @@ function ganttMoveRow(id, beforeId) {
   const beforeIdx = beforeId ? rows.findIndex(r => r.id === beforeId) : -1;
   if (beforeIdx === -1) rows.push(item);
   else rows.splice(beforeIdx, 0, item);
+  ganttAutosave.schedule();
   renderGantt();
 }
 
@@ -849,18 +851,34 @@ function renderGantt() {
   } else {
     title.textContent = `Revyperiode ${data.year}`;
     head.appendChild(title);
-    if (canEdit) {
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'btn-small gantt-edit-btn';
-      editBtn.textContent = 'Rediger';
-      editBtn.addEventListener('click', () => {
+  }
+  if (canEdit) {
+    // One button in and out of edit mode — every change saves on its own,
+    // so "Færdig" only waits for the last save (staying put if it failed).
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'btn-small gantt-edit-btn';
+    editBtn.textContent = editing ? 'Færdig' : 'Rediger';
+    editBtn.addEventListener('click', async () => {
+      if (!editing) {
         ganttDraft = structuredClone(getEffectiveGantt());
         ganttError = '';
+        ganttStatus = '';
         renderGantt();
-      });
-      head.appendChild(editBtn);
-    }
+        return;
+      }
+      editBtn.disabled = true;
+      const result = await ganttAutosave.flush();
+      if (result.ok) {
+        ganttDraft = null;
+        ganttError = '';
+        ganttStatus = '';
+        renderGantt();
+      } else {
+        editBtn.disabled = false;
+      }
+    });
+    head.appendChild(editBtn);
   }
   card.appendChild(head);
 
@@ -962,7 +980,10 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
     input.value = row.title;
     input.maxLength = 200;
     input.setAttribute('aria-label', 'Sektionens navn');
-    input.addEventListener('input', () => { row.title = input.value; });
+    input.addEventListener('input', () => {
+      row.title = input.value;
+      ganttAutosave.schedule();
+    });
     label.appendChild(input);
 
     const addBar = document.createElement('button');
@@ -1061,6 +1082,7 @@ function ganttBuildYearInput() {
     const hasBars = ganttDraft.rows.some(r => r.bars.length > 0);
     if (!hasBars) {
       ganttDraft.year = next;
+      ganttAutosave.schedule();
       renderGantt();
       return;
     }
@@ -1099,6 +1121,7 @@ function ganttOpenShiftYearConfirm(prev, next) {
         }
       }
     }
+    ganttAutosave.schedule();
     close();
     renderGantt();
   }
@@ -1113,6 +1136,7 @@ function ganttOpenShiftYearConfirm(prev, next) {
 function ganttRemoveRow(row) {
   function remove() {
     ganttDraft.rows = ganttDraft.rows.filter(r => r !== row);
+    ganttAutosave.schedule();
     renderGantt();
   }
   if (row.bars.length === 0) {
@@ -1167,8 +1191,7 @@ function calBuildColorSwatches(initial, onPick) {
   return swatches;
 }
 
-// Add/edit one bar in the draft. Nothing is saved here — the card's own Gem
-// sends the whole chart.
+// Add/edit one bar in the draft; the change auto-saves with the whole chart.
 function ganttOpenBarEditor(row, bar, defaultStart) {
   const { form, error, actions, close } = siteOpenModalWithClose(bar ? 'Rediger periode' : 'Ny periode');
   actions.classList.add('cal-event-actions');
@@ -1212,6 +1235,7 @@ function ganttOpenBarEditor(row, bar, defaultStart) {
     const del = calPillBtn('Slet', 'site-btn-danger');
     del.addEventListener('click', () => {
       row.bars = row.bars.filter(b => b !== bar);
+      ganttAutosave.schedule();
       close();
       renderGantt();
     });
@@ -1228,6 +1252,7 @@ function ganttOpenBarEditor(row, bar, defaultStart) {
     const item = { id: bar ? bar.id : ganttNewId(), start, end: end >= start ? end : start, label: labelInput.value.trim(), color };
     if (bar) row.bars = row.bars.map(b => (b === bar ? item : b));
     else row.bars.push(item);
+    ganttAutosave.schedule();
     close();
     renderGantt();
   });
@@ -1250,6 +1275,7 @@ function ganttBuildEditFooter() {
   addRow.setAttribute('aria-label', 'Tilføj sektion');
   addRow.addEventListener('click', () => {
     ganttDraft.rows.push({ id: ganttNewId(), title: 'Ny sektion', bars: [] });
+    ganttAutosave.schedule();
     renderGantt();
     const inputs = document.querySelectorAll('#gantt-card .gantt-label-input');
     const last = inputs[inputs.length - 1];
@@ -1263,35 +1289,37 @@ function ganttBuildEditFooter() {
   hint.textContent = 'Klik på en tom plads i en sektion for at tilføje en periode, eller på en periode for at rette den.';
   footer.appendChild(hint);
 
-  const error = document.createElement('div');
-  error.className = 'login-error gantt-error';
-  error.textContent = ganttError;
-  footer.appendChild(error);
-
-  const actions = document.createElement('div');
-  actions.className = 'gantt-edit-actions';
-  const cancel = calPillBtn('Annuller');
-  cancel.disabled = ganttSaving;
-  cancel.addEventListener('click', () => {
-    ganttDraft = null;
-    ganttError = '';
-    renderGantt();
-  });
-  const save = calPillBtn(ganttSaving ? 'Gemmer…' : 'Gem', 'site-btn-success');
-  save.disabled = ganttSaving;
-  save.addEventListener('click', ganttSave);
-  actions.appendChild(cancel);
-  actions.appendChild(save);
-  footer.appendChild(actions);
+  footer.appendChild(calBuildSaveStatus('gantt-save-status', ganttStatus, ganttError));
   return footer;
 }
 
-async function ganttSave() {
-  if (!ganttDraft || ganttSaving) return;
+// The edit footer's status line ("Gemmer…" / "Gemt" / the error), shared by
+// Gantt and Revyugen. Repainted in place by calPaintSaveStatus — a full
+// re-render after each save would steal focus from a field being typed in.
+function calBuildSaveStatus(id, state, error) {
+  const status = document.createElement('div');
+  status.id = id;
+  calPaintSaveStatus(status, state, error);
+  return status;
+}
+
+function calPaintSaveStatus(el, state, error) {
+  if (!el) return;
+  el.className = 'gantt-save-status';
+  if (state === 'saving') el.textContent = 'Gemmer…';
+  else if (state === 'saved') el.textContent = 'Gemt';
+  else if (state === 'error') {
+    el.textContent = error ? `Ikke gemt: ${error}` : 'Ikke gemt';
+    el.classList.add('gantt-save-status-error');
+  } else el.textContent = '';
+}
+
+// Saves the draft as it is right now. No re-render on success: the draft
+// stays the edit-mode state, only the read-mode shadow is updated.
+async function ganttSaveNow() {
+  if (!ganttDraft) return { ok: true, message: '' };
   if (ganttDraft.rows.some(r => !r.title.trim())) {
-    ganttError = 'Alle sektioner skal have et navn.';
-    renderGantt();
-    return;
+    return { ok: false, message: 'Alle sektioner skal have et navn.' };
   }
   const payload = {
     year: ganttDraft.year,
@@ -1301,22 +1329,22 @@ async function ganttSave() {
       bars: r.bars.map(b => ({ id: b.id, start: b.start, end: b.end, label: b.label, color: ganttBarColor(b, idx) })),
     })),
   };
-  ganttSaving = true;
-  ganttError = '';
-  renderGantt();
   const result = await siteSaveResource('gantt', payload);
-  ganttSaving = false;
   if (result.ok) {
     ganttOverride = payload;
     siteSaveOverride('gantt', payload);
-    ganttDraft = null;
-    siteShowToast('Gemt');
-  } else {
-    // message === '' means the password prompt was cancelled — stay silent.
-    ganttError = result.message;
   }
-  renderGantt();
+  return result;
 }
+
+const ganttAutosave = siteCreateAutosave({
+  save: ganttSaveNow,
+  onStatus(state, message) {
+    ganttStatus = state;
+    ganttError = state === 'error' ? message : '';
+    calPaintSaveStatus(document.getElementById('gantt-save-status'), ganttStatus, ganttError);
+  },
+});
 
 // ── Revyugen (week schedule) ─────────────────────────────────
 // Hour-by-hour plan for the revy's final days, below the Gantt chart, from
@@ -1325,7 +1353,8 @@ async function ganttSave() {
 // down the side (`startHour`–`endHour`); each block is one timed entry on
 // one day, and overlapping blocks share their day column side by side.
 // Visible to revyst+ only (hidden while empty below admin); admin edits a
-// local draft (revyugenDraft) and nothing is saved until "Gem".
+// local draft (revyugenDraft) between "Rediger" and "Færdig", auto-saved on
+// every change (revyugenAutosave).
 const REVYUGEN_DEFAULT_DAYS = 9;
 const REVYUGEN_MAX_DAYS = 31; // mirrored by save_revyugen
 const REVYUGEN_SNAP_MINUTES = 30;
@@ -1343,8 +1372,8 @@ const REVYUGEN_CATEGORIES = [
 
 let revyugenOverride = siteLoadOverride('revyugen');
 let revyugenDraft = null; // non-null while admin edit mode is open
-let revyugenSaving = false;
 let revyugenError = '';
+let revyugenStatus = ''; // 'saving' | 'saved' | 'error' | '' (nothing saved yet)
 
 function getEffectiveRevyugen() {
   const data = revyugenOverride || (typeof REVYUGEN_DATA !== 'undefined' ? REVYUGEN_DATA : null);
@@ -1451,16 +1480,31 @@ function renderRevyugen() {
     head.classList.add('revyugen-head-view');
     head.appendChild(revyugenBuildLegend());
   }
-  if (!editing && canEdit) {
+  if (canEdit) {
+    // Same Rediger/Færdig toggle as the Gantt card (see renderGantt).
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
     editBtn.className = 'btn-small gantt-edit-btn';
-    editBtn.textContent = 'Rediger';
-    editBtn.addEventListener('click', () => {
-      revyugenDraft = structuredClone(getEffectiveRevyugen());
-      revyugenDraft.endDate = revyugenEndDate(revyugenDraft);
-      revyugenError = '';
-      renderRevyugen();
+    editBtn.textContent = editing ? 'Færdig' : 'Rediger';
+    editBtn.addEventListener('click', async () => {
+      if (!editing) {
+        revyugenDraft = structuredClone(getEffectiveRevyugen());
+        revyugenDraft.endDate = revyugenEndDate(revyugenDraft);
+        revyugenError = '';
+        revyugenStatus = '';
+        renderRevyugen();
+        return;
+      }
+      editBtn.disabled = true;
+      const result = await revyugenAutosave.flush();
+      if (result.ok) {
+        revyugenDraft = null;
+        revyugenError = '';
+        revyugenStatus = '';
+        renderRevyugen();
+      } else {
+        editBtn.disabled = false;
+      }
     });
     head.appendChild(editBtn);
   }
@@ -1596,6 +1640,7 @@ function revyugenBuildSettings() {
     revyugenDraft.startDate = next;
     revyugenDraft.endDate = calAddDaysIso(revyugenDraft.endDate, delta);
     for (const block of revyugenDraft.blocks) block.date = calAddDaysIso(block.date, delta);
+    revyugenAutosave.schedule();
     renderRevyugen();
   });
   wrap.appendChild(revyugenSettingsField('Første dag', startField));
@@ -1610,6 +1655,7 @@ function revyugenBuildSettings() {
     const maxEnd = calAddDaysIso(start, REVYUGEN_MAX_DAYS - 1);
     if (next > maxEnd) next = maxEnd;
     revyugenDraft.endDate = next;
+    revyugenAutosave.schedule();
     renderRevyugen();
   });
   wrap.appendChild(revyugenSettingsField('Sidste dag', endField));
@@ -1629,6 +1675,7 @@ function revyugenBuildSettings() {
         && (key === 'startHour' ? v < other : v > other);
       if (!ok) { input.value = String(revyugenDraft[key]); return; }
       revyugenDraft[key] = v;
+      revyugenAutosave.schedule();
       renderRevyugen();
     });
     return revyugenSettingsField(label, input);
@@ -1648,8 +1695,8 @@ function revyugenSettingsField(labelText, control) {
   return label;
 }
 
-// Add/edit one block in the draft. Nothing is saved here — the card's own
-// Gem sends the whole schedule. The time field can't type "24:00", so an
+// Add/edit one block in the draft; the change auto-saves with the whole
+// schedule. The time field can't type "24:00", so an
 // end of "00:00" means midnight at the end of that day.
 function revyugenOpenBlockEditor(block, defaultDate, defaultStartMin) {
   const { form, error, actions, close } = siteOpenModalWithClose(block ? 'Rediger punkt' : 'Nyt punkt');
@@ -1696,6 +1743,7 @@ function revyugenOpenBlockEditor(block, defaultDate, defaultStartMin) {
     const del = calPillBtn('Slet', 'site-btn-danger');
     del.addEventListener('click', () => {
       revyugenDraft.blocks = revyugenDraft.blocks.filter(b => b !== block);
+      revyugenAutosave.schedule();
       close();
       renderRevyugen();
     });
@@ -1722,6 +1770,7 @@ function revyugenOpenBlockEditor(block, defaultDate, defaultStartMin) {
     const item = { id: block ? block.id : ganttNewId(), date: dayField.value, start, end, title, text: textInput.value.trim(), category: catField.value };
     if (block) revyugenDraft.blocks = revyugenDraft.blocks.map(b => (b === block ? item : b));
     else revyugenDraft.blocks.push(item);
+    revyugenAutosave.schedule();
     close();
     renderRevyugen();
   });
@@ -1739,31 +1788,13 @@ function revyugenBuildEditFooter() {
   hint.textContent = 'Klik på en tom plads for at tilføje et punkt, eller på et punkt for at rette det.';
   footer.appendChild(hint);
 
-  const error = document.createElement('div');
-  error.className = 'login-error gantt-error';
-  error.textContent = revyugenError;
-  footer.appendChild(error);
-
-  const actions = document.createElement('div');
-  actions.className = 'gantt-edit-actions';
-  const cancel = calPillBtn('Annuller');
-  cancel.disabled = revyugenSaving;
-  cancel.addEventListener('click', () => {
-    revyugenDraft = null;
-    revyugenError = '';
-    renderRevyugen();
-  });
-  const save = calPillBtn(revyugenSaving ? 'Gemmer…' : 'Gem', 'site-btn-success');
-  save.disabled = revyugenSaving;
-  save.addEventListener('click', revyugenSave);
-  actions.appendChild(cancel);
-  actions.appendChild(save);
-  footer.appendChild(actions);
+  footer.appendChild(calBuildSaveStatus('revyugen-save-status', revyugenStatus, revyugenError));
   return footer;
 }
 
-async function revyugenSave() {
-  if (!revyugenDraft || revyugenSaving) return;
+// Saves the draft as it is right now — no re-render (see ganttSaveNow).
+async function revyugenSaveNow() {
+  if (!revyugenDraft) return { ok: true, message: '' };
   const d = revyugenDraft;
   const payload = {
     startDate: d.startDate,
@@ -1775,22 +1806,22 @@ async function revyugenSave() {
       .sort((a, b) => (a.date + a.start < b.date + b.start ? -1 : a.date + a.start > b.date + b.start ? 1 : 0))
       .map(b => ({ id: b.id, date: b.date, start: b.start, end: b.end, title: b.title, text: b.text, category: b.category })),
   };
-  revyugenSaving = true;
-  revyugenError = '';
-  renderRevyugen();
   const result = await siteSaveResource('revyugen', payload);
-  revyugenSaving = false;
   if (result.ok) {
     revyugenOverride = payload;
     siteSaveOverride('revyugen', payload);
-    revyugenDraft = null;
-    siteShowToast('Gemt');
-  } else {
-    // message === '' means the password prompt was cancelled — stay silent.
-    revyugenError = result.message;
   }
-  renderRevyugen();
+  return result;
 }
+
+const revyugenAutosave = siteCreateAutosave({
+  save: revyugenSaveNow,
+  onStatus(state, message) {
+    revyugenStatus = state;
+    revyugenError = state === 'error' ? message : '';
+    calPaintSaveStatus(document.getElementById('revyugen-save-status'), revyugenStatus, revyugenError);
+  },
+});
 
 // ── Calendar-subscribe (.ics) ─────────────────────────────────
 // Static file served by GitHub Pages — the underlying data is already fully

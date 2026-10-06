@@ -224,6 +224,90 @@ function siteDeleteFile(path) {
   return siteFileAction('delete', { path });
 }
 
+// ── Auto-save ────────────────────────────────────────────────
+// Debounced, serialized auto-save for an editor that keeps a local draft
+// (Gantt, Revyugen, Masterplan, Lokalebooking). `save()` builds its payload
+// from the *current* draft and returns { ok, message } (siteSaveResource's
+// shape); it must not re-render (that would steal focus mid-typing).
+// At most one save is in flight; a change made meanwhile triggers exactly
+// one more save once it lands. A failure is not retried in a loop — the
+// next change (schedule) or a flush() tries again. `onStatus(state,
+// message)` gets 'saving' (pending or in flight) | 'saved' | 'error'
+// (message '' = the password prompt was cancelled).
+const siteAutosavers = new Set();
+
+function siteCreateAutosave({ save, onStatus, delayMs = 1000 }) {
+  let timer = null;
+  let inFlight = null; // Promise of the running save, or null
+  let again = false;   // a change arrived while a save was in flight
+  let lastResult = { ok: true, message: '' };
+
+  function status(state, message) {
+    if (onStatus) onStatus(state, message || '');
+  }
+
+  async function run() {
+    timer = null;
+    if (inFlight) { again = true; return inFlight; }
+    status('saving');
+    inFlight = (async () => {
+      let result;
+      try { result = await save(); } catch (e) { result = { ok: false, message: 'Kunne ikke gemme.' }; }
+      return result;
+    })();
+    lastResult = await inFlight;
+    inFlight = null;
+    if (again) {
+      again = false;
+      return run();
+    }
+    status(lastResult.ok ? 'saved' : 'error', lastResult.message);
+    return lastResult;
+  }
+
+  const saver = {
+    schedule() {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(run, delayMs);
+      status('saving'); // "Gemmer…" from the first keystroke, not only once the request starts
+    },
+    // Saves right away if a change is pending or the last save failed;
+    // resolves with the outcome (the last result when there was nothing to
+    // do).
+    async flush() {
+      if (timer) { clearTimeout(timer); return run(); }
+      if (inFlight) {
+        // run() may chain an `again` save after this one — wait for it too.
+        while (inFlight) await inFlight;
+        if (timer) { clearTimeout(timer); return run(); }
+        return lastResult;
+      }
+      return lastResult.ok ? lastResult : run();
+    },
+    isBusy() {
+      return Boolean(timer || inFlight);
+    },
+    // Busy, or the last save failed — the draft has changes not on the server.
+    hasUnsaved() {
+      return Boolean(timer || inFlight || !lastResult.ok);
+    },
+  };
+  siteAutosavers.add(saver);
+  return saver;
+}
+
+// Unsaved changes still waiting for (or in) a save → let the browser ask
+// before leaving the page.
+window.addEventListener('beforeunload', (e) => {
+  for (const saver of siteAutosavers) {
+    if (saver.hasUnsaved()) {
+      e.preventDefault();
+      e.returnValue = '';
+      return;
+    }
+  }
+});
+
 // ── Override persistence (survive a refresh during the few-second embed regen) ──
 // A save sets a page's in-memory shadow (postsOverride/calendarOverride/
 // archiveOverride) so the saving tab sees its own change immediately,
