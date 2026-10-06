@@ -458,6 +458,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('clear-confirm-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeClearConfirm();
   });
+  document.getElementById('build-confirm-cancel').addEventListener('click', closeBuildConfirm);
+  document.getElementById('build-confirm-ok').addEventListener('click', confirmBuildGrid);
+  document.getElementById('build-confirm-overlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeBuildConfirm();
+  });
   document.getElementById('picker-close').addEventListener('click', closePicker);
   document.getElementById('picker-overlay').addEventListener('click', e => {
     if (e.target === e.currentTarget) closePicker();
@@ -603,6 +608,47 @@ async function buildGrid() {
     state.slotsConfig.endTime !== endTime ||
     state.slotsConfig.segmentMinutes !== segmentMinutes ||
     state.slotsConfig.gapMinutes !== gapMinutes;
+  const build = { startTime, endTime, segmentMinutes, gapMinutes, roomLines, configChanged };
+
+  // Placements the rebuild would drop: every one when the time config
+  // changed, otherwise only those in rooms no longer in the list. Asked
+  // first, since saveState() overwrites the only copy.
+  const lost = countPlacementsLostByBuild(build);
+  if (lost > 0) {
+    pendingBuild = build;
+    document.getElementById('build-confirm-body').textContent = configChanged
+      ? `Tidspunkterne er ændret, så skemaet ryddes (${lost} ${lost === 1 ? 'placering' : 'placeringer'}). Dette kan ikke fortrydes.`
+      : `${lost} ${lost === 1 ? 'placering' : 'placeringer'} i fjernede lokaler forsvinder. Dette kan ikke fortrydes.`;
+    document.getElementById('build-confirm-overlay').style.display = 'flex';
+    return;
+  }
+  applyBuild(build);
+}
+
+let pendingBuild = null;
+
+function countPlacementsLostByBuild({ roomLines, configChanged }) {
+  let lost = 0;
+  state.grid.forEach(row => {
+    (row || []).forEach((cell, ri) => {
+      if (cell != null && (configChanged || !roomLines.includes(state.rooms[ri]))) lost++;
+    });
+  });
+  return lost;
+}
+
+function closeBuildConfirm() {
+  pendingBuild = null;
+  document.getElementById('build-confirm-overlay').style.display = 'none';
+}
+
+function confirmBuildGrid() {
+  const build = pendingBuild;
+  closeBuildConfirm();
+  if (build) applyBuild(build);
+}
+
+function applyBuild({ startTime, endTime, segmentMinutes, gapMinutes, roomLines, configChanged }) {
   const oldRooms = state.rooms;
   const oldGrid  = state.grid;
 
