@@ -118,6 +118,19 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/lokaler-data.js',
+    sources: 'data/lokaler.json',
+    globals: () => {
+      // Tolerates a missing file (the resource is newer than the server's
+      // data folder) — a save still needs the file to exist on disk.
+      const lokaler = fs.existsSync(root('data/lokaler.json'))
+        ? readJson('data/lokaler.json')
+        : { rooms: [], bookings: {}, other: [] };
+      console.log(`  lokaler: ${lokaler.rooms.length} rooms, ${lokaler.other.length} other bookings`);
+      return { LOKALER_DATA: lokaler };
+    },
+  },
+  {
     out: 'js/gantt-data.js',
     sources: 'data/gantt.json',
     globals: () => {

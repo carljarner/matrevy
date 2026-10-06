@@ -1672,9 +1672,790 @@ function openKoordBudgetEditor() {
   });
 }
 
+// ── Lokaler & Fravær tab ─────────────────────────────────────
+// Lokalebooking: rooms × rehearsal days, replacing the yearly
+// "Lokalebooking" spreadsheet. Day columns come live from Kalender
+// (every `ove`/`forestilling` day in the current rolling half-year, plus
+// the day after the last show for cleaning) — never stored. Bookings are
+// free text keyed by room id + ISO date (data/lokaler.json, admin
+// `lokaler` resource), so rooms carry over between years and moving a
+// Kalender event never orphans a cell. Grid + "Øvrige bookinger" are one
+// Gem-batched draft, like Masterplan. Signed booking forms are PDFs in a
+// private server store (lokaler_* actions), uploaded/removed live.
+let koordLokalerOverride = siteLoadOverride('lokaler');
+
+function getEffectiveLokalerDoc() {
+  const doc = koordLokalerOverride || (typeof LOKALER_DATA !== 'undefined' ? LOKALER_DATA : null) || {};
+  return {
+    rooms: Array.isArray(doc.rooms) ? doc.rooms : [],
+    // PHP's json_encode writes an empty map as [] — treat it as {}.
+    bookings: (doc.bookings && !Array.isArray(doc.bookings)) ? doc.bookings : {},
+    other: Array.isArray(doc.other) ? doc.other : [],
+    // Admin-chosen window for importing days from Kalender; absent = the
+    // current rolling half-year (koordLokHalfYearRange).
+    ...(koordLokValidRange(doc.range) ? { range: { start: doc.range.start, end: doc.range.end } } : {}),
+  };
+}
+
+function koordLokValidRange(range) {
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  return Boolean(range && iso.test(range.start || '') && iso.test(range.end || '') && range.start <= range.end);
+}
+
+// The window the grid's day columns are taken from: the draft's chosen
+// range, else the current half-year.
+function koordLokRange() {
+  return (lokalerDraft && koordLokValidRange(lokalerDraft.range)) ? lokalerDraft.range : koordLokHalfYearRange();
+}
+
+let lokalerDraft = null;
+let lokalerLastSavedSnapshot = '';
+let koordLokDragItem = null;
+
+function koordLokEnsureDraft() {
+  if (lokalerDraft) return;
+  lokalerDraft = structuredClone(getEffectiveLokalerDoc());
+  lokalerLastSavedSnapshot = JSON.stringify(lokalerDraft);
+}
+
+function lokalerIsDirty() {
+  return JSON.stringify(lokalerDraft) !== lokalerLastSavedSnapshot;
+}
+
+function koordLokUpdateSaveStatus() {
+  const status = document.getElementById('koord-lok-save-status');
+  if (!status) return;
+  const dirty = lokalerIsDirty();
+  status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
+  status.className = 'koord-mp-save-status' + (dirty ? ' dirty' : '');
+}
+
+// Same rolling half-year as faellesspisning.js's faellesCurrentHalfYearRange
+// (duplicated — this page doesn't load that file): Jan–Jun or Jul–Dec of
+// today, so in the autumn it shows that year's revy.
+function koordLokHalfYearRange() {
+  const today = todayIso();
+  const year = today.slice(0, 4);
+  return Number(today.slice(5, 7)) <= 6
+    ? { start: `${year}-01-01`, end: `${year}-06-30` }
+    : { start: `${year}-07-01`, end: `${year}-12-31` };
+}
+
+function koordLokCalendarEvents() {
+  const override = siteLoadOverride('calendar');
+  if (override) return override;
+  return (typeof CALENDAR_DATA !== 'undefined' && Array.isArray(CALENDAR_DATA)) ? CALENDAR_DATA : [];
+}
+
+function koordLokIso(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function koordLokAddDays(iso, n) {
+  const d = parseIsoDate(iso);
+  d.setDate(d.getDate() + n);
+  return koordLokIso(d);
+}
+
+// [{date, titles}] sorted by date — one column per date, however many
+// events fall on it.
+function koordLokalerDays() {
+  const range = koordLokRange();
+  const byDate = new Map();
+  const addTitle = (date, title) => {
+    if (!byDate.has(date)) byDate.set(date, []);
+    const titles = byDate.get(date);
+    if (title && !titles.includes(title)) titles.push(title);
+  };
+  let lastShow = '';
+  koordLokCalendarEvents().forEach((ev) => {
+    if (!ev || (ev.category !== 'ove' && ev.category !== 'forestilling') || !ev.date) return;
+    const end = (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date;
+    let date = ev.date;
+    for (let i = 0; i < 62 && date <= end; i++, date = koordLokAddDays(date, 1)) {
+      if (date < range.start || date > range.end) continue;
+      addTitle(date, (ev.title || '').trim());
+      if (ev.category === 'forestilling' && date > lastShow) lastShow = date;
+    }
+  });
+  if (lastShow) addTitle(koordLokAddDays(lastShow, 1), 'Rengøring');
+  return Array.from(byDate.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, titles]) => ({ date, titles }));
+}
+
+function koordLokRoomHasContent(room) {
+  const cells = lokalerDraft.bookings[room.id];
+  return Boolean((room.name || '').trim()) || Boolean(cells && Object.keys(cells).length);
+}
+
+function koordLokWireDrag(rowEl, item, list, label, rerender) {
+  rowEl.draggable = true;
+  rowEl.addEventListener('dragstart', (e) => {
+    koordLokDragItem = item;
+    e.dataTransfer.effectAllowed = 'move';
+    const ghost = koordMpGetDragImageEl();
+    ghost.replaceChildren(el('div', 'koord-mp-drag-image-line', label() || 'Række'));
+    e.dataTransfer.setDragImage(ghost, 12, 16);
+  });
+  rowEl.addEventListener('dragend', () => { koordLokDragItem = null; });
+  koordWireDropHighlight(rowEl, () => {
+    if (koordLokDragItem && koordLokDragItem !== item && list.includes(koordLokDragItem)) {
+      koordMoveDraftItem(list, koordLokDragItem, item, rerender);
+      koordLokUpdateSaveStatus();
+    }
+  });
+}
+
+function koordLokTextInput(value, className, onInput) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'koord-mp-field ' + className;
+  input.value = value || '';
+  input.addEventListener('input', () => {
+    onInput(input.value);
+    koordLokUpdateSaveStatus();
+  });
+  return input;
+}
+
+function koordLokAddPlus(title, onClick) {
+  const btn = el('button', 'boss-manage-add-plus', '+');
+  btn.type = 'button';
+  btn.title = title;
+  btn.setAttribute('aria-label', title);
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function koordLokRemoveBtn(title, onClick) {
+  const btn = el('button', 'boss-manage-remove-btn', '✕');
+  btn.type = 'button';
+  btn.title = title;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+// Shift+arrow keys move between the grid's fields like a spreadsheet (the
+// room-name column included), selecting the target's text. Plain arrows
+// keep their normal in-field behaviour.
+function koordLokWireGridKeys(table) {
+  const moves = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] };
+  table.addEventListener('keydown', (e) => {
+    const move = moves[e.key];
+    if (!move || !e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    const td = e.target.closest('td');
+    const tr = td && td.parentElement;
+    if (!tr || !tr.classList.contains('koord-lok-tr')) return;
+    const rows = Array.from(table.querySelectorAll('tbody tr.koord-lok-tr:not(.koord-lok-drop-tail)'));
+    const fieldsOf = (row) => Array.from(row.querySelectorAll('input.koord-mp-field'));
+    const rowIdx = rows.indexOf(tr);
+    const colIdx = fieldsOf(tr).indexOf(e.target);
+    if (rowIdx === -1 || colIdx === -1) return;
+    e.preventDefault();
+    const targetRow = rows[rowIdx + move[0]];
+    const target = targetRow && fieldsOf(targetRow)[colIdx + move[1]];
+    if (!target) return;
+    target.focus();
+    target.select();
+  });
+}
+
+// Structural render of the booking grid — on add/remove/drag/save, never on
+// a keystroke (that would steal focus).
+function renderLokGrid() {
+  const mount = document.getElementById('koord-lok-grid');
+  if (!mount) return;
+  mount.textContent = '';
+  const days = koordLokalerDays();
+  const rooms = lokalerDraft.rooms;
+
+  if (!days.length) {
+    mount.appendChild(el('p', 'koord-lok-empty', 'Ingen øvedage i kalenderen i den valgte periode.'));
+  }
+
+  const wrap = el('div', 'koord-lok-table-wrap');
+  const table = el('table', 'koord-lok-table');
+  const thead = el('thead');
+  const headRow = el('tr');
+  headRow.appendChild(el('th', 'koord-lok-th-room', 'Lokale'));
+  days.forEach((day) => {
+    const d = parseIsoDate(day.date);
+    const th = el('th', 'koord-lok-th-day');
+    // Event title(s) above the date — one line each, ellipsized (the
+    // tooltip has them all); th's vertical-align: bottom keeps every date
+    // on one line however many titles sit above it.
+    if (day.titles.length) {
+      day.titles.forEach((t) => th.appendChild(el('div', 'koord-lok-th-title', t)));
+      th.title = day.titles.join(' · ');
+    }
+    th.appendChild(el('div', 'koord-lok-th-date',
+      `${DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()}/${d.getMonth() + 1}`));
+    headRow.appendChild(th);
+  });
+  headRow.appendChild(el('th', 'koord-lok-th-remove'));
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = el('tbody');
+  rooms.forEach((room) => {
+    const tr = el('tr', 'koord-lok-tr');
+    koordLokWireDrag(tr, room, rooms, () => (room.name || '').trim(), renderLokGrid);
+
+    const nameTd = el('td', 'koord-lok-td-room');
+    const nameWrap = el('div', 'koord-lok-room-wrap');
+    nameWrap.appendChild(el('span', 'boss-manage-drag-handle', '⠿'));
+    const nameInput = koordLokTextInput(room.name, 'koord-lok-room-input', (v) => { room.name = v; });
+    nameInput.placeholder = 'Lokale';
+    nameInput.title = room.name || '';
+    nameWrap.appendChild(nameInput);
+    nameTd.appendChild(nameWrap);
+    tr.appendChild(nameTd);
+
+    days.forEach((day) => {
+      const td = el('td', 'koord-lok-td-cell');
+      const cells = lokalerDraft.bookings[room.id] || {};
+      const input = koordLokTextInput(cells[day.date], 'koord-lok-cell-input', (v) => {
+        const map = lokalerDraft.bookings[room.id] || (lokalerDraft.bookings[room.id] = {});
+        if (v.trim()) map[day.date] = v;
+        else delete map[day.date];
+        if (!Object.keys(map).length) delete lokalerDraft.bookings[room.id];
+        input.title = v;
+      });
+      input.title = cells[day.date] || '';
+      input.setAttribute('aria-label', `${room.name || 'Lokale'} ${day.date}`);
+      td.appendChild(input);
+      tr.appendChild(td);
+    });
+
+    const removeTd = el('td', 'koord-lok-td-remove');
+    removeTd.appendChild(koordLokRemoveBtn('Fjern lokale', () => {
+      const remove = () => {
+        const idx = rooms.indexOf(room);
+        if (idx !== -1) rooms.splice(idx, 1);
+        delete lokalerDraft.bookings[room.id];
+        koordLokUpdateSaveStatus();
+        renderLokGrid();
+      };
+      if (!koordLokRoomHasContent(room)) { remove(); return; }
+      koordMpDeleteConfirm(
+        room.name ? `Fjern "${room.name}"?` : 'Fjern dette lokale?',
+        'Lokalets bookinger fjernes også.',
+        remove
+      );
+    }));
+    tr.appendChild(removeTd);
+    tbody.appendChild(tr);
+  });
+
+  // Drop-tail row: the only way to drop a room after the last one.
+  const tailTr = el('tr', 'koord-lok-tr koord-lok-drop-tail');
+  const tailTd = el('td');
+  tailTd.colSpan = days.length + 2;
+  tailTr.appendChild(tailTd);
+  koordWireDropHighlight(tailTr, () => {
+    if (koordLokDragItem && rooms.includes(koordLokDragItem)) {
+      koordMoveDraftItem(rooms, koordLokDragItem, null, renderLokGrid);
+      koordLokUpdateSaveStatus();
+    }
+  });
+  tbody.appendChild(tailTr);
+  table.appendChild(tbody);
+  koordLokWireGridKeys(table);
+  wrap.appendChild(table);
+  mount.appendChild(wrap);
+
+  const addRow = el('div', 'koord-lok-add-row');
+  addRow.appendChild(koordLokAddPlus('Tilføj lokale', () => {
+    rooms.push({ id: koordMpNewId('r'), name: '' });
+    koordLokUpdateSaveStatus();
+    renderLokGrid();
+    const inputs = mount.querySelectorAll('.koord-lok-room-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }));
+  mount.appendChild(addRow);
+}
+
+function renderLokOther() {
+  const mount = document.getElementById('koord-lok-other');
+  if (!mount) return;
+  mount.textContent = '';
+  const rows = lokalerDraft.other;
+
+  const header = el('div', 'koord-mp-row koord-mp-row-header');
+  header.appendChild(el('span', 'koord-mp-col-handle'));
+  header.appendChild(el('span', 'koord-lok-col-event', 'Begivenhed'));
+  header.appendChild(el('span', 'koord-lok-col-booking', 'Lokale og tid'));
+  header.appendChild(el('span', 'koord-mp-col-remove'));
+  mount.appendChild(header);
+
+  rows.forEach((row) => {
+    const rowEl = el('div', 'koord-mp-row');
+    koordLokWireDrag(rowEl, row, rows, () => (row.event || '').trim(), renderLokOther);
+    rowEl.appendChild(el('span', 'koord-mp-col-handle boss-manage-drag-handle', '⠿'));
+    const eventInput = koordLokTextInput(row.event, 'koord-lok-col-event', (v) => { row.event = v; });
+    eventInput.placeholder = 'Fx Infomøde d. 19/9';
+    rowEl.appendChild(eventInput);
+    const bookingInput = koordLokTextInput(row.booking, 'koord-lok-col-booking', (v) => { row.booking = v; });
+    bookingInput.placeholder = 'Fx A107 17-22';
+    rowEl.appendChild(bookingInput);
+    const removeWrap = el('span', 'koord-mp-col-remove');
+    removeWrap.appendChild(koordLokRemoveBtn('Fjern booking', () => {
+      const remove = () => {
+        const idx = rows.indexOf(row);
+        if (idx !== -1) rows.splice(idx, 1);
+        koordLokUpdateSaveStatus();
+        renderLokOther();
+      };
+      if (!(row.event || '').trim() && !(row.booking || '').trim()) { remove(); return; }
+      koordMpDeleteConfirm(row.event ? `Fjern "${row.event}"?` : 'Fjern denne booking?', null, remove);
+    }));
+    rowEl.appendChild(removeWrap);
+    mount.appendChild(rowEl);
+  });
+
+  const tail = el('div', 'koord-mp-drop-tail');
+  koordWireDropHighlight(tail, () => {
+    if (koordLokDragItem && rows.includes(koordLokDragItem)) {
+      koordMoveDraftItem(rows, koordLokDragItem, null, renderLokOther);
+      koordLokUpdateSaveStatus();
+    }
+  });
+  mount.appendChild(tail);
+
+  const addRow = el('div', 'koord-lok-add-row');
+  addRow.appendChild(koordLokAddPlus('Tilføj booking', () => {
+    rows.push({ id: koordMpNewId('o'), event: '', booking: '' });
+    koordLokUpdateSaveStatus();
+    renderLokOther();
+    const inputs = mount.querySelectorAll('.koord-lok-col-event');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }));
+  mount.appendChild(addRow);
+}
+
+async function koordLokSave() {
+  const saveBtn = document.getElementById('koord-lok-save-btn');
+  const status = document.getElementById('koord-lok-save-status');
+  saveBtn.disabled = true;
+  status.textContent = 'Gemmer...';
+  status.className = 'koord-mp-save-status';
+
+  const next = structuredClone(lokalerDraft);
+  const result = await siteSaveResource('lokaler', next);
+  saveBtn.disabled = false;
+  if (result.ok) {
+    koordLokalerOverride = next;
+    siteSaveOverride('lokaler', next);
+    lokalerDraft = null;
+    koordLokEnsureDraft();
+    renderLokGrid();
+    renderLokOther();
+    koordLokUpdateSaveStatus();
+    siteShowToast('Lokalebooking gemt.');
+  } else {
+    status.textContent = result.message || 'Kunne ikke gemme.';
+    status.className = 'koord-mp-save-status dirty';
+  }
+}
+
+// ── Signed booking forms (private PDF store) ──
+const KOORD_LOK_COLLAPSED_KEY = 'matrevy-koord-lok-collapsed';
+const KOORD_LOK_MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // mirrors lokaler_max_upload_bytes()
+let koordLokFiles = null; // null = not loaded yet
+let koordLokFilesMessage = '';
+let koordLokUploading = false;
+
+function koordLokIcon(viewBox, size, strokeWidth, paths) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', viewBox);
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', strokeWidth);
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  paths.forEach((d) => {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  });
+  return svg;
+}
+
+function koordLokIconBtn(title, icon) {
+  const btn = el('button', 'koord-lok-icon-btn');
+  btn.type = 'button';
+  btn.title = title;
+  btn.setAttribute('aria-label', title);
+  btn.appendChild(icon);
+  return btn;
+}
+
+function koordLokFileDisplayName(file) {
+  return (file.name || '').replace(/\.pdf$/i, '');
+}
+
+async function koordLokLoadFiles() {
+  if (location.protocol === 'file:') {
+    koordLokFiles = [];
+    koordLokFilesMessage = 'Kun tilgængelig online.';
+    renderLokFiles();
+    return;
+  }
+  // koordBudgetApi is a generic authenticated POST helper despite its name.
+  const result = await koordBudgetApi('lokaler_files_read', {});
+  koordLokFiles = result.ok ? (result.data.files || []) : [];
+  koordLokFilesMessage = result.ok ? '' : (result.message || 'Kunne ikke hente blanketterne.');
+  renderLokFiles();
+}
+
+// Streams one stored PDF with the password (never at a public URL).
+async function koordLokFetchFile(file) {
+  const auth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
+  const password = auth && auth.password ? auth.password : null;
+  if (!password) return { ok: false, message: '' };
+  let res;
+  try {
+    res = await fetch(SITE_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'lokaler_file', password, fileId: file.id }),
+    });
+  } catch (e) {
+    return { ok: false, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
+  }
+  const type = res.headers.get('Content-Type') || '';
+  if (!res.ok || type.includes('json') || type.includes('html')) {
+    return { ok: false, message: 'Kunne ikke hente filen.' };
+  }
+  const blob = await res.blob();
+  return { ok: true, blob: new Blob([blob], { type: 'application/pdf' }) };
+}
+
+function koordLokSaveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10 * 1000);
+}
+
+// The window is opened synchronously (inside the click) so popup blockers
+// allow it, then pointed at the blob once it has arrived — as bandOpenFile.
+async function koordLokOpenFile(file) {
+  const win = window.open('', '_blank');
+  if (win) win.document.title = file.name;
+  const result = await koordLokFetchFile(file);
+  if (!result.ok) {
+    if (win) win.close();
+    if (result.message) siteShowToast(result.message);
+    return;
+  }
+  const url = URL.createObjectURL(result.blob);
+  if (win) win.location.href = url;
+  else koordLokSaveBlob(result.blob, file.name);
+  setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+}
+
+async function koordLokDownloadFile(file, btn) {
+  btn.disabled = true;
+  const result = await koordLokFetchFile(file);
+  btn.disabled = false;
+  if (!result.ok) { if (result.message) siteShowToast(result.message); return; }
+  koordLokSaveBlob(result.blob, file.name);
+}
+
+function koordLokReadAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result || '');
+      resolve(s.slice(s.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// One file at a time; wrong type/too large is skipped with a toast.
+async function koordLokUploadFiles(fileList) {
+  if (koordLokUploading) { siteShowToast('Vent til den igangværende upload er færdig.'); return; }
+  const files = Array.from(fileList || []);
+  const ok = files.filter((f) => /\.pdf$/i.test(f.name) && f.size <= KOORD_LOK_MAX_UPLOAD_BYTES);
+  if (ok.length < files.length) siteShowToast('Kun PDF-filer på højst 15 MB kan uploades.');
+  if (!ok.length) return;
+  koordLokUploading = true;
+  renderLokFiles();
+  for (const file of ok) {
+    let contentBase64;
+    try { contentBase64 = await koordLokReadAsBase64(file); } catch (e) { siteShowToast(`Kunne ikke læse ${file.name}.`); continue; }
+    const result = await koordBudgetApi('lokaler_upload_file', { name: file.name, contentBase64 });
+    if (!result.ok) {
+      if (result.message) siteShowToast(result.message);
+      break;
+    }
+    koordLokFiles = result.data.files || [];
+    koordLokFilesMessage = '';
+    renderLokFiles();
+  }
+  koordLokUploading = false;
+  renderLokFiles();
+}
+
+function openKoordLokRenameModal(file) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Omdøb fil');
+  modal.classList.add('koord-mp-confirm-modal');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 120;
+  input.value = koordLokFileDisplayName(file);
+  form.appendChild(siteEditField('Navn', input));
+
+  const cancelBtn = koordPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const saveBtn = koordPillBtn('Gem', 'site-btn-success');
+  async function submit() {
+    const name = input.value.trim();
+    if (!name) { error.textContent = 'Giv filen et navn.'; input.focus(); return; }
+    if (name === koordLokFileDisplayName(file)) { close(); return; }
+    saveBtn.disabled = true;
+    error.textContent = '';
+    const result = await koordBudgetApi('lokaler_rename_file', { fileId: file.id, name });
+    saveBtn.disabled = false;
+    if (!result.ok) { if (result.message) error.textContent = result.message; return; }
+    koordLokFiles = result.data.files || [];
+    renderLokFiles();
+    close();
+  }
+  saveBtn.addEventListener('click', submit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    submit();
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  input.focus();
+  input.select();
+}
+
+function renderLokFiles() {
+  const mount = document.getElementById('koord-lok-files');
+  if (!mount) return;
+  mount.textContent = '';
+
+  if (koordLokFiles === null) {
+    mount.appendChild(el('p', 'koord-lok-empty', 'Henter...'));
+    return;
+  }
+  if (koordLokFilesMessage) {
+    mount.appendChild(el('p', 'koord-lok-empty', koordLokFilesMessage));
+    if (location.protocol === 'file:') return;
+  } else if (!koordLokFiles.length) {
+    mount.appendChild(el('p', 'koord-lok-empty', 'Ingen blanketter uploadet endnu.'));
+  }
+
+  const list = el('ul', 'koord-lok-file-list');
+  koordLokFiles.forEach((file) => {
+    const li = el('li', 'koord-lok-file-row');
+    const nameBtn = el('button', 'koord-lok-file-name', koordLokFileDisplayName(file));
+    nameBtn.type = 'button';
+    nameBtn.title = 'Åbn PDF';
+    nameBtn.addEventListener('click', () => koordLokOpenFile(file));
+    li.appendChild(nameBtn);
+
+    const dl = koordLokIconBtn('Download', koordLokIcon('0 0 24 24', '16', '2', ['M12 4v11', 'M7 10l5 5 5-5', 'M5 20h14']));
+    dl.addEventListener('click', () => koordLokDownloadFile(file, dl));
+    li.appendChild(dl);
+
+    const rename = koordLokIconBtn('Omdøb', koordLokIcon('0 0 16 16', '15', '1.3', ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
+    rename.addEventListener('click', () => openKoordLokRenameModal(file));
+    li.appendChild(rename);
+
+    li.appendChild(koordLokRemoveBtn('Slet fil', () => {
+      koordMpDeleteConfirm(`Slet "${koordLokFileDisplayName(file)}"?`, 'Filen slettes permanent.', async () => {
+        const result = await koordBudgetApi('lokaler_delete_file', { fileId: file.id });
+        if (!result.ok) { if (result.message) siteShowToast(result.message); return; }
+        koordLokFiles = result.data.files || [];
+        renderLokFiles();
+      });
+    }));
+    list.appendChild(li);
+  });
+  mount.appendChild(list);
+
+  const bar = el('div', 'koord-lok-upload-bar');
+  const picker = document.createElement('input');
+  picker.type = 'file';
+  picker.accept = '.pdf,application/pdf';
+  picker.multiple = true;
+  picker.hidden = true;
+  picker.addEventListener('change', () => {
+    const files = picker.files;
+    koordLokUploadFiles(files);
+    picker.value = '';
+  });
+  const uploadBtn = el('button', 'btn-small', koordLokUploading ? 'Uploader...' : 'Upload PDF');
+  uploadBtn.type = 'button';
+  uploadBtn.disabled = koordLokUploading;
+  uploadBtn.addEventListener('click', () => picker.click());
+  bar.appendChild(uploadBtn);
+  bar.appendChild(picker);
+  mount.appendChild(bar);
+}
+
+// Dropping PDFs from the desktop anywhere on the files section uploads them.
+function koordLokWireFileDrop(zone) {
+  let depth = 0;
+  const isFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files');
+  zone.addEventListener('dragenter', (e) => {
+    if (!isFiles(e)) return;
+    e.preventDefault();
+    depth++;
+    zone.classList.add('koord-lok-file-drop');
+  });
+  zone.addEventListener('dragover', (e) => { if (isFiles(e)) e.preventDefault(); });
+  zone.addEventListener('dragleave', (e) => {
+    if (!isFiles(e)) return;
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) zone.classList.remove('koord-lok-file-drop');
+  });
+  zone.addEventListener('drop', (e) => {
+    if (!isFiles(e)) return;
+    e.preventDefault();
+    depth = 0;
+    zone.classList.remove('koord-lok-file-drop');
+    koordLokUploadFiles(e.dataTransfer.files);
+  });
+}
+
+function renderLokalerTab(container) {
+  koordLokEnsureDraft();
+
+  const card = el('section', 'card koord-lok-card');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Lokalebooking'));
+  card.appendChild(head);
+
+  // Everything below the head lives in `body`, so the head's chevron
+  // toggle can collapse the whole section (remembered per browser).
+  const body = el('div', 'koord-lok-body');
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(KOORD_LOK_COLLAPSED_KEY) === '1'; } catch (e) { /* ignore */ }
+  const toggle = el('button', 'koord-lok-collapse-btn');
+  toggle.type = 'button';
+  function paintCollapsed() {
+    body.hidden = collapsed;
+    card.classList.toggle('koord-lok-collapsed', collapsed);
+    toggle.textContent = collapsed ? '▸' : '▾';
+    toggle.title = collapsed ? 'Vis' : 'Skjul';
+    toggle.setAttribute('aria-label', collapsed ? 'Vis Lokalebooking' : 'Skjul Lokalebooking');
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+  toggle.addEventListener('click', () => {
+    collapsed = !collapsed;
+    try { localStorage.setItem(KOORD_LOK_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) { /* ignore */ }
+    paintCollapsed();
+  });
+  paintCollapsed();
+  head.appendChild(toggle);
+  card.appendChild(body);
+
+  // Hint text left, the Fra/Til period right, on one row (wraps when narrow).
+  const topRow = el('div', 'koord-lok-top');
+  topRow.appendChild(el('p', 'koord-lok-hint',
+    'Kolonnerne er øvedage og forestillinger fra Kalenderen i den valgte periode, plus dagen efter sidste forestilling til rengøring.'));
+
+  // Fra/Til: which Kalender days become columns. Part of the Gem draft;
+  // until an admin picks one, the window is the current half-year.
+  const rangeRow = el('div', 'koord-lok-range');
+  const range = koordLokRange();
+  const fromField = siteCreateDateField(range.start);
+  const toField = siteCreateDateField(range.end);
+  function onRangeChange(changed) {
+    let start = fromField.value;
+    let end = toField.value;
+    if (start > end) {
+      // Keep the window valid: the other end follows the one just moved.
+      if (changed === fromField) { end = start; toField.value = end; }
+      else { start = end; fromField.value = start; }
+    }
+    lokalerDraft.range = { start, end };
+    koordLokUpdateSaveStatus();
+    renderLokGrid();
+  }
+  fromField.addEventListener('change', () => onRangeChange(fromField));
+  toField.addEventListener('change', () => onRangeChange(toField));
+  rangeRow.appendChild(el('span', 'koord-lok-range-label', 'Øvedage fra'));
+  rangeRow.appendChild(fromField);
+  rangeRow.appendChild(el('span', 'koord-lok-range-label', 'til'));
+  rangeRow.appendChild(toField);
+  topRow.appendChild(rangeRow);
+  body.appendChild(topRow);
+
+  const grid = el('div');
+  grid.id = 'koord-lok-grid';
+  body.appendChild(grid);
+
+  // Øvrige bookinger | Underskrevne blanketter side by side (stacked on a
+  // phone), then Gem bottom-right of the card — it saves the grid and
+  // Øvrige bookinger; the blanketter save live on their own.
+  const columns = el('div', 'koord-lok-columns');
+
+  const otherCol = el('div', 'koord-lok-column');
+  otherCol.appendChild(el('h3', 'koord-step-heading', 'Øvrige bookinger'));
+  const other = el('div', 'koord-lok-other');
+  other.id = 'koord-lok-other';
+  otherCol.appendChild(other);
+  columns.appendChild(otherCol);
+
+  const filesSection = el('div', 'koord-lok-column koord-lok-files-section');
+  filesSection.appendChild(el('h3', 'koord-step-heading', 'Underskrevne blanketter'));
+  const files = el('div');
+  files.id = 'koord-lok-files';
+  filesSection.appendChild(files);
+  koordLokWireFileDrop(filesSection);
+  columns.appendChild(filesSection);
+  body.appendChild(columns);
+
+  const saveBar = el('div', 'koord-mp-save-bar koord-lok-save-bar');
+  const saveGroup = el('div', 'koord-mp-save-group');
+  const status = el('span', 'koord-mp-save-status');
+  status.id = 'koord-lok-save-status';
+  const saveBtn = el('button', 'site-btn-success', 'Gem');
+  saveBtn.id = 'koord-lok-save-btn';
+  saveBtn.type = 'button';
+  saveBtn.addEventListener('click', koordLokSave);
+  saveGroup.appendChild(status);
+  saveGroup.appendChild(saveBtn);
+  saveBar.appendChild(saveGroup);
+  body.appendChild(saveBar);
+  container.appendChild(card);
+
+  const fravaerCard = el('section', 'card');
+  const fravaerHead = el('div', 'card-head');
+  fravaerHead.appendChild(el('h2', null, 'Fravær'));
+  fravaerCard.appendChild(fravaerHead);
+  container.appendChild(fravaerCard);
+
+  renderLokGrid();
+  renderLokOther();
+  koordLokUpdateSaveStatus();
+  renderLokFiles();
+  if (koordLokFiles === null) koordLokLoadFiles();
+}
+
 // ── Page render ──────────────────────────────────────────────
-// Three top-level page tabs — Masterplan / Tjeklister & Fællesbeskeder /
-// Arkivering — each getting the full page width to work in, styled like
+// Four top-level page tabs — Masterplan / Tjeklister & Fællesbeskeder /
+// Lokaler & Fravær / Arkivering — each getting the full page width to work in, styled like
 // Budget's/Formularer's own mode-switch tab bar (.budget-mode-tabs/-tab,
 // duplicated here as .koord-mode-tabs/-tab per the site's per-feature
 // duplication convention — koordinator.html doesn't load budget.css).
@@ -1683,6 +2464,7 @@ function openKoordBudgetEditor() {
 const KOORD_TABS = [
   { key: 'masterplan', label: 'Masterplan' },
   { key: 'tjeklister', label: 'Tjeklister & Fællesbeskeder' },
+  { key: 'lokaler', label: 'Lokaler & Fravær' },
   { key: 'arkivering', label: 'Arkivering' },
 ];
 const KOORD_TAB_KEY = 'matrevy-koord-tab';
@@ -1811,6 +2593,7 @@ function renderKoordinator(root) {
 
   if (koordActiveTab === 'masterplan') renderMasterplanCard(root);
   else if (koordActiveTab === 'tjeklister') renderTjeklisterCard(root);
+  else if (koordActiveTab === 'lokaler') renderLokalerTab(root);
   else renderArkiveringCard(root);
 }
 

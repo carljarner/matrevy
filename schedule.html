@@ -39,7 +39,11 @@
           <span id="input-gap-mount"></span>
         </div>
 
-        <div class="field-label">Lokaler (ét per linje)
+        <div class="field-label">
+          <span class="sched-rooms-label-row">
+            <label for="input-rooms">Lokaler (ét per linje)</label>
+            <button type="button" class="btn-secondary sched-rooms-fetch-btn" id="btn-lokalebooking">Lokalebooking</button>
+          </span>
           <textarea id="input-rooms" rows="5" placeholder="Lille UP1&#10;Store UP1&#10;Lokale&#10;Bandet&#10;Rekvisitten"></textarea>
         </div>
 
@@ -143,6 +147,8 @@
 
   <script src="js/site.js"></script>
   <script src="js/scenes-data.js"></script>
+  <script src="js/calendar-data.js"></script>
+  <script src="js/lokaler-data.js"></script>
   <script src="js/schedule.js"></script>
 </body>
 </html>

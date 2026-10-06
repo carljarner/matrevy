@@ -289,6 +289,24 @@ if (isset($BAND_ACTIONS[$action])) {
   handle_band($action, $body);
 }
 
+// ── Lokaler actions (Koordinator's signed room-booking forms) ──
+// Signed PDFs carry names and signatures, so they live in the private
+// LOKALER_DATA_DIR, never a web-served folder. Admin-only like the rest of
+// Koordinator. The booking grid itself is the public `lokaler` resource.
+$LOKALER_ACTIONS = [
+  'lokaler_files_read'  => 'admin', // {files:[{id, name, size, uploadedAt}]}
+  'lokaler_upload_file' => 'admin', // one PDF
+  'lokaler_rename_file' => 'admin', // the shown/download name only
+  'lokaler_delete_file' => 'admin', // idempotent
+  'lokaler_file'        => 'admin', // streams one file's bytes (not JSON)
+];
+if (isset($LOKALER_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$LOKALER_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  handle_lokaler($action, $body);
+}
+
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
 // posts_create is revyst-level append-only (mirrors budget_submit's shape,
 // against the public data/posts.json instead of the private budget store)
@@ -4398,6 +4416,153 @@ function handle_band($action, $body) {
   respond(400, ['error' => 'unknown_action']);
 }
 
+// ── Lokaler datastore (private, local files under LOKALER_DATA_DIR) ──
+//   LOKALER_DATA_DIR/files.json        {files:[{id, name, size, uploadedAt}], updatedAt}
+//   LOKALER_DATA_DIR/files/<id>.pdf
+// Files are stored under server-generated ids; the original filename is
+// metadata only. Dispatched early (above), so hoisted functions only.
+
+function lokaler_dir() {
+  if (!defined('LOKALER_DATA_DIR') || !is_string(LOKALER_DATA_DIR) || LOKALER_DATA_DIR === '') {
+    respond(500, ['error' => 'lokaler_not_configured']);
+  }
+  return rtrim(LOKALER_DATA_DIR, '/');
+}
+
+function lokaler_max_upload_bytes() {
+  return 15 * 1024 * 1024;
+}
+
+function lokaler_ensure_dir($dir) {
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'lokaler_storage_unavailable']);
+  }
+}
+
+function lokaler_file_path($fileId) {
+  return lokaler_dir() . '/files/' . $fileId . '.pdf';
+}
+
+function lokaler_load() {
+  $path = lokaler_dir() . '/files.json';
+  if (!is_file($path)) return ['files' => []];
+  $doc = json_decode((string) file_get_contents($path), true);
+  return (is_array($doc) && is_array($doc['files'] ?? null)) ? $doc : ['files' => []];
+}
+
+// Flock'd read-modify-write — copy of band_mutate().
+function lokaler_mutate($mutate) {
+  lokaler_ensure_dir(lokaler_dir());
+  $fh = @fopen(lokaler_dir() . '/files.json', 'c+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'lokaler_storage_unavailable']);
+  }
+  $raw = stream_get_contents($fh);
+  $doc = ($raw === '' || $raw === false) ? null : json_decode($raw, true);
+  if (!is_array($doc) || !is_array($doc['files'] ?? null)) $doc = ['files' => []];
+  $doc = $mutate($doc);
+  $doc['updatedAt'] = date('c');
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  return $doc;
+}
+
+function lokaler_files_read($body) {
+  respond(200, ['ok' => true, 'files' => lokaler_load()['files']]);
+}
+
+// {name, contentBase64}. The file is written first (outside the lock),
+// then recorded.
+function lokaler_upload_file($body) {
+  $name = is_string($body['name'] ?? null) ? trim(str_replace(['/', '\\', "\0"], '-', $body['name'])) : '';
+  if ($name === '' || mb_strlen($name) > 200) respond(400, ['error' => 'invalid_shape']);
+  if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'pdf') respond(400, ['error' => 'bad_extension']);
+  $raw = base64_decode((string) ($body['contentBase64'] ?? ''), true);
+  if ($raw === false || $raw === '') respond(400, ['error' => 'invalid_content']);
+  if (strlen($raw) > lokaler_max_upload_bytes()) respond(413, ['error' => 'too_large']);
+  if (substr($raw, 0, 5) !== '%PDF-') respond(400, ['error' => 'not_a_pdf']);
+
+  $fileId = band_id();
+  lokaler_ensure_dir(lokaler_dir() . '/files');
+  $path = lokaler_file_path($fileId);
+  $tmp = $path . '.tmp';
+  if (@file_put_contents($tmp, $raw) === false || !@rename($tmp, $path)) {
+    @unlink($tmp);
+    respond(500, ['error' => 'lokaler_storage_unavailable']);
+  }
+  $meta = ['id' => $fileId, 'name' => $name, 'size' => strlen($raw), 'uploadedAt' => date('c')];
+  $doc = lokaler_mutate(function ($doc) use ($meta) {
+    $doc['files'][] = $meta;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'file' => $meta, 'files' => $doc['files']]);
+}
+
+// {fileId, name} — `name` without extension; ".pdf" is kept.
+function lokaler_rename_file($body) {
+  $fileId = $body['fileId'] ?? '';
+  $name = is_string($body['name'] ?? null) ? trim(str_replace(['/', '\\', "\0"], '-', $body['name'])) : '';
+  if (!band_valid_id($fileId) || $name === '' || mb_strlen($name) > 190) respond(400, ['error' => 'invalid_shape']);
+  $found = false;
+  $doc = lokaler_mutate(function ($doc) use ($fileId, $name, &$found) {
+    foreach ($doc['files'] as $i => $file) {
+      if (($file['id'] ?? '') !== $fileId) continue;
+      $doc['files'][$i]['name'] = $name . '.pdf';
+      $found = true;
+    }
+    return $doc;
+  });
+  if (!$found) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true, 'files' => $doc['files']]);
+}
+
+function lokaler_delete_file($body) {
+  $fileId = $body['fileId'] ?? '';
+  if (!band_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  $doc = lokaler_mutate(function ($doc) use ($fileId) {
+    $doc['files'] = array_values(array_filter($doc['files'], function ($f) use ($fileId) {
+      return ($f['id'] ?? '') !== $fileId;
+    }));
+    return $doc;
+  });
+  @unlink(lokaler_file_path($fileId));
+  respond(200, ['ok' => true, 'files' => $doc['files']]);
+}
+
+// Streams one file (fetched with the password — never at a public URL).
+function lokaler_file($body) {
+  $fileId = $body['fileId'] ?? '';
+  if (!band_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  $meta = null;
+  foreach (lokaler_load()['files'] as $file) {
+    if (($file['id'] ?? '') === $fileId) { $meta = $file; break; }
+  }
+  $path = lokaler_file_path($fileId);
+  if ($meta === null || !is_file($path)) respond(404, ['error' => 'not_found']);
+  $asciiName = preg_replace('/[^A-Za-z0-9._ -]/', '_', $meta['name']);
+  header('Content-Type: application/pdf');
+  header('Content-Length: ' . filesize($path));
+  header('Content-Disposition: attachment; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($meta['name']));
+  readfile($path);
+  exit;
+}
+
+function handle_lokaler($action, $body) {
+  switch ($action) {
+    case 'lokaler_files_read':  return lokaler_files_read($body);
+    case 'lokaler_upload_file': return lokaler_upload_file($body);
+    case 'lokaler_rename_file': return lokaler_rename_file($body);
+    case 'lokaler_delete_file': return lokaler_delete_file($body);
+    case 'lokaler_file':        return lokaler_file($body);
+  }
+  respond(400, ['error' => 'unknown_action']);
+}
+
 // ── Resource savers ──────────────────────────────────────────
 // Each resource: minimum level + a validate-and-commit function.
 // Later phases (calendar, archive, ...) register here.
@@ -5453,6 +5618,88 @@ function save_masterplan($payload) {
   }, 'Opdater masterplan.json via Koordinator');
 }
 
+// Koordinator's Lokaler & Fravær tab: the room-booking grid. Rooms are
+// rows; bookings are free text keyed by room id and ISO date (not by
+// calendar event, so moving a Kalender event never orphans a cell, and
+// rooms carry over from year to year). `other` is the free-form list of
+// one-off bookings under the grid. Signed PDFs live in the private
+// LOKALER_DATA_DIR instead (lokaler_* actions above).
+function save_lokaler($payload) {
+  $rooms = $payload['rooms'] ?? null;
+  $bookings = $payload['bookings'] ?? [];
+  $other = $payload['other'] ?? null;
+  if (!is_array($rooms) || count($rooms) > 100 || !is_array($bookings)
+      || !is_array($other) || count($other) > 100) {
+    respond(400, ['error' => 'invalid_lokaler_shape']);
+  }
+
+  $roomIds = [];
+  $cleanRooms = [];
+  foreach ($rooms as $r) {
+    if (!is_array($r) || !isset($r['id'], $r['name'])
+        || !is_string($r['id']) || !preg_match('#^[A-Za-z0-9_-]{1,60}$#', $r['id'])
+        || isset($roomIds[$r['id']])
+        || !is_string($r['name']) || mb_strlen($r['name']) > 100) {
+      respond(400, ['error' => 'invalid_lokaler_shape']);
+    }
+    $roomIds[$r['id']] = true;
+    $cleanRooms[] = ['id' => $r['id'], 'name' => $r['name']];
+  }
+
+  $cleanBookings = [];
+  foreach ($bookings as $roomId => $byDate) {
+    if (!is_string($roomId) || !isset($roomIds[$roomId]) || !is_array($byDate) || count($byDate) > 400) {
+      respond(400, ['error' => 'invalid_lokaler_shape']);
+    }
+    $cells = [];
+    foreach ($byDate as $date => $value) {
+      if (!is_string($date) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $date)
+          || !is_string($value) || mb_strlen($value) > 200) {
+        respond(400, ['error' => 'invalid_lokaler_shape']);
+      }
+      if (trim($value) !== '') $cells[$date] = $value;
+    }
+    if ($cells) $cleanBookings[$roomId] = (object) $cells;
+  }
+
+  // Optional admin-chosen window for importing days from Kalender
+  // (absent/null = the client's current half-year).
+  $range = $payload['range'] ?? null;
+  $cleanRange = null;
+  if ($range !== null) {
+    if (!is_array($range) || !isset($range['start'], $range['end'])
+        || !is_string($range['start']) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $range['start'])
+        || !is_string($range['end']) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $range['end'])
+        || $range['start'] > $range['end']) {
+      respond(400, ['error' => 'invalid_lokaler_shape']);
+    }
+    $cleanRange = ['start' => $range['start'], 'end' => $range['end']];
+  }
+
+  $otherIds = [];
+  $cleanOther = [];
+  foreach ($other as $o) {
+    if (!is_array($o) || !isset($o['id'], $o['event'], $o['booking'])
+        || !is_string($o['id']) || !preg_match('#^[A-Za-z0-9_-]{1,60}$#', $o['id'])
+        || isset($otherIds[$o['id']])
+        || !is_string($o['event']) || mb_strlen($o['event']) > 200
+        || !is_string($o['booking']) || mb_strlen($o['booking']) > 200) {
+      respond(400, ['error' => 'invalid_lokaler_shape']);
+    }
+    $otherIds[$o['id']] = true;
+    $cleanOther[] = ['id' => $o['id'], 'event' => $o['event'], 'booking' => $o['booking']];
+  }
+
+  update_file('data/lokaler.json', function ($json) use ($cleanRooms, $cleanBookings, $cleanOther, $cleanRange) {
+    $json['rooms'] = $cleanRooms;
+    $json['bookings'] = (object) $cleanBookings;
+    $json['other'] = $cleanOther;
+    if ($cleanRange) $json['range'] = $cleanRange;
+    else unset($json['range']);
+    return $json;
+  }, 'Opdater lokaler.json via Koordinator');
+}
+
 // Admin-only Gantt chart of the revy period, shown below Kalender's own
 // calendar (js/calendar.js's renderGantt). One chart total — `year` picks
 // which September–November window is drawn; each row is an admin-named
@@ -5601,6 +5848,7 @@ $RESOURCES = [
   'config'        => ['level' => 'admin', 'save' => 'save_config'],
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
   'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
+  'lokaler'       => ['level' => 'admin', 'save' => 'save_lokaler'],
   'gantt'         => ['level' => 'admin', 'save' => 'save_gantt'],
   'revyugen'      => ['level' => 'admin', 'save' => 'save_revyugen'],
   'production'    => ['level' => 'admin', 'save' => 'save_production'],

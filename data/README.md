@@ -19,6 +19,7 @@ Schemas for the site's public data files.
 | `config.json` | Small site-wide settings: the active production folder and three revyst toggles |
 | `program.json` | Medvirkende/Ordliste/QR-codes content for the printed programme booklet, edited on the Manus page's Program tab and rendered into three layouts, `archive/<folder>/Program.pdf`, `ProgramHaefte.pdf`, and `ProgramHaefteHorisontal.pdf` |
 | `masterplan.json` | Koordinator page's "Masterplan" checklist — recurring production to-dos across 5 fixed phase-tabs, replacing an externally-maintained spreadsheet |
+| `lokaler.json` | Koordinator page's "Lokaler & Fravær" tab — room bookings per rehearsal day (Lokalebooking) plus one-off bookings, replacing the yearly Lokalebooking spreadsheet |
 | `gantt.json` | Gantt chart of the revy period (September–November) shown below the calendar on Kalender |
 | `revyugen.json` | Hour-by-hour week schedule of the revy's final nine days ("Revyugen"), shown below the Gantt chart on Kalender |
 
@@ -344,6 +345,22 @@ comments.
 - A row `id` must be a non-empty string, unique **within its own plan** (not globally across every plan — the client only ever edits one plan's rows at a time, so cross-plan uniqueness buys nothing).
 - `ansvarLabels` is a pair of admin-editable column-header strings (e.g. `["Ansvar 2026", "Ansvar 2027"]`) shared across that one plan's 5 tabs — replaces the source spreadsheet's inconsistent per-tab "Ansvar 2025/2026" vs "Ansvar 2024/2025" headers with one pair per plan, edited directly as the grid's own Ansvar column headers (no separate settings UI). A past year's plan keeps its own historical labels (e.g. "Ansvar 2024"/"Ansvar 2025") even after a newer plan exists.
 - Not reset by Koordinator's `koordCloseYear()` — a new production cycle doesn't touch `masterplan.json` at all; the admin creates that year's own plan by hand via "+ Tilføj" (typically once the previous year's plan is "done") and fills it in, optionally copying over recurring rows from the previous year's plan by hand.
+
+## Schema: lokaler.json
+
+```json
+{
+  "rooms":    [{ "id": "r-seed-00", "name": "Store UP1" }],
+  "bookings": { "r-seed-00": { "2026-11-12": "x", "2026-11-19": "Matkantinen" } },
+  "other":    [{ "id": "o-…", "event": "Infomøde d. 19/9", "booking": "A107 17-22" }]
+}
+```
+
+- Backs Koordinator's **Lokaler & Fravær** tab (`renderLokalerTab` in `js/koordinator.js`), **admin** `lokaler` resource, Gem-batched draft like Masterplan.
+- `rooms` are the grid's rows (order = display order). The **columns are never stored**: they are every `ove`/`forestilling` day in Kalender within `range` (optional `{start, end}` ISO dates, set by the admin's "Øvedage fra/til"; absent = the current rolling half-year), plus the day after the last `forestilling` ("Rengøring").
+- `bookings` is free text keyed by room `id` then ISO date — not by calendar event, so rooms carry over between years and moving an event never orphans a cell. Bookings for dates no longer shown stay in the file, unrendered. Empty strings are dropped on save; an empty map may come back as `[]` from PHP (the client treats it as `{}`).
+- `other` is the free-form "Øvrige bookinger" list under the grid.
+- The signed booking-form PDFs are **not** here: they live in the private `LOKALER_DATA_DIR` (`files.json` + `files/<id>.pdf`), via the admin `lokaler_*` actions.
 
 ## Schema: gantt.json
 

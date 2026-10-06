@@ -450,6 +450,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadScenes(!hasSavedPlacements());
 
   document.getElementById('btn-build').addEventListener('click', buildGrid);
+  document.getElementById('btn-lokalebooking').addEventListener('click', openLokalebookingModal);
   document.getElementById('btn-export').addEventListener('click', () => window.print());
   document.getElementById('btn-clear-schedule').addEventListener('click', clearSchedule);
   document.getElementById('clear-confirm-cancel').addEventListener('click', closeClearConfirm);
@@ -1056,6 +1057,200 @@ async function confirmClearSchedule() {
   renderGrid();
   renderSceneSidebar();
   saveState();
+}
+
+// ── Lokalebooking → Lokaler field ─────────────────────────
+// The button on the "Lokaler (ét per linje)" line opens a modal showing,
+// per rehearsal/show day, the rooms booked in Koordinator's Lokalebooking
+// sheet (data/lokaler.json — every room whose cell for that date isn't
+// blank). "Hent" replaces the Lokaler field with that day's rooms, in the
+// sheet's order. The day columns are a copy of koordinator.js's
+// koordLokalerDays() (this page doesn't load koordinator.js or
+// site-utils.js): every `ove`/`forestilling` day in the current rolling
+// half-year (or Lokalebooking's chosen Fra/Til window), plus the day
+// after the last show ("Rengøring").
+const SCHED_WEEKDAYS_SHORT = ['man', 'tir', 'ons', 'tor', 'fre', 'lør', 'søn'];
+
+// Same localStorage shadow site-utils.js's siteLoadOverride() reads, so a
+// Koordinator/Kalender save shows up here in the same browser.
+function schedLoadOverride(resource) {
+  try {
+    const raw = localStorage.getItem(`matrevy-override-${resource}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.savedAt !== 'number' || Date.now() - parsed.savedAt > MANUS_OVERRIDE_TTL_MS) return null;
+    return parsed.data;
+  } catch (e) {
+    return null;
+  }
+}
+
+function schedLokalerDoc() {
+  const doc = schedLoadOverride('lokaler') || (typeof LOKALER_DATA !== 'undefined' ? LOKALER_DATA : null) || {};
+  return {
+    rooms: Array.isArray(doc.rooms) ? doc.rooms : [],
+    // PHP's json_encode writes an empty map as [] — treat it as {}.
+    bookings: (doc.bookings && !Array.isArray(doc.bookings)) ? doc.bookings : {},
+    range: doc.range || null,
+  };
+}
+
+function schedCalendarEvents() {
+  const override = schedLoadOverride('calendar');
+  if (Array.isArray(override)) return override;
+  return (typeof CALENDAR_DATA !== 'undefined' && Array.isArray(CALENDAR_DATA)) ? CALENDAR_DATA : [];
+}
+
+// Always from parts — new Date('YYYY-MM-DD') parses as UTC.
+function schedParseIsoDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function schedIsoDate(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function schedAddDays(iso, n) {
+  const d = schedParseIsoDate(iso);
+  d.setDate(d.getDate() + n);
+  return schedIsoDate(d);
+}
+
+// `chosen` is Lokalebooking's admin-picked {start, end}; without one, the
+// current rolling half-year.
+function schedLokalerDays(chosen) {
+  const today = schedIsoDate(new Date());
+  const year = today.slice(0, 4);
+  const iso = /^\d{4}-\d{2}-\d{2}$/;
+  const range = (chosen && iso.test(chosen.start || '') && iso.test(chosen.end || '') && chosen.start <= chosen.end)
+    ? chosen
+    : Number(today.slice(5, 7)) <= 6
+      ? { start: `${year}-01-01`, end: `${year}-06-30` }
+      : { start: `${year}-07-01`, end: `${year}-12-31` };
+  const byDate = new Map();
+  const addTitle = (date, title) => {
+    if (!byDate.has(date)) byDate.set(date, []);
+    const titles = byDate.get(date);
+    if (title && !titles.includes(title)) titles.push(title);
+  };
+  let lastShow = '';
+  schedCalendarEvents().forEach((ev) => {
+    if (!ev || (ev.category !== 'ove' && ev.category !== 'forestilling') || !ev.date) return;
+    const end = (ev.endDate && ev.endDate >= ev.date) ? ev.endDate : ev.date;
+    let date = ev.date;
+    for (let i = 0; i < 62 && date <= end; i++, date = schedAddDays(date, 1)) {
+      if (date < range.start || date > range.end) continue;
+      addTitle(date, (ev.title || '').trim());
+      if (ev.category === 'forestilling' && date > lastShow) lastShow = date;
+    }
+  });
+  if (lastShow) addTitle(schedAddDays(lastShow, 1), 'Rengøring');
+  return Array.from(byDate.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([date, titles]) => ({ date, titles }));
+}
+
+// [{name, note}] in the sheet's room order; `note` is the cell's text when
+// it says more than a plain "x" (e.g. "Matkantinen").
+function schedBookedRooms(doc, date) {
+  const booked = [];
+  doc.rooms.forEach((room) => {
+    const name = (room.name || '').trim();
+    const cells = doc.bookings[room.id];
+    const value = cells && typeof cells[date] === 'string' ? cells[date].trim() : '';
+    if (!name || !value) return;
+    booked.push({ name, note: value.toLowerCase() === 'x' ? '' : value });
+  });
+  return booked;
+}
+
+function schedEl(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function openLokalebookingModal() {
+  const overlay = schedEl('div', 'login-overlay');
+  const modal = schedEl('div', 'login-modal site-modal sched-lok-modal');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-label', 'Lokalebooking');
+
+  function close() {
+    document.removeEventListener('keydown', onKeydown);
+    overlay.remove();
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') close();
+  }
+  document.addEventListener('keydown', onKeydown);
+  // Only a click whose mousedown also landed on the backdrop closes it.
+  let backdropMousedown = false;
+  overlay.addEventListener('mousedown', (e) => { backdropMousedown = e.target === overlay; });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && backdropMousedown) close(); });
+
+  const closeX = schedEl('button', 'site-modal-close', '✕');
+  closeX.type = 'button';
+  closeX.setAttribute('aria-label', 'Luk');
+  closeX.addEventListener('click', close);
+  modal.appendChild(closeX);
+  modal.appendChild(schedEl('h2', null, 'Lokalebooking'));
+
+  const doc = schedLokalerDoc();
+  const days = schedLokalerDays(doc.range);
+  if (!days.length) {
+    modal.appendChild(schedEl('p', 'sched-lok-empty', 'Ingen øvedage i kalenderen i den valgte periode.'));
+  }
+
+  const strip = schedEl('div', 'sched-lok-days');
+  const today = schedIsoDate(new Date());
+  let firstUpcoming = null;
+  days.forEach((day) => {
+    const col = schedEl('div', 'sched-lok-day');
+    if (!firstUpcoming && day.date >= today) firstUpcoming = col;
+
+    const head = schedEl('div', 'sched-lok-day-head');
+    day.titles.forEach((t) => head.appendChild(schedEl('div', 'sched-lok-day-title', t)));
+    head.title = day.titles.join(' · ');
+    const d = schedParseIsoDate(day.date);
+    head.appendChild(schedEl('div', 'sched-lok-day-date',
+      `${SCHED_WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()}/${d.getMonth() + 1}`));
+    col.appendChild(head);
+
+    const booked = schedBookedRooms(doc, day.date);
+    const list = schedEl('ul', 'sched-lok-rooms');
+    booked.forEach((room) => {
+      const li = schedEl('li', 'sched-lok-room', room.name);
+      if (room.note) li.appendChild(schedEl('div', 'sched-lok-note', room.note));
+      list.appendChild(li);
+    });
+    if (!booked.length) list.appendChild(schedEl('li', 'sched-lok-none', 'Ingen lokaler booket'));
+    col.appendChild(list);
+
+    const fetchBtn = schedEl('button', 'btn-secondary sched-lok-fetch', 'Hent');
+    fetchBtn.type = 'button';
+    fetchBtn.disabled = !booked.length;
+    fetchBtn.addEventListener('click', () => {
+      const field = document.getElementById('input-rooms');
+      field.value = booked.map((r) => r.name).join('\n');
+      saveState();
+      close();
+      field.focus();
+    });
+    col.appendChild(fetchBtn);
+    strip.appendChild(col);
+  });
+  if (days.length) modal.appendChild(strip);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  // Start at today (or the next rehearsal day) rather than at the first day
+  // of the half-year.
+  if (firstUpcoming) strip.scrollLeft = firstUpcoming.offsetLeft - strip.offsetLeft;
+  else strip.scrollLeft = strip.scrollWidth;
 }
 
 // ── Scene sidebar ─────────────────────────────────────────

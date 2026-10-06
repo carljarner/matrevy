@@ -74,3 +74,9 @@ define('FAELLESSPISNING_DATA_DIR', '/absolute/path/to/matrevy-faellesspisning-da
 // Layout: <revyFolder>/band.json + <revyFolder>/files/<rowId>/<fileId>.<ext>,
 // all created on first write.
 define('BAND_DATA_DIR', '/absolute/path/to/matrevy-band-data');
+
+// Absolute path on the server for the PRIVATE store of Koordinator's signed
+// room-booking forms (PDFs with names/signatures). Never a web-served
+// folder. Must be PHP-writable. Layout: files.json + files/<fileId>.pdf,
+// created on first upload.
+define('LOKALER_DATA_DIR', '/absolute/path/to/matrevy-lokaler-data');
