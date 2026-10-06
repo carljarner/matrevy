@@ -1712,10 +1712,23 @@ let lokalerDraft = null;
 let lokalerLastSavedSnapshot = '';
 let koordLokDragItem = null;
 
+// The rooms from the old Lokalebooking spreadsheet — offered (unsaved)
+// when nothing has ever been saved, so the first Gem stores them.
+const KOORD_LOK_DEFAULT_ROOMS = [
+  'Store UP1', 'Lille UP1', 'øv-1-0-04', 'øv-1-0-10', 'øv-1-0-14', 'øv-1-0-18',
+  'øv-1-0-22', 'øv-1-0-26', 'øv-1-0-30', 'øv-1-0-34', 'øv-3-0-25', 'øv-1-0-17',
+  'øv-1-0-37', 'DIKU bib', 'DIKU kantinen (16-20)',
+];
+
 function koordLokEnsureDraft() {
   if (lokalerDraft) return;
   lokalerDraft = structuredClone(getEffectiveLokalerDoc());
   lokalerLastSavedSnapshot = JSON.stringify(lokalerDraft);
+  const neverSaved = !lokalerDraft.rooms.length && !Object.keys(lokalerDraft.bookings).length
+    && !lokalerDraft.other.length && !lokalerDraft.range;
+  if (neverSaved) {
+    lokalerDraft.rooms = KOORD_LOK_DEFAULT_ROOMS.map((name) => ({ id: koordMpNewId('r'), name }));
+  }
 }
 
 function lokalerIsDirty() {

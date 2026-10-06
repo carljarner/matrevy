@@ -5690,6 +5690,17 @@ function save_lokaler($payload) {
     $cleanOther[] = ['id' => $o['id'], 'event' => $o['event'], 'booking' => $o['booking']];
   }
 
+  // lokaler.json is newer than most servers' data folders, and update_file()
+  // never creates a file — so the first save creates an empty one (a PUT
+  // without sha creates; a concurrent creator just makes it exist already).
+  [$getStatus] = github_api('GET', 'contents/data/lokaler.json');
+  if ($getStatus === 404) {
+    github_api('PUT', 'contents/data/lokaler.json', [
+      'message' => 'Opret lokaler.json via Koordinator',
+      'content' => base64_encode(json_encode(['rooms' => [], 'bookings' => (object) [], 'other' => []], JSON_PRETTY_PRINT) . "\n"),
+    ]);
+  }
+
   update_file('data/lokaler.json', function ($json) use ($cleanRooms, $cleanBookings, $cleanOther, $cleanRange) {
     $json['rooms'] = $cleanRooms;
     $json['bookings'] = (object) $cleanBookings;
