@@ -80,20 +80,13 @@
       dance-combined scene into two independent rows exactly like
       Øveplan does (splitDanceScene()/applyDanceSplits-style helpers
       duplicated from schedule.js). One shared "Gem" (manusSaveMain())
-      saves everything: first a silent manuscripts_sync_selection call
-      reconciles every non-graduated pool submission's archive folder to
-      match its current Vælg-scener selection (selected → .../sketches/
-      or .../songs/ by type; deselected → .../submitted/ — folder
-      hardcoded server-side in data/config.json's currentProductionFolder
-      for now, not read or shown client-side), then the existing
-      boss-level `manus` resource save (siteSaveResource('manus',
-      {scenes, cast})) runs as before. This is a second, separate commit
-      point from the Vælg scener overlay's own local "Gem" above — that one
-      only ever updates manusDraft in memory; this one is what actually
-      moves files on the server and persists everything to git, and the
-      folder reconciliation re-runs on every click of it, in both
-      directions, so a later deselect moves a submission's files straight
-      back to submitted/ even if it was already committed locally once.
+      saves everything: first manuscripts_sync_selection moves the files
+      of pool submissions whose selection changed in this tab (selected →
+      .../sketches/ or .../songs/ by type; deselected → .../submitted/),
+      then the scenes/cast are merged with whatever others saved since
+      this page loaded and written (see "Merge before save"). This is a
+      second, separate commit point from the Vælg scener overlay's own
+      local "Gem" above — that one only ever updates manusDraft in memory.
 
    DOM is built via createElement/textContent only — never innerHTML.
    ========================================================= */
@@ -834,9 +827,11 @@ function confirmDeleteManuscript(item) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const next = getEffectiveManuscripts().filter(s => s.id !== item.id);
-    const result = await siteSaveResource('manuscripts', { submissions: next });
+    // One-record remove: sending the whole reduced list would drop any
+    // submission uploaded since this page loaded.
+    const result = await manusApi('manuscripts_remove', { id: item.id });
     if (result.ok) {
+      const next = getEffectiveManuscripts().filter(s => s.id !== item.id);
       manuscriptsOverride = next;
       siteSaveOverride('manuscripts', next);
       renderColumns();
@@ -2304,8 +2299,16 @@ let manusLastSavedSnapshot = null;
 // set the moment a row's tab is first opened, regardless of whether the
 // fetch it guards finds anything new) — never part of the save payload, so
 // they must not affect the dirty diff below.
+// Stjerneark auto-saves its fields on every already-saved scene (see
+// manusSaveStars), so those never count as unsaved Gem work either.
+const MANUS_STAR_FIELDS = new Set(['priority', 'repeat', 'dansPriority', 'dansRepeat']);
 function manusSerializeDraft(draft) {
-  return JSON.stringify(draft, (key, value) => (key.startsWith('_') ? undefined : value));
+  const saved = new Set((draft._base || []).flatMap(a => a.scenes.map(sc => sc.uid)));
+  return JSON.stringify(draft, function (key, value) {
+    if (key.startsWith('_')) return undefined;
+    if (MANUS_STAR_FIELDS.has(key) && this.key && saved.has(this.uid)) return undefined;
+    return value;
+  });
 }
 
 function manusIsDirty() {
@@ -2329,6 +2332,16 @@ function manusAbsorbImportIntoBaseline(row, fields) {
     for (const f of fields) baseRow[f] = row[f];
     manusLastSavedSnapshot = manusSerializeDraft(baseline);
   } catch (e) { /* malformed/stale snapshot — leave dirty as the safe fallback */ }
+  // Same for the merge base, so a backfill never counts as "my change" and
+  // can't conflict with someone else's real edit of that field.
+  const baseScene = manusDraft && manusDraft._base && manusDraft._base
+    .flatMap(a => a.scenes).find(sc => sc.uid === row.uid);
+  if (!baseScene) return;
+  const now = manusRowScene(row, { code: row.lane }, 0);
+  for (const f of fields) {
+    if (f in now) baseScene[f] = JSON.parse(JSON.stringify(now[f]));
+    else delete baseScene[f];
+  }
 }
 
 function manusNextKey() {
@@ -2388,40 +2401,61 @@ function manusSubmissionIsSelected(sub) {
 // file move for every non-graduated submission happens as part of the
 // shared Gem click (manusSaveMain → manuscripts_sync_selection), not via a
 // separate confirm step, and runs as a full reconciliation every time.
-function manusInitDraft() {
-  const existing = getEffectiveScenesData();
+// A scene's permanent merge key (see manusMergeActs). Scenes saved before
+// uids existed get one derived from their id, so every tab derives the same
+// uid for the same unsaved-since scene; it's then persisted on the next save.
+// A pool submission's uid is derived from its id, so two tabs placing the
+// same submission produce one scene, not two.
+function manusSceneUid(scene) {
+  return scene.uid || `id:${scene.id}`;
+}
+
+function manusNewUid() {
+  return `s${Date.now().toString(16)}${Math.random().toString(16).slice(2, 8)}`;
+}
+
+// One saved scene → its draft row (the inverse of manusRowScene).
+function manusRowFromScene(s) {
+  const isSong = (s.types || []).includes('sang');
+  const isDans = (s.types || []).includes('dans');
+  return {
+    key: manusNextKey(),
+    uid: manusSceneUid(s),
+    origin: 'existing',
+    lane: String(s.id).split('-')[0],
+    scene: s,
+    selected: true,
+    appliedSelected: true,
+    duration: s.duration != null ? s.duration : null,
+    cast: (s.cast || []).map(c => ({
+      name: c.name,
+      roleCode: c.roleCode || '',
+      description: c.description || '',
+      tags: Array.isArray(c.tags) && c.tags.length ? c.tags.slice() : (c.role ? [classifyOrKeep(c.role, isSong, isDans)] : []),
+    })),
+    priority: s.priority || 0,
+    dansPriority: isDanceSplitCandidate(s) ? (s.dansPriority != null ? s.dansPriority : 0) : null,
+    repeat: !!s.repeat,
+    dansRepeat: isDanceSplitCandidate(s) ? !!s.dansRepeat : null,
+    scriptBody: s.scriptBody || '',
+    status: s.status || '',
+    melody: s.melody || '',
+    writtenBy: s.writtenBy || '',
+    sourceProduction: s.sourceProduction || '',
+    sourceYear: s.sourceYear || '',
+  };
+}
+
+// Builds the draft from the saved scenes (default: getEffectiveScenesData())
+// plus the pool. `setBaseline: false` leaves the Gemt/Ikke gemt baseline
+// alone (used when re-applying edits made while a save was in flight).
+function manusInitDraft(existing = getEffectiveScenesData(), { setBaseline = true } = {}) {
   const acts = manusBuildActSkeleton(existing);
   const placedPaths = new Set();
   const rows = [];
   for (const s of existing) {
     if (s.sourcePdf) placedPaths.add(s.sourcePdf);
-    const isSong = (s.types || []).includes('sang');
-    const isDans = (s.types || []).includes('dans');
-    rows.push({
-      key: manusNextKey(),
-      origin: 'existing',
-      lane: String(s.id).split('-')[0],
-      scene: s,
-      selected: true,
-      appliedSelected: true,
-      duration: s.duration != null ? s.duration : null,
-      cast: (s.cast || []).map(c => ({
-        name: c.name,
-        roleCode: c.roleCode || '',
-        description: c.description || '',
-        tags: Array.isArray(c.tags) && c.tags.length ? c.tags.slice() : (c.role ? [classifyOrKeep(c.role, isSong, isDans)] : []),
-      })),
-      priority: s.priority || 0,
-      dansPriority: isDanceSplitCandidate(s) ? (s.dansPriority != null ? s.dansPriority : 0) : null,
-      repeat: !!s.repeat,
-      dansRepeat: isDanceSplitCandidate(s) ? !!s.dansRepeat : null,
-      scriptBody: s.scriptBody || '',
-      status: s.status || '',
-      melody: s.melody || '',
-      writtenBy: s.writtenBy || '',
-      sourceProduction: s.sourceProduction || '',
-      sourceYear: s.sourceYear || '',
-    });
+    rows.push(manusRowFromScene(s));
   }
   const pool = getEffectiveManuscripts()
     .filter(s => !placedPaths.has(s.pdfPath))
@@ -2430,11 +2464,16 @@ function manusInitDraft() {
   for (const sub of pool) {
     rows.push({
       key: manusNextKey(),
+      uid: `sub:${sub.id}`,
       origin: 'pool',
       lane: 'pool',
       submission: sub,
       selected: manusSubmissionIsSelected(sub),
       appliedSelected: manusSubmissionIsSelected(sub),
+      // What the server has — only rows that differ get sent to
+      // manuscripts_sync_selection, so a stale tab can't undo someone
+      // else's selection.
+      _baseSelected: manusSubmissionIsSelected(sub),
       // Seeded from the \eta{} parsed at upload time (see openUploadModal) —
       // just the default; boss/admin can change it freely afterwards.
       duration: typeof sub.duration === 'number' ? sub.duration : null,
@@ -2452,13 +2491,15 @@ function manusInitDraft() {
     });
   }
   const draft = { acts, rows };
-  // Baseline for the "Gemt"/"Ikke gemt" indicator (see manusIsDirty below):
-  // this function only ever runs at page load or right after a successful
-  // Gem resets manusDraft to null (forcing a fresh one built from the
-  // just-saved data) — both moments genuinely have nothing unsaved yet, so
-  // snapshotting here, in one place, correctly re-baselines after either
-  // without needing to touch manusSaveMain's own success/failure branches.
-  manusLastSavedSnapshot = manusSerializeDraft(draft);
+  // The saved scenes this draft started from, in save shape — the "base"
+  // of manusSaveMain's three-way merge. `_` keeps it out of the dirty diff.
+  draft._base = JSON.parse(JSON.stringify(manusBuildActsPayload(draft)));
+  if (setBaseline) {
+    // Baseline for the "Gemt"/"Ikke gemt" indicator (see manusIsDirty
+    // above): this runs at page load or right after a successful save
+    // rebuilt the draft — both moments with nothing unsaved.
+    manusLastSavedSnapshot = manusSerializeDraft(draft);
+  }
   return draft;
 }
 
@@ -3034,6 +3075,7 @@ function manusRowScene(row, act, idx) {
   // scene/submission/manual row alike via its \title{} line — applied last
   // so it always wins over whichever origin branch above seeded scene.name.
   if (row.titleOverride) scene.name = row.titleOverride;
+  scene.uid = row.uid;
   scene.priority = row.priority || 0;
   if (isDanceSplitCandidate(scene) && row.dansPriority != null) scene.dansPriority = row.dansPriority;
   else delete scene.dansPriority;
@@ -3091,16 +3133,13 @@ function manusFlattenActs(scenesActs) {
   return flat;
 }
 
-// The inverse of manusFlattenActs, for regenerating the nested acts payload
-// straight from the currently-saved (not draft) data — used by
-// manusRegeneratePdfs(), which has no draft to build from since it isn't
-// editing anything, just re-triggering the PDF pipeline against whatever is
-// already saved. A scene's act code is recovered from its own id (format
-// "<act>-<number>", e.g. "1-3"/"E-2" — the same convention manusInitDraft's
-// row.lane already relies on), and manusBuildActSkeleton keeps the fixed
-// Akt 1/2/3/Ekstranumre ordering consistent with every other act listing.
-function manusCurrentActsPayload() {
-  const flatScenes = getEffectiveScenesData();
+// The inverse of manusFlattenActs: nests a flat scene list (SCENES_DATA's
+// shape) back into acts. A scene's act code is recovered from its own id
+// (format "<act>-<number>", e.g. "1-3"/"E-2" — the same convention
+// manusInitDraft's row.lane already relies on), and manusBuildActSkeleton
+// keeps the fixed Akt 1/2/3/Ekstranumre ordering consistent with every
+// other act listing.
+function manusActsFromFlat(flatScenes) {
   const skeleton = manusBuildActSkeleton(flatScenes);
   const acts = skeleton.map(({ code, label }) => {
     const scenes = flatScenes
@@ -3111,9 +3150,8 @@ function manusCurrentActsPayload() {
   });
   // manusBuildActSkeleton deliberately excludes the reserved pool pseudo-act
   // (MANUS_POOL_ACT_CODE — still-unplaced video/bandsang rows), since it's
-  // never a real column. Re-attach its scenes here too, or "Generér PDF'er"
-  // (which rebuilds straight from the currently-saved data, not a draft)
-  // would silently drop them on every regeneration.
+  // never a real column. Re-attach its scenes here too, or they'd silently
+  // drop out of anything built from this (the save merge).
   const poolScenes = flatScenes
     .filter((s) => String(s.id).split('-')[0] === MANUS_POOL_ACT_CODE)
     .map(({ actLabel, ...scene }) => scene)
@@ -3487,6 +3525,7 @@ function renderVideoBandsangRow(row) {
 function addManualMediaRow(manualType) {
   const row = {
     key: manusNextKey(),
+    uid: manusNewUid(),
     origin: 'manual',
     lane: 'pool',
     manualName: manualType === 'bandsang' ? 'Bandsang: ' : 'Video: ',
@@ -4337,7 +4376,7 @@ function renderStarRow(row, entry, isMobile) {
     renderToggle();
     toggle.addEventListener('click', () => {
       siteToggleFieldPopup(toggle, () => {
-        openStarPrioPopup(toggle, currentPrio(), (v) => { setPrio(v); renderToggle(); });
+        openStarPrioPopup(toggle, currentPrio(), (v) => { setPrio(v); renderToggle(); manusStarsAutosave.schedule(); });
       });
     });
     controls.appendChild(toggle);
@@ -4351,7 +4390,7 @@ function renderStarRow(row, entry, isMobile) {
       btn.className = `manus-prio-circle manus-prio-${v}`;
       btn.textContent = v;
       btn.title = `Prioritet ${v}`;
-      btn.addEventListener('click', () => { setPrio(v); updatePrioBtns(); });
+      btn.addEventListener('click', () => { setPrio(v); updatePrioBtns(); manusStarsAutosave.schedule(); });
       controls.appendChild(btn);
       return btn;
     });
@@ -4378,6 +4417,7 @@ function renderStarRow(row, entry, isMobile) {
   repeatBtn.addEventListener('click', () => {
     if (isDanceHalf) row.dansRepeat = !row.dansRepeat; else row.repeat = !row.repeat;
     updateRepeatBtn();
+    manusStarsAutosave.schedule();
   });
   updateRepeatBtn();
   controls.appendChild(repeatBtn);
@@ -4421,6 +4461,7 @@ function renderStjerneArkTab() {
     return;
   }
 
+  mount.appendChild(manusAutosaveStatusEl('stjerneark'));
   const { columns, compact, key } = manusStarLayoutMode();
   manusStarLastLayoutKey = key;
   mount.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
@@ -4451,29 +4492,268 @@ window.addEventListener('resize', () => {
   });
 });
 
+// ── Auto-save status lines (Stjerneark, Program) ──────────────
+// These two tabs save on their own, unlike the Gem-batched tabs, so each
+// shows its own status line instead of relying on Gem's Gemt/Ikke gemt.
+const manusAutosaveState = {
+  stjerneark: { state: 'saved', message: '' },
+  program: { state: 'saved', message: '' },
+};
+
+function manusAutosaveStatusText(tab) {
+  const { state, message } = manusAutosaveState[tab];
+  if (state === 'saving') return 'Gemmer…';
+  if (state === 'error') return message || 'Ikke gemt';
+  return 'Gemmes automatisk · Gemt';
+}
+
+function manusAutosaveStatusEl(tab) {
+  const el = document.createElement('p');
+  el.className = 'manus-autosave-status';
+  el.dataset.manusAutosave = tab;
+  manusPaintAutosaveStatus(tab, el);
+  return el;
+}
+
+function manusPaintAutosaveStatus(tab, el = document.querySelector(`[data-manus-autosave="${tab}"]`)) {
+  if (!el) return;
+  el.textContent = manusAutosaveStatusText(tab);
+  el.classList.toggle('manus-autosave-error', manusAutosaveState[tab].state === 'error');
+}
+
+function manusSetAutosaveStatus(tab, state, message) {
+  manusAutosaveState[tab] = { state, message: message || '' };
+  manusPaintAutosaveStatus(tab);
+}
+
+// ── Stjerneark auto-save ──────────────────────────────────────
+// Every priority/repeat click saves on its own via manus_set_stars, which
+// sets only those four fields on the named scenes — so it needs no read or
+// merge and can't undo anyone's other edits; two clicks on the same scene
+// from different tabs simply resolve as last click wins. Afterwards the
+// draft's merge base takes the saved values, so a later Gem neither counts
+// them as "my change" nor puts older values back. A scene not saved yet
+// (placed in Aktfordeling but no Gem since) has no server copy: its stars
+// stay in the draft and go with that Gem.
+let manusGemInFlight = null; // Promise of a running Gem, or null
+
+function manusStarValues(scene) {
+  return {
+    priority: scene.priority || 0,
+    repeat: !!scene.repeat,
+    dansPriority: scene.dansPriority != null ? scene.dansPriority : null,
+    dansRepeat: scene.dansRepeat === true,
+  };
+}
+
+async function manusSaveStars() {
+  // Never alongside Gem: both write scenes.json, and Gem's merge reads the
+  // base this updates. Gem flushes this saver before it starts.
+  while (manusGemInFlight) await manusGemInFlight;
+  const draft = manusDraft;
+  if (!draft) return { ok: true };
+  const baseByUid = new Map(draft._base.flatMap(a => a.scenes).map(sc => [sc.uid, sc]));
+  const sent = [];
+  for (const act of draft.acts) {
+    manusDraftRowsForLane(act.code, draft).forEach((row, idx) => {
+      const base = baseByUid.get(row.uid);
+      if (!base) return;
+      const values = manusStarValues(manusRowScene(row, act, idx));
+      if (JSON.stringify(values) !== JSON.stringify(manusStarValues(base))) sent.push({ uid: row.uid, ...values });
+    });
+  }
+  if (!sent.length) return { ok: true };
+
+  const result = await manusApi('manus_set_stars', { updates: sent });
+  if (!result.ok) return result;
+  const missing = new Set(result.data.missing || []);
+  const savedByUid = new Map(sent.filter(u => !missing.has(u.uid)).map(u => [u.uid, u]));
+  const patch = (scene, u) => {
+    scene.priority = u.priority;
+    scene.repeat = u.repeat;
+    if (u.dansPriority != null) scene.dansPriority = u.dansPriority; else delete scene.dansPriority;
+    if (u.dansRepeat) scene.dansRepeat = true; else delete scene.dansRepeat;
+  };
+  for (const scene of baseByUid.values()) {
+    if (savedByUid.has(scene.uid)) patch(scene, savedByUid.get(scene.uid));
+  }
+  // Same-tab shadow (also read by Øveplan in this browser).
+  const flat = getEffectiveScenesData().map((sc) => {
+    const u = savedByUid.get(manusSceneUid(sc));
+    if (!u) return sc;
+    const next = { ...sc, uid: manusSceneUid(sc) };
+    patch(next, u);
+    return next;
+  });
+  setManusSavedOverride({ scenes: flat, cast: getEffectiveCastData() });
+  // A scene missing on the server was removed by someone else since this
+  // page loaded; its stars wait for the next Gem, which merges that.
+  if (missing.size) return { ok: false, message: 'Nogle scener findes ikke på serveren længere — tryk Gem' };
+  return { ok: true };
+}
+
+const manusStarsAutosave = siteCreateAutosave({
+  save: manusSaveStars,
+  delayMs: 600,
+  onStatus: (state, message) => manusSetAutosaveStatus('stjerneark', state, message),
+});
+
 // ── Program tab (Medvirkende / Ordliste / QR-koder → Program.pdf) ──
-// Architecturally independent of manusDraft (entirely scene-scoped) — its
-// own resource, own shadow (getEffectiveProgram, above) — but shares
-// #manus-main-view-actions' single "Gem" button (manusSaveMain) with the
-// other five tabs rather than having its own save button, since it lives on
-// the same page/section. A local mutable clone, built once on first visit to
-// the tab and only reset to null after a successful save — so switching to
-// another Main Manus View tab and back preserves an in-progress edit within
-// the same page session (mirrors manusDraft's "only rebuilt after a
-// successful save" rule, scoped to just this tab).
+// Independent of manusDraft — its own resource (program.json) and shadow
+// (getEffectiveProgram, above) — and auto-saved rather than part of Gem:
+// program.json only reaches anything when "Generér PDF'er" is pressed, so
+// a half-typed list isn't published while you type. programDraft is built
+// once on first visit to the tab and kept for the page session.
 let programDraft = null;
 let programDragId = null;
 
-// Dirty tracking mirrors manusLastSavedSnapshot/manusIsDirty above, scoped to
-// just this tab's own draft — baselined the moment programDraft is (re)built
-// from the current saved data (see renderProgramTab), so an untouched visit
-// to the tab never reads as dirty.
-let programLastSavedSnapshot = null;
-function programSerializeDraft(draft) {
-  return JSON.stringify(draft);
+// ── Program auto-save (sha-checked, merged on a 409) ──────────
+// programBase is the payload the draft agrees with the server on;
+// programServer the server copy + sha that was last read or written. Each
+// save sends that sha, so the normal case is one request; if someone else
+// saved in between, the server answers 409 and the save re-reads, merges
+// per section (Medvirkende / Ordliste / QR-koder) and retries. Their change
+// to a section I haven't touched is pulled into the draft; both changing the
+// same section is a conflict, shown as a banner in that section
+// (programConflicts) — that section waits for the choice, the others still
+// save.
+let programBase = null;
+let programServer = null; // { sha, data } | null (unknown — read first)
+let programConflicts = {}; // section key → their value, awaiting a choice
+const PROGRAM_SECTIONS = [
+  { key: 'medvirkende', label: 'Medvirkende' },
+  { key: 'ordliste', label: 'Ordliste' },
+  { key: 'qrCodes', label: 'QR-koderne' },
+];
+
+function programNormalize(program) {
+  return {
+    medvirkende: String((program && program.medvirkende) || '').trim(),
+    ordliste: String((program && program.ordliste) || '').trim(),
+    qrCodes: Array.isArray(program && program.qrCodes)
+      ? program.qrCodes.map(q => ({ id: q.id, label: q.label, url: q.url || '' }))
+      : [],
+  };
 }
-function programIsDirty() {
-  return !!programDraft && programSerializeDraft(programDraft) !== programLastSavedSnapshot;
+
+const programSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+// Puts their version of one section into the draft and its on-screen field
+// (a section the user hasn't touched, so nothing of theirs is lost).
+function programApplyToDraft(key, value) {
+  if (key === 'qrCodes') {
+    // Keep my not-yet-saveable rows (no label yet) — they aren't in any payload.
+    const unsaved = programDraft.qrCodes.filter(q => !programQrSaveable(q));
+    programDraft.qrCodes = value.map(q => ({ ...q })).concat(unsaved);
+    const list = document.querySelector('.manus-program-qr-list');
+    if (list) {
+      list.textContent = '';
+      programDraft.qrCodes.forEach((qr) => list.appendChild(renderProgramQrRow(qr)));
+    }
+    return;
+  }
+  programDraft[key] = value;
+  const textarea = document.querySelector(`[data-program-field="${key}"]`);
+  if (textarea) textarea.value = value;
+}
+
+async function programSaveNow() {
+  if (!programDraft) return { ok: true };
+  for (let attempt = 1; attempt <= MANUS_SAVE_ATTEMPTS; attempt++) {
+    if (!programServer) {
+      const read = await manusApi('program_read', {});
+      if (!read.ok) return read;
+      programServer = { sha: read.data.sha, data: programNormalize(read.data.program) };
+    }
+    const mine = programBuildSavePayload();
+    const theirs = programServer.data;
+    const merged = {};
+    const conflicts = {};
+    for (const { key } of PROGRAM_SECTIONS) {
+      const b = programBase[key], m = mine[key], t = theirs[key];
+      if (programSame(m, t) || programSame(t, b)) {
+        merged[key] = m;
+      } else if (programSame(m, b)) {
+        merged[key] = t;
+        programBase[key] = t;
+        programApplyToDraft(key, t);
+      } else {
+        merged[key] = t; // leave theirs on the server until the user picks
+        conflicts[key] = t;
+      }
+    }
+    programConflicts = conflicts;
+    programPaintConflicts();
+
+    if (!programSame(merged, theirs)) {
+      const result = await siteSaveResource('program', { ...merged, baseSha: programServer.sha });
+      if (!result.ok) {
+        if (result.conflict) { programServer = null; continue; }
+        return result;
+      }
+      programServer = { sha: result.data.sha, data: merged };
+    }
+    for (const { key } of PROGRAM_SECTIONS) if (!conflicts[key]) programBase[key] = merged[key];
+    programOverride = merged;
+    siteSaveOverride('program', merged);
+    const open = PROGRAM_SECTIONS.filter(sec => conflicts[sec.key]);
+    if (open.length) {
+      return { ok: false, message: `${open.map(sec => sec.label).join(' og ')} er ændret af en anden — vælg version nedenfor` };
+    }
+    return { ok: true };
+  }
+  return { ok: false, message: 'En anden gemmer samtidig. Prøv igen om lidt.' };
+}
+
+const programAutosave = siteCreateAutosave({
+  save: programSaveNow,
+  onStatus: (state, message) => manusSetAutosaveStatus('program', state, message),
+});
+
+// The conflict banner inside each section card.
+function programPaintConflicts() {
+  for (const { key, label } of PROGRAM_SECTIONS) {
+    const mount = document.querySelector(`[data-program-conflict="${key}"]`);
+    if (!mount) continue;
+    mount.textContent = '';
+    if (!(key in programConflicts)) continue;
+    const banner = document.createElement('div');
+    banner.className = 'manus-program-conflict';
+    const text = document.createElement('span');
+    text.textContent = `${label} er ændret af en anden, mens du redigerede.`;
+    banner.appendChild(text);
+    const keepMine = document.createElement('button');
+    keepMine.type = 'button';
+    keepMine.className = 'btn-small';
+    keepMine.textContent = 'Behold min';
+    keepMine.addEventListener('click', () => {
+      // Their version becomes the base, so mine counts as the change.
+      programBase[key] = programConflicts[key];
+      delete programConflicts[key];
+      programPaintConflicts();
+      programAutosave.schedule();
+    });
+    const useTheirs = document.createElement('button');
+    useTheirs.type = 'button';
+    useTheirs.className = 'btn-small';
+    useTheirs.textContent = 'Brug deres';
+    useTheirs.addEventListener('click', () => {
+      const value = programConflicts[key];
+      programBase[key] = value;
+      programApplyToDraft(key, value);
+      delete programConflicts[key];
+      programPaintConflicts();
+      programAutosave.schedule();
+    });
+    banner.append(keepMine, useTheirs);
+    mount.appendChild(banner);
+  }
+}
+
+function programConflictMount(key) {
+  const mount = document.createElement('div');
+  mount.dataset.programConflict = key;
+  return mount;
 }
 
 function programNextId() {
@@ -4557,7 +4837,9 @@ function renderProgramMedvirkendeSection() {
   textarea.rows = 20;
   textarea.spellcheck = false;
   textarea.value = programDraft.medvirkende;
-  textarea.addEventListener('input', () => { programDraft.medvirkende = textarea.value; });
+  textarea.dataset.programField = 'medvirkende';
+  textarea.addEventListener('input', () => { programDraft.medvirkende = textarea.value; programAutosave.schedule(); });
+  section.appendChild(programConflictMount('medvirkende'));
   section.appendChild(textarea);
 
   return section;
@@ -4575,7 +4857,9 @@ function renderProgramOrdlisteSection() {
   textarea.rows = 20;
   textarea.spellcheck = false;
   textarea.value = programDraft.ordliste;
-  textarea.addEventListener('input', () => { programDraft.ordliste = textarea.value; });
+  textarea.dataset.programField = 'ordliste';
+  textarea.addEventListener('input', () => { programDraft.ordliste = textarea.value; programAutosave.schedule(); });
+  section.appendChild(programConflictMount('ordliste'));
   section.appendChild(textarea);
 
   return section;
@@ -4591,7 +4875,7 @@ function renderProgramQrRow(qr) {
   labelInput.className = 'manus-program-input';
   labelInput.placeholder = 'Label (fx Sangtekster)';
   labelInput.value = qr.label;
-  labelInput.addEventListener('input', () => { qr.label = labelInput.value; });
+  labelInput.addEventListener('input', () => { qr.label = labelInput.value; programAutosave.schedule(); });
   row.appendChild(labelInput);
 
   const urlInput = document.createElement('input');
@@ -4602,16 +4886,17 @@ function renderProgramQrRow(qr) {
   const updateUrlValidity = () => {
     urlInput.classList.toggle('manus-program-input-invalid', !!urlInput.value && !/^https?:\/\//i.test(urlInput.value));
   };
-  urlInput.addEventListener('input', () => { qr.url = urlInput.value; updateUrlValidity(); });
+  urlInput.addEventListener('input', () => { qr.url = urlInput.value; updateUrlValidity(); programAutosave.schedule(); });
   updateUrlValidity();
   row.appendChild(urlInput);
 
   row.appendChild(programRemoveBtn(`Slet QR-koden ${qr.label || 'uden navn'}`, () => {
     programDraft.qrCodes = programDraft.qrCodes.filter((q) => q.id !== qr.id);
     renderProgramTab();
+    programAutosave.schedule();
   }));
 
-  programWireRowDrag(row, qr.id, programDraft.qrCodes, renderProgramTab);
+  programWireRowDrag(row, qr.id, programDraft.qrCodes, () => { renderProgramTab(); programAutosave.schedule(); });
   return row;
 }
 
@@ -4624,8 +4909,9 @@ function renderProgramQrSection() {
 
   const hint = document.createElement('p');
   hint.className = 'manus-col-empty';
-  hint.textContent = 'QR-koden genereres automatisk ud fra linket.';
+  hint.textContent = 'QR-koden genereres automatisk ud fra linket. En række gemmes, når den har et label (og linket starter med http).';
   section.appendChild(hint);
+  section.appendChild(programConflictMount('qrCodes'));
 
   const list = document.createElement('div');
   list.className = 'manus-program-qr-list';
@@ -4650,23 +4936,24 @@ function renderProgramQrSection() {
   return section;
 }
 
-// Medvirkende/ordliste are trimmed raw-LaTeX strings now (see
+// A QR row can be saved once it has a label and its link (if any) starts
+// with http — save_program rejects anything else, so an unfinished row
+// stays in the draft only (marked by the red outline) instead of failing
+// every auto-save.
+function programQrSaveable(q) {
+  return !!q.label.trim() && (!q.url.trim() || /^https?:\/\//i.test(q.url.trim()));
+}
+
+// Medvirkende/ordliste are trimmed raw-LaTeX strings (see
 // renderProgramMedvirkendeSection/renderProgramOrdlisteSection above).
-// qrCodes stays a structured array — trims every field and drops rows the
-// boss added but never filled in at all (an untouched blank "+ QR-kode"
-// row) — anything with *some* content survives verbatim, including a
-// partially-filled row, so a genuine mistake is caught by save_program's own
-// server-side validation and surfaced as an error, rather than silently
-// dropped here.
 function programBuildSavePayload() {
-  const medvirkende = programDraft.medvirkende.trim();
-  const ordliste = programDraft.ordliste.trim();
-
-  const qrCodes = programDraft.qrCodes
-    .map((q) => ({ id: q.id, label: q.label.trim(), url: (q.url || '').trim() }))
-    .filter((q) => q.label || q.url);
-
-  return { medvirkende, ordliste, qrCodes };
+  return {
+    medvirkende: programDraft.medvirkende.trim(),
+    ordliste: programDraft.ordliste.trim(),
+    qrCodes: programDraft.qrCodes
+      .filter(programQrSaveable)
+      .map((q) => ({ id: q.id, label: q.label.trim(), url: (q.url || '').trim() })),
+  };
 }
 
 function renderProgramTab() {
@@ -4674,12 +4961,15 @@ function renderProgramTab() {
   mount.textContent = '';
   if (!programDraft) {
     programDraft = structuredClone(getEffectiveProgram());
-    programLastSavedSnapshot = programSerializeDraft(programDraft);
+    programDraft.qrCodes = programDraft.qrCodes || [];
+    programBase = programBuildSavePayload();
   }
 
+  mount.appendChild(manusAutosaveStatusEl('program'));
   mount.appendChild(renderProgramMedvirkendeSection());
   mount.appendChild(renderProgramOrdlisteSection());
   mount.appendChild(renderProgramQrSection());
+  programPaintConflicts();
 }
 
 // ── Tab bar + section chrome ───────────────────────────────────
@@ -4768,158 +5058,394 @@ function manusApplySyncResultsToRows(rows, results) {
   }
 }
 
-// Extends the existing cast roster with any new name typed in
-// Rollefordeling — needed since, unlike the old Aktfordeling, this flow
-// actually edits cast (mirrors import.js's applyImport()).
-function manusBuildCastRoster(scenesActs) {
-  const castRoster = getEffectiveCastData().map(c => ({ name: c.name, index: c.index }));
-  const castNameSet = new Set(castRoster.map(c => c.name));
-  for (const act of scenesActs) {
-    for (const scene of act.scenes) {
-      for (const c of scene.cast) {
-        if (!castNameSet.has(c.name)) {
-          castNameSet.add(c.name);
-          castRoster.push({ name: c.name, index: castRoster.length });
-        }
-      }
+// ── Merge before save (several people editing at once) ─────
+// A save sends all of scenes.json, so a tab with older data would otherwise
+// overwrite everything saved since it loaded. Instead, every save reads the
+// live file (manus_read) and does a three-way merge per scene, keyed by the
+// scene's permanent `uid`: base (what this draft was built from, draft._base)
+// / mine (the draft) / theirs (the live file). Each scene is merged per field
+// group, so two people editing different scenes — or the roles and the manus
+// text of the same scene — both keep their work. Only both sides changing
+// the same group of the same scene is a real conflict, which the user
+// settles in manusAskConflicts(). The save then sends the sha it merged
+// against; if someone saved in between, the server answers 409 and the
+// whole read → merge → save runs again.
+
+const MANUS_MERGE_GROUPS = [
+  { key: 'cast', label: 'Roller', fields: ['cast'] },
+  { key: 'script', label: 'Manus', fields: ['scriptBody'] },
+  { key: 'stjerne', label: 'Stjerneark', fields: ['priority', 'repeat', 'dansPriority', 'dansRepeat'] },
+  { key: 'meta', label: 'Titel og detaljer', fields: null }, // every other field
+];
+// Position fields are rebuilt from the merged act order, never merged.
+const MANUS_MERGE_POSITIONAL = new Set(['uid', 'id', 'number', 'actLabel']);
+const MANUS_MERGE_GROUPED = new Set(MANUS_MERGE_GROUPS.flatMap(g => g.fields || []));
+const MANUS_SAVE_ATTEMPTS = 3;
+
+function manusMergeGroupFields(group, scenes) {
+  if (group.fields) return group.fields;
+  const keys = new Set();
+  for (const sc of scenes) {
+    if (!sc) continue;
+    for (const k of Object.keys(sc)) {
+      if (!MANUS_MERGE_POSITIONAL.has(k) && !MANUS_MERGE_GROUPED.has(k)) keys.add(k);
     }
   }
-  castRoster.forEach((c, i) => c.index = i);
-  return castRoster;
+  return [...keys].sort();
 }
 
-// Optimistic save, mirroring posts.js's togglePinned: assume success and
-// update the page immediately (toast + re-render), then do the actual
-// network round-trip(s) in the background, rolling back only if something
-// genuinely fails — the same pattern the rest of the site already uses for
-// single-click writes, instead of disabling the UI and blocking on two
-// sequential awaited requests (sync then save) the way this used to.
-// Trade-off: any further edits made in the few seconds while the background
-// save is in flight are lost if that save then fails and rolls back to the
-// pre-click snapshot — accepted, same as elsewhere on the site.
-// renderAll() (called both optimistically and on rollback, below) replaces
-// #manus-main-view-actions' children wholesale each time, including the
-// error div — so a reference to that div captured before any render is
-// stale by the time an awaited call resolves. Always re-query the live one
-// right before writing to it, and always write *after* the render that
-// would otherwise wipe it back to empty.
+function manusMergeGroupValue(scene, fields) {
+  if (!scene) return null;
+  const out = {};
+  for (const f of fields) if (f in scene) out[f] = scene[f];
+  return JSON.stringify(out);
+}
+
+function manusSceneChanged(base, scene) {
+  return MANUS_MERGE_GROUPS.some(g => {
+    const fields = manusMergeGroupFields(g, [base, scene]);
+    return manusMergeGroupValue(base, fields) !== manusMergeGroupValue(scene, fields);
+  });
+}
+
+// scenes.json as read from the server → the exact shape the draft saves
+// (each scene through manusRowFromScene → manusRowScene), so formatting
+// differences between hand-edited/legacy data and draft output never look
+// like edits.
+function manusNormalizeFileActs(fileActs) {
+  const flat = [];
+  for (const act of fileActs || []) {
+    for (const scene of act.scenes || []) flat.push({ ...scene, actLabel: act.label });
+  }
+  return manusActsFromFlat(flat).map(act => ({
+    act: act.act,
+    label: act.label,
+    scenes: act.scenes.map((s, idx) => manusRowScene(manusRowFromScene(s), { code: act.act }, idx)),
+  }));
+}
+
+// Three-way merge of acts payloads. `choices` maps a conflict key to 'mine'
+// or 'theirs'; an unanswered conflict defaults to mine. Returns the merged
+// acts plus every conflict found (answered or not), whether anything of
+// theirs was taken, and whether both sides reordered scenes.
+function manusMergeActs(baseActs, mineActs, theirsActs, choices = {}) {
+  const indexActs = (acts) => {
+    const map = new Map();
+    for (const act of acts) for (const sc of act.scenes) map.set(sc.uid, { scene: sc, act: act.act });
+    return map;
+  };
+  const base = indexActs(baseActs);
+  const mine = indexActs(mineActs);
+  const theirs = indexActs(theirsActs);
+  const conflicts = [];
+  let tookTheirs = false;
+  const choose = (conflict) => {
+    conflicts.push(conflict);
+    const side = choices[conflict.key] || 'mine';
+    if (side === 'theirs') tookTheirs = true;
+    return side;
+  };
+  const sceneTitle = (entry) => `${entry.scene.id} ${entry.scene.name || ''}`.trim();
+
+  const merged = new Map();
+  for (const uid of new Set([...base.keys(), ...mine.keys(), ...theirs.keys()])) {
+    const b = base.get(uid);
+    const m = mine.get(uid);
+    const t = theirs.get(uid);
+    if (!m && !t) continue; // removed on both sides
+    if (!m || !t) {
+      const kept = m || t;
+      if (!b) { // added on one side
+        merged.set(uid, kept.scene);
+        if (t) tookTheirs = true;
+        continue;
+      }
+      // Removed on one side. The removal wins, unless the other side has
+      // edited the scene since — then ask.
+      if (!manusSceneChanged(b.scene, kept.scene)) {
+        if (m) tookTheirs = true;
+        continue;
+      }
+      const side = choose(m
+        ? { key: `${uid}|exists`, title: sceneTitle(m), what: 'En anden har fjernet scenen, men du har ændret den', mineLabel: 'Behold', theirsLabel: 'Fjern' }
+        : { key: `${uid}|exists`, title: sceneTitle(t), what: 'Du har fjernet scenen, men en anden har ændret den', mineLabel: 'Fjern', theirsLabel: 'Behold' });
+      if ((side === 'mine') === !!m) merged.set(uid, kept.scene);
+      continue;
+    }
+    const scene = { uid };
+    for (const group of MANUS_MERGE_GROUPS) {
+      const fields = manusMergeGroupFields(group, [b && b.scene, m.scene, t.scene]);
+      const bv = manusMergeGroupValue(b && b.scene, fields);
+      const mv = manusMergeGroupValue(m.scene, fields);
+      const tv = manusMergeGroupValue(t.scene, fields);
+      let from = m.scene;
+      if (mv === tv || tv === bv) {
+        from = m.scene;
+      } else if (mv === bv) {
+        from = t.scene;
+        tookTheirs = true;
+      } else if (choose({ key: `${uid}|${group.key}`, title: sceneTitle(m), what: `${group.label} er ændret af både dig og en anden`, mineLabel: 'Min version', theirsLabel: 'Deres version' }) === 'theirs') {
+        from = t.scene;
+      }
+      for (const f of fields) if (f in from) scene[f] = from[f];
+    }
+    merged.set(uid, scene);
+  }
+
+  // Act order and placement is one more field group. A side only counts as
+  // having moved scenes if the scenes it shares with base sit differently —
+  // pure additions/removals don't count. If both moved, mine wins.
+  const layoutOf = (acts) => acts.map(a => ({ act: a.act, label: a.label, uids: a.scenes.map(s => s.uid) }));
+  const baseLayout = layoutOf(baseActs);
+  const shape = (layout, keep) => JSON.stringify(layout
+    .map(a => [a.act, a.uids.filter(u => keep.has(u))])
+    .filter(([, uids]) => uids.length));
+  const moved = (layout, side) => {
+    const common = new Set([...base.keys()].filter(u => side.has(u)));
+    return shape(layout, common) !== shape(baseLayout, common);
+  };
+  const mineLayout = layoutOf(mineActs);
+  const theirsLayout = layoutOf(theirsActs);
+  const mineMoved = moved(mineLayout, mine);
+  const theirsMoved = moved(theirsLayout, theirs);
+  const useTheirs = theirsMoved && !mineMoved;
+  if (useTheirs) tookTheirs = true;
+  const primary = useTheirs ? theirsLayout : mineLayout;
+  const secondary = useTheirs ? mineLayout : theirsLayout;
+
+  const result = primary.map(a => ({ act: a.act, label: a.label, uids: a.uids.filter(u => merged.has(u)) }));
+  for (const a of secondary) {
+    if (!result.some(r => r.act === a.act)) result.push({ act: a.act, label: a.label, uids: [] });
+  }
+  const placed = new Set(result.flatMap(a => a.uids));
+  // A merged scene missing from the primary layout (added or kept by the
+  // other side) goes into its act on that side, right after the scene it
+  // followed there.
+  for (const a of secondary) {
+    const target = result.find(r => r.act === a.act);
+    let prev = null;
+    for (const uid of a.uids) {
+      if (merged.has(uid) && !placed.has(uid)) {
+        const at = prev === null ? 0 : target.uids.indexOf(prev) + 1;
+        target.uids.splice(at, 0, uid);
+        placed.add(uid);
+      }
+      if (target.uids.includes(uid)) prev = uid;
+    }
+  }
+
+  const acts = result
+    .filter(a => a.act !== MANUS_POOL_ACT_CODE || a.uids.length)
+    .map(a => ({
+      act: a.act,
+      label: a.label,
+      scenes: a.uids.map((uid, idx) => {
+        const { id, number, ...rest } = merged.get(uid);
+        return { id: `${a.act}-${idx + 1}`, number: idx + 1, ...rest };
+      }),
+    }));
+  return { acts, conflicts, tookTheirs, bothMoved: mineMoved && theirsMoved };
+}
+
+// cast.json is only ever grown by Manus: the live roster plus any name the
+// merged scenes use that it doesn't have yet.
+function manusMergeCastRoster(theirsCast, scenesActs) {
+  const names = [];
+  const seen = new Set();
+  const add = (name) => { if (name && !seen.has(name)) { seen.add(name); names.push(name); } };
+  for (const c of theirsCast.slice().sort((a, b) => (a.index || 0) - (b.index || 0))) add(c.name);
+  for (const act of scenesActs) for (const scene of act.scenes) for (const c of scene.cast || []) add(c.name);
+  return names.map((name, index) => ({ name, index }));
+}
+
+// Lets the user settle real conflicts, one Min/Deres choice per conflict
+// (preselected from `choices`, else mine). Resolves to the full choices map,
+// or null if cancelled.
+function manusAskConflicts(conflicts, choices) {
+  return new Promise((resolve) => {
+    const { overlay, modal, form, actions, close } = siteOpenEditModal('Ændret af en anden');
+    modal.classList.add('manus-conflict-modal');
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      close();
+      resolve(value);
+    };
+    // siteOpenEditModal's own backdrop click closes the overlay — treat
+    // that as Annuller.
+    overlay.addEventListener('click', () => { if (!overlay.isConnected) finish(null); });
+
+    const intro = document.createElement('p');
+    intro.textContent = 'Nogen har gemt ændringer i de samme felter, siden du åbnede siden. Vælg hvad der skal gemmes:';
+    form.appendChild(intro);
+
+    const next = { ...choices };
+    const list = document.createElement('div');
+    list.className = 'manus-conflict-list';
+    for (const c of conflicts) {
+      if (!next[c.key]) next[c.key] = 'mine';
+      const row = document.createElement('div');
+      row.className = 'manus-conflict-row';
+      const text = document.createElement('div');
+      text.className = 'manus-conflict-text';
+      const title = document.createElement('strong');
+      title.textContent = c.title;
+      const what = document.createElement('span');
+      what.textContent = c.what;
+      text.append(title, what);
+      row.appendChild(text);
+
+      const toggle = document.createElement('div');
+      toggle.className = 'manus-conflict-toggle';
+      const buttons = [['mine', c.mineLabel], ['theirs', c.theirsLabel]].map(([side, label]) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-small';
+        btn.textContent = label;
+        btn.addEventListener('click', () => {
+          next[c.key] = side;
+          paint();
+        });
+        return { side, btn };
+      });
+      const paint = () => {
+        for (const { side, btn } of buttons) btn.classList.toggle('manus-conflict-chosen', next[c.key] === side);
+      };
+      paint();
+      for (const { btn } of buttons) toggle.appendChild(btn);
+      row.appendChild(toggle);
+      list.appendChild(row);
+    }
+    form.appendChild(list);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'site-btn-warm';
+    cancelBtn.textContent = 'Annuller';
+    cancelBtn.addEventListener('click', () => finish(null));
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'site-btn-success';
+    saveBtn.textContent = 'Gem';
+    saveBtn.addEventListener('click', () => finish(next));
+    actions.append(cancelBtn, saveBtn);
+  });
+}
+
+// After a save: the new draft is built from what was saved. Edits made while
+// the save was in flight (the editor stays usable) are replayed on top with
+// the same merge — base = what was sent, mine = the live draft, theirs = the
+// saved result — so they survive, still unsaved.
+function manusRebaseDraft(liveDraft, sentSerialized, sentActs, savedActs) {
+  const fresh = manusInitDraft();
+  if (!liveDraft || manusSerializeDraft(liveDraft) === sentSerialized) return fresh;
+  const lateActs = manusBuildActsPayload(liveDraft);
+  const replayed = manusMergeActs(sentActs, lateActs, savedActs).acts;
+  const draft = manusInitDraft(manusFlattenActs(replayed), { setBaseline: false });
+  draft._base = fresh._base;
+  // Pool rows aren't scenes, so the merge doesn't carry them: keep their
+  // live state (selection, lane), with the server's paths.
+  const livePool = new Map(liveDraft.rows.filter(r => r.origin === 'pool').map(r => [r.submission.id, r]));
+  draft.rows = draft.rows.map((r) => {
+    const live = r.origin === 'pool' && livePool.get(r.submission.id);
+    return live ? { ...live, submission: r.submission, _baseSelected: r._baseSelected } : r;
+  });
+  return draft;
+}
+
+// renderAll() replaces #manus-main-view-actions' children wholesale each
+// time, including the error div — always re-query the live one right before
+// writing to it.
 function manusMainViewErrorEl() {
   return document.querySelector('#manus-main-view-actions .manus-main-view-error');
 }
 
+// Gem: reconcile the Vælg scener selection, then read → merge → save (see
+// "Merge before save" above), retrying on a 409. Not optimistic: the draft
+// stays as-is and editable until the merged result is known, then
+// manusRebaseDraft() rebuilds it from that. Pending Stjerneark clicks are
+// saved first, and none run during Gem (manusGemInFlight). Program isn't
+// part of Gem — it auto-saves (see the Program tab).
 async function manusSaveMain() {
   if (manusResourceSaveInFlight) return;
+  manusResourceSaveInFlight = true;
+  renderMainViewActions();
+  await manusStarsAutosave.flush();
+  manusGemInFlight = manusSaveMainInner();
+  try { await manusGemInFlight; } finally { manusGemInFlight = null; }
+}
+
+async function manusSaveMainInner() {
   const startError = manusMainViewErrorEl();
   if (startError) startError.textContent = '';
-
-  const draftSnapshot = manusDraft;
+  const draft = manusDraft;
 
   // Defensive no-op in practice: the Vælg scener overlay's own Gem already
   // reconciles selected -> appliedSelected/lane immediately on commit (see
   // openSelectScenesOverlay()), so every row normally arrives here already in
-  // sync. Kept as a safety net rather than removed, in case a row's selected/
-  // appliedSelected ever drift apart by the time the page's own Gem runs.
-  for (const row of draftSnapshot.rows) {
+  // sync.
+  for (const row of draft.rows) {
     if (row.selected !== row.appliedSelected) {
       if (!row.selected && row.lane !== 'pool') row.lane = 'pool';
       row.appliedSelected = row.selected;
     }
   }
 
-  const scenesActs = manusBuildActsPayload(draftSnapshot);
-  const castRoster = manusBuildCastRoster(scenesActs);
-  const previousManusOverride = manusSavedOverride;
+  const fail = (message) => {
+    manusResourceSaveInFlight = false;
+    renderMainViewActions();
+    const errEl = manusMainViewErrorEl();
+    if (errEl) errEl.textContent = message;
+  };
 
-  // The Program tab shares this button rather than having its own — only
-  // actually written when it's been opened and edited this session, so a
-  // boss who never touches Program never triggers a no-op full-file resave
-  // of program.json on every ordinary scenes/cast Gem.
-  const programPayload = programIsDirty() ? programBuildSavePayload() : null;
+  // Move files only for submissions whose selection changed here — sending
+  // every pool row would let a stale tab undo someone else's selection.
+  const changedPool = draft.rows.filter(r => r.origin === 'pool' && r.selected !== r._baseSelected);
+  if (changedPool.length) {
+    const selections = changedPool.map(r => ({ id: r.submission.id, selected: r.selected === true }));
+    const syncResult = await manusApi('manuscripts_sync_selection', { selections });
+    if (!syncResult.ok) return fail(syncResult.message);
+    // Real, already-happened server-side moves — kept even if the scenes
+    // save below fails.
+    manusApplySyncResults(syncResult.data.results || []);
+    manusApplySyncResultsToRows(draft.rows, syncResult.data.results || []);
+    for (const r of changedPool) r._baseSelected = r.selected;
+  }
 
-  setManusSavedOverride({ scenes: manusFlattenActs(scenesActs), cast: castRoster });
-  manusDraft = null; // forces a fresh manusInitDraft() next render
-  manusResourceSaveInFlight = true;
+  const sentSerialized = manusSerializeDraft(draft);
+  const mineActs = JSON.parse(JSON.stringify(manusBuildActsPayload(draft)));
+  let choices = {};
+  let merge = null;
+  let castRoster = null;
+  for (let attempt = 1; ; attempt++) {
+    const read = await manusApi('manus_read', {});
+    if (!read.ok) return fail(read.message);
+    const theirsActs = manusNormalizeFileActs((read.data.scenes || {}).acts);
+    merge = manusMergeActs(draft._base, mineActs, theirsActs, choices);
+    if (merge.conflicts.some(c => !choices[c.key])) {
+      const answered = await manusAskConflicts(merge.conflicts, choices);
+      if (!answered) return fail('');
+      choices = answered;
+      merge = manusMergeActs(draft._base, mineActs, theirsActs, choices);
+    }
+    castRoster = manusMergeCastRoster((read.data.cast || {}).cast || [], merge.acts);
+    const result = await siteSaveResource('manus', {
+      scenes: merge.acts,
+      cast: castRoster,
+      baseScenesSha: read.data.scenesSha,
+      baseCastSha: read.data.castSha,
+    });
+    if (result.ok) break;
+    if (!result.conflict || attempt >= MANUS_SAVE_ATTEMPTS) return fail(result.message);
+  }
+
+  setManusSavedOverride({ scenes: manusFlattenActs(merge.acts), cast: castRoster });
+  manusDraft = manusRebaseDraft(manusDraft, sentSerialized, mineActs, merge.acts);
+  manusResourceSaveInFlight = false;
   renderAll();
 
-  // Reconcile every non-graduated pool submission's archive location against
-  // its current selected state, as part of this same Gem click — silent, no
-  // separate confirm step (replaces the old "Bekræft fravalg" flow). Runs on
-  // every save, in both directions, so a submission selected then later
-  // deselected moves itself straight back to "submitted" on the next Gem.
-  const selections = draftSnapshot.rows
-    .filter(r => r.origin === 'pool')
-    .map(r => ({ id: r.submission.id, selected: r.selected === true }));
-
-  let finalScenesActs = scenesActs;
-  if (selections.length) {
-    const syncResult = await manusApi('manuscripts_sync_selection', { selections });
-    if (!syncResult.ok) {
-      manusResourceSaveInFlight = false;
-      setManusSavedOverride(previousManusOverride);
-      manusDraft = draftSnapshot;
-      renderAll();
-      const errEl = manusMainViewErrorEl();
-      if (errEl) errEl.textContent = syncResult.message;
-      return;
-    }
-    // A real, already-happened server-side change (moved files) — kept
-    // regardless of whether the scenes.json save below succeeds.
-    manusApplySyncResults(syncResult.data.results || []);
-    manusApplySyncResultsToRows(draftSnapshot.rows, syncResult.data.results || []);
-    finalScenesActs = manusBuildActsPayload(draftSnapshot);
-  }
-
-  const result = await siteSaveResource('manus', { scenes: finalScenesActs, cast: castRoster });
-  if (!result.ok) {
-    manusResourceSaveInFlight = false;
-    setManusSavedOverride(previousManusOverride);
-    manusDraft = draftSnapshot;
-    renderAll();
-    const errEl = manusMainViewErrorEl();
-    if (errEl) errEl.textContent = result.message;
-    return;
-  }
-  // Silently correct the shadow with the sync-corrected sourcePdf/sourceTex
-  // now that it's known — invisible to the user, just keeps future
-  // "graduated submission" detection (manusSubmissionIsSelected) accurate.
-  if (finalScenesActs !== scenesActs) {
-    setManusSavedOverride({ scenes: manusFlattenActs(finalScenesActs), cast: castRoster });
-  }
-
-  // Program, if dirty, saves as its own resource right after — a separate
-  // write (own file, own sha), so a failure here doesn't roll back the
-  // scenes/cast save that already landed; it just leaves programDraft dirty
-  // for the next Gem click to retry. Not optimistic like scenes/cast above
-  // (this only ever ran non-optimistically even back when Program had its
-  // own dedicated save button), so the tab's own UI only updates once this
-  // has actually succeeded.
-  if (programPayload) {
-    const programResult = await siteSaveResource('program', programPayload);
-    if (!programResult.ok) {
-      manusResourceSaveInFlight = false;
-      const errEl = manusMainViewErrorEl();
-      if (errEl) errEl.textContent = programResult.message;
-      siteShowToast('Manus gemt (Program kunne ikke gemmes)');
-      renderMainViewActions();
-      return;
-    }
-    programOverride = programPayload;
-    siteSaveOverride('program', programPayload);
-    programDraft = null;
-    if (manusActiveTab === 'program') renderActiveTabPanel();
-  }
-
-  manusResourceSaveInFlight = false;
-  // "Manus gemt" only fires here, once the server write has actually
-  // landed — the earlier renderAll() above already optimistically shows the
-  // saved content (so there's no flash back to stale data, and edits made
-  // while this request was in flight safely landed in a fresh, separately
-  // detached manusDraft rather than racing this save), but the toast itself
-  // used to fire at that same optimistic point, before either network call
-  // had even been sent — moved here on request, since a failed save was
-  // only ever visible afterward as small inline text near the button, easy
-  // to miss once a "saved" toast had already been seen.
-  siteShowToast('Manus gemt');
+  if (merge.bothMoved) siteShowToast('Manus gemt — en anden havde også flyttet scener; din rækkefølge er brugt');
+  else if (merge.tookTheirs) siteShowToast('Manus gemt — med ændringer fra en anden');
+  else siteShowToast('Manus gemt');
   renderMainViewActions();
 }
 
@@ -4934,19 +5460,8 @@ async function manusSaveMain() {
 // through the server — a page reload mid-poll silently drops back to idle
 // (same accepted limitation as manusDraft's own dirty tracking elsewhere in
 // this file), and another visitor's tab never sees this tab's pulse.
-// True only while a manus-resource write (the scenes.json+cast.json PUT
-// itself, via siteSaveResource) is actually in flight — set by both
-// manusSaveMain() and manusRegeneratePdfs(), since they write the exact
-// same two files and nothing else prevented them from racing each other:
-// clicking "Generér PDF'er" right after "Gem" (or vice versa, mid-Gem)
-// used to fire a second, concurrent PUT against the same files, which
-// could read a stale sha and come back as a confusing 409 conflict on
-// whichever one lost the race — even though Gem's own optimistic "Manus
-// gemt" toast had already fired. Deliberately narrower than
-// manusPdfGenerating (which also spans the multi-minute post-write poll,
-// during which no further writes happen and other saves are meant to stay
-// possible — see the PDF quick-link buttons staying clickable during
-// generation, below).
+// True while Gem's read → merge → save (incl. the conflict dialog) runs;
+// disables Gem so two saves from this tab never race.
 let manusResourceSaveInFlight = false;
 let manusPdfGenerating = false;
 let manusPdfTimestampLoaded = false;
@@ -5088,39 +5603,41 @@ function manusPollPdfCompletion(beforeDate, url) {
 }
 
 // Re-triggers the PDF pipeline (scripts/generate-pdfs.js, run by the
-// worker) without touching any in-progress edit: unlike manusSaveMain, this
-// never reads or clears manusDraft, so it's safe to click mid-edit on any
-// tab. It just re-saves the already-saved data as-is through the same
-// boss-level `manus` resource path Gem uses. The three buttons below all
-// call this same function. The `regeneratePdfs: true` flag sent below is
-// what actually asks the worker to run: save_manus() turns it into a
-// `[regen-pdfs]` write-message marker, which makes update-data.php touch
-// the worker's `.regen-pdfs-requested` flag file — a plain Gem
-// (manusSaveMain, no flag) still saves normally but leaves the
-// last-generated PDFs untouched, so frequent in-progress Gem clicks don't
-// each force a full rebuild:
-// "full rebuild every time" was a deliberate choice over a --only flag,
-// since Manuskript is a merge of every other scene PDF and a partial
-// rebuild risks the three documents drifting out of sync with each other.
+// worker) from the data already saved on the server. Writes nothing:
+// manus_regenerate_pdfs only touches the worker's `.regen-pdfs-requested`
+// flag (it used to re-save this tab's copy of scenes.json with a
+// `[regen-pdfs]` marker, which put a stale tab's data back over newer
+// saves). Stjerneark/Program are flushed first; unsaved Gem edits aren't
+// included — the toast says so. The three
+// buttons below all call this same function. "Full rebuild every time" was
+// a deliberate choice over a --only flag, since Manuskript is a merge of
+// every other scene PDF and a partial rebuild risks the three documents
+// drifting out of sync with each other.
 async function manusRegeneratePdfs() {
-  if (manusPdfGenerating || manusResourceSaveInFlight) return;
+  if (manusPdfGenerating) return;
 
   const errEl = manusMainViewErrorEl();
   if (errEl) errEl.textContent = '';
   manusPdfPollTimedOut = false;
 
+  // Stjerneark and Program auto-save; make sure their last edits are on the
+  // server before the build reads it.
+  const flushed = await Promise.all([manusStarsAutosave.flush(), programAutosave.flush()]);
+  const failed = flushed.find(r => !r.ok);
+  if (failed) {
+    const el = manusMainViewErrorEl();
+    if (el && failed.message) el.textContent = `PDF'erne er ikke startet: ${failed.message}`;
+    return;
+  }
+
   const referenceUrl = manusPdfReferenceUrl();
   const before = (await manusFetchPdfStatus(referenceUrl)).date;
 
   manusPdfGenerating = true;
-  manusResourceSaveInFlight = true;
   renderManusPdfLinksSection();
   renderMainViewActions();
 
-  const scenesActs = manusCurrentActsPayload();
-  const castRoster = manusBuildCastRoster(scenesActs);
-  const result = await siteSaveResource('manus', { scenes: scenesActs, cast: castRoster, regeneratePdfs: true });
-  manusResourceSaveInFlight = false;
+  const result = await manusApi('manus_regenerate_pdfs', {});
   if (!result.ok) {
     manusPdfGenerating = false;
     renderManusPdfLinksSection();
@@ -5129,12 +5646,7 @@ async function manusRegeneratePdfs() {
     if (el) el.textContent = result.message;
     return;
   }
-  // The write itself has landed — re-enable Gem even though manusPdfGenerating
-  // (and the button's own pulse) stays true for the whole polling phase below,
-  // since that phase does no further writes and other saves are meant to
-  // stay possible while PDFs regenerate in the background.
-  renderMainViewActions();
-  siteShowToast('PDF-generering startet');
+  siteShowToast(manusIsDirty() ? 'PDF-generering startet (uden dine ugemte ændringer)' : 'PDF-generering startet');
   manusPollPdfCompletion(before, referenceUrl);
 }
 
@@ -5156,15 +5668,14 @@ function renderMainViewActions() {
   generateBtn.className = 'site-btn-warm';
   generateBtn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
   generateBtn.textContent = manusPdfGenerating ? 'Genererer...' : "Generer PDF'er";
-  generateBtn.disabled = manusPdfGenerating || manusResourceSaveInFlight;
+  generateBtn.disabled = manusPdfGenerating;
   generateBtn.addEventListener('click', () => {
     // Looks like an ordinary active button either way — nothing greys it
     // out when there's no active production or the (saved) act columns are
     // still empty, since that reads as broken rather than "there's nothing
     // to do yet." Checked against getEffectiveScenesData() (the currently
     // *saved* scenes), not the draft, since manusRegeneratePdfs() itself
-    // always rebuilds from that same saved data — see
-    // manusCurrentActsPayload()'s own comment. Same two-message split as
+    // always builds from the saved data. Same two-message split as
     // the PDF quick-links' own manusPdfBlockedReason: no active production
     // at all reads differently from an active one with nothing placed yet.
     const folder = getEffectiveConfig().currentProductionFolder || '';
@@ -5222,7 +5733,7 @@ function manusSaveStatusEl() {
 function manusUpdateSaveStatus() {
   const el = manusSaveStatusEl();
   if (!el) return;
-  const dirty = manusIsDirty() || programIsDirty();
+  const dirty = manusIsDirty();
   el.textContent = dirty ? 'Ikke gemt' : 'Gemt';
   el.classList.toggle('dirty', dirty);
 }
@@ -5636,12 +6147,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Passive polling, not a push from every mutation site (see manusIsDirty's
   // own comment for why) — cheap enough at this page's scale to just re-diff
-  // on an interval. No autosave: the interval only ever updates the status
-  // text, matching the user's explicit "shouldn't save in the background."
+  // on an interval. Only updates the status text: the Gem tabs don't
+  // auto-save (Stjerneark and Program do, with their own status lines).
   setInterval(manusUpdateSaveStatus, 500);
 
   window.addEventListener('beforeunload', (e) => {
-    if (manusIsDirty() || programIsDirty()) { e.preventDefault(); e.returnValue = ''; }
+    if (manusIsDirty()) { e.preventDefault(); e.returnValue = ''; }
   });
 
   // Intercept clicks on this page's own links while dirty, in favor of the
@@ -5656,7 +6167,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!link || link.target === '_blank') return;
     const href = link.getAttribute('href');
     if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
-    if (!manusIsDirty() && !programIsDirty()) return;
+    if (!manusIsDirty() && !manusStarsAutosave.hasUnsaved() && !programAutosave.hasUnsaved()) return;
     e.preventDefault();
     confirmLeaveDirtyPage(link.href);
   }, true);

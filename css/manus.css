@@ -2331,3 +2331,89 @@ a.manus-pdf-title:focus-visible {
   opacity: 0.6;
   cursor: default;
 }
+
+/* ── "Ændret af en anden" (manusAskConflicts) ─────────────── */
+.manus-conflict-modal {
+  max-width: 560px;
+}
+
+.manus-conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: 0.75rem 0;
+}
+
+.manus-conflict-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.manus-conflict-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.manus-conflict-text span {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.manus-conflict-toggle {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+/* Orange = chosen, as everywhere on the site. */
+.manus-conflict-toggle .btn-small.manus-conflict-chosen {
+  background: var(--accent-warm-fill);
+  border-color: var(--accent-warm);
+  color: var(--accent-warm-text);
+  font-weight: 600;
+}
+
+@media (max-width: 719px) {
+  .manus-conflict-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ── Auto-save status (Stjerneark, Program) ─────────────────── */
+.manus-autosave-status {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.manus-autosave-status.manus-autosave-error {
+  color: var(--danger);
+}
+
+/* Program: "ændret af en anden" banner inside a section card */
+.manus-program-conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--accent-warm);
+  border-radius: 6px;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-size: 0.9rem;
+}
+
+.manus-program-conflict span {
+  flex: 1 1 14rem;
+}

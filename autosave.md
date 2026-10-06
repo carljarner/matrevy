@@ -9,14 +9,14 @@ Updated Oct 6, 2026 · What's done, what's left, and why
 - **Kalender → Revyperiode (Gantt)** and **Revyugen**: the "Rediger" button switches to "Færdig". Pressing it waits for the last save, then leaves edit mode. If that save failed, you stay in edit mode.
 - **Koordinator → Masterplan** and **Lokalebooking**: always editable, with no Gem button. A status text next to the editor shows Gemmer… / Gemt / Ikke gemt.
 
-**Not started:** everything below.
+**Manus merge-before-save, plus auto-save for Manus → Stjerneark and Program: done (Oct 6, 2026)**, see the Manus section. **Not started:** the rest below.
 
 ## Where the site stands
 
 | Save model | Pages |
 |---|---|
-| Auto-save (live) | Fællesspisning, Bandet, Stregregnskab → Priser, Formularer reordering, signed booking forms, Øveplan (saved only in that browser), **Gantt, Revyugen, Masterplan, Lokalebooking** |
-| Gem button (batched draft) | Manus main view + Program, Wiki editor, Bosser, Stregregnskab grid, Budget sheet, Formularer builder |
+| Auto-save (live) | Fællesspisning, Bandet, Stregregnskab → Priser, Formularer reordering, signed booking forms, Øveplan (saved only in that browser), **Gantt, Revyugen, Masterplan, Lokalebooking, Manus → Stjerneark and Program** |
+| Gem button (batched draft) | Manus → Scener/Aktfordeling/Rollefordeling/Manus (merged before save, see below), Wiki editor, Bosser, Stregregnskab grid, Budget sheet, Formularer builder |
 | A dialog is the commit | Kalender events, Budget approve/expense, Arkiv year editor, posts/comments |
 
 ## Pros and cons of auto-save
@@ -44,33 +44,56 @@ Updated Oct 6, 2026 · What's done, what's left, and why
 - Masterplan and Lokalebooking, if more than one admin will edit them at the same time. Today they still send the whole document, so last save wins.
 
 **C. Keep an explicit Gem:**
-- Manus: until the merge below exists, then possibly auto-save.
+- Manus: the merge exists now (below); auto-save is the next step.
 - Wiki: prose; tier A covers lost work.
 - Formularer builder.
 - Kalender and Budget dialogs.
 - Arkiv, config and the close-year steps.
 
-## Manus: several people editing different sketches
+## Manus: several people editing at once
 
-**This loses work today, even without auto-save.** `manusSaveMain()` (`js/manus.js`) builds the entire `acts` array from `manusDraft`. That draft is built when the page loads and rebuilt only after this tab's own save. `save_manus()` (`server/update-data.php`) then does `$json['acts'] = $scenesActs`.
+**Status (Oct 6, 2026):** merge done. Stjerneark and Program auto-save. Scener, Aktfordeling, Rollefordeling and Manus keep Gem **by decision**: Rollefordeling has its own "Opdater roller" step, the manus text is long-form LaTeX where Gem means "this version is ready", and choosing scenes moves files.
 
-Example:
-1. A and B both open Manus.
-2. A changes the roles in 1-3 and presses Gem.
-3. B changes the script of 2-1 and presses Gem. B's payload still holds the old 1-3, so A's roles are gone with no warning.
+### The problem (before the fix)
 
-**Fix: a three-way merge per scene before each save.**
-1. **Give each scene a stable key.** `id` is positional (`manusRowScene()` sets `${act.code}-${number}`), so it changes when a scene moves in Aktfordeling. Add a permanent `uid` to each scene, carried through `manusRowScene()`. Existing scenes get one on their next save.
-2. **Remember the base.** When the draft is built, store a copy of the scenes it came from (`manusDraft.base`).
-3. **Merge on Gem.** Fetch the current `/data/scenes.json` and `cast.json` (same origin, `no-cache`). Compare base / mine / theirs for each scene (by `uid`) and each field group: roles (`cast`), script (`scriptBody`), Stjerneark (`priority`/`repeat`/`dansPriority`/`dansRepeat`), and title/metadata.
-   - Only I changed a field → take mine.
-   - Only they changed it → take theirs.
-   - Both changed the same field group of the same scene → a real conflict. Show "X er ændret af en anden — behold min / behold deres".
-4. **Aktfordeling (order and act placement) is its own field group.** If only one side moved scenes, take that order. If both did, take mine and say so in a toast. A scene someone else added is kept. A scene they deleted stays deleted.
-5. **Cast roster:** the union of names from both versions, with `index` renumbered as `manusBuildCastRoster()` already does.
-6. **Close the gap between merge and save** with the sha/409 fix below. On a 409, fetch, merge and retry automatically.
+Gem sent two full lists, built from the draft the page loaded, and the server wrote them back as-is:
+- `scenes.json` → `acts`: every act and every scene. One scene object holds everything about it: title, `types`, roles (`cast`), the manus text (`scriptBody`), Stjerneark (`priority`, `repeat`, `dansPriority`, `dansRepeat`), `duration`, `status`, `melody`, `writtenBy`, `sourcePdf`/`sourceTex`, and its position (`id`/`number`).
+- `cast.json` → `cast`: the roster.
 
-**After the merge exists:** Manus can auto-save with the same merge on every save. Run `manuscripts_sync_selection` only when the "Vælg scener" selection changes. Undo becomes a stack of draft snapshots, and the merge keeps my undo from wiping someone else's edit.
+So the last save won, and the unit was the whole file. Every case clashed: two people on different scenes, Stjerneark vs. roles, or the manus and the roles of the same scene. Three less obvious paths lost work the same way:
+- **"Generér PDF'er" also saved.** It re-sent the tab's copy of `scenes.json`, so a boss who had the page open for an hour and only pressed Generér undid every save since then.
+- **The selection sync.** Gem sent `{id, selected}` for *every* pool row. A stale tab sent `selected:false` for a submission someone else had just selected, moving its files back to `submitted/`. And a stale `acts` array dropped a scene someone else had just placed.
+- **Fjern in the upload pool** sent the full `manuscripts` list, dropping any submission uploaded after the page loaded.
+
+### What's done
+
+1. **Stable key.** Every scene has a permanent `uid` (`manusSceneUid()`): `sub:<submissionId>` when placed from the pool (so two tabs placing the same submission make one scene), `s<hex>` for a new video/bandsang, `id:<id>` derived for scenes saved before uids existed (every tab derives the same one). `manusRowScene()` writes it.
+2. **Base.** `manusInitDraft()` stores the scenes it was built from, in save shape, as `draft._base`.
+3. **Merge on Gem** (`manusSaveMain()`): `manus_read` (boss) returns the live `scenes.json`/`cast.json` and their shas; `manusNormalizeFileActs()` puts them through the same row → scene path as the draft, so formatting never looks like an edit. `manusMergeActs()` merges base / mine / theirs per scene and per field group: Roller (`cast`), Manus (`scriptBody`), Stjerneark (`priority`/`repeat`/`dansPriority`/`dansRepeat`), Titel og detaljer (everything else).
+   - Only one side changed a group → that side's version.
+   - Both changed the same group of the same scene → `manusAskConflicts()`: one "Min version / Deres version" choice per conflict, then Gem (or Annuller).
+   - A scene added on one side is kept. A scene removed on one side stays removed, unless the other side edited it since; then the user is asked.
+4. **Aktfordeling** (order and act placement) is one more group. A side counts as having moved scenes only if the scenes it shares with base sit differently. If only they moved, theirs is used; if both did, mine, with a toast. A scene missing from the chosen layout goes into its act on the other side, after the scene it followed there.
+5. **Cast roster** (`manusMergeCastRoster()`): the live roster plus any name the merged scenes use, `index` renumbered.
+6. **sha check.** The save sends `baseScenesSha`/`baseCastSha` from `manus_read`. `save_manus()` checks both before writing either; `update_file()` takes an optional expected sha. On a 409 (`stale`), `siteSaveResource()` returns `conflict: true` and Gem re-reads, re-merges and retries (`MANUS_SAVE_ATTEMPTS`, keeping the user's conflict choices). A save without shas (a tab loaded before the deploy) still works the old way.
+7. **Edits during a save survive.** Gem is no longer optimistic: the draft stays editable until the merged result is known. `manusRebaseDraft()` then rebuilds the draft from the saved result and replays edits made in the meantime with the same merge, so they show as unsaved.
+8. **Selection sync** sends only pool rows whose selection changed in this tab (`row._baseSelected`). `manuscripts_sync_selection` now patches only the moved records into `manuscripts.json`, not the list it read at the start.
+9. **"Generér PDF'er" writes nothing**: `manus_regenerate_pdfs` (boss) just touches `.regen-pdfs-requested`. Unsaved edits aren't included, and the toast says so.
+10. **Fjern** uses `manuscripts_remove` (boss, one id). The full-array `manuscripts` resource is now admin-only (only Koordinator's "Afslut revyen" uses it).
+11. The tex backfill (`manusImportFromTex()`) folds its values into `draft._base` as well as the dirty baseline, so a backfill never counts as "my change".
+
+### Auto-save: Stjerneark and Program (done)
+
+- **Stjerneark** saves each click on its own (`manus_set_stars`: only the four Stjerneark fields of the named scenes, by `uid`). No read, no merge: last click wins per scene, and it can't touch anyone's other edits. The saved values go into `draft._base`, so a later Gem doesn't count them as changes, and the Gem status ignores star fields of saved scenes. A scene that isn't saved yet keeps its stars for the next Gem. Gem saves pending stars first; star saves wait while Gem runs.
+- **Program** uses `siteCreateAutosave()` with an optimistic sha: the save sends the sha it last saw (`save_program` returns the new one), so normally it's one request with no read. On a 409 it reads (`program_read`), merges per section (Medvirkende / Ordliste / QR-koder) and retries. Both sides changing the same section shows a banner in that section ("Behold min" / "Brug deres"); the other sections keep saving. A QR row saves once it has a label.
+- Both show their own status line at the top of the tab. "Generér PDF'er" saves both first.
+
+### Still open
+
+- **Auto-save for the Gem tabs**, if ever wanted: the same read → merge → save from `siteCreateAutosave()`, with the conflict dialog turned into a banner. Undo would then be a stack of draft snapshots.
+- **Merge granularity is per field group.** Two people editing *different lines* of the same scene's manus text still conflict. Fine for now; a line-level merge of `scriptBody` is possible later.
+- **Pool rows changed during a save** keep their live state, but a pool row placed into an act *during* a save becomes an ordinary scene without its files being moved. Edge case; auto-save shrinks the window further.
+- **Close-year** (`koordinator.js`) still sends `manus`/`manuscripts` without a sha. Intentional: it's a reset.
 
 ## The sha/409 fix (all full-array resources)
 
@@ -100,7 +123,7 @@ Undo doesn't depend on auto-save. Batched drafts are actually the easiest place 
 
 ## Suggested order
 
-1. Manus: stable `uid` + three-way merge + sha check. This fixes data loss that happens today.
+1. ~~Manus: stable `uid` + three-way merge + sha check.~~ Done Oct 6, 2026. Stjerneark and Program auto-save too.
 2. Undo in Øveplan.
 3. Tier A: local draft backup and `beforeunload` on the remaining Gem pages.
 4. The sha/409 fix for the other full-array resources.

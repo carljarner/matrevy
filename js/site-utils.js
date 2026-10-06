@@ -129,8 +129,9 @@ function siteResolvePassword() {
   return { password, fromLogin };
 }
 
-// Returns { ok: true } or { ok: false, message } — message is ''
-// when the user cancelled the password prompt (silent no-op).
+// Returns { ok: true, data } (data = the server's reply) or { ok: false,
+// message } — message is '' when the user cancelled the password prompt
+// (silent no-op).
 async function siteSaveResource(resource, payload) {
   const resolved = siteResolvePassword();
   if (!resolved) return { ok: false, message: '' };
@@ -152,7 +153,8 @@ async function siteSaveResource(resource, payload) {
     return { ok: false, message: 'Forkert eller utilstrækkelig adgangskode. Log ind med tilstrækkelig adgang og prøv igen.' };
   }
   if (res.status === 409) {
-    return { ok: false, message: 'En anden har lige gemt ændringer. Genindlæs siden og prøv igen.' };
+    // conflict: lets a caller that merges (Manus) re-read and retry.
+    return { ok: false, conflict: true, message: 'En anden har lige gemt ændringer. Genindlæs siden og prøv igen.' };
   }
   if (!res.ok) {
     return { ok: false, message: 'Kunne ikke gemme ændringer (serverfejl). Prøv igen senere.' };
@@ -169,7 +171,7 @@ async function siteSaveResource(resource, payload) {
   }
 
   if (!fromLogin) siteUtilsSetCachedPin(password);
-  return { ok: true };
+  return { ok: true, data };
 }
 
 // Shared request logic for the file-upload/delete actions — same error

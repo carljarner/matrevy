@@ -345,6 +345,22 @@ if ($action === 'manuscripts_sync_selection') {
   manuscripts_sync_selection($body);
 }
 
+// Manus's merge-before-save read, its save-free PDF trigger, removing one
+// pool record ("Fjern"), Stjerneark's per-click save and the Program tab's
+// merge read — boss-level like the `manus`/`manuscripts`
+// resources. Single-purpose actions rather than full-array saves, so a tab
+// with stale data can't overwrite anything through them.
+if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manuscripts_remove', 'manus_set_stars', 'program_read'], true)) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  if ($action === 'manus_read') manus_read();
+  else if ($action === 'manus_regenerate_pdfs') manus_regenerate_pdfs();
+  else if ($action === 'manus_set_stars') manus_set_stars($body);
+  else if ($action === 'program_read') program_read();
+  else manuscripts_remove($body);
+}
+
 // manuscripts_delete is admin-level (stricter than the `manuscripts`
 // resource's boss-level save_manuscripts) — permanently deletes a
 // submission's pdf/tex files from the repo AND its JSON record (if one
@@ -455,10 +471,16 @@ function github_api($method, $path, $payload = null) {
 // Fetches the current file, applies $mutate to its decoded JSON, and writes
 // it back with the sha it was read at (so a stale write 409s instead of
 // silently clobbering a concurrent edit).
-function update_file($filePath, $mutate, $commitMessage) {
+// Returns the new sha. $expectedSha (optional): the sha the client built its edit from. A
+// mismatch means someone else saved since, so answer 409 `stale` instead of
+// writing — the client re-reads, merges and retries (see Manus's save).
+function update_file($filePath, $mutate, $commitMessage, $expectedSha = null) {
   [$getStatus, $current] = github_api('GET', 'contents/' . $filePath);
   if ($getStatus !== 200) {
     respond(502, ['error' => 'github_read_failed', 'file' => $filePath, 'status' => $getStatus]);
+  }
+  if ($expectedSha !== null && $expectedSha !== $current['sha']) {
+    respond(409, ['error' => 'stale', 'file' => $filePath]);
   }
 
   $decoded = base64_decode($current['content']);
@@ -481,6 +503,7 @@ function update_file($filePath, $mutate, $commitMessage) {
   if ($putStatus < 200 || $putStatus >= 300) {
     respond(502, ['error' => 'github_write_failed', 'file' => $filePath, 'status' => $putStatus]);
   }
+  return $putResult['content']['sha'] ?? null;
 }
 
 // ── File uploads (binary content at boss/admin-chosen paths) ────
@@ -4610,18 +4633,65 @@ function save_manus($payload) {
   $regeneratePdfs = ($payload['regeneratePdfs'] ?? false) === true;
   $pdfMarker = $regeneratePdfs ? ' [regen-pdfs]' : '';
 
+  // The shas of the scenes.json/cast.json the client merged against (from
+  // manus_read). Optional so a tab loaded before this existed still saves
+  // the old last-save-wins way; when given, both are checked before either
+  // file is written, so a stale save never lands half-way.
+  $scenesSha = $payload['baseScenesSha'] ?? null;
+  $castSha = $payload['baseCastSha'] ?? null;
+  if (($scenesSha !== null && !is_string($scenesSha)) || ($castSha !== null && !is_string($castSha))) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach (['data/scenes.json' => $scenesSha, 'data/cast.json' => $castSha] as $file => $sha) {
+    if ($sha === null) continue;
+    [$status, $current] = github_api('GET', 'contents/' . $file);
+    if ($status === 200 && $current['sha'] !== $sha) {
+      respond(409, ['error' => 'stale', 'file' => $file]);
+    }
+  }
+
   update_file('data/scenes.json', function ($json) use ($scenesActs, $today, $now) {
     $json['acts'] = $scenesActs;
     $json['version'] = $today;
     $json['generatedAt'] = $now;
     return $json;
-  }, 'Opdater scenes.json via manus-værktøj' . $pdfMarker);
+  }, 'Opdater scenes.json via manus-værktøj' . $pdfMarker, $scenesSha);
 
   update_file('data/cast.json', function ($json) use ($castList, $now) {
     $json['cast'] = $castList;
     $json['generatedAt'] = $now;
     return $json;
-  }, 'Opdater cast.json via manus-værktøj' . $pdfMarker);
+  }, 'Opdater cast.json via manus-værktøj' . $pdfMarker, $castSha);
+}
+
+// "Generér PDF'er" with nothing to save: just ask the worker for a PDF build
+// from the data already on disk. Rewriting scenes.json from the page's copy
+// (the old way) put a stale tab's data back over newer saves.
+function manus_regenerate_pdfs() {
+  if (!touch(rtrim(SITE_DATA_DIR, '/') . '/.regen-pdfs-requested')) {
+    respond(500, ['error' => 'flag_failed']);
+  }
+  respond(200, ['ok' => true]);
+}
+
+// The live scenes.json/cast.json plus their shas — what Manus's save merges
+// against (the embedded SCENES_DATA can lag a save by a few seconds, and
+// carries no sha).
+function manus_read() {
+  $out = ['ok' => true];
+  foreach (['scenes' => 'data/scenes.json', 'cast' => 'data/cast.json'] as $key => $file) {
+    [$status, $current] = github_api('GET', 'contents/' . $file);
+    if ($status !== 200) {
+      respond(502, ['error' => 'github_read_failed', 'file' => $file]);
+    }
+    $decoded = json_decode(base64_decode($current['content']), true);
+    if (!is_array($decoded)) {
+      respond(500, ['error' => 'existing_file_unparseable', 'file' => $file]);
+    }
+    $out[$key] = $decoded;
+    $out[$key . 'Sha'] = $current['sha'];
+  }
+  respond(200, $out);
 }
 
 function save_calendar($payload) {
@@ -5148,18 +5218,15 @@ function manuscripts_sync_selection($body) {
   ];
 
   $results = [];
-  $updatedSubmissions = [];
   foreach ($submissions as $s) {
     $id = $s['id'] ?? '';
     if (!isset($selectedById[$id]) || isset($graduatedPaths[$s['pdfPath'] ?? ''])) {
-      $updatedSubmissions[] = $s; // not in this request, or graduated — untouched
-      continue;
+      continue; // not in this request, or graduated — untouched
     }
     $type = $s['type'] ?? '';
     $destFolder = $selectedById[$id] ? ($destFolderByType[$type] ?? null) : 'submitted';
     if ($destFolder === null) {
-      $updatedSubmissions[] = $s; // unrecognized type — leave untouched, defensive
-      continue;
+      continue; // unrecognized type — leave untouched, defensive
     }
     foreach (['pdfPath', 'texPath'] as $field) {
       $src = $s[$field] ?? '';
@@ -5181,12 +5248,23 @@ function manuscripts_sync_selection($body) {
         $s[$field] = $dest;
       }
     }
-    $updatedSubmissions[] = $s;
     $results[] = ['id' => $id, 'pdfPath' => $s['pdfPath'], 'texPath' => $s['texPath'] ?? ''];
   }
 
-  update_file('data/manuscripts.json', function ($json) use ($updatedSubmissions) {
-    $json['submissions'] = $updatedSubmissions;
+  // Patch only the moved records into the file as it is at write time — a
+  // submission uploaded while the files were being moved must survive.
+  $movedById = [];
+  foreach ($results as $r) $movedById[$r['id']] = $r;
+  update_file('data/manuscripts.json', function ($json) use ($movedById) {
+    $submissions = (is_array($json['submissions'] ?? null)) ? $json['submissions'] : [];
+    foreach ($submissions as &$s) {
+      $moved = $movedById[$s['id'] ?? ''] ?? null;
+      if ($moved === null) continue;
+      $s['pdfPath'] = $moved['pdfPath'];
+      if (isset($s['texPath']) || $moved['texPath'] !== '') $s['texPath'] = $moved['texPath'];
+    }
+    unset($s);
+    $json['submissions'] = $submissions;
     return $json;
   }, 'Synkroniser manus-udvælgelse');
 
@@ -5225,9 +5303,26 @@ function manuscripts_delete($body) {
   respond(200, ['ok' => true]);
 }
 
-// Boss/admin: full-array replace, used only for removing a submission (the
-// client filters it out and re-saves the reduced list) — the pdf/tex blobs
-// themselves are left in the repo, not deleted (see file header comment).
+// Boss: drop one submission record by id (Manus pool's "Fjern"); the
+// pdf/tex files stay. Idempotent. Replaces sending the whole reduced list,
+// which dropped any submission uploaded after the page loaded.
+function manuscripts_remove($body) {
+  $id = $body['id'] ?? '';
+  if (!is_string($id) || $id === '') {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  update_file('data/manuscripts.json', function ($json) use ($id) {
+    $submissions = (is_array($json['submissions'] ?? null)) ? $json['submissions'] : [];
+    $json['submissions'] = array_values(array_filter($submissions, function ($s) use ($id) {
+      return ($s['id'] ?? null) !== $id;
+    }));
+    return $json;
+  }, 'Fjern manus fra puljen via manussiden');
+  respond(200, ['ok' => true]);
+}
+
+// Admin: full-array replace — today only Koordinator's "Afslut revyen"
+// (reset to empty). Manus's "Fjern" uses manuscripts_remove above.
 function save_manuscripts($payload) {
   $list = $payload['submissions'] ?? null;
   if (!is_array($list)) {
@@ -5526,12 +5621,81 @@ function save_program($payload) {
     $seenQrId[$q['id']] = true;
   }
 
-  update_file('data/program.json', function ($json) use ($medvirkende, $ordliste, $qrCodes) {
+  // The sha the client's auto-save built on (from program_read or its last
+  // save) — a mismatch is 409 `stale`, and the client merges and retries.
+  $baseSha = $payload['baseSha'] ?? null;
+  if ($baseSha !== null && !is_string($baseSha)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  $sha = update_file('data/program.json', function ($json) use ($medvirkende, $ordliste, $qrCodes) {
     $json['medvirkende'] = $medvirkende;
     $json['ordliste'] = $ordliste;
     $json['qrCodes'] = $qrCodes;
     return $json;
-  }, 'Opdater program.json via Manus');
+  }, 'Opdater program.json via Manus', $baseSha);
+  respond(200, ['ok' => true, 'sha' => $sha]);
+}
+
+// The live program.json + its sha, for the Program tab's merge on a 409.
+function program_read() {
+  [$status, $current] = github_api('GET', 'contents/data/program.json');
+  if ($status !== 200) {
+    respond(502, ['error' => 'github_read_failed', 'file' => 'data/program.json']);
+  }
+  $decoded = json_decode(base64_decode($current['content']), true);
+  if (!is_array($decoded)) {
+    respond(500, ['error' => 'existing_file_unparseable', 'file' => 'data/program.json']);
+  }
+  respond(200, ['ok' => true, 'program' => $decoded, 'sha' => $current['sha']]);
+}
+
+// Stjerneark's per-click auto-save: sets only the four Stjerneark fields on
+// the scenes named by uid (a scene saved before uids existed matches its
+// derived `id:<id>` and gets that uid stored). Last click wins per scene;
+// nothing else in scenes.json is touched, so it can't undo anyone's other
+// edits. Unknown uids (a scene not saved yet) are skipped and returned in
+// `missing` — those stars go with the next Gem.
+function manus_set_stars($body) {
+  $updates = $body['updates'] ?? null;
+  if (!is_array($updates) || !$updates || count($updates) > 500) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $byUid = [];
+  foreach ($updates as $u) {
+    $prio = $u['priority'] ?? null;
+    $dansPrio = $u['dansPriority'] ?? null;
+    if (!is_array($u) || !is_string($u['uid'] ?? null) || $u['uid'] === '' || strlen($u['uid']) > 200
+        || !is_int($prio) || $prio < 0 || $prio > 3
+        || !is_bool($u['repeat'] ?? null)
+        || ($dansPrio !== null && (!is_int($dansPrio) || $dansPrio < 0 || $dansPrio > 3))
+        || !is_bool($u['dansRepeat'] ?? null)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $byUid[$u['uid']] = $u;
+  }
+
+  $found = [];
+  update_file('data/scenes.json', function ($json) use ($byUid, &$found) {
+    foreach (($json['acts'] ?? []) as $ai => $act) {
+      foreach (($act['scenes'] ?? []) as $si => $scene) {
+        $uid = (isset($scene['uid']) && is_string($scene['uid'])) ? $scene['uid'] : 'id:' . ($scene['id'] ?? '');
+        if (!isset($byUid[$uid])) continue;
+        $u = $byUid[$uid];
+        $scene['uid'] = $uid;
+        $scene['priority'] = $u['priority'];
+        $scene['repeat'] = $u['repeat'];
+        if ($u['dansPriority'] !== null) $scene['dansPriority'] = $u['dansPriority'];
+        else unset($scene['dansPriority']);
+        if ($u['dansRepeat']) $scene['dansRepeat'] = true;
+        else unset($scene['dansRepeat']);
+        $json['acts'][$ai]['scenes'][$si] = $scene;
+        $found[$uid] = true;
+      }
+    }
+    return $json;
+  }, 'Opdater stjerneark via Manus');
+  respond(200, ['ok' => true, 'missing' => array_values(array_diff(array_keys($byUid), array_keys($found)))]);
 }
 
 // Admin-only (Koordinator page is admin-gated, same rank as archive/config):
@@ -5855,7 +6019,7 @@ $RESOURCES = [
   'posts'         => ['level' => 'boss',  'save' => 'save_posts'],
   'bosses'        => ['level' => 'admin', 'save' => 'save_bosses'],
   'wiki'          => ['level' => 'boss',  'save' => 'save_wiki'],
-  'manuscripts'   => ['level' => 'boss',  'save' => 'save_manuscripts'],
+  'manuscripts'   => ['level' => 'admin', 'save' => 'save_manuscripts'],
   'config'        => ['level' => 'admin', 'save' => 'save_config'],
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
   'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
