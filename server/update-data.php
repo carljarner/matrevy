@@ -253,8 +253,11 @@ if (isset($FAELLES_ACTIONS[$action])) {
 // The band's Sangoversigt sheet + sheet-music files (pdf/MuseScore), one
 // document per Arkiv folder under BAND_DATA_DIR — private like the stores
 // above (sheet music is often copyrighted arrangements, so never a
-// web-served folder, never mirrored to GitHub). Fully open at the revyst
-// tier, like a shared Drive folder.
+// web-served folder, never mirrored to GitHub). Open at the revyst tier
+// like a shared Drive folder — but only for the active band folder (chosen
+// by a boss in Boss-indstillinger, else the current production): every
+// other folder (older revys, extra instances, the Arkiv tab's _arkiv store)
+// is read-only below boss (band_folder_writable()).
 $BAND_ACTIONS = [
   'band_read'             => 'revyst', // {rows, instruments, updatedAt} for one revy folder
   'band_upsert_row'       => 'revyst', // create (no id) or merge fields into one song/section row
@@ -270,13 +273,18 @@ $BAND_ACTIONS = [
   'band_file'             => 'revyst', // streams one file's bytes (not JSON)
   'band_archive_read'     => 'revyst', // every song of every revy (+ the _arkiv store), for the Arkiv tab
   'band_instances_read'   => 'revyst', // extra band folders beside Arkiv's revys (e.g. "MatGalla 2025")
-  'band_instance_create'  => 'revyst',
-  'band_instance_update'  => 'revyst', // name/year only — the folder never changes
-  'band_instance_delete'  => 'revyst', // registry entry + its whole band folder
+  'band_instance_create'  => 'boss',
+  'band_instance_update'  => 'boss', // name/year only — the folder never changes
+  'band_instance_delete'  => 'boss', // registry entry + its whole band folder
+  'band_set_active_folder' => 'boss', // which folder ordinary revyster may edit
 ];
 if (isset($BAND_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BAND_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
+  }
+  if (!band_action_is_read($action) && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']
+      && !band_folder_writable($body['folder'] ?? '')) {
+    respond(403, ['error' => 'read_only']);
   }
   handle_band($action, $body);
 }
@@ -3611,6 +3619,51 @@ function band_folder_from_body($body) {
   return $folder;
 }
 
+// Actions that never write — allowed on every folder at the revyst tier.
+function band_action_is_read($action) {
+  return in_array($action, ['band_read', 'band_file', 'band_archive_read', 'band_instances_read'], true);
+}
+
+// Below boss, only the active folder can be written; older revys, extra
+// instances and the _arkiv store are read-only.
+function band_folder_writable($folder) {
+  if (!is_string($folder) || $folder === '' || $folder === band_archive_folder()) return false;
+  return $folder === band_active_folder();
+}
+
+// BAND_DATA_DIR/settings.json = {activeFolder}. Unset → the current
+// production's folder (data/config.json), so a fresh install just works.
+function band_settings_path() {
+  return band_dir() . '/settings.json';
+}
+
+function band_active_folder() {
+  $path = band_settings_path();
+  $doc = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+  $folder = is_array($doc) ? ($doc['activeFolder'] ?? null) : null;
+  if (is_string($folder) && band_valid_folder($folder)) return $folder;
+  return manus_current_production_folder() ?? '';
+}
+
+// null = back to following the current production.
+function band_write_active_folder($folder) {
+  band_ensure_dir(band_dir());
+  $tmp = band_settings_path() . '.tmp';
+  $json = json_encode(['activeFolder' => $folder], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+  if (@file_put_contents($tmp, $json, LOCK_EX) === false || !@rename($tmp, band_settings_path())) {
+    respond(500, ['error' => 'band_storage_unavailable']);
+  }
+}
+
+// {folder} — any valid revy/instance folder (the client offers the picker's
+// list; a folder without a band.json yet reads as the default document).
+function band_set_active_folder($body) {
+  $folder = $body['folder'] ?? '';
+  if (!band_valid_folder($folder)) respond(400, ['error' => 'bad_folder']);
+  band_write_active_folder($folder);
+  respond(200, ['ok' => true, 'activeFolder' => band_active_folder()]);
+}
+
 function band_valid_id($id) {
   return is_string($id) && preg_match('/^[0-9a-f]{8,40}$/', $id) === 1;
 }
@@ -4242,7 +4295,7 @@ function band_validate_instance_fields($body) {
 }
 
 function band_instances_read($body) {
-  respond(200, ['ok' => true, 'instances' => band_instances_load()]);
+  respond(200, ['ok' => true, 'instances' => band_instances_load(), 'activeFolder' => band_active_folder()]);
 }
 
 // {name, year, avoid?:[folders]} — `avoid` = Arkiv's year folders, which
@@ -4315,8 +4368,10 @@ function band_instance_delete($body) {
     return $kept;
   });
   if (!$found) respond(404, ['error' => 'not_found']);
+  // A deleted active instance hands edit rights back to the current production.
+  if (band_active_folder() === $folder) band_write_active_folder(null);
   band_remove_tree(band_dir() . '/' . $folder);
-  respond(200, ['ok' => true, 'instances' => $list]);
+  respond(200, ['ok' => true, 'instances' => $list, 'activeFolder' => band_active_folder()]);
 }
 
 function handle_band($action, $body) {
@@ -4338,6 +4393,7 @@ function handle_band($action, $body) {
     case 'band_instance_create':  return band_instance_create($body);
     case 'band_instance_update':  return band_instance_update($body);
     case 'band_instance_delete':  return band_instance_delete($body);
+    case 'band_set_active_folder': return band_set_active_folder($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }

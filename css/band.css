@@ -207,7 +207,8 @@
 }
 
 /* The sheet: fixed layout, widths from its <colgroup> (set in band.js,
-   draggable per column); the table is exactly as wide as its columns. */
+   draggable per column); the table is as wide as its columns, but never
+   narrower than the card (extra width spreads over the columns). */
 .band-table.band-sheet-table {
   table-layout: fixed;
 }
@@ -313,6 +314,32 @@
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
+/* Read-only folder (older revy / extra instance, below boss): plain text,
+   no editing affordances. */
+.band-head-readonly { cursor: default; }
+
+.band-field[readonly] { cursor: default; }
+
+@media (hover: hover) {
+  .band-field[readonly]:hover,
+  .band-head-readonly:hover { border-color: transparent; }
+}
+
+.band-field[readonly]:focus,
+.band-field[readonly]:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.band-status:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.band-readonly-note {
+  margin: 0 0 0.5rem;
+}
+
 /* Section heading rows ("Revysange", "Bandintroer", …). */
 .band-section-row td {
   background: var(--surface-2);
@@ -395,9 +422,59 @@
   margin-bottom: 0.75rem;
 }
 
-/* --- Instruments card ---------------------------------------------- */
+/* --- Instruments card (+ Boss-indstillinger beside it) ------------- */
+.band-bottom-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0 1.25rem;
+}
+
 .band-instruments-card {
+  flex: 1 1 26rem;
   max-width: 42rem;
+  min-width: 0;
+}
+
+/* Fills the rest of the row, so its right edge lines up with Sangoversigt. */
+.band-boss-card {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+
+.band-boss-hint {
+  margin: 0 0 0.75rem;
+}
+
+.band-boss-field {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
+.band-boss-label {
+  white-space: nowrap;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* As wide as its text, beside the label (overrides .site-field-btn's
+   width: 100%, which would push it onto its own line); height like the
+   revy picker in the page head. */
+.band-boss-select {
+  flex: 0 0 auto;
+  width: auto;
+  height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.85rem;
+  background: var(--surface);
+}
+
+@media (max-width: 719px) {
+  .band-instruments-card,
+  .band-boss-card { flex-basis: 100%; }
 }
 
 .band-instruments-table .band-col-handle {
