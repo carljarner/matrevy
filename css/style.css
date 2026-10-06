@@ -2009,6 +2009,48 @@ body.site-menu-open {
   transform: translate(-50%, 0);
 }
 
+/* --- Stale-page banner (site.js setupSiteStaleCheck) ------ */
+.site-stale-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 32px);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.6rem 0.55rem 1rem;
+  border: 1px solid var(--accent-warm);
+  border-radius: 8px;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  font-size: 0.9rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  z-index: 120;
+}
+.site-stale-text { flex: 1 1 auto; }
+.site-stale-reload { flex: none; }
+.site-stale-close {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0.3rem;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+@media (hover: hover) {
+  .site-stale-close:hover { opacity: 1; }
+}
+.site-stale-close:focus-visible { opacity: 1; outline: 2px solid var(--accent-warm-ring); }
+@media print {
+  .site-stale-banner { display: none !important; }
+}
+
 /* --- Utility --------------------------------------------- */
 p {
   color: var(--text-muted);

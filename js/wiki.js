@@ -508,9 +508,20 @@ function renderChapterEditView(chapter) {
     }
 
     const draft = { id: chapter.id, title, body: sanitizeHtmlString(bodyEl.innerHTML), published: chapter.published === true, attachments: finalAttachments };
-    const current = getEffectiveChapters();
-    const next = current.map((c) => (c.id === chapter.id ? draft : c));
-    const result = await saveChapters(next); // clears wikiEditingChapterId + re-renders on success
+    // Applied to the live chapters; if someone else saved this chapter's
+    // title/text/attachments since editing started, ask before overwriting.
+    let askedOverwrite = false;
+    const result = await saveChapters(async (live) => {
+      const current = live.find((c) => c.id === chapter.id);
+      if (!current) return WIKI_CHAPTER_GONE;
+      if (!askedOverwrite && wikiChapterContentKey(current) !== wikiChapterContentKey(chapter)) {
+        if (!(await wikiConfirmOverwrite(chapter.title))) return null;
+        askedOverwrite = true;
+      }
+      // Publishing is toggled elsewhere — keep whatever it is now.
+      const next = { ...draft, published: current.published === true };
+      return live.map((c) => (c.id === chapter.id ? next : c));
+    }); // clears wikiEditingChapterId + re-renders on success
     if (result.ok) {
       toolbar.destroy();
     } else {
@@ -954,15 +965,60 @@ function wikiStripDataUrlPrefix(dataUrl) {
 }
 
 // ── Saving ───────────────────────────────────────────────────
-async function saveChapters(next) {
-  const result = await siteSaveResource('wiki', { chapters: next });
+// `update(liveChapters)` applies one change to the live list (see
+// siteSaveListResource), so a save never drops chapters or edits others
+// saved since this page loaded.
+async function saveChapters(update) {
+  const result = await siteSaveListResource('wiki', 'chapters', update);
   if (result.ok) {
-    wikiOverride = next;
-    siteSaveOverride('wiki', next);
+    wikiOverride = result.list;
+    siteSaveOverride('wiki', result.list);
     wikiEditingChapterId = null;
     renderWiki();
   }
   return result;
+}
+
+const WIKI_CHAPTER_GONE = 'Kapitlet er slettet af en anden i mellemtiden.';
+
+// What the in-place editor writes (title/body/attachments) — compared
+// against the live chapter to tell whether someone else saved it meanwhile.
+function wikiChapterContentKey(c) {
+  return JSON.stringify([c.title || '', c.body || '', (c.attachments || []).map((a) => [a.id, a.name, a.path])]);
+}
+
+// Resolves true (Overskriv) or false (Annuller / closed).
+function wikiConfirmOverwrite(title) {
+  return new Promise((resolve) => {
+    const { overlay, modal, form, actions, close } = siteOpenEditModal('');
+    modal.classList.add('wiki-confirm-modal');
+    const heading = modal.querySelector('h2');
+    if (heading) heading.remove();
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      close();
+      resolve(value);
+    };
+    overlay.addEventListener('click', () => { if (!overlay.isConnected) finish(false); });
+
+    const info = document.createElement('p');
+    info.className = 'wiki-confirm-text';
+    info.textContent = `"${title}" er ændret af en anden`;
+    form.appendChild(info);
+    const sub = document.createElement('p');
+    sub.className = 'wiki-confirm-sub';
+    sub.textContent = 'Nogen har gemt kapitlet, siden du begyndte at redigere. Gemmer du, erstattes deres version af din.';
+    form.appendChild(sub);
+
+    const cancelBtn = wikiPillBtn('Annuller');
+    cancelBtn.addEventListener('click', () => finish(false));
+    const confirmBtn = wikiPillBtn('Overskriv', 'site-btn-danger');
+    confirmBtn.addEventListener('click', () => finish(true));
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+  });
 }
 
 // A square colored button for modal actions — see style.css's shared
@@ -1001,8 +1057,7 @@ function openDeleteChapterConfirm(existing) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const next = getEffectiveChapters().filter((c) => c.id !== existing.id);
-    const result = await saveChapters(next);
+    const result = await saveChapters((live) => live.filter((c) => c.id !== existing.id));
     if (result.ok) {
       close();
     } else {
@@ -1175,6 +1230,9 @@ function openManageChaptersModal() {
   // save time, so a reorder/add/publish-toggle can never lose a chapter's
   // content.
   let draft = getEffectiveChapters().map((c) => ({ id: c.id, title: c.title, published: c.published === true }));
+  // What the list looked like when opened — on save only what changed
+  // relative to this is applied to the live chapters.
+  const base = new Map(draft.map((d) => [d.id, { ...d }]));
 
   const listWrap = document.createElement('div');
   listWrap.className = 'wiki-manage-list';
@@ -1305,15 +1363,32 @@ function openManageChaptersModal() {
     save.disabled = true;
     error.textContent = '';
 
-    const current = getEffectiveChapters();
-    const next = draft.map((d) => {
-      const existing = current.find((c) => c.id === d.id);
-      return existing
-        ? { id: d.id, title: d.title, body: existing.body, published: d.published === true, attachments: existing.attachments || [] }
-        : { id: d.id, title: d.title, body: '', published: d.published === true };
+    // Applied to the live chapters: this modal's order, its new chapters,
+    // removals and title/publish changes; body/attachments always come from
+    // the live chapter. A chapter someone else added meanwhile is kept (at
+    // the end), one someone else deleted stays deleted, and a title or
+    // publish state left untouched here keeps its live value.
+    const result = await saveChapters((live) => {
+      const liveById = new Map(live.map((c) => [c.id, c]));
+      const next = [];
+      for (const d of draft) {
+        const b = base.get(d.id);
+        const current = liveById.get(d.id);
+        if (!b) {
+          next.push({ id: d.id, title: d.title, body: '', published: d.published === true });
+          continue;
+        }
+        if (!current) continue;
+        next.push({
+          ...current,
+          title: d.title !== b.title ? d.title : current.title,
+          published: d.published !== b.published ? d.published === true : current.published === true,
+          attachments: current.attachments || [],
+        });
+      }
+      for (const c of live) if (!base.has(c.id)) next.push(c);
+      return next.length ? next : 'Der skal være mindst ét kapitel.';
     });
-
-    const result = await saveChapters(next);
     if (result.ok) {
       close();
     } else {

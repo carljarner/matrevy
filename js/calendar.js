@@ -390,15 +390,20 @@ function openEventDetail(ev) {
 }
 
 // ── Saving ───────────────────────────────────────────────────
-async function saveEvents(next) {
-  const result = await siteSaveResource('calendar', { events: next });
+// `update(liveEvents)` applies one change to the live list (see
+// siteSaveListResource), so a save never drops events others added since
+// this page loaded.
+async function saveEvents(update) {
+  const result = await siteSaveListResource('calendar', 'events', update);
   if (result.ok) {
-    calendarOverride = next;
-    siteSaveOverride('calendar', next);
+    calendarOverride = result.list;
+    siteSaveOverride('calendar', result.list);
     renderCalendar();
   }
   return result;
 }
+
+const CAL_EVENT_GONE = 'Begivenheden er slettet af en anden i mellemtiden.';
 
 // ── Category field (custom dropdown popup) ────────────────────
 // Date/time fields use the shared siteCreateDateField/siteCreateTimeField
@@ -573,14 +578,13 @@ function openEventEditor(existing) {
       location: locationInput.value.trim(),
       note: noteArea.value.trim(),
     };
-    const current = getEffectiveEvents();
-    const next = existing
-      ? current.map(ev => (ev.id === existing.id ? item : ev))
-      : current.concat([item]);
-
     save.disabled = true;
     error.textContent = '';
-    const result = await saveEvents(next);
+    const result = await saveEvents((live) => {
+      if (!existing) return live.concat([item]);
+      if (!live.some(ev => ev.id === existing.id)) return CAL_EVENT_GONE;
+      return live.map(ev => (ev.id === existing.id ? item : ev));
+    });
     save.disabled = false;
     if (result.ok) close();
     else error.textContent = result.message;
@@ -617,8 +621,7 @@ function openDeleteConfirm(ev, onDeleted) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const next = getEffectiveEvents().filter(e => e.id !== ev.id);
-    const result = await saveEvents(next);
+    const result = await saveEvents((live) => live.filter(e => e.id !== ev.id));
     if (result.ok) {
       close();
       if (onDeleted) onDeleted();

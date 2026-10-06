@@ -598,10 +598,185 @@ function applyPageGate() {
   else document.body.appendChild(gate);
 }
 
+// ── Stale-page banner ────────────────────────────────────────
+// A tab left open for hours shows old data (and runs old code after a
+// deploy). When the tab becomes visible again, and every 15 minutes while
+// it's visible, the page HEADs the files it was built from and compares
+// their Last-Modified with what it saw at load:
+// - every `js/<name>-data.js` this page loads (the generated embeds —
+//   embed-scenes.js only rewrites one whose content changed), except the
+//   hand-written manus-data.js; skipped on a page whose <body> has
+//   data-stale-watch="code" (Øveplan, which deliberately keeps its scenes);
+// - js/site.js, whose Last-Modified changes on every deploy.
+// Only a real change shows the bottom banner, with a "Genindlæs" button —
+// a reload still goes through each page's beforeunload guard, so unsaved
+// work is never lost silently. The tab's own saves regenerate the embeds
+// too, so a change landing shortly after this tab wrote to the API is taken
+// as its own and silently accepted (the server's clock is estimated from the
+// HEAD responses' Date header). Skipped over file://.
+const SITE_STALE_CHECK_MS = 15 * 60 * 1000;
+const SITE_STALE_MIN_GAP_MS = 60 * 1000;
+// An embed is regenerated a few seconds after a save (longer while a PDF
+// build runs), so a change this soon after one of this tab's writes is ours.
+const SITE_OWN_WRITE_WINDOW_MS = 2 * 60 * 1000;
+const SITE_CODE_PATH = 'js/site.js';
+
+const siteUnsavedChecks = [];
+// Pages with drafts register a () => boolean so the banner can say
+// "gem først" (the reload itself is guarded by beforeunload either way).
+function siteRegisterUnsavedCheck(fn) {
+  siteUnsavedChecks.push(fn);
+}
+
+let siteStaleBaseline = null; // Map path -> Last-Modified (ms), as of load / last dismiss
+let siteStaleLatest = new Map();
+let siteStaleLastCheck = 0;
+let siteStaleChecking = false;
+let siteStaleShown = null; // 'code' | 'data' | null
+const siteOwnWrites = []; // client time (ms) of this tab's API write responses
+let siteServerOffsetMs = 0; // server clock − client clock
+
+// Every API call goes through fetch(), so one wrapper notes this tab's
+// writes without touching each page's own helper. Read-only actions are
+// skipped (they don't change any file).
+const siteNativeFetch = window.fetch.bind(window);
+window.fetch = function (input, init) {
+  const promise = siteNativeFetch(input, init);
+  try {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (init && init.method === 'POST' && url === SITE_API_ENDPOINT && !siteIsReadOnlyApiBody(init.body)) {
+      promise.then(() => {
+        siteOwnWrites.push(Date.now());
+        if (siteOwnWrites.length > 50) siteOwnWrites.shift();
+      }, () => {});
+    }
+  } catch (e) { /* never break a request over bookkeeping */ }
+  return promise;
+};
+
+// Conservative on purpose: anything not clearly a read counts as a write
+// (a missed write would make this tab's own save look like someone else's).
+const SITE_READ_ONLY_ACTION_RE = /^(login|forms_list_open|budget_active_categories)$|_read$|_list$|_get$|_file$|_receipt$|_info$/;
+function siteIsReadOnlyApiBody(body) {
+  try {
+    return SITE_READ_ONLY_ACTION_RE.test(JSON.parse(body).action || '');
+  } catch (e) {
+    return false;
+  }
+}
+
+function siteIsOwnChange(lastModifiedMs) {
+  return siteOwnWrites.some((t) => {
+    const serverT = t + siteServerOffsetMs;
+    return lastModifiedMs >= serverT - 10 * 1000 && lastModifiedMs <= serverT + SITE_OWN_WRITE_WINDOW_MS;
+  });
+}
+
+function siteStaleWatchedPaths() {
+  const paths = [SITE_CODE_PATH];
+  if (document.body.dataset.staleWatch === 'code') return paths;
+  document.querySelectorAll('script[src]').forEach((script) => {
+    const m = script.getAttribute('src').match(/^(?:\.\/)?(js\/([a-z]+)-data\.js)(?:\?.*)?$/);
+    if (m && m[2] !== 'manus' && !paths.includes(m[1])) paths.push(m[1]);
+  });
+  return paths;
+}
+
+async function siteHeadLastModified(path) {
+  try {
+    const res = await siteNativeFetch(path, { method: 'HEAD', cache: 'no-store' });
+    if (!res.ok) return null;
+    const serverDate = Date.parse(res.headers.get('Date') || '');
+    if (!isNaN(serverDate)) siteServerOffsetMs = serverDate - Date.now();
+    const lm = Date.parse(res.headers.get('Last-Modified') || '');
+    return isNaN(lm) ? null : lm;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function siteStaleCheck() {
+  if (siteStaleChecking) return;
+  siteStaleChecking = true;
+  siteStaleLastCheck = Date.now();
+  try {
+    const paths = siteStaleWatchedPaths();
+    const results = await Promise.all(paths.map(siteHeadLastModified));
+    const first = !siteStaleBaseline;
+    if (first) siteStaleBaseline = new Map();
+    let code = false;
+    let data = false;
+    paths.forEach((path, i) => {
+      const lm = results[i];
+      if (lm === null) return;
+      siteStaleLatest.set(path, lm);
+      const base = siteStaleBaseline.get(path);
+      if (base === undefined) { siteStaleBaseline.set(path, lm); return; }
+      if (lm === base) return;
+      if (path === SITE_CODE_PATH) code = true;
+      else if (siteIsOwnChange(lm)) siteStaleBaseline.set(path, lm);
+      else data = true;
+    });
+    if (!first && (code || data)) siteShowStaleBanner(code ? 'code' : 'data');
+  } finally {
+    siteStaleChecking = false;
+  }
+}
+
+function siteShowStaleBanner(kind) {
+  if (siteStaleShown === 'code' || siteStaleShown === kind) return;
+  siteStaleShown = kind;
+  let banner = document.querySelector('.site-stale-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.className = 'site-stale-banner';
+    banner.setAttribute('role', 'status');
+    document.body.appendChild(banner);
+  }
+  banner.textContent = '';
+  const unsaved = siteUnsavedChecks.some((fn) => { try { return fn(); } catch (e) { return false; } });
+  const text = document.createElement('span');
+  text.className = 'site-stale-text';
+  text.textContent = (kind === 'code'
+    ? 'Siden er blevet opdateret. Genindlæs for at få den nyeste version.'
+    : 'Der er kommet nye ændringer. Genindlæs siden for at se dem.')
+    + (unsaved ? ' Gem dine ændringer først.' : '');
+  const reloadBtn = document.createElement('button');
+  reloadBtn.type = 'button';
+  reloadBtn.className = 'btn-small site-stale-reload';
+  reloadBtn.textContent = 'Genindlæs';
+  reloadBtn.addEventListener('click', () => location.reload());
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'site-stale-close';
+  closeBtn.textContent = '✕';
+  closeBtn.title = 'Luk';
+  closeBtn.setAttribute('aria-label', 'Luk');
+  closeBtn.addEventListener('click', () => {
+    // Dismissed: shown again only for a newer change.
+    siteStaleLatest.forEach((lm, path) => siteStaleBaseline.set(path, lm));
+    siteStaleShown = null;
+    banner.remove();
+  });
+  banner.append(text, reloadBtn, closeBtn);
+}
+
+function setupSiteStaleCheck() {
+  if (siteIsFileProtocol()) return;
+  siteStaleCheck();
+  setInterval(() => {
+    if (document.visibilityState === 'visible' && Date.now() - siteStaleLastCheck >= SITE_STALE_CHECK_MS) siteStaleCheck();
+  }, SITE_STALE_MIN_GAP_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && Date.now() - siteStaleLastCheck >= SITE_STALE_MIN_GAP_MS) siteStaleCheck();
+  });
+}
+
 // ── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   renderSiteHeader();
   applyPageGate();
   injectSitePrefetchLinks();
   setupSiteNavPreload();
+  setupSiteStaleCheck();
 });

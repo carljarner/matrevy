@@ -5730,7 +5730,118 @@ function manusSaveStatusEl() {
   return document.querySelector('#manus-main-view-actions .manus-save-status');
 }
 
+// ── Local draft backup (siteDraftBackup) ──────────────────────
+// While the Gem tabs have unsaved changes, the whole draft (including its
+// merge base `_base`) is mirrored to localStorage on the same 500 ms poll as
+// the save status; once clean (saved or nothing changed) this tab's backup
+// is removed. On load, a backup for the current production is offered back
+// in a banner above the tabs. Restoring makes it the draft as-is — exactly a
+// tab that was left open: Gem then merges it against what's saved now
+// (base = the backup's own `_base`), asking only on real conflicts. While
+// the offer is open nothing is written, so it can't be overwritten.
+// Stjerneark and Program auto-save, so they're never part of it.
+const manusBackup = siteDraftBackup('manus');
+let manusBackupOffer;            // undefined = not checked yet, null = none, else {data, savedAt}
+let manusBackupLastWritten = null; // JSON this tab last wrote
+
+function manusCheckBackupOffer() {
+  if (manusBackupOffer !== undefined) return;
+  const found = manusBackup.read();
+  const folder = getEffectiveConfig().currentProductionFolder || '';
+  manusBackupOffer = found && found.data && found.data.folder === folder && typeof found.data.draft === 'string'
+    ? found
+    : null;
+}
+
+function manusBackupTick() {
+  if (manusBackupOffer || !manusDraft) return;
+  if (!manusIsDirty()) {
+    if (manusBackupLastWritten !== null) {
+      manusBackup.clear();
+      manusBackupLastWritten = null;
+    }
+    return;
+  }
+  const json = JSON.stringify(manusDraft);
+  if (json === manusBackupLastWritten) return;
+  if (manusBackup.write({ folder: getEffectiveConfig().currentProductionFolder || '', draft: json })) {
+    manusBackupLastWritten = json;
+  }
+}
+
+function manusRenderBackupBanner() {
+  const section = document.getElementById('manus-main-view');
+  let banner = document.getElementById('manus-draft-restore');
+  if (!manusBackupOffer) {
+    if (banner) banner.remove();
+    return;
+  }
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'manus-draft-restore';
+    banner.className = 'manus-program-conflict manus-draft-restore';
+    section.insertBefore(banner, section.firstChild);
+  }
+  banner.textContent = '';
+  const d = new Date(manusBackupOffer.savedAt);
+  const pad = (n) => String(n).padStart(2, '0');
+  const iso = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const text = document.createElement('span');
+  text.textContent = `Der ligger ugemte ændringer fra ${formatDaDateMaybeTime(iso)} i denne browser.`;
+  const discardBtn = document.createElement('button');
+  discardBtn.type = 'button';
+  discardBtn.className = 'btn-small';
+  discardBtn.textContent = 'Kassér';
+  discardBtn.addEventListener('click', () => {
+    manusBackup.discard();
+    manusBackupOffer = null;
+    manusRenderBackupBanner();
+  });
+  const restoreBtn = document.createElement('button');
+  restoreBtn.type = 'button';
+  restoreBtn.className = 'btn-small';
+  restoreBtn.textContent = 'Gendan';
+  restoreBtn.addEventListener('click', manusRestoreBackup);
+  banner.append(text, discardBtn, restoreBtn);
+}
+
+function manusRestoreBackup() {
+  if (manusResourceSaveInFlight || !manusBackupOffer) return;
+  let draft;
+  try {
+    draft = JSON.parse(manusBackupOffer.data.draft);
+  } catch (e) {
+    draft = null;
+  }
+  if (!draft || !Array.isArray(draft.rows) || !Array.isArray(draft.acts) || !Array.isArray(draft._base)) {
+    siteShowToast('Kunne ikke gendanne ændringerne.');
+    manusBackup.discard();
+    manusBackupOffer = null;
+    manusRenderBackupBanner();
+    return;
+  }
+  // Fresh keys, so they can't collide with keys minted from here on.
+  for (const row of draft.rows) row.key = manusNextKey();
+  // Pool rows: the server's current submission (paths may have moved),
+  // dropping unplaced ones whose submission is gone; then any submission
+  // uploaded since the backup, as the fresh draft has it.
+  const subs = new Map(getEffectiveManuscripts().map(sub => [sub.id, sub]));
+  draft.rows = draft.rows
+    .filter(r => r.origin !== 'pool' || subs.has(r.submission.id) || r.lane !== 'pool')
+    .map(r => (r.origin === 'pool' && subs.has(r.submission.id) ? { ...r, submission: subs.get(r.submission.id) } : r));
+  const known = new Set(draft.rows.map(r => r.uid));
+  for (const row of manusDraft.rows) {
+    if (row.origin === 'pool' && !known.has(row.uid)) draft.rows.push(row);
+  }
+  manusDraft = draft;
+  manusBackupOffer = null;
+  manusBackupLastWritten = null;
+  renderAll();
+  siteShowToast('Ændringerne er gendannet. Tryk Gem for at gemme dem.');
+}
+
 function manusUpdateSaveStatus() {
+  manusBackupTick();
   const el = manusSaveStatusEl();
   if (!el) return;
   const dirty = manusIsDirty();
@@ -5908,6 +6019,8 @@ function renderMainManusView() {
   }
   section.style.display = '';
   if (!manusDraft) manusDraft = manusInitDraft();
+  manusCheckBackupOffer();
+  manusRenderBackupBanner();
 
   renderTabBar();
   renderActiveTabPanel();
@@ -6154,6 +6267,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('beforeunload', (e) => {
     if (manusIsDirty()) { e.preventDefault(); e.returnValue = ''; }
   });
+  siteRegisterUnsavedCheck(manusIsDirty);
 
   // Intercept clicks on this page's own links while dirty, in favor of the
   // styled confirmLeaveDirtyPage() modal above instead of an abrupt native

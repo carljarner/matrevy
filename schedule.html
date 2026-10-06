@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" href="img/favicon.png" />
   <link rel="stylesheet" href="css/schedule.css" />
 </head>
-<body>
+<body data-stale-watch="code">
   <!-- Nav + login rendered by site.js from its central page registry -->
   <header class="site-header">
     <div class="site-title">Matematikrevyen</div>
@@ -132,7 +132,7 @@
   <div id="clear-confirm-overlay" class="login-overlay" style="display:none">
     <div class="login-modal sched-confirm-modal">
       <p class="sched-confirm-title">Ryd skema?</p>
-      <p class="sched-confirm-body">Dette kan ikke fortrydes.</p>
+      <p class="sched-confirm-body">Du kan fortryde med Ctrl+Z.</p>
       <div class="login-actions">
         <button class="site-btn-warm" id="clear-confirm-cancel">Annuller</button>
         <button class="site-btn-danger" id="clear-confirm-ok">Ryd</button>

@@ -2417,3 +2417,9 @@ a.manus-pdf-title:focus-visible {
 .manus-program-conflict span {
   flex: 1 1 14rem;
 }
+
+/* Gem tabs: "ugemte ændringer i denne browser" offer above the tab bar
+   (manusRenderBackupBanner), same look as the Program banner. */
+.manus-draft-restore {
+  margin-bottom: 0.9rem;
+}

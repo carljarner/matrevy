@@ -186,7 +186,9 @@ $BUDGET_ACTIONS = [
   'budget_delete_year'      => 'admin', // permanently delete a whole budget year — irreversible
   'budget_rename_year'      => 'admin', // rename/relabel an existing budget year, data carries over unchanged
   'streg_read'              => 'admin', // stregregnskab: read one budget's bar-tally sheet
-  'streg_save_rows'         => 'admin', // replace the whole name/tally-count rows list (also "Nulstil", with an empty array)
+  'streg_save_rows'         => 'admin', // replace the whole name/tally-count rows list (now only "Nulstil", with an empty array)
+  'streg_upsert_row'        => 'admin', // create or patch one row (the grid's auto-save)
+  'streg_delete_row'        => 'admin', // delete one row, idempotent
   'streg_save_categories'   => 'admin', // replace the drink-category list + prices (add/rename/reorder/remove)
   'streg_save_connection'   => 'admin', // connect/disconnect a Formularer form for name rows
 ];
@@ -350,11 +352,12 @@ if ($action === 'manuscripts_sync_selection') {
 // merge read — boss-level like the `manus`/`manuscripts`
 // resources. Single-purpose actions rather than full-array saves, so a tab
 // with stale data can't overwrite anything through them.
-if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manuscripts_remove', 'manus_set_stars', 'program_read'], true)) {
+if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manuscripts_remove', 'manus_set_stars', 'program_read', 'resource_read'], true)) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
   if ($action === 'manus_read') manus_read();
+  else if ($action === 'resource_read') resource_read($body);
   else if ($action === 'manus_regenerate_pdfs') manus_regenerate_pdfs();
   else if ($action === 'manus_set_stars') manus_set_stars($body);
   else if ($action === 'program_read') program_read();
@@ -980,6 +983,8 @@ function handle_budget($action, $body) {
     case 'budget_rename_year':      return budget_rename_year($body);
     case 'streg_read':              return streg_read($body);
     case 'streg_save_rows':         return streg_save_rows($body);
+    case 'streg_upsert_row':        return streg_upsert_row($body);
+    case 'streg_delete_row':        return streg_delete_row($body);
     case 'streg_save_categories':    return streg_save_categories($body);
     case 'streg_save_connection':   return streg_save_connection($body);
   }
@@ -2218,6 +2223,90 @@ function streg_save_rows($body) {
       return $json;
     });
   respond(200, ['ok' => true, 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
+}
+
+// Admin: the grid's auto-save — create (no rowId) or patch (rowId given)
+// one row, so two admins editing different rows (or different cells of
+// the same row) never overwrite each other. Only the fields actually sent
+// change: `navn` and `paid` replace, `counts` merges per category key (0
+// removes the key). A new row needs a non-empty `navn`. Unknown category
+// keys are dropped, like streg_save_rows. Mirrors faelles_upsert_row.
+function streg_upsert_row($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $rowId = $body['rowId'] ?? null;
+  if ($rowId !== null && !streg_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  $navn = null;
+  if (array_key_exists('navn', $body)) {
+    if (!is_string($body['navn']) || trim($body['navn']) === '' || mb_strlen(trim($body['navn'])) > 120) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $navn = trim($body['navn']);
+  }
+  if ($rowId === null && $navn === null) respond(400, ['error' => 'invalid_shape']);
+  $countsIn = $body['counts'] ?? [];
+  if (!is_array($countsIn)) respond(400, ['error' => 'invalid_shape']);
+  foreach ($countsIn as $k => $v) {
+    if (!is_string($k) || $k === '' || !is_numeric($v) || (float) $v < 0) respond(400, ['error' => 'invalid_shape']);
+  }
+  $paid = array_key_exists('paid', $body) ? !empty($body['paid']) : null;
+
+  $savedRow = null;
+  $doc = budget_mutate($budgetId, 'streg.json', streg_default_doc(),
+    function ($json) use ($rowId, $navn, $countsIn, $paid, &$savedRow) {
+      $knownKeys = array_column(streg_categories($json), 'key');
+      $now = date('c');
+      $applyCounts = function ($counts) use ($countsIn, $knownKeys) {
+        $counts = is_array($counts) ? $counts : [];
+        foreach ($countsIn as $k => $v) {
+          if (!in_array($k, $knownKeys, true)) continue;
+          $n = (int) round((float) $v);
+          if ($n > 0) $counts[$k] = $n;
+          else unset($counts[$k]);
+        }
+        return $counts;
+      };
+      if (!isset($json['rows']) || !is_array($json['rows'])) $json['rows'] = [];
+      if ($rowId !== null) {
+        $found = false;
+        foreach ($json['rows'] as &$row) {
+          if ($row['id'] !== $rowId) continue;
+          if ($navn !== null) $row['navn'] = $navn;
+          if ($paid !== null) $row['paid'] = $paid;
+          $row['counts'] = $applyCounts($row['counts'] ?? []);
+          $row['updatedAt'] = $now;
+          $savedRow = $row;
+          $found = true;
+          break;
+        }
+        unset($row);
+        if (!$found) respond(404, ['error' => 'not_found']);
+      } else {
+        $savedRow = [
+          'id' => streg_id(), 'navn' => $navn, 'counts' => $applyCounts([]), 'paid' => (bool) $paid,
+          'createdAt' => $now, 'updatedAt' => $now,
+        ];
+        $json['rows'][] = $savedRow;
+      }
+      $json['updatedAt'] = $now;
+      return $json;
+    });
+  respond(200, ['ok' => true, 'row' => $savedRow, 'updatedAt' => $doc['updatedAt']]);
+}
+
+// Admin: removes one row. Idempotent — two admins deleting the same row
+// is not an error.
+function streg_delete_row($body) {
+  $budgetId = budget_resolve_budget_id($body);
+  $rowId = $body['rowId'] ?? '';
+  if (!streg_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  budget_mutate($budgetId, 'streg.json', streg_default_doc(), function ($json) use ($rowId) {
+    $json['rows'] = array_values(array_filter($json['rows'] ?? [], function ($r) use ($rowId) {
+      return ($r['id'] ?? null) !== $rowId;
+    }));
+    $json['updatedAt'] = date('c');
+    return $json;
+  });
+  respond(200, ['ok' => true]);
 }
 
 // Admin: replaces the whole category list (key/label) in one atomic write,
@@ -4719,10 +4808,11 @@ function save_calendar($payload) {
     }
   }
 
-  update_file('data/calendar.json', function ($json) use ($events) {
+  $sha = update_file('data/calendar.json', function ($json) use ($events) {
     $json['events'] = $events;
     return $json;
-  }, 'Opdater calendar.json via kalenderen');
+  }, 'Opdater calendar.json via kalenderen', payload_base_sha($payload));
+  respond(200, ['ok' => true, 'sha' => $sha]);
 }
 
 // ── Posts (public, git-backed forum on Forside) ──────────────
@@ -5395,10 +5485,11 @@ function save_posts($payload) {
     }
   }
 
-  update_file('data/posts.json', function ($json) use ($list) {
+  $sha = update_file('data/posts.json', function ($json) use ($list) {
     $json['posts'] = $list;
     return $json;
-  }, 'Opdater posts.json via forsiden');
+  }, 'Opdater posts.json via forsiden', payload_base_sha($payload));
+  respond(200, ['ok' => true, 'sha' => $sha]);
 }
 
 // Admin-only: the static "Bosser for ..." info card on Forside. Just a
@@ -5513,10 +5604,11 @@ function save_wiki($payload) {
     $seenId[$c['id']] = true;
   }
 
-  update_file('data/wiki.json', function ($json) use ($chapters) {
+  $sha = update_file('data/wiki.json', function ($json) use ($chapters) {
     $json['chapters'] = $chapters;
     return $json;
-  }, 'Opdater wiki.json via wikien');
+  }, 'Opdater wiki.json via wikien', payload_base_sha($payload));
+  respond(200, ['ok' => true, 'sha' => $sha]);
 }
 
 // Admin-only site-wide settings, each sent independently and only applied
@@ -5635,6 +5727,39 @@ function save_program($payload) {
     return $json;
   }, 'Opdater program.json via Manus', $baseSha);
   respond(200, ['ok' => true, 'sha' => $sha]);
+}
+
+// The live file + sha behind a full-array resource, for a client that
+// applies its change to the live data and saves with that sha as baseSha:
+// siteSaveListResource() (Kalender, Posts, Wiki) and Koordinator's
+// Masterplan/Lokalebooking merge. A fixed map, never a client-chosen path;
+// all public site data, so boss-level is enough to read it. A missing file
+// (lokaler.json before its first save) answers data: null, sha: null.
+function resource_read($body) {
+  $files = [
+    'calendar' => 'data/calendar.json', 'posts' => 'data/posts.json', 'wiki' => 'data/wiki.json',
+    'masterplan' => 'data/masterplan.json', 'lokaler' => 'data/lokaler.json',
+  ];
+  $resource = $body['resource'] ?? '';
+  if (!is_string($resource) || !isset($files[$resource])) respond(400, ['error' => 'unknown_resource']);
+  [$status, $current] = github_api('GET', 'contents/' . $files[$resource]);
+  if ($status === 404) respond(200, ['ok' => true, 'data' => null, 'sha' => null]);
+  if ($status !== 200) {
+    respond(502, ['error' => 'github_read_failed', 'file' => $files[$resource]]);
+  }
+  $decoded = json_decode(base64_decode($current['content']), true);
+  if (!is_array($decoded)) {
+    respond(500, ['error' => 'existing_file_unparseable', 'file' => $files[$resource]]);
+  }
+  respond(200, ['ok' => true, 'data' => $decoded, 'sha' => $current['sha']]);
+}
+
+// Optional `baseSha` on a full-array save: the sha the client built its
+// list from (resource_read). A mismatch → 409 `stale` in update_file().
+function payload_base_sha($payload) {
+  $baseSha = $payload['baseSha'] ?? null;
+  if ($baseSha !== null && !is_string($baseSha)) respond(400, ['error' => 'invalid_shape']);
+  return $baseSha;
 }
 
 // The live program.json + its sha, for the Program tab's merge on a 409.
@@ -5776,10 +5901,11 @@ function save_masterplan($payload) {
     }
   }
 
-  update_file('data/masterplan.json', function ($json) use ($plans) {
+  $sha = update_file('data/masterplan.json', function ($json) use ($plans) {
     $json['plans'] = $plans;
     return $json;
-  }, 'Opdater masterplan.json via Koordinator');
+  }, 'Opdater masterplan.json via Koordinator', payload_base_sha($payload));
+  respond(200, ['ok' => true, 'sha' => $sha]);
 }
 
 // Koordinator's Lokaler & Fravær tab: the room-booking grid. Rooms are
@@ -5865,14 +5991,15 @@ function save_lokaler($payload) {
     ]);
   }
 
-  update_file('data/lokaler.json', function ($json) use ($cleanRooms, $cleanBookings, $cleanOther, $cleanRange) {
+  $sha = update_file('data/lokaler.json', function ($json) use ($cleanRooms, $cleanBookings, $cleanOther, $cleanRange) {
     $json['rooms'] = $cleanRooms;
     $json['bookings'] = (object) $cleanBookings;
     $json['other'] = $cleanOther;
     if ($cleanRange) $json['range'] = $cleanRange;
     else unset($json['range']);
     return $json;
-  }, 'Opdater lokaler.json via Koordinator');
+  }, 'Opdater lokaler.json via Koordinator', payload_base_sha($payload));
+  respond(200, ['ok' => true, 'sha' => $sha]);
 }
 
 // Admin-only Gantt chart of the revy period, shown below Kalender's own

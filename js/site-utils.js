@@ -174,6 +174,59 @@ async function siteSaveResource(resource, payload) {
   return { ok: true, data };
 }
 
+// ── Saving one change to a shared list (Kalender, Posts, Wiki) ──
+// These resources are saved as a full array, so building that array from
+// the data the page loaded would silently drop anything others saved since
+// (a tab open all day erasing the afternoon's new events). Instead:
+// read the live file (resource_read) → `update(liveList)` applies just this
+// one change → save with that read's sha as `baseSha`; if someone saved in
+// between (409 `stale`), read and apply again. `update` may be async and
+// returns the next array, a string (an error message to show, nothing is
+// saved) or null (cancelled, silent). Resolves to {ok:true, list} (the
+// saved array, for the page's override shadow) or {ok:false, message}.
+const SITE_LIST_SAVE_ATTEMPTS = 3;
+
+async function siteReadResource(resource) {
+  const resolved = siteResolvePassword();
+  if (!resolved) return { ok: false, message: '' };
+  const { password, fromLogin } = resolved;
+  let res;
+  try {
+    res = await fetch(SITE_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resource_read', password, resource }),
+    });
+  } catch (e) {
+    return { ok: false, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
+  }
+  if (res.status === 401 || res.status === 403) {
+    siteUtilsSetCachedPin('');
+    return { ok: false, message: 'Forkert eller utilstrækkelig adgangskode. Log ind med tilstrækkelig adgang og prøv igen.' };
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (!res.ok || !data || data.ok !== true) {
+    return { ok: false, message: 'Kunne ikke hente de nyeste data fra serveren. Prøv igen senere.' };
+  }
+  if (!fromLogin) siteUtilsSetCachedPin(password);
+  return { ok: true, data: data.data, sha: data.sha };
+}
+
+async function siteSaveListResource(resource, listKey, update) {
+  for (let attempt = 1; ; attempt++) {
+    const read = await siteReadResource(resource);
+    if (!read.ok) return read;
+    const live = Array.isArray(read.data[listKey]) ? read.data[listKey] : [];
+    const next = await update(live.slice());
+    if (next === null) return { ok: false, message: '' };
+    if (typeof next === 'string') return { ok: false, message: next };
+    const result = await siteSaveResource(resource, { [listKey]: next, baseSha: read.sha });
+    if (result.ok) return { ok: true, list: next };
+    if (!result.conflict || attempt >= SITE_LIST_SAVE_ATTEMPTS) return result;
+  }
+}
+
 // Shared request logic for the file-upload/delete actions — same error
 // mapping as siteSaveResource, plus a 413 (too-large) case.
 async function siteFileAction(action, extraBody) {
@@ -298,6 +351,9 @@ function siteCreateAutosave({ save, onStatus, delayMs = 1000 }) {
   return saver;
 }
 
+// The stale-page banner (site.js) says "gem først" while one is pending.
+siteRegisterUnsavedCheck(() => [...siteAutosavers].some((saver) => saver.hasUnsaved()));
+
 // Unsaved changes still waiting for (or in) a save → let the browser ask
 // before leaving the page.
 window.addEventListener('beforeunload', (e) => {
@@ -309,6 +365,53 @@ window.addEventListener('beforeunload', (e) => {
     }
   }
 });
+
+// ── Local draft backup (tier A in autosave.md) ───────────────
+// A copy of a Gem page's unsaved draft in localStorage, so a closed tab,
+// crashed browser or locked phone doesn't lose it: the page writes it while
+// the draft is dirty, clears it once clean, and on load offers a found one
+// back ("Gendan / Kassér"). Stored as {data, savedAt, tabId} under
+// `matrevy-draft-<name>`. clear() only removes a backup this tab wrote, so
+// a clean tab never deletes another open tab's unsaved work; discard()
+// removes it regardless (the user's own "Kassér"). Backups older than
+// maxAgeMs are ignored and dropped.
+const SITE_TAB_ID = Math.random().toString(36).slice(2);
+
+function siteDraftBackup(name, { maxAgeMs = 14 * 24 * 60 * 60 * 1000 } = {}) {
+  const key = `matrevy-draft-${name}`;
+  const readRaw = () => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || 'null');
+      return parsed && typeof parsed.savedAt === 'number' ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  const remove = () => { try { localStorage.removeItem(key); } catch (e) { /* unavailable */ } };
+  return {
+    // {data, savedAt} of a backup written by another tab/session, or null.
+    read() {
+      const entry = readRaw();
+      if (!entry || entry.tabId === SITE_TAB_ID) return null;
+      if (Date.now() - entry.savedAt > maxAgeMs) { remove(); return null; }
+      return { data: entry.data, savedAt: entry.savedAt };
+    },
+    // false when storage is full/unavailable.
+    write(data) {
+      try {
+        localStorage.setItem(key, JSON.stringify({ data, savedAt: Date.now(), tabId: SITE_TAB_ID }));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    },
+    clear() {
+      const entry = readRaw();
+      if (entry && entry.tabId === SITE_TAB_ID) remove();
+    },
+    discard: remove,
+  };
+}
 
 // ── Override persistence (survive a refresh during the few-second embed regen) ──
 // A save sets a page's in-memory shadow (postsOverride/calendarOverride/

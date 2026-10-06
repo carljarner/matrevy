@@ -216,15 +216,19 @@ function postsPinIcon(filled) {
 // alert() is the fallback, same as archive.js's deleteYear.
 async function togglePinned(post) {
   const previousOverride = postsOverride;
-  const next = getEffectivePosts().map(p =>
-    p.id === post.id ? { ...p, pinned: !p.pinned } : p
-  );
+  const pinned = !post.pinned;
+  const setPinned = (list) => list.map(p => (p.id === post.id ? { ...p, pinned } : p));
   siteShowToast(post.pinned ? 'Opslag er ikke længere fastgjort' : 'Opslag er fastgjort');
-  postsOverride = next;
-  siteSaveOverride('posts', next);
+  postsOverride = setPinned(getEffectivePosts());
+  siteSaveOverride('posts', postsOverride);
   renderPosts();
-  const result = await siteSaveResource('posts', { posts: next });
-  if (!result.ok) {
+  const result = await siteSaveListResource('posts', 'posts', (live) =>
+    (live.some(p => p.id === post.id) ? setPinned(live) : POSTS_GONE));
+  if (result.ok) {
+    postsOverride = result.list;
+    siteSaveOverride('posts', result.list);
+    renderPosts();
+  } else {
     postsOverride = previousOverride;
     siteSaveOverride('posts', previousOverride);
     renderPosts();
@@ -1022,10 +1026,9 @@ function deleteComment(post, comment, closeDetailModal) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const next = getEffectivePosts().map(p =>
+    const result = await savePosts((live) => live.map(p =>
       p.id === post.id ? { ...p, comments: (p.comments || []).filter(c => c.id !== comment.id) } : p
-    );
-    const result = await savePosts(next);
+    ));
     if (result.ok) {
       close();
       closeDetailModal();
@@ -1042,15 +1045,20 @@ function deleteComment(post, comment, closeDetailModal) {
 }
 
 // ── Save (boss/admin edit/delete — full next-array replace) ──
-async function savePosts(next) {
-  const result = await siteSaveResource('posts', { posts: next });
+// `update(livePosts)` applies one change to the live list (see
+// siteSaveListResource), so a save never drops posts or comments added
+// since this page loaded.
+async function savePosts(update) {
+  const result = await siteSaveListResource('posts', 'posts', update);
   if (result.ok) {
-    postsOverride = next;
-    siteSaveOverride('posts', next);
+    postsOverride = result.list;
+    siteSaveOverride('posts', result.list);
     renderPosts();
   }
   return result;
 }
+
+const POSTS_GONE = 'Opslaget er slettet af en anden i mellemtiden.';
 
 // ── Create (revyst+) ──────────────────────────────────────────
 // A dedicated append-only server action (posts_create), not siteSaveResource
@@ -1195,11 +1203,17 @@ function openPostEditModal(existing) {
       image: existing.image || '',
       comments: existing.comments || [],
     };
-    const next = getEffectivePosts().map(p => (p.id === existing.id ? item : p));
 
     save.disabled = true;
     error.textContent = '';
-    const result = await savePosts(next);
+    // Pin state and comments come from the live post, so a pin or a
+    // comment added by someone else while this was open survives.
+    const result = await savePosts((live) => {
+      const current = live.find(p => p.id === existing.id);
+      if (!current) return POSTS_GONE;
+      const next = { ...item, pinned: current.pinned, comments: current.comments || [] };
+      return live.map(p => (p.id === existing.id ? next : p));
+    });
     save.disabled = false;
     if (result.ok) close();
     else error.textContent = result.message;
@@ -1241,8 +1255,7 @@ function deletePost(post, onDeleted) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const next = getEffectivePosts().filter(p => p.id !== post.id);
-    const result = await savePosts(next);
+    const result = await savePosts((live) => live.filter(p => p.id !== post.id));
     if (result.ok) {
       close();
       if (onDeleted) onDeleted();

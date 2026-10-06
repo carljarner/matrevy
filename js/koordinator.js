@@ -748,6 +748,108 @@ function openStartNewYearModal(currentFolder) {
 // governs what that page shows revyst-level visitors, not something
 // Koordinator-specific.
 
+// ── Merge on save (Masterplan, Lokalebooking) ─────────────────
+// Both auto-save a whole document built from a local draft, so a tab left
+// open (another device, yesterday's tab) would otherwise overwrite every
+// change saved since with its old copy. Instead each save reads the live
+// file (resource_read), three-way merges base (what this tab last knew the
+// server had) / mine (the draft) / theirs (live), and saves with the read's
+// sha as baseSha, re-reading on a 409. Per value: only one side changed →
+// that side; both changed the same value → mine, counted in
+// ctx.conflicts. Lists merge per item by id (adds and removals from both
+// sides kept; a removal loses to an edit on the other side) and keep my
+// order unless only they reordered. ctx.tookTheirs says whether anything
+// of theirs came in, so the page knows to re-render.
+const KOORD_MERGE_ATTEMPTS = 3;
+
+function koordSame(a, b) {
+  return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+}
+
+function koordMergeValue(b, m, t, ctx) {
+  if (koordSame(m, t) || koordSame(t, b)) return m;
+  if (koordSame(m, b)) { ctx.tookTheirs = true; return t; }
+  ctx.conflicts++;
+  return m;
+}
+
+// Field-by-field merge of one object (a row); keys in mine's order, then
+// any only theirs has.
+function koordMergeFields(b, m, t, ctx) {
+  const out = {};
+  const keys = [...Object.keys(m), ...Object.keys(t).filter((k) => !(k in m))];
+  for (const k of keys) {
+    const v = koordMergeValue((b || {})[k], m[k], t[k], ctx);
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+function koordMergeList(base, mine, theirs, ctx, mergeItem = koordMergeFields) {
+  const index = (list) => new Map((list || []).map((x) => [x.id, x]));
+  const B = index(base);
+  const M = index(mine);
+  const T = index(theirs);
+  const merged = new Map();
+  for (const id of new Set([...M.keys(), ...T.keys(), ...B.keys()])) {
+    const b = B.get(id);
+    const m = M.get(id);
+    const t = T.get(id);
+    if (!m && !t) continue;
+    if (!m || !t) {
+      const kept = m || t;
+      // Added on one side, or removed on one side while the other edited it → keep.
+      if (!b || !koordSame(kept, b)) {
+        merged.set(id, kept);
+        if (t && !m) ctx.tookTheirs = true;
+      } else if (m && !t) {
+        ctx.tookTheirs = true; // their removal wins over my untouched copy
+      }
+      continue;
+    }
+    merged.set(id, mergeItem(b, m, t, ctx));
+  }
+  // Order: mine, unless only they moved items they share with base.
+  const order = (list, keep) => JSON.stringify((list || []).map((x) => x.id).filter((id) => keep.has(id)));
+  const moved = (list, side) => {
+    const common = new Set([...B.keys()].filter((id) => side.has(id)));
+    return order(list, common) !== order(base, common);
+  };
+  const useTheirs = moved(theirs, T) && !moved(mine, M);
+  if (useTheirs) ctx.tookTheirs = true;
+  const primary = (useTheirs ? theirs : mine) || [];
+  const secondary = (useTheirs ? mine : theirs) || [];
+  const ids = primary.map((x) => x.id).filter((id) => merged.has(id));
+  // Items only the other side has go in after the item they follow there.
+  let prev = null;
+  for (const x of secondary) {
+    if (merged.has(x.id) && !ids.includes(x.id)) ids.splice(prev === null ? 0 : ids.indexOf(prev) + 1, 0, x.id);
+    if (ids.includes(x.id)) prev = x.id;
+  }
+  return ids.map((id) => merged.get(id));
+}
+
+// Read → merge → save with baseSha, retried on a 409. `merge(liveData, ctx)`
+// returns the payload to save, or a string (error message). Resolves to
+// {ok:true, payload, ctx} or the failed result.
+async function koordSaveMerged(resource, merge) {
+  for (let attempt = 1; ; attempt++) {
+    const read = await siteReadResource(resource);
+    if (!read.ok) return read;
+    const ctx = { tookTheirs: false, conflicts: 0 };
+    const payload = merge(read.data, ctx);
+    if (typeof payload === 'string') return { ok: false, message: payload };
+    const result = await siteSaveResource(resource, { ...payload, baseSha: read.sha });
+    if (result.ok) return { ok: true, payload, ctx };
+    if (!result.conflict || attempt >= KOORD_MERGE_ATTEMPTS) return result;
+  }
+}
+
+function koordMergeToast(what, ctx) {
+  if (ctx.conflicts) siteShowToast(`${what} gemt — en anden havde ændret de samme felter; din version er brugt`);
+  else if (ctx.tookTheirs) siteShowToast(`${what} gemt — med ændringer fra en anden`);
+}
+
 // ── Masterplan (a checklist grid replacing an externally-maintained
 // spreadsheet of recurring production to-dos, grouped into 5 fixed
 // phase-tabs — Blok 4 / August / Blok 1 / Revyen / Efter revyen). Tab
@@ -824,6 +926,9 @@ function getCurrentMasterplan() {
 // server, compared against to tell whether anything is still unsaved.
 let masterplanDraft = null;
 let masterplanLastSavedSnapshot = '';
+// The viewed plan as this tab last knew it on the server — the merge base
+// (see "Merge on save").
+let masterplanBase = null;
 let koordMpDragItem = null;
 
 function koordMpNewId(prefix) {
@@ -833,8 +938,31 @@ function koordMpNewId(prefix) {
 function koordMpEnsureDraft() {
   if (masterplanDraft) return;
   const plan = getCurrentMasterplan();
-  masterplanDraft = plan ? structuredClone(plan) : null;
+  masterplanDraft = plan ? koordMpPlanShape(structuredClone(plan)) : null;
   masterplanLastSavedSnapshot = JSON.stringify(masterplanDraft);
+  masterplanBase = plan ? structuredClone(masterplanDraft) : null;
+}
+
+// A plan in save shape, keys in a fixed order (the dirty check compares
+// serialized drafts).
+function koordMpPlanShape(plan) {
+  const out = { id: plan.id, year: plan.year, label: plan.label, tabs: {} };
+  KOORD_MP_TABS.forEach((tab) => { out.tabs[tab.key] = (plan.tabs && plan.tabs[tab.key]) || []; });
+  return out;
+}
+
+function koordMpMergePlan(base, mine, theirs, ctx) {
+  const b = base || { tabs: {} };
+  const merged = {
+    id: mine.id,
+    year: koordMergeValue(b.year, mine.year, theirs.year, ctx),
+    label: koordMergeValue(b.label, mine.label, theirs.label, ctx),
+    tabs: {},
+  };
+  KOORD_MP_TABS.forEach((tab) => {
+    merged.tabs[tab.key] = koordMergeList(b.tabs[tab.key], mine.tabs[tab.key], (theirs.tabs || {})[tab.key], ctx);
+  });
+  return merged;
 }
 
 function masterplanIsDirty() {
@@ -1197,28 +1325,35 @@ function renderMpGrid() {
 }
 
 // Saves the whole plans array with the currently-viewed plan's entry
-// replaced by the draft (full-array-replace, same convention as every
-// other resource on this site). The plan is cloned from a snapshot so the
-// shadow never shares arrays with the still-edited draft.
+// replaced — merged against the live file first (see "Merge on save"), so
+// an old tab never undoes edits saved elsewhere. The draft is kept as-is
+// (no re-render) unless the merge brought in someone else's changes; then
+// they're pulled into the draft, keeping any edit made during the save.
 async function koordMpSaveNow() {
   if (!masterplanDraft) return { ok: true, message: '' };
   const snapshot = JSON.stringify(masterplanDraft);
-  const draft = JSON.parse(snapshot);
-  const updatedPlan = {
-    id: draft.id,
-    year: draft.year,
-    label: draft.label,
-    tabs: {},
-  };
-  KOORD_MP_TABS.forEach((tab) => { updatedPlan.tabs[tab.key] = draft.tabs[tab.key]; });
-  const nextPlans = getMasterplanPlans().map((p) => (p.id === updatedPlan.id ? updatedPlan : p));
-
-  const result = await siteSaveResource('masterplan', { plans: nextPlans });
-  if (result.ok) {
-    koordMasterplanOverride = { plans: nextPlans };
-    siteSaveOverride('masterplan', koordMasterplanOverride);
+  const mine = JSON.parse(snapshot);
+  const result = await koordSaveMerged('masterplan', (live, ctx) => {
+    const plans = (live && Array.isArray(live.plans)) ? live.plans : [];
+    const theirs = plans.find((p) => p.id === mine.id);
+    if (!theirs) return 'Planen er slettet af en anden. Genindlæs siden.';
+    const merged = koordMpMergePlan(masterplanBase, mine, koordMpPlanShape(theirs), ctx);
+    return { plans: plans.map((p) => (p.id === merged.id ? merged : p)) };
+  });
+  if (!result.ok) return result;
+  const plans = result.payload.plans;
+  const merged = plans.find((p) => p.id === mine.id);
+  koordMasterplanOverride = { plans };
+  siteSaveOverride('masterplan', koordMasterplanOverride);
+  masterplanBase = structuredClone(merged);
+  masterplanLastSavedSnapshot = JSON.stringify(merged);
+  if (result.ctx.tookTheirs && masterplanDraft && masterplanDraft.id === mine.id) {
+    masterplanDraft = koordMpMergePlan(mine, masterplanDraft, merged, { tookTheirs: false, conflicts: 0 });
+    renderMpGrid();
+  } else if (!result.ctx.tookTheirs) {
     masterplanLastSavedSnapshot = snapshot;
   }
+  koordMergeToast('Masterplanen', result.ctx);
   return result;
 }
 
@@ -1357,11 +1492,11 @@ function openCreateMasterplanModal() {
     // Re-read the source plan: it may have auto-saved edits since the modal opened.
     const source = prevPlan ? (getMasterplanPlans().find((p) => p.id === prevPlan.id) || prevPlan) : null;
     const newPlan = { id, year, label, tabs: koordMpTabsFromPrevious(source) };
-    const nextPlans = getMasterplanPlans().concat([newPlan]);
 
-    const result = await siteSaveResource('masterplan', { plans: nextPlans });
+    const result = await siteSaveListResource('masterplan', 'plans', (live) =>
+      (live.some((p) => p.id === id) ? 'Der findes allerede en plan med det navn. Genindlæs siden.' : live.concat([newPlan])));
     if (result.ok) {
-      koordMasterplanOverride = { plans: nextPlans };
+      koordMasterplanOverride = { plans: result.list };
       siteSaveOverride('masterplan', koordMasterplanOverride);
       close();
       koordMpSwitchView(id);
@@ -1395,10 +1530,9 @@ function openDeleteMasterplanPlanConfirm(plan) {
     confirmBtn.disabled = true;
     // Let a pending row edit land first, so it can't race this write.
     await koordMpAutosave.flush();
-    const nextPlans = getMasterplanPlans().filter((p) => p.id !== plan.id);
-    const result = await siteSaveResource('masterplan', { plans: nextPlans });
+    const result = await siteSaveListResource('masterplan', 'plans', (live) => live.filter((p) => p.id !== plan.id));
     if (result.ok) {
-      koordMasterplanOverride = { plans: nextPlans };
+      koordMasterplanOverride = { plans: result.list };
       siteSaveOverride('masterplan', koordMasterplanOverride);
       if (masterplanDraft && masterplanDraft.id === plan.id) masterplanDraft = null;
       close();
@@ -1719,7 +1853,11 @@ function openKoordBudgetEditor() {
 let koordLokalerOverride = siteLoadOverride('lokaler');
 
 function getEffectiveLokalerDoc() {
-  const doc = koordLokalerOverride || (typeof LOKALER_DATA !== 'undefined' ? LOKALER_DATA : null) || {};
+  return koordLokNormalizeDoc(koordLokalerOverride || (typeof LOKALER_DATA !== 'undefined' ? LOKALER_DATA : null) || {});
+}
+
+function koordLokNormalizeDoc(doc) {
+  doc = doc || {};
   return {
     rooms: Array.isArray(doc.rooms) ? doc.rooms : [],
     // PHP's json_encode writes an empty map as [] — treat it as {}.
@@ -1744,6 +1882,9 @@ function koordLokRange() {
 
 let lokalerDraft = null;
 let lokalerLastSavedSnapshot = '';
+// The sheet as this tab last knew it on the server — the merge base.
+let lokalerBase = null;
+let koordLokRangeFields = null; // {fromField, toField} of the rendered tab
 let koordLokDragItem = null;
 
 // The rooms from the old Lokalebooking spreadsheet — offered (unsaved)
@@ -1758,6 +1899,7 @@ function koordLokEnsureDraft() {
   if (lokalerDraft) return;
   lokalerDraft = structuredClone(getEffectiveLokalerDoc());
   lokalerLastSavedSnapshot = JSON.stringify(lokalerDraft);
+  lokalerBase = structuredClone(lokalerDraft);
   const neverSaved = !lokalerDraft.rooms.length && !Object.keys(lokalerDraft.bookings).length
     && !lokalerDraft.other.length && !lokalerDraft.range;
   if (neverSaved) {
@@ -2089,17 +2231,62 @@ function renderLokOther() {
   mount.appendChild(addRow);
 }
 
-// Saves the draft as it is right now; the draft is kept (no re-render).
+// One room's booked cells, merged per date ('' = empty, dropped).
+function koordLokMergeBookings(b, m, t, ctx) {
+  const out = {};
+  const roomIds = new Set([...Object.keys(m), ...Object.keys(t)]);
+  for (const roomId of roomIds) {
+    const bb = b[roomId] || {};
+    const mm = m[roomId] || {};
+    const tt = t[roomId] || {};
+    const cells = {};
+    for (const date of new Set([...Object.keys(mm), ...Object.keys(tt)])) {
+      const v = koordMergeValue(bb[date] || '', mm[date] || '', tt[date] || '', ctx);
+      if (v) cells[date] = v;
+    }
+    if (Object.keys(cells).length) out[roomId] = cells;
+  }
+  return out;
+}
+
+function koordLokMergeDoc(base, mine, theirs, ctx) {
+  const b = base || koordLokNormalizeDoc({});
+  const range = koordMergeValue(b.range, mine.range, theirs.range, ctx);
+  return {
+    rooms: koordMergeList(b.rooms, mine.rooms, theirs.rooms, ctx),
+    bookings: koordLokMergeBookings(b.bookings, mine.bookings, theirs.bookings, ctx),
+    other: koordMergeList(b.other, mine.other, theirs.other, ctx),
+    ...(range ? { range } : {}),
+  };
+}
+
+// Saves the draft merged against the live file (see "Merge on save"); the
+// draft is kept (no re-render) unless someone else's changes came in.
 async function koordLokSaveNow() {
   if (!lokalerDraft) return { ok: true, message: '' };
   const snapshot = JSON.stringify(lokalerDraft);
-  const next = JSON.parse(snapshot);
-  const result = await siteSaveResource('lokaler', next);
-  if (result.ok) {
-    koordLokalerOverride = next;
-    siteSaveOverride('lokaler', next);
+  const mine = JSON.parse(snapshot);
+  const result = await koordSaveMerged('lokaler', (live, ctx) =>
+    koordLokMergeDoc(lokalerBase, mine, koordLokNormalizeDoc(live), ctx));
+  if (!result.ok) return result;
+  const merged = result.payload;
+  koordLokalerOverride = merged;
+  siteSaveOverride('lokaler', merged);
+  lokalerBase = structuredClone(merged);
+  if (result.ctx.tookTheirs && lokalerDraft) {
+    lokalerDraft = koordLokMergeDoc(mine, lokalerDraft, merged, { tookTheirs: false, conflicts: 0 });
+    lokalerLastSavedSnapshot = JSON.stringify(merged);
+    if (koordLokRangeFields) {
+      const range = koordLokRange();
+      koordLokRangeFields.fromField.value = range.start;
+      koordLokRangeFields.toField.value = range.end;
+    }
+    renderLokGrid();
+    renderLokOther();
+  } else {
     lokalerLastSavedSnapshot = snapshot;
   }
+  koordMergeToast('Lokalebookingen', result.ctx);
   return result;
 }
 
@@ -2444,6 +2631,7 @@ function renderLokalerTab(container) {
     koordLokUpdateSaveStatus();
     renderLokGrid();
   }
+  koordLokRangeFields = { fromField, toField };
   fromField.addEventListener('change', () => onRangeChange(fromField));
   toField.addEventListener('change', () => onRangeChange(toField));
   rangeRow.appendChild(el('span', 'koord-lok-range-label', 'Øvedage fra'));

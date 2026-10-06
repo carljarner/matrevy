@@ -265,10 +265,22 @@ function buildIcs(events) {
   return lines.join('\r\n') + '\r\n';
 }
 
+// Only rewrites a file whose content changed, so its Last-Modified keeps
+// meaning "this data changed" — site.js's stale-page banner compares it.
+function writeIfChanged(out, content) {
+  let existing = null;
+  try { existing = fs.readFileSync(root(out), 'utf8'); } catch (e) { /* not there yet */ }
+  if (existing === content) {
+    console.log(`= Unchanged ${out}`);
+    return;
+  }
+  fs.writeFileSync(root(out), content);
+  console.log(`✓ Wrote ${out}`);
+}
+
 for (const embed of EMBEDS) {
   if (embed.raw) {
-    fs.writeFileSync(root(embed.out), embed.build());
-    console.log(`✓ Wrote ${embed.out}`);
+    writeIfChanged(embed.out, embed.build());
     continue;
   }
   const globals = embed.globals();
@@ -278,6 +290,5 @@ for (const embed of EMBEDS) {
   for (const [name, value] of Object.entries(globals)) {
     out += `const ${name} = ` + JSON.stringify(value, null, 2) + ';\n';
   }
-  fs.writeFileSync(root(embed.out), out);
-  console.log(`✓ Wrote ${embed.out}`);
+  writeIfChanged(embed.out, out);
 }

@@ -452,6 +452,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-build').addEventListener('click', buildGrid);
   document.getElementById('btn-lokalebooking').addEventListener('click', openLokalebookingModal);
   document.getElementById('btn-export').addEventListener('click', () => window.print());
+  document.addEventListener('keydown', schedHandleUndoKey);
   document.getElementById('btn-clear-schedule').addEventListener('click', clearSchedule);
   document.getElementById('clear-confirm-cancel').addEventListener('click', closeClearConfirm);
   document.getElementById('clear-confirm-ok').addEventListener('click', confirmClearSchedule);
@@ -612,13 +613,13 @@ async function buildGrid() {
 
   // Placements the rebuild would drop: every one when the time config
   // changed, otherwise only those in rooms no longer in the list. Asked
-  // first, since saveState() overwrites the only copy.
+  // first (Ctrl+Z can bring them back, but only until a reload).
   const lost = countPlacementsLostByBuild(build);
   if (lost > 0) {
     pendingBuild = build;
     document.getElementById('build-confirm-body').textContent = configChanged
-      ? `Tidspunkterne er ændret, så skemaet ryddes (${lost} ${lost === 1 ? 'placering' : 'placeringer'}). Dette kan ikke fortrydes.`
-      : `${lost} ${lost === 1 ? 'placering' : 'placeringer'} i fjernede lokaler forsvinder. Dette kan ikke fortrydes.`;
+      ? `Tidspunkterne er ændret, så skemaet ryddes (${lost} ${lost === 1 ? 'placering' : 'placeringer'}). Du kan fortryde med Ctrl+Z.`
+      : `${lost} ${lost === 1 ? 'placering' : 'placeringer'} i fjernede lokaler forsvinder. Du kan fortryde med Ctrl+Z.`;
     document.getElementById('build-confirm-overlay').style.display = 'flex';
     return;
   }
@@ -2445,6 +2446,119 @@ function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Undo / redo ───────────────────────────────────────────
+// Every mutation already funnels through saveState(), so undo is a stack of
+// whole-state snapshots taken there: saveState() compares the new state to
+// the last recorded one and, if it changed, pushes the old one. Undo/redo
+// swap snapshots and re-render (then saveState() persists the result, which
+// records nothing since it matches). Kept in memory only — a reload starts
+// a fresh history. The day-setup fields are part of a snapshot, so undoing
+// a "Byg øveplan" also puts its times and room list back.
+// Ctrl/Cmd+Z (redo: Ctrl/Cmd+Shift+Z or Ctrl+Y) works outside text fields
+// and modals — inside a field the browser's own text undo wins.
+const SCHED_UNDO_LIMIT = 20;
+const schedUndoStack = [];
+const schedRedoStack = [];
+let schedUndoCurrent = null; // JSON of the last recorded state
+let schedUndoApplying = false;
+
+function schedUndoSnapshot() {
+  return JSON.stringify({
+    rooms: state.rooms,
+    slots: state.slots,
+    slotsConfig: state.slotsConfig,
+    grid: state.grid,
+    absentees: state.absentees,
+    title: state.title,
+    fields: {
+      startTime: document.getElementById('input-start').value,
+      endTime: document.getElementById('input-end').value,
+      segmentMinutes: document.getElementById('input-segment').value,
+      gapMinutes: document.getElementById('input-gap').value,
+      roomsRaw: document.getElementById('input-rooms').value,
+    },
+  });
+}
+
+function schedUndoReset() {
+  schedUndoStack.length = 0;
+  schedRedoStack.length = 0;
+  schedUndoCurrent = schedUndoSnapshot();
+}
+
+function schedUndoRecord() {
+  if (schedUndoApplying || schedUndoCurrent === null) return;
+  const next = schedUndoSnapshot();
+  if (next === schedUndoCurrent) return;
+  schedUndoStack.push(schedUndoCurrent);
+  if (schedUndoStack.length > SCHED_UNDO_LIMIT) schedUndoStack.shift();
+  schedRedoStack.length = 0;
+  schedUndoCurrent = next;
+}
+
+function schedUndo() { schedUndoStep(schedUndoStack, schedRedoStack); }
+function schedRedo() { schedUndoStep(schedRedoStack, schedUndoStack); }
+
+function schedUndoStep(from, to) {
+  if (!from.length) return;
+  // Anything typed into the setup fields since the last save counts as the
+  // current state, so redo can bring it back.
+  to.push(schedUndoSnapshot());
+  schedUndoCurrent = from.pop();
+  schedApplyUndoSnapshot(schedUndoCurrent);
+}
+
+function schedApplyUndoSnapshot(json) {
+  const snap = JSON.parse(json);
+  state.rooms = snap.rooms;
+  state.slots = snap.slots;
+  state.slotsConfig = snap.slotsConfig;
+  state.grid = snap.grid;
+  state.absentees = snap.absentees;
+  state.title = snap.title;
+  document.getElementById('input-start').value = snap.fields.startTime;
+  document.getElementById('input-end').value = snap.fields.endTime;
+  document.getElementById('input-segment').value = snap.fields.segmentMinutes;
+  document.getElementById('input-gap').value = snap.fields.gapMinutes;
+  document.getElementById('input-rooms').value = snap.fields.roomsRaw;
+  renderAbsentList();
+
+  const hasGrid = state.rooms.length > 0 && state.grid.length > 0;
+  document.getElementById('sched-empty-state').style.display = hasGrid ? 'none' : '';
+  document.getElementById('sched-grid-container').style.display = hasGrid ? 'block' : 'none';
+  document.getElementById('scene-sidebar').style.display = hasGrid ? 'block' : 'none';
+  if (hasGrid) {
+    if (!state.scenes.length) {
+      state.scenes = state.allScenes.filter(s => s.schedulable).map(s => ({ ...s }));
+    }
+    document.getElementById('sched-grid-title').textContent = state.title;
+    renderGrid();
+    renderSceneSidebar();
+  }
+  schedUndoApplying = true;
+  try { saveState(); } finally { schedUndoApplying = false; }
+}
+
+function schedIsTextTarget(t) {
+  return !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+}
+
+function schedAnyOverlayOpen() {
+  return Array.from(document.querySelectorAll('.picker-overlay, .login-overlay, .site-field-pop'))
+    .some(o => getComputedStyle(o).display !== 'none');
+}
+
+function schedHandleUndoKey(e) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const key = e.key.toLowerCase();
+  const isUndo = key === 'z' && !e.shiftKey;
+  const isRedo = (key === 'z' && e.shiftKey) || (key === 'y' && e.ctrlKey && !e.metaKey);
+  if (!isUndo && !isRedo) return;
+  if (schedIsTextTarget(e.target) || schedAnyOverlayOpen()) return;
+  e.preventDefault();
+  if (isUndo) schedUndo(); else schedRedo();
+}
+
 // ── Persist state ─────────────────────────────────────────
 function saveState() {
   try {
@@ -2462,9 +2576,18 @@ function saveState() {
     };
     localStorage.setItem('matrevy-schedule', JSON.stringify(snapshot));
   } catch(e) { /* storage full or unavailable */ }
+  schedUndoRecord();
 }
 
 async function restoreState() {
+  try {
+    await restoreStateInner();
+  } finally {
+    schedUndoReset();
+  }
+}
+
+async function restoreStateInner() {
   try {
     const raw = localStorage.getItem('matrevy-schedule');
     if (!raw) return;

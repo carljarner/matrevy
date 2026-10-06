@@ -552,7 +552,7 @@ function bandRenderOversigt(root) {
   const editable = bandCanEdit();
   if (!editable) {
     card.appendChild(el('p', 'band-muted band-readonly-note',
-      'Kun til visning — ældre revyer og andre instanser kan kun redigeres af bosser.'));
+      'Kun til visning. Gamle setlister kan kun redigeres af bosser.'));
   }
 
   const wrap = el('div', 'band-table-wrap');

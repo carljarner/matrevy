@@ -1198,8 +1198,10 @@ function ensureBudgetSheetTimers(root) {
   if (budgetSheetTimersReady) return;
   budgetSheetTimersReady = true;
   setInterval(() => { if (budgetIsSheetDirty()) saveBudgetSheet(); }, 15 * 60 * 1000);
+  siteRegisterUnsavedCheck(() => budgetIsSheetDirty() || stregSavesPending > 0);
+  // Also covers Stregregnskab's per-row auto-saves still on their way.
   window.addEventListener('beforeunload', (e) => {
-    if (budgetIsSheetDirty()) { e.preventDefault(); e.returnValue = ''; }
+    if (budgetIsSheetDirty() || stregSavesPending > 0) { e.preventDefault(); e.returnValue = ''; }
   });
 }
 
@@ -2959,23 +2961,22 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
 // ── Admin: Stregregnskab (bar tally accounting) ──────────────
 // Two areas, deliberately different edit models:
 // - The grid (buildStregSheetCard/stregBuildTable) is always editable
-//   (mirrors Fællesspisning's own grid look, no read-only view), backed by
-//   a draft (stregSheetDraft) that only actually reaches the server on its
-//   own bottom-bar Nulstil/Gem (see stregSheetDraft below). "Forbind" (sync
-//   names from a Formularer form) is disabled while the draft has unsaved
-//   changes, since it overwrites stregState.rows outright and would
-//   otherwise silently discard them. Column set/order/labels/prices are
-//   entirely managed from the Priser card; the grid just follows whatever
-//   stregState.categories currently is.
+//   (mirrors Fællesspisning's own grid look, no read-only view) and
+//   auto-saves one row at a time, like Fællesspisning: Navn and each count
+//   commit on change (blur), "har betalt" on click, each sending only the
+//   changed field via streg_upsert_row (stregCommitRow), so two admins
+//   editing different rows/cells never overwrite each other. A new "+"
+//   row stays local until its Navn is filled. Column set/order/labels/
+//   prices are entirely managed from the Priser card; the grid just
+//   follows whatever stregState.categories currently is.
 // - The Priser card (buildStregPricesCard) is live-save, no batching at
 //   all (mirrors budgetWireDropHighlight/budgetMoveDraftItem's generic
 //   drag helpers from buildCategoryEditSection above, but not its
 //   Gem-batched draft model) — label/price commit on blur, reorder commits
 //   on drop, each resending the whole category list via streg_save_categories
 //   immediately, then refreshing the grid card (stregRefreshSheetCard) so
-//   its columns/Betaling never go stale. Safe now that the grid itself no
-//   longer live-saves either (see its own Gem above) — nothing here can
-//   race an in-flight grid save any more.
+//   its columns/Betaling never go stale. The rebuild keeps the grid's
+//   working copy (stregSheetDraft), so a still-unnamed "+" row survives it.
 
 // Page-wide tab bar switching between the ordinary Budget view and
 // Stregregnskab — styled like Formularer's own Oversigt/Ny-formular tabs
@@ -3004,12 +3005,32 @@ async function budgetSwitchMode(streg) {
   window.scrollTo(0, scrollY);
 }
 
-// A deep clone of stregState.rows (each row's own counts object cloned
-// too, so editing a draft cell never mutates the last-saved stregState in
-// place), (re)built the first time buildStregSheetCard() renders after a
-// fresh load/save/reset/sync — nothing here reaches the server until the
-// grid's own "Gem" is clicked.
+// The grid's working copy: a deep clone of stregState.rows (counts cloned
+// too, so typing never mutates the saved stregState in place), (re)built
+// the first time buildStregSheetCard() renders after a fresh load/reset/
+// sync. Every change is committed per row right away (stregCommitRow); a
+// row only lives here alone while it's a new "+" row without a Navn.
 let stregSheetDraft = null;
+
+// Card-level auto-save status ("Gemmer …" / "Gemt" / the last error),
+// shared by every row commit. stregSaveStatusEl is re-pointed each time
+// the card is rebuilt.
+let stregSavesPending = 0;
+let stregSaveError = '';
+let stregSaveStatusEl = null;
+function stregPaintSaveStatus() {
+  if (!stregSaveStatusEl) return;
+  if (stregSavesPending > 0) {
+    stregSaveStatusEl.textContent = 'Gemmer …';
+    stregSaveStatusEl.className = 'budget-save-status';
+  } else if (stregSaveError) {
+    stregSaveStatusEl.textContent = stregSaveError;
+    stregSaveStatusEl.className = 'budget-save-status error';
+  } else {
+    stregSaveStatusEl.textContent = 'Gemmes automatisk';
+    stregSaveStatusEl.className = 'budget-save-status';
+  }
+}
 
 // Set by buildStregPricesCard() to its own local refreshComputed closure —
 // lets a grid save/reset (the only two things that change stregState.rows)
@@ -3095,21 +3116,18 @@ function stregRefreshSheetCard() {
 
 function renderStregSheetCard(container) {
   container.appendChild(buildStregSheetCard());
+  ensureBudgetSheetTimers(container);
 }
 
 // Always editable (mirrors Fællesspisning's own grid look — no separate
-// read-only view/Rediger toggle at all any more), backed by a draft
-// (stregSheetDraft) that only actually reaches the server on "Gem" — every
-// derived Betaling still recomputes instantly (on every keystroke) against
-// that draft, and the dirty status ("Gemt"/"Ikke gemt") sits right next to
-// the Gem button rather than up in the card head. "Nulstil" is a separate,
-// immediately-confirmed destructive action (mirrors the main Budget
-// sheet's own "Slet") that clears every row outright. Removing a row asks
-// first (stregOpenDeleteGridRowConfirm, styled like Fællesspisning's own
-// row-delete confirm) unless it was never actually saved to begin with (a
-// still-uncommitted "+" row) — nothing to lose there yet. "Forbind" is
-// disabled while the draft has unsaved changes, since a sync overwrites
-// stregState.rows outright and would otherwise silently discard them.
+// read-only view/Rediger toggle), auto-saved per row (see stregCommitRow)
+// with the save status in the bottom bar. Every derived Betaling
+// recomputes instantly (on every keystroke) against the working copy.
+// "Nulstil" is a separate, immediately-confirmed destructive action
+// (mirrors the main Budget sheet's own "Slet") that clears every row
+// outright. Removing a row asks first (stregOpenDeleteGridRowConfirm,
+// styled like Fællesspisning's own row-delete confirm) unless it was never
+// saved (a still-unnamed "+" row) — nothing to lose there yet.
 function buildStregSheetCard() {
   const card = el('section', 'card budget-sheet-card streg-sheet-card');
   const head = el('div', 'card-head');
@@ -3125,16 +3143,7 @@ function buildStregSheetCard() {
     stregSheetDraft = stregState.rows.map((r) => ({ id: r.id, navn: r.navn || '', counts: { ...(r.counts || {}) }, paid: !!r.paid }));
   }
   const draft = stregSheetDraft;
-  const snapshot = JSON.stringify(draft);
-  const status = el('span', 'budget-save-status', 'Gemt');
   const connectBtn = el('button', 'btn-small');
-  function refreshDirtyStatus() {
-    const dirty = JSON.stringify(draft) !== snapshot;
-    status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
-    status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
-    connectBtn.disabled = dirty;
-    connectBtn.title = dirty ? 'Gem eller nulstil dine ændringer i skemaet først' : '';
-  }
 
   // Just "Forbind"/"Forbundet" at every width — the connected form's own
   // title (however long) now shows inside the connect modal instead (see
@@ -3143,12 +3152,9 @@ function buildStregSheetCard() {
   connectBtn.textContent = stregState.connection ? 'Forbundet' : 'Forbind';
   connectBtn.addEventListener('click', () => stregOpenConnectModal());
   head.appendChild(connectBtn);
-  refreshDirtyStatus();
-
-  card.appendChild(el('div', 'streg-error'));
 
   const wrap = el('div', 'streg-table-wrap');
-  wrap.appendChild(stregBuildTable(draft, refreshDirtyStatus));
+  wrap.appendChild(stregBuildTable(draft));
   card.appendChild(wrap);
 
   const actions = el('div', 'budget-save-bar');
@@ -3164,12 +3170,10 @@ function buildStregSheetCard() {
   actions.appendChild(printBtn);
 
   const saveGroup = el('div', 'streg-save-group');
-  saveGroup.appendChild(status);
-  const saveBtn = el('button', 'site-btn-success', 'Gem');
-  saveBtn.type = 'button';
-  saveBtn.addEventListener('click', () => stregSaveRows(saveBtn, status, draft));
-  saveGroup.appendChild(saveBtn);
+  stregSaveStatusEl = el('span', 'budget-save-status');
+  saveGroup.appendChild(stregSaveStatusEl);
   actions.appendChild(saveGroup);
+  stregPaintSaveStatus();
 
   card.appendChild(actions);
 
@@ -3230,8 +3234,8 @@ function stregAddPlusBtn(title, onClick) {
 // Columns are driven entirely by stregState.categories, in its current
 // order — adding/removing/reordering a column happens exclusively in the
 // Priser card (buildStregPricesCard), never from the grid itself; this
-// table just follows along. `rows` is the in-progress stregSheetDraft.
-function stregBuildTable(rows, onDirtyChange) {
+// table just follows along. `rows` is the working copy (stregSheetDraft).
+function stregBuildTable(rows) {
   const betalingCells = new Map(); // draft row object -> its Betaling <td>, scoped to this one render
 
   function recomputeAll() {
@@ -3258,18 +3262,17 @@ function stregBuildTable(rows, onDirtyChange) {
   const sortedRows = rows.slice()
     .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'da', { sensitivity: 'base' }));
   sortedRows.forEach((row) => tbody.appendChild(
-    stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange)));
+    stregRenderRow(row, betalingCells, recomputeAll, rows)));
 
   const addRow = el('tr', 'streg-add-row');
   const addCell = el('td', 'streg-add-row-plus-cell');
   addCell.colSpan = 2 + stregState.categories.length;
   addCell.appendChild(stregAddPlusBtn('Tilføj række', () => {
-    const draftRow = { id: null, navn: '', counts: {} };
+    const draftRow = { id: null, navn: '', counts: {}, paid: false };
     rows.push(draftRow);
-    const tr = stregRenderRow(draftRow, betalingCells, recomputeAll, rows, onDirtyChange);
+    const tr = stregRenderRow(draftRow, betalingCells, recomputeAll, rows);
     tbody.insertBefore(tr, addRow);
     recomputeAll();
-    if (onDirtyChange) onDirtyChange();
     const firstInput = tr.querySelector('input[type="text"]');
     if (firstInput) firstInput.focus();
   }));
@@ -3282,7 +3285,7 @@ function stregBuildTable(rows, onDirtyChange) {
   return table;
 }
 
-function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
+function stregRenderRow(row, betalingCells, recomputeAll, rows) {
   const tr = el('tr');
 
   const navnTd = el('td', 'streg-col-navn');
@@ -3293,10 +3296,9 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   const navnWrap = el('div', 'streg-navn-wrap');
   navnTd.appendChild(navnWrap);
 
-  // Marks a row as paid — saved like any other field (streg_save_rows'
-  // payload includes it), so it survives a Gem; only reset by Nulstil (a
-  // full clear) or a Formularer sync recreating the row. Toggles the
-  // Betaling cell's own strike-through/weight below.
+  // Marks a row as paid — saved like any other field; only reset by
+  // Nulstil (a full clear) or a Formularer sync recreating the row.
+  // Toggles the Betaling cell's own strike-through/weight below.
   const paidCheckbox = document.createElement('input');
   paidCheckbox.type = 'checkbox';
   paidCheckbox.className = 'streg-paid-checkbox';
@@ -3305,7 +3307,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   paidCheckbox.addEventListener('change', () => {
     row.paid = paidCheckbox.checked;
     betalingTd.classList.toggle('streg-paid', row.paid);
-    if (onDirtyChange) onDirtyChange();
+    stregCommitRow(row, { paid: row.paid });
   });
   navnWrap.appendChild(paidCheckbox);
 
@@ -3315,7 +3317,24 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   navnInput.placeholder = 'Påkrævet';
   navnInput.addEventListener('input', () => {
     row.navn = navnInput.value;
-    if (onDirtyChange) onDirtyChange();
+  });
+  // Commits on change (= blur after an edit). The server refuses an empty
+  // Navn, so clearing a saved row's name puts the saved one back; a new
+  // row simply waits until it has one.
+  navnInput.addEventListener('change', () => {
+    const navn = navnInput.value.trim();
+    if (!navn) {
+      if (row.id) {
+        const saved = stregState.rows.find((r) => r.id === row.id);
+        row.navn = saved ? saved.navn : row.navn;
+        navnInput.value = row.navn;
+        siteShowToast('Navn kan ikke være tomt.');
+      }
+      return;
+    }
+    row.navn = navn;
+    navnInput.value = navn;
+    stregCommitRow(row, { navn });
   });
   // A name too long for the column is truncated with an ellipsis (CSS) —
   // show the full text in a hover tooltip, mirroring faellesspisning.js's
@@ -3352,7 +3371,9 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
       if (n) row.counts[c.key] = n;
       else delete row.counts[c.key];
       recomputeAll();
-      if (onDirtyChange) onDirtyChange();
+    });
+    input.addEventListener('change', () => {
+      stregCommitRow(row, { counts: { [c.key]: (row.counts || {})[c.key] || 0 } });
     });
     input.addEventListener('blur', () => {
       const n = (row.counts || {})[c.key] || 0;
@@ -3373,15 +3394,16 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
   removeBtn.title = 'Fjern række';
   removeBtn.addEventListener('click', () => {
     const doRemove = () => {
+      row._deleted = true;
       const idx = rows.indexOf(row);
       if (idx !== -1) rows.splice(idx, 1);
       betalingCells.delete(row);
       tr.remove();
       recomputeAll();
-      if (onDirtyChange) onDirtyChange();
     };
-    // Never actually saved yet — nothing to lose, so no confirm needed.
-    if (row.id === null) doRemove();
+    // Never saved (and not being created right now) — nothing to lose, so
+    // no confirm needed.
+    if (row.id === null && !row._inFlight) doRemove();
     else stregOpenDeleteGridRowConfirm(row, doRemove);
   });
   removeTd.appendChild(removeBtn);
@@ -3391,11 +3413,10 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows, onDirtyChange) {
 }
 
 // Styled "Er du sikker?" overlay, mirrors Fællesspisning's own row-delete
-// confirm — purely local (splicing the not-yet-saved draft), so unlike the
-// other confirms in this file it has no network call/error state of its
-// own to wait on.
+// confirm. Deletes on the server right away (streg_delete_row), after any
+// in-flight commit of the row has landed (so a just-created row has its id).
 function stregOpenDeleteGridRowConfirm(row, onConfirm) {
-  const { modal, form, actions, close } = siteOpenEditModal('');
+  const { modal, form, error, actions, close } = siteOpenEditModal('');
   modal.classList.add('streg-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
@@ -3407,7 +3428,20 @@ function stregOpenDeleteGridRowConfirm(row, onConfirm) {
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = budgetPillBtn('Fjern', 'site-btn-danger');
-  confirmBtn.addEventListener('click', () => {
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    if (row._inFlight) await row._inFlight;
+    if (row.id) {
+      const result = await budgetApi('streg_delete_row', { budgetId: budgetViewId, rowId: row.id });
+      if (!result.ok) {
+        confirmBtn.disabled = false;
+        if (result.message) error.textContent = result.message;
+        return;
+      }
+      stregState.rows = stregState.rows.filter((r) => r.id !== row.id);
+      if (stregPriceRefreshComputed) stregPriceRefreshComputed();
+    }
     close();
     onConfirm();
   });
@@ -3415,30 +3449,48 @@ function stregOpenDeleteGridRowConfirm(row, onConfirm) {
   actions.appendChild(confirmBtn);
 }
 
-// Commits the whole draft in one atomic streg_save_rows call — a draft row
-// with a still-blank Navn (an abandoned "+" click) is silently dropped
-// rather than blocking the save, same posture as the old per-row
-// auto-commit's "a brand new row with an empty Navn is a no-op."
-async function stregSaveRows(saveBtn, status, draft) {
-  const cleaned = draft.filter((r) => (r.navn || '').trim() !== '');
-  saveBtn.disabled = true;
-  status.textContent = 'Gemmer …';
-  status.className = 'budget-save-status';
-  const result = await budgetApi('streg_save_rows', {
-    budgetId: budgetViewId,
-    rows: cleaned.map((r) => ({ id: r.id || undefined, navn: r.navn.trim(), counts: r.counts || {}, paid: !!r.paid })),
+// Auto-save of one grid row (streg_upsert_row). `patch` holds only the
+// field(s) just changed — `navn`, `paid`, or `counts: {key: n}` (0 clears
+// it) — so concurrent edits to other cells survive. A row without an id is
+// created with everything it has once its Navn is filled; until then a
+// commit is a no-op (the Navn commit creates it). Commits on the same row
+// are chained on row._inFlight, so a create always lands before the edits
+// queued behind it (no duplicate rows) and those then patch by id.
+function stregCommitRow(row, patch) {
+  const budgetId = budgetViewId;
+  const run = (row._inFlight || Promise.resolve()).then(async () => {
+    if (row._deleted) return;
+    let body;
+    if (row.id) {
+      body = { rowId: row.id, ...patch };
+    } else {
+      const navn = (row.navn || '').trim();
+      if (!navn) return;
+      body = { navn, counts: { ...(row.counts || {}) }, paid: !!row.paid };
+    }
+    stregSavesPending++;
+    stregPaintSaveStatus();
+    const result = await budgetApi('streg_upsert_row', { budgetId, ...body });
+    stregSavesPending--;
+    if (!result.ok) {
+      // A cancelled password prompt (message '') still leaves the edit
+      // unsaved, so say so rather than staying silent.
+      stregSaveError = result.message || 'Ikke gemt.';
+      stregPaintSaveStatus();
+      return;
+    }
+    stregSaveError = '';
+    stregPaintSaveStatus();
+    const saved = result.data.row;
+    row.id = saved.id;
+    const idx = stregState.rows.findIndex((r) => r.id === saved.id);
+    if (idx === -1) stregState.rows.push(saved);
+    else stregState.rows[idx] = saved;
+    if (stregPriceRefreshComputed) stregPriceRefreshComputed();
   });
-  if (!result.ok) {
-    saveBtn.disabled = false;
-    status.textContent = result.message || 'Kunne ikke gemme.';
-    status.className = 'budget-save-status error';
-    return;
-  }
-  stregState.rows = result.data.rows || [];
-  stregSheetDraft = null;
-  siteShowToast('Stregregnskab gemt');
-  stregRefreshSheetCard();
-  if (stregPriceRefreshComputed) stregPriceRefreshComputed();
+  row._inFlight = run;
+  run.then(() => { if (row._inFlight === run) row._inFlight = null; });
+  return run;
 }
 
 // Immediate destructive action (its own "Er du sikker?" confirm, mirrors
