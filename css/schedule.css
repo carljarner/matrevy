@@ -690,6 +690,12 @@
   color: var(--text-muted);
   padding: 0.5rem 0.6rem 0.2rem;
 }
+.scene-hidden-note {
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-muted);
+  padding: 0.5rem 0.6rem;
+}
 .picker-legend {
   display: flex;
   justify-content: center;

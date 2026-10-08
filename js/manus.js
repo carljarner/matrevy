@@ -5900,8 +5900,9 @@ function manusSlugifyName(name) {
 
 // Quick-open buttons for the last-generated PDFs, sitting between the pool/
 // guide row and Main Manus View — visible to boss/admin always, and to a
-// plain revyst-level visitor only once Koordinator's "Vis PDF'er for
-// revyster" toggle (CONFIG_DATA.pdfLinksVisibleToRevyst) is on, so
+// plain revyst-level visitor only once Admin-indstillinger's "Revyster kan
+// se manus" toggle (CONFIG_DATA.pdfLinksVisibleToRevyst, which also gates
+// Øveplan's scenes) is on, so
 // boss/admin can proof a freshly (re)generated set privately before
 // revealing them. Buttons always render, even with no active production or
 // before anything's ever been generated — see openFile/manusPdfBlockedReason
@@ -6207,7 +6208,7 @@ function renderAdminSettings() {
 
   renderAdminToggleColumn(columns, {
     id: 'manus-pdf-toggle',
-    label: "Revyster kan se manus pdf'er",
+    label: 'Revyster kan se manus',
     checked: !!getEffectiveConfig().pdfLinksVisibleToRevyst,
     onChange: async (next) => {
       const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });

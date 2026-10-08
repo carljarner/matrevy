@@ -560,6 +560,25 @@ function hasSavedPlacements() {
   }
 }
 
+// Revyster only get the scenes once Manus's "Revyster kan se manus" toggle
+// (config.pdfLinksVisibleToRevyst) is on; boss/admin always do. Cosmetic
+// like every read gate on this site. Reads the same config shadow Manus
+// writes, so flipping the toggle shows here in that browser right away.
+// The cast roster stays (Rekvisitten, Fravær, "Andre revyster").
+let schedManusHidden = false;
+function schedManusVisible() {
+  if (siteHasLevel('boss')) return true;
+  const config = schedLoadOverride('config') || (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {});
+  return !!config.pdfLinksVisibleToRevyst;
+}
+
+function schedManusHiddenNote() {
+  const note = document.createElement('div');
+  note.className = 'scene-hidden-note';
+  note.textContent = 'Manus er ikke frigivet endnu.';
+  return note;
+}
+
 // ── Load scenes ───────────────────────────────────────────
 // Data is embedded via scenes-data.js (SCENES_DATA constant) to avoid
 // fetch() failing on file:// protocol when opened locally.
@@ -568,12 +587,13 @@ function hasSavedPlacements() {
 // when it can actually guarantee nothing is placed yet.
 async function loadScenes(allowOverride = false) {
   if (state.allScenes.length) return;
+  schedManusHidden = !schedManusVisible();
   // CUSTOM_SCENES first so they sort above "Akt 1" in the act-grouped lists.
   // Prefer a still-fresh manus.js save over the embedded SCENES_DATA/CAST_DATA
   // — see loadManusOverride() above for why this is only safe to do here
   // (nothing on the grid yet) and not once a session is already in progress.
   const override = allowOverride ? loadManusOverride() : null;
-  const scenesData = override ? override.scenes : SCENES_DATA;
+  const scenesData = schedManusHidden ? [] : (override ? override.scenes : SCENES_DATA);
   const castData   = override ? override.cast   : CAST_DATA;
   state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...scenesData]);
   state.allCast = castData;
@@ -1306,6 +1326,7 @@ function renderSceneSidebar() {
 
   const container = document.getElementById('scene-list');
   container.innerHTML = '';
+  if (schedManusHidden) { container.appendChild(schedManusHiddenNote()); return; }
 
   // Group by act (custom scenes never show in this sidebar)
   const byAct = {};
@@ -2382,6 +2403,7 @@ function renderPickerList() {
   legend.appendChild(buildLegendItem('picker-conflict-tag', 'O', ': Overlap'));
   legend.appendChild(buildLegendItem('picker-absent-tag', 'F', ': Fravær'));
   container.appendChild(legend);
+  if (schedManusHidden) container.appendChild(schedManusHiddenNote());
 
   for (const [actLabel, scenes] of Object.entries(byAct)) {
     const header = document.createElement('div');
