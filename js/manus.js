@@ -2477,6 +2477,10 @@ function manusInitDraft(existing = getEffectiveScenesData(), { setBaseline = tru
       // Seeded from the \eta{} parsed at upload time (see openUploadModal) —
       // just the default; boss/admin can change it freely afterwards.
       duration: typeof sub.duration === 'number' ? sub.duration : null,
+      // What manuscripts.json has — Gem sends only changed durations to
+      // manuscripts_set_durations (a pool row isn't in scenes.json, so the
+      // scenes save alone would drop the edit).
+      _baseDuration: typeof sub.duration === 'number' ? sub.duration : null,
       cast: [],
       priority: 0,
       dansPriority: null,
@@ -5045,6 +5049,20 @@ function manusApplySyncResults(results) {
   siteSaveOverride('manuscripts', manuscriptsOverride);
 }
 
+// Same for saved pool durations, so the draft rebuilt after Gem (and a
+// reload within the override TTL) shows them before the embed catches up.
+function manusApplyDurationResults(durations) {
+  if (!durations.length) return;
+  const byId = new Map(durations.map(d => [d.id, d.duration]));
+  manuscriptsOverride = getEffectiveManuscripts().map((s) => {
+    if (!byId.has(s.id)) return s;
+    const next = { ...s, duration: byId.get(s.id) };
+    if (next.duration == null) delete next.duration;
+    return next;
+  });
+  siteSaveOverride('manuscripts', manuscriptsOverride);
+}
+
 // Same idea, but patches an explicit rows array (a manusSaveMain draft
 // snapshot, not necessarily the live manusDraft — see manusSaveMain) so the
 // final save payload's sourcePdf/sourceTex reflect the post-move path.
@@ -5347,7 +5365,7 @@ function manusRebaseDraft(liveDraft, sentSerialized, sentActs, savedActs) {
   const livePool = new Map(liveDraft.rows.filter(r => r.origin === 'pool').map(r => [r.submission.id, r]));
   draft.rows = draft.rows.map((r) => {
     const live = r.origin === 'pool' && livePool.get(r.submission.id);
-    return live ? { ...live, submission: r.submission, _baseSelected: r._baseSelected } : r;
+    return live ? { ...live, submission: r.submission, _baseSelected: r._baseSelected, _baseDuration: r._baseDuration } : r;
   });
   return draft;
 }
@@ -5409,6 +5427,23 @@ async function manusSaveMainInner() {
     manusApplySyncResults(syncResult.data.results || []);
     manusApplySyncResultsToRows(draft.rows, syncResult.data.results || []);
     for (const r of changedPool) r._baseSelected = r.selected;
+  }
+
+  // Durations of pool rows live on the submission in manuscripts.json (a
+  // placed one is also saved with its scene below). Like the selection,
+  // only changed ones are sent.
+  const poolDuration = r => (Number.isFinite(r.duration) ? r.duration : null);
+  const changedDurations = draft.rows.filter(r => r.origin === 'pool' && poolDuration(r) !== r._baseDuration);
+  if (changedDurations.length) {
+    const durations = changedDurations.map(r => ({ id: r.submission.id, duration: poolDuration(r) }));
+    const durResult = await manusApi('manuscripts_set_durations', { durations });
+    if (!durResult.ok) return fail(durResult.message);
+    manusApplyDurationResults(durations);
+    for (const r of changedDurations) {
+      r._baseDuration = poolDuration(r);
+      r.submission = { ...r.submission, duration: r._baseDuration };
+      if (r._baseDuration == null) delete r.submission.duration;
+    }
   }
 
   const sentSerialized = manusSerializeDraft(draft);

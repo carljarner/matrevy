@@ -348,11 +348,11 @@ if ($action === 'manuscripts_sync_selection') {
 }
 
 // Manus's merge-before-save read, its save-free PDF trigger, removing one
-// pool record ("Fjern"), Stjerneark's per-click save and the Program tab's
+// pool record ("Fjern"), setting pool submissions' durations, Stjerneark's per-click save and the Program tab's
 // merge read — boss-level like the `manus`/`manuscripts`
 // resources. Single-purpose actions rather than full-array saves, so a tab
 // with stale data can't overwrite anything through them.
-if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manuscripts_remove', 'manus_set_stars', 'program_read', 'resource_read'], true)) {
+if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'program_read', 'resource_read'], true)) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
@@ -361,6 +361,7 @@ if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manuscripts_remov
   else if ($action === 'manus_regenerate_pdfs') manus_regenerate_pdfs();
   else if ($action === 'manus_set_stars') manus_set_stars($body);
   else if ($action === 'program_read') program_read();
+  else if ($action === 'manuscripts_set_durations') manuscripts_set_durations($body);
   else manuscripts_remove($body);
 }
 
@@ -5408,6 +5409,36 @@ function manuscripts_remove($body) {
     }));
     return $json;
   }, 'Fjern manus fra puljen via manussiden');
+  respond(200, ['ok' => true]);
+}
+
+// Boss: set `duration` on pool submissions by id (Manus's Gem, for rows not
+// in scenes.json yet). Only {id, duration} pairs, so a stale tab can't touch
+// anything else; unknown ids are skipped; null clears the field.
+function manuscripts_set_durations($body) {
+  $durations = $body['durations'] ?? null;
+  if (!is_array($durations) || !$durations) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $byId = [];
+  foreach ($durations as $d) {
+    if (!is_array($d) || !isset($d['id']) || !is_string($d['id']) || $d['id'] === ''
+        || !array_key_exists('duration', $d) || !manus_valid_submission_duration($d['duration'])) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $byId[$d['id']] = $d['duration'];
+  }
+  update_file('data/manuscripts.json', function ($json) use ($byId) {
+    $submissions = (is_array($json['submissions'] ?? null)) ? $json['submissions'] : [];
+    foreach ($submissions as $i => $s) {
+      $id = $s['id'] ?? null;
+      if (!is_string($id) || !array_key_exists($id, $byId)) continue;
+      if ($byId[$id] === null) unset($submissions[$i]['duration']);
+      else $submissions[$i]['duration'] = $byId[$id];
+    }
+    $json['submissions'] = $submissions;
+    return $json;
+  }, 'Opdater varighed i puljen via manussiden');
   respond(200, ['ok' => true]);
 }
 
