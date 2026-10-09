@@ -186,6 +186,19 @@ function buildActionButton(href, label, iconEl, extraClass) {
 
 const GITHUB_ARCHIVE_BASE = 'https://github.com/carljarner/matrevy/tree/main/archive/';
 
+// The current production's manus follows Manus's "Revyster kan se manus"
+// toggle (config.pdfLinksVisibleToRevyst), like manus.js's
+// renderManusPdfLinksSection: boss/admin always see it, revyster only once
+// it's on. Earlier years are always visible. Reads the config shadow Manus
+// writes, so flipping the toggle shows here in that browser right away.
+// Cosmetic, like every read gate on this site.
+function archiveManusHidden(entry) {
+  if (siteHasLevel('boss')) return false;
+  const config = Object.assign({}, (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {}), siteLoadOverride('config') || {});
+  if (!config.currentProductionFolder || entry.folder !== config.currentProductionFolder) return false;
+  return !config.pdfLinksVisibleToRevyst;
+}
+
 // All five pills always render; missing links come through greyed and unclickable.
 // Two explicit rows (media / repository) in a column container so a single gap
 // governs both the horizontal button spacing and the vertical row spacing.
@@ -195,7 +208,7 @@ function buildActionRow(entry) {
 
   const media = document.createElement('div');
   media.className = 'arkiv-action-row';
-  media.appendChild(buildActionButton(entry.manusPdf, 'Manus', buildPdfIcon()));
+  media.appendChild(buildActionButton(archiveManusHidden(entry) ? '' : entry.manusPdf, 'Manus', buildPdfIcon()));
   media.appendChild(buildActionButton(entry.youtubeUrl, 'YouTube', buildPlayIcon(), 'arkiv-action-youtube'));
   media.appendChild(buildActionButton(entry.spotifyUrl, 'Spotify', buildSpotifyIcon(), 'arkiv-action-spotify'));
   wrap.appendChild(media);
