@@ -245,7 +245,11 @@ function buildSceneTex(scene, prodMeta) {
   if (scene.writtenBy) preamble += `\\author{${scene.writtenBy}}\n`;
   if (isSongScene(scene) && scene.melody) preamble += `\\melody{${scene.melody}}\n`;
 
-  return `\\documentclass[a4paper,11pt]{article}
+  // The "% matrevy:part=…" lines are for error reporting (findMarker); the
+  // manus marker sits directly above scriptBody so its line N is body line
+  // N - markerLine.
+  return `% matrevy:part=titel
+\\documentclass[a4paper,11pt]{article}
 
 \\usepackage{revy}
 \\usepackage[utf8]{inputenc}
@@ -257,7 +261,9 @@ ${preamble}
 \\begin{document}
 \\maketitle
 
+% matrevy:part=roller
 ${buildRolesBlock(scene)}\\begin{${envName}}
+% matrevy:part=manus
 ${scene.scriptBody}
 \\end{${envName}}
 \\end{document}
@@ -276,6 +282,8 @@ function buildAktoversigtTex(actsData, prodMeta) {
     body += `\\section*{${texEscape(act.label)} \\small{\\textbf{\\emph{(Tidsestimat: ${formatMinutes(total)} minutter)}}}}\n`;
     body += '\\begin{enumerate}\n';
     for (const s of act.scenes) {
+      // Error-reporting marker, see findMarker.
+      body += `% matrevy:scene=${s.id}\n`;
       // s.name/title is raw LaTeX, not escaped — see texEscape's own doc
       // comment above.
       body += `  \\item \\textbf{${s.name}}`;
@@ -364,6 +372,7 @@ function buildRolleoversigtTex(actsData, prodMeta) {
     body += `\\multicolumn{${n + 2}}{|l|}{\\textbf{${texEscape(act.label)}}}\\\\\n\\hline\n`;
     act.scenes.forEach((s, i) => {
       const labelByActor = new Map(sceneCastLabels(s).map((e) => [e.name, e.label]));
+      body += `% matrevy:scene=${s.id}\n`;
       // s.name/title is raw LaTeX, not escaped — see texEscape's own doc
       // comment above.
       body += `${i + 1} & ${s.name}`;
@@ -571,6 +580,7 @@ function buildProgramSections(programActs, prodMeta, programData, images) {
   for (const act of programActs) {
     aktBody += `\\vskip 18pt\n{\\Large \\bfseries ${texEscape(act.label)}}\n\\vskip 6pt\n`;
     for (const s of act.scenes) {
+      aktBody += `% matrevy:scene=${s.id}\n`;
       aktBody += s.name;
       if (s.melody) aktBody += ` (\\emph{${s.melody}})`;
       aktBody += '\\\\\n';
@@ -584,6 +594,7 @@ function buildProgramSections(programActs, prodMeta, programData, images) {
   for (const qr of programData.qrCodes) {
     const file = qrFiles.get(qr.id);
     if (!file) continue;
+    qrBody += `% matrevy:qr=${qr.id}\n`;
     qrBody += `\\vspace*{\\fill}\n\\huge{${texEscape(qr.label)}}\\\\\n\\vspace{10mm}\n\\includegraphics[width=9cm]{${file}}\\\\\n\\vspace*{\\fill}\n`;
   }
 
@@ -607,6 +618,7 @@ ${aktBody}\\end{center}`,
 {\\Huge Medvirkende}
 \\end{center}
 \\begin{multicols}{2}
+% matrevy:part=medvirkende
 ${medBody}
 \\end{multicols}`,
 
@@ -616,6 +628,7 @@ ${medBody}
 \\end{center}
 \\begin{multicols}{2}
 \\noindent
+% matrevy:part=ordliste
 ${ordBody}
 \\end{multicols}`,
 
@@ -758,21 +771,231 @@ function checkPdflatexAvailable() {
 // Runs pdflatex twice in `workDir` (revy.sty's own header comment: "the text
 // must be LaTeX'ed twice to get the references right" — the page-count
 // cross-reference needs the second pass). Returns the compiled PDF's path.
+// A failure throws a LatexError carrying the parsed log (parseLatexLog), so
+// main() can report which document/scene/line broke (buildErrorEntry).
 function compileTex(workDir, texFileName) {
   fs.mkdirSync(workDir, { recursive: true });
   fs.copyFileSync(REVY_STY, path.join(workDir, 'revy.sty'));
-  const texPath = path.join(workDir, texFileName);
   for (let pass = 1; pass <= 2; pass++) {
     const result = spawnSync('pdflatex', ['-interaction=nonstopmode', '-halt-on-error', texFileName], {
       cwd: workDir,
       encoding: 'utf8',
+      // TeX wraps log lines at 79 chars by default, which would cut the
+      // "l.<N> …" context line (and long messages) in half.
+      env: { ...process.env, max_print_line: '10000', error_line: '254', half_error_line: '238' },
     });
     if (result.status !== 0) {
-      const log = (result.stdout || '') + (result.stderr || '');
-      throw new Error(`pdflatex failed (pass ${pass}) compiling ${texFileName}:\n${log.slice(-4000)}`);
+      const logPath = path.join(workDir, texFileName.replace(/\.tex$/, '.log'));
+      const log = fs.existsSync(logPath)
+        ? fs.readFileSync(logPath, 'latin1')
+        : (result.stdout || '') + (result.stderr || '');
+      throw new LatexError(texFileName, pass, log);
     }
   }
   return path.join(workDir, texFileName.replace(/\.tex$/, '.pdf'));
+}
+
+// ── Build status & error reporting ──────────────────────────
+// The Manus page polls this file (via update-data.php's manus_pdf_status)
+// to learn when a run started, finished, or failed and why. On web-1 it
+// lives in /data/site/generated (PDF_STATUS_FILE, set in
+// server/Dockerfile.worker), which isn't web-served; locally it defaults to
+// the repo root (gitignored).
+const STATUS_FILE = process.env.PDF_STATUS_FILE || root('.pdf-status.json');
+
+function writeStatus(status) {
+  try {
+    fs.mkdirSync(path.dirname(STATUS_FILE), { recursive: true });
+    const tmp = `${STATUS_FILE}.tmp-${process.pid}`;
+    fs.writeFileSync(tmp, JSON.stringify(status, null, 2), 'utf8');
+    fs.renameSync(tmp, STATUS_FILE);
+  } catch (e) {
+    console.error(`Could not write ${STATUS_FILE}: ${e.message}`);
+  }
+}
+
+class LatexError extends Error {
+  constructor(texFileName, pass, log) {
+    const parsed = parseLatexLog(log);
+    super(`pdflatex failed (pass ${pass}) compiling ${texFileName}: ${parsed.message}`);
+    this.latex = parsed;
+  }
+}
+
+// Pulls the first "! …" error out of a pdflatex log: its message (LaTeX
+// errors continue on indented lines, e.g. "Unicode character Λ (U+039B)
+// / not set up for use with LaTeX."), the "l.<N> <text read so far>" line
+// number + text, and the log's tail for the page's "Vis LaTeX-log".
+function parseLatexLog(log) {
+  const lines = String(log).replace(/\r/g, '').split('\n');
+  // The log is read as latin1 so a byte never breaks decoding; turn it back
+  // into UTF-8 text for display.
+  const utf8 = (s) => Buffer.from(s, 'latin1').toString('utf8');
+  const start = lines.findIndex((l) => l.startsWith('! '));
+  const tail = utf8(lines.slice(Math.max(0, (start === -1 ? lines.length : start) - 20), start === -1 ? undefined : start + 25).join('\n'));
+  if (start === -1) return { message: 'Ukendt LaTeX-fejl (ingen fejlbesked i loggen)', line: null, context: '', logTail: tail.slice(-4000) };
+
+  const messageParts = [lines[start].slice(2).trim()];
+  for (let i = start + 1; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l.trim() || /^(See the LaTeX manual|Type  H <return>|l\.\d+|<[^>]*>|\.\.\.)/.test(l.trim())) break;
+    messageParts.push(l.trim());
+  }
+  let message = utf8(messageParts.join(' ')).replace(/^LaTeX Error:\s*/, '');
+
+  let line = null;
+  let context = '';
+  for (let i = start + 1; i < Math.min(lines.length, start + 40); i++) {
+    const m = lines[i].match(/^l\.(\d+) ?(.*)$/);
+    if (!m) continue;
+    line = Number(m[1]);
+    const after = (lines[i + 1] || '').trim();
+    context = utf8((m[2] + (after ? ' ' + after : '')).trim());
+    break;
+  }
+  return { message, line, context, logTail: tail.slice(-4000) };
+}
+
+// The .tex builders put "% matrevy:<key>=<value>" comment lines in front of
+// each scene (overview documents) or each part of a scene document — LaTeX
+// ignores them, and walking back from an error's line to the nearest one
+// tells which scene/part the line belongs to.
+function findMarker(texSource, lineNo) {
+  const lines = texSource.split('\n');
+  for (let i = Math.min(lineNo, lines.length) - 1; i >= 0; i--) {
+    const m = lines[i].match(/^\s*% matrevy:(\w+)=(.*)$/);
+    if (m) return { key: m[1], value: m[2].trim(), line: i + 1 };
+  }
+  return null;
+}
+
+// The archived per-scene .tex is stored without markers: the Manus page
+// re-imports a body from it (extractTexScriptBody), and the unchanged-scene
+// check compares against it.
+function stripMarkers(texSource) {
+  return texSource.replace(/^% matrevy:\w+=.*\n/gm, '');
+}
+
+// "Unicode character Λ (U+039B)" → "Λ".
+function unicodeCharOf(message) {
+  const m = String(message).match(/Unicode character (.+?) \(U\+[0-9A-F]+\)/i);
+  return m ? m[1] : null;
+}
+
+// Where in a scene's own data `ch` occurs, as {part, field?, line?} — used
+// to name the exact field for a Unicode error, which pdflatex reports where
+// the text is *typeset* (e.g. \maketitle for \title{}), not where it's set.
+function findCharInScene(scene, ch) {
+  if (String(scene.name || '').includes(ch)) return { part: 'titel', field: 'title' };
+  if (String(scene.writtenBy || '').includes(ch)) return { part: 'titel', field: 'author' };
+  if (String(scene.melody || '').includes(ch)) return { part: 'titel', field: 'melody' };
+  if ((scene.cast || []).some((c) => [c.name, c.roleCode, c.description].some((v) => String(v || '').includes(ch)))) {
+    return { part: 'roller' };
+  }
+  const bodyLines = String(scene.scriptBody || '').split('\n');
+  const idx = bodyLines.findIndex((l) => l.includes(ch));
+  if (idx !== -1) return { part: 'manus', line: idx + 1 };
+  return null;
+}
+
+function sceneErrorFields(scene, act) {
+  return {
+    sceneId: scene.id || '',
+    sceneUid: scene.uid || '',
+    sceneName: scene.name || '',
+    actLabel: (act && act.label) || '',
+  };
+}
+
+// For a title/author/melody error the field's own text is what the page
+// should show — the generated line it broke on (\maketitle, a table row)
+// means nothing to whoever typed it.
+const SCENE_FIELD_KEYS = { title: 'name', author: 'writtenBy', melody: 'melody' };
+function setFieldValue(entry, scene) {
+  if (entry.field && SCENE_FIELD_KEYS[entry.field]) entry.fieldValue = String(scene[SCENE_FIELD_KEYS[entry.field]] || '');
+}
+
+// Turns a failed compile into one entry of the status file's `errors`.
+// ctx: {document, label, texSource} plus, by kind —
+//   scene document:      {scene, act}
+//   overview document:   {scenes: [{scene, act}]} (Aktoversigt/Rolleoversigt/
+//                        Program's Aktoversigt; markers are scene=<id>)
+//   Program text section: {programPart: 'medvirkende'|'ordliste'|'qr', qrCodes?}
+function buildErrorEntry(err, ctx) {
+  const entry = { document: ctx.document, documentLabel: ctx.label };
+  if (!err || !err.latex) {
+    entry.message = String((err && err.message) || err);
+    return entry;
+  }
+  const { message, line, context, logTail } = err.latex;
+  Object.assign(entry, { message, texLine: line, context, log: logTail });
+  const ch = unicodeCharOf(message);
+  if (ch) entry.char = ch;
+  const texLines = (ctx.texSource || '').split('\n');
+  if (line && texLines[line - 1] !== undefined) entry.sourceLine = texLines[line - 1].trim();
+  const marker = line ? findMarker(ctx.texSource || '', line) : null;
+
+  if (ctx.scene) {
+    Object.assign(entry, sceneErrorFields(ctx.scene, ctx.act));
+    const found = ch ? findCharInScene(ctx.scene, ch) : null;
+    if (marker && marker.key === 'part') entry.part = marker.value;
+    if (entry.part === 'manus' && marker) {
+      const bodyLineCount = String(ctx.scene.scriptBody || '').split('\n').length;
+      // An error reported on \end{sketch}/\end{song} (an unclosed group or
+      // environment) lands past the body — point at its last line.
+      entry.partLine = Math.max(1, Math.min(line - marker.line, bodyLineCount));
+      if (line - marker.line > bodyLineCount) entry.atEnd = true;
+      entry.sourceLine = (String(ctx.scene.scriptBody || '').split('\n')[entry.partLine - 1] || '').trim();
+    } else if (found) {
+      entry.part = found.part;
+      if (found.field) entry.field = found.field;
+      if (found.line) entry.partLine = found.line;
+    }
+    setFieldValue(entry, ctx.scene);
+    return entry;
+  }
+
+  if (ctx.scenes) {
+    // A Unicode error names the character, so search for it (Rolleoversigt
+    // typesets its table inside \resizebox, whose whole argument is read
+    // before typesetting — the reported line is then the box's end, not the
+    // scene's row). Otherwise trust the nearest scene marker.
+    let hit = null;
+    if (ch) {
+      for (const { scene, act } of ctx.scenes) {
+        const where = findCharInScene(scene, ch);
+        if (where && where.part !== 'manus') { hit = { scene, act, where }; break; }
+      }
+    }
+    if (!hit && marker && marker.key === 'scene') {
+      const match = ctx.scenes.find(({ scene }) => scene.id === marker.value);
+      if (match) hit = { ...match, where: null };
+    }
+    if (hit) {
+      Object.assign(entry, sceneErrorFields(hit.scene, hit.act));
+      entry.part = hit.where ? hit.where.part : 'titel';
+      if (hit.where && hit.where.field) entry.field = hit.where.field;
+      setFieldValue(entry, hit.scene);
+    }
+    return entry;
+  }
+
+  if (ctx.programPart) {
+    entry.part = ctx.programPart;
+    if (ctx.programPart === 'qr') {
+      if (marker && marker.key === 'qr') {
+        const qr = (ctx.qrCodes || []).find((q) => String(q.id) === marker.value);
+        if (qr) entry.qrLabel = qr.label || '';
+      }
+    } else if (marker && marker.key === 'part') {
+      const text = String(ctx.programText || '');
+      const count = text.split('\n').length;
+      entry.partLine = Math.max(1, Math.min(line - marker.line, count));
+      if (line - marker.line > count) entry.atEnd = true;
+      entry.sourceLine = (text.split('\n')[entry.partLine - 1] || '').trim();
+    }
+  }
+  return entry;
 }
 
 function writeAndCompile(workDirName, texFileName, texSource) {
@@ -963,6 +1186,12 @@ async function main() {
     }
   }
 
+  // Every compile below records its failure in `errors` and carries on, so
+  // one run reports every broken scene/document at once. Only the merge
+  // steps (manus.pdf, manuskripter/, the Program PDFs) wait for a clean
+  // compile, so they never mix old and new pages.
+  const errors = [];
+
   // 1) One PDF per sketch/song scene with actual script text. Skipped
   // (no pdflatex spawn at all) when the freshly-composed .tex is
   // byte-identical to what's already archived at deriveSourceTexPath and
@@ -977,7 +1206,8 @@ async function main() {
     for (const scene of act.scenes) {
       if (!hasScript(scene)) continue;
       const slug = slugify(scene.name) || scene.id;
-      const tex = buildSceneTex(scene, prodMeta);
+      const markedTex = buildSceneTex(scene, prodMeta);
+      const tex = stripMarkers(markedTex);
       const destRel = deriveSourcePdfPath(scene, currentFolder);
       const texRel = deriveSourceTexPath(scene, currentFolder);
       const destAbs = root(destRel);
@@ -990,51 +1220,59 @@ async function main() {
         continue;
       }
       console.log(`  Compiling scene "${scene.name}"...`);
-      const builtPdf = writeAndCompile(`scene-${slug}`, `${slug}.tex`, tex);
+      let builtPdf;
+      try {
+        builtPdf = writeAndCompile(`scene-${slug}`, `${slug}.tex`, markedTex);
+      } catch (err) {
+        console.error(`  FAILED: scene "${scene.name}": ${err.message}`);
+        errors.push(buildErrorEntry(err, { document: 'scene', label: scene.name, texSource: markedTex, scene, act }));
+        continue;
+      }
       const dest = copyToRepo(builtPdf, destRel);
       scenePdfPaths.set(scene.id, dest);
-      // Persist the exact composed .tex that was just compiled (not a
-      // separate reconstruction) so the archived source is guaranteed to
-      // match the archived PDF byte-for-byte.
+      // Persist the exact composed .tex that was just compiled (minus the
+      // error-reporting markers) so the archived source matches the
+      // archived PDF.
       writeTextToRepo(tex, texRel);
     }
   }
 
+  const sceneList = (acts) => acts.flatMap((act) => act.scenes.map((scene) => ({ scene, act })));
+
   // 2) Aktoversigt.
   console.log('  Compiling Aktoversigt...');
   const aktTex = buildAktoversigtTex(realActs, prodMeta);
-  const aktPdf = writeAndCompile('aktoversigt', 'Aktoversigt.tex', aktTex);
-  copyToRepo(aktPdf, `archive/${currentFolder}/Aktoversigt.pdf`);
+  let aktPdf = null;
+  try {
+    aktPdf = writeAndCompile('aktoversigt', 'Aktoversigt.tex', aktTex);
+    copyToRepo(aktPdf, `archive/${currentFolder}/Aktoversigt.pdf`);
+  } catch (err) {
+    console.error(`  FAILED: Aktoversigt: ${err.message}`);
+    errors.push(buildErrorEntry(err, { document: 'aktoversigt', label: 'Aktoversigt', texSource: aktTex, scenes: sceneList(realActs) }));
+  }
 
   // 3) Rolleoversigt.
   console.log('  Compiling Rolleoversigt...');
   const roleTex = buildRolleoversigtTex(realActs, prodMeta);
-  const rolePdf = writeAndCompile('rolleoversigt', 'Rolleoversigt.tex', roleTex);
-  copyToRepo(rolePdf, `archive/${currentFolder}/Rolleoversigt.pdf`);
+  try {
+    const rolePdf = writeAndCompile('rolleoversigt', 'Rolleoversigt.tex', roleTex);
+    copyToRepo(rolePdf, `archive/${currentFolder}/Rolleoversigt.pdf`);
+  } catch (err) {
+    console.error(`  FAILED: Rolleoversigt: ${err.message}`);
+    const schedulable = realActs.map((act) => ({ ...act, scenes: act.scenes.filter((s) => !isMediaScene(s)) }));
+    errors.push(buildErrorEntry(err, { document: 'rolleoversigt', label: 'Rolleoversigt', texSource: roleTex, scenes: sceneList(schedulable) }));
+  }
 
-  // 4) Manuskript — merge every compiled scene PDF, in act order, with
-  // Aktoversigt spliced in right after the title page (per explicit
-  // request).
-  console.log('  Merging Manuskript...');
-  await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/manus.pdf`), {
-    aktoversigtPdfPath: aktPdf,
-  });
-
-  // 5) One personalized manuscript per cast.json roster entry, plus the
-  // fixed Sangboss manuscript (every song, regardless of cast).
-  console.log('  Building individual manuscripts...');
-  await buildActorManuskripts(realActs, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
-  await buildSangbossManuskript(realActs, prodMeta, scenePdfPaths, currentFolder);
-
-  // 6) Program — self-hosted printed audience programme booklet (Manus
-  // page's "Program" tab). data/program.json is optional (feature just
-  // shipped / no admin save yet) — skip gracefully rather than fail the
-  // whole run, same bootstrap posture as Budget's "no active budget" state
-  // (see CLAUDE.md). The Aktoversigt section explicitly excludes the
-  // Ekstranumre act (unlike the internal Aktoversigt.pdf above, which
-  // includes it) — a printed audience programme lists only the three real
-  // acts.
+  // 4) Program sections — self-hosted printed audience programme booklet
+  // (Manus page's "Program" tab). Only compiled here; assembled in step 7
+  // once everything compiled. data/program.json is optional (no admin save
+  // yet) — skip gracefully rather than fail the whole run, same bootstrap
+  // posture as Budget's "no active budget" state (see CLAUDE.md). The
+  // Aktoversigt section explicitly excludes the Ekstranumre act (unlike the
+  // internal Aktoversigt.pdf above, which includes it) — a printed audience
+  // programme lists only the three real acts.
   const programJsonPath = root('data/program.json');
+  let sectionBytes = null;
   if (!fs.existsSync(programJsonPath)) {
     console.log('  Skipping Program.pdf (data/program.json not found yet).');
   } else {
@@ -1053,22 +1291,53 @@ async function main() {
     const sectionTex = buildProgramSections(programActs, prodMeta, programJson, images);
 
     // Each section is its own standalone .tex/.pdf (see buildProgramSections'
-    // doc comment) — compiled once here and reassembled twice below, in two
-    // different orders, via composeProgramPdf.
+    // doc comment) — compiled once here and reassembled twice in step 7, in
+    // two different orders, via composeProgramPdf.
     const SECTION_FILES = {
-      frontCover: 'ProgramFrontCover.tex',
-      aktoversigt: 'ProgramAktoversigt.tex',
-      medvirkende: 'ProgramMedvirkende.tex',
-      ordliste: 'ProgramOrdliste.tex',
-      qrKoder: 'ProgramQrKoder.tex',
-      backCover: 'ProgramBackCover.tex',
+      frontCover: { file: 'ProgramFrontCover.tex', label: 'Program: forside' },
+      aktoversigt: { file: 'ProgramAktoversigt.tex', label: 'Program: Aktoversigt' },
+      medvirkende: { file: 'ProgramMedvirkende.tex', label: 'Program: Medvirkende' },
+      ordliste: { file: 'ProgramOrdliste.tex', label: 'Program: Ordliste' },
+      qrKoder: { file: 'ProgramQrKoder.tex', label: 'Program: QR-koder' },
+      backCover: { file: 'ProgramBackCover.tex', label: 'Program: bagside' },
     };
-    const sectionBytes = {};
-    for (const [key, texFileName] of Object.entries(SECTION_FILES)) {
-      fs.writeFileSync(path.join(workDir, texFileName), sectionTex[key], 'utf8');
-      sectionBytes[key] = fs.readFileSync(compileTex(workDir, texFileName));
+    const compiled = {};
+    for (const [key, { file, label }] of Object.entries(SECTION_FILES)) {
+      fs.writeFileSync(path.join(workDir, file), sectionTex[key], 'utf8');
+      try {
+        compiled[key] = fs.readFileSync(compileTex(workDir, file));
+      } catch (err) {
+        console.error(`  FAILED: ${label}: ${err.message}`);
+        const ctx = { document: 'program', label, texSource: sectionTex[key] };
+        if (key === 'aktoversigt') ctx.scenes = sceneList(programActs);
+        else if (key === 'medvirkende' || key === 'ordliste') Object.assign(ctx, { programPart: key, programText: programJson[key] });
+        else if (key === 'qrKoder') Object.assign(ctx, { programPart: 'qr', qrCodes: programJson.qrCodes || [] });
+        errors.push(buildErrorEntry(err, ctx));
+      }
     }
+    if (Object.keys(compiled).length === Object.keys(SECTION_FILES).length) sectionBytes = compiled;
+  }
 
+  if (errors.length) {
+    throw new BuildFailed(errors);
+  }
+
+  // 5) Manuskript — merge every compiled scene PDF, in act order, with
+  // Aktoversigt spliced in right after the title page (per explicit
+  // request).
+  console.log('  Merging Manuskript...');
+  await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/manus.pdf`), {
+    aktoversigtPdfPath: aktPdf,
+  });
+
+  // 6) One personalized manuscript per cast.json roster entry, plus the
+  // fixed Sangboss manuscript (every song, regardless of cast).
+  console.log('  Building individual manuscripts...');
+  await buildActorManuskripts(realActs, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
+  await buildSangbossManuskript(realActs, prodMeta, scenePdfPaths, currentFolder);
+
+  // 7) Program — assemble the sections compiled in step 4.
+  if (sectionBytes) {
     const { PDFDocument } = require('pdf-lib');
     const pageCountOf = async (bytes) => (await PDFDocument.load(bytes)).getPageCount();
     const pageSize = (await PDFDocument.load(sectionBytes.frontCover)).getPages()[0].getSize();
@@ -1124,8 +1393,24 @@ async function main() {
   );
 }
 
+// Thrown by main() once every compile has run and at least one failed.
+class BuildFailed extends Error {
+  constructor(errors) {
+    super(`${errors.length} document(s) failed to compile`);
+    this.errors = errors;
+  }
+}
+
 if (require.main === module) {
-  main().catch((err) => {
+  const startedAt = Date.now();
+  writeStatus({ state: 'running', startedAt });
+  main().then(() => {
+    writeStatus({ state: 'done', startedAt, finishedAt: Date.now() });
+  }).catch((err) => {
+    const errors = err instanceof BuildFailed
+      ? err.errors
+      : [buildErrorEntry(err, { document: 'general', label: 'PDF-generering' })];
+    writeStatus({ state: 'failed', startedAt, finishedAt: Date.now(), errors });
     console.error(err.message || err);
     process.exit(1);
   });

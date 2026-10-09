@@ -352,13 +352,14 @@ if ($action === 'manuscripts_sync_selection') {
 // merge read — boss-level like the `manus`/`manuscripts`
 // resources. Single-purpose actions rather than full-array saves, so a tab
 // with stale data can't overwrite anything through them.
-if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'program_read', 'resource_read'], true)) {
+if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'program_read', 'resource_read'], true)) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
   if ($action === 'manus_read') manus_read();
   else if ($action === 'resource_read') resource_read($body);
   else if ($action === 'manus_regenerate_pdfs') manus_regenerate_pdfs();
+  else if ($action === 'manus_pdf_status') manus_pdf_status();
   else if ($action === 'manus_set_stars') manus_set_stars($body);
   else if ($action === 'program_read') program_read();
   else if ($action === 'manuscripts_set_durations') manuscripts_set_durations($body);
@@ -4757,11 +4758,33 @@ function save_manus($payload) {
 // "Generér PDF'er" with nothing to save: just ask the worker for a PDF build
 // from the data already on disk. Rewriting scenes.json from the page's copy
 // (the old way) put a stale tab's data back over newer saves.
+// requestedAt (ms, server clock — the worker shares it) lets the page tell
+// the run it asked for from an older one in manus_pdf_status: the worker
+// only starts a run after it sees the flag, so a run with
+// startedAt >= requestedAt is ours (or later).
 function manus_regenerate_pdfs() {
+  $requestedAt = (int) floor(microtime(true) * 1000);
   if (!touch(rtrim(SITE_DATA_DIR, '/') . '/.regen-pdfs-requested')) {
     respond(500, ['error' => 'flag_failed']);
   }
-  respond(200, ['ok' => true]);
+  respond(200, ['ok' => true, 'requestedAt' => $requestedAt]);
+}
+
+// The latest PDF run's status, written by scripts/generate-pdfs.js to
+// generated/pdf-status.json (not web-served — it can carry LaTeX log
+// excerpts): {state: running|done|failed, startedAt, finishedAt?, errors?}.
+// `status: null` when no run has written one yet.
+function manus_pdf_status() {
+  $file = rtrim(SITE_DATA_DIR, '/') . '/generated/pdf-status.json';
+  if (!is_file($file)) {
+    respond(200, ['ok' => true, 'status' => null, 'now' => (int) floor(microtime(true) * 1000)]);
+  }
+  $status = json_decode((string) @file_get_contents($file), true);
+  respond(200, [
+    'ok' => true,
+    'status' => is_array($status) ? $status : null,
+    'now' => (int) floor(microtime(true) * 1000),
+  ]);
 }
 
 // The live scenes.json/cast.json plus their shas — what Manus's save merges

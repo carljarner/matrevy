@@ -305,6 +305,101 @@ a.manus-pdf-title:focus-visible {
   font-size: 0.85rem;
 }
 
+/* "Seneste generering fejlede — vis detaljer": the status line as a link-
+   like button opening manusOpenPdfErrorModal. */
+.manus-pdf-status-failed {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--danger);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ── PDF build error modal (manusOpenPdfErrorModal) ── */
+.manus-pdf-error-modal {
+  width: min(720px, 94vw);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.manus-pdf-error-intro {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.manus-pdf-error {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: 6px;
+  background: var(--input-bg);
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.manus-pdf-error-where {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.35rem;
+}
+
+.manus-pdf-error-what {
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+
+.manus-pdf-error-snippet,
+.manus-pdf-error-log pre {
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.55rem;
+  margin: 0 0 0.5rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.manus-pdf-error-log pre {
+  max-height: 16rem;
+  overflow-y: auto;
+  margin-top: 0.4rem;
+}
+
+.manus-pdf-error-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 0.4rem;
+}
+
+.manus-pdf-error-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.manus-pdf-error-log {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+
+.manus-pdf-error-log summary {
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.manus-pdf-error-goto {
+  margin-left: auto;
+}
+
 .manus-main-view-buttons {
   display: flex;
   align-items: center;
@@ -1684,6 +1779,8 @@ a.manus-pdf-title:focus-visible {
   /* Dropped so "Generér PDF'er" doesn't get pushed onto its own row next
      to a wrapped status line — the status is still visible on desktop. */
   .manus-pdf-status { display: none; }
+  /* …except a failed run, which must stay visible. */
+  .manus-pdf-status.manus-pdf-status-failed { display: inline; }
 
   /* PDF quick-links: a 2x2 grid instead of one button per row. min-width
      needs !important since renderManusPdfLinksSection sets it inline

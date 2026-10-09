@@ -286,11 +286,14 @@ function manusOpenTypeOptions() {
 // Mirrors posts.js's postsApi()/postsResolvePassword() exactly — see the
 // file header for why this can't just use site-utils.js's siteSaveResource
 // (which only trusts a boss/admin login).
-function manusResolvePassword() {
+// `allowPrompt: false` (background polls) never asks — no stored password
+// just means no call.
+function manusResolvePassword(allowPrompt = true) {
   const auth = (typeof getSiteAuth === 'function') ? getSiteAuth() : null;
   if (auth && auth.password) return auth.password;
   let pin = '';
   try { pin = sessionStorage.getItem('matrevy-manus-pin') || ''; } catch (e) { /* ignore */ }
+  if (!pin && !allowPrompt) return null;
   if (!pin) {
     pin = (prompt('Indtast adgangskoden:') || '').trim();
     if (!pin) return null;
@@ -304,8 +307,8 @@ function manusMapError(status) {
   return 'Der opstod en serverfejl. Prøv igen senere.';
 }
 
-async function manusApi(action, body) {
-  const password = manusResolvePassword();
+async function manusApi(action, body, { prompt = true } = {}) {
+  const password = manusResolvePassword(prompt);
   if (!password) return { ok: false, message: '' };
   let res;
   try {
@@ -5543,6 +5546,11 @@ let manusPdfCheckFailed = false; // true when the check itself couldn't run/comp
 // so the UI can say so explicitly instead of silently looking identical to a real success.
 // Cleared at the start of the next manusRegeneratePdfs() call.
 let manusPdfPollTimedOut = false;
+// The latest run's status from manus_pdf_status when it failed (its
+// `errors` feed manusOpenPdfErrorModal), else null. The bottom bar then
+// shows "Seneste generering fejlede — vis detaljer" instead of the
+// timestamp.
+let manusPdfLastFailure = null;
 
 // A genuine "never generated" (the file doesn't exist) is reported
 // distinctly from "couldn't check" (a failed request, or file://, where
@@ -5625,51 +5633,345 @@ function manusLoadPdfTimestampIfNeeded() {
     const el = manusPdfTimestampEl();
     if (el) el.textContent = manusPdfStatusText();
   };
-  manusFetchPdfStatus(path).then(({ date, confirmedAbsent, checkFailed }) => {
+  const fileStatus = manusFetchPdfStatus(path).then(({ date, confirmedAbsent, checkFailed }) => {
     manusPdfLastGeneratedAt = date;
     manusPdfConfirmedAbsent = confirmedAbsent;
     manusPdfCheckFailed = checkFailed;
     apply();
+    return date;
   });
+  manusLoadLastPdfRun(path, fileStatus);
 }
 
-// A cheap same-origin HEAD request, so it can poll often.
+// On page load: surface a failed last run, or pick up one still running
+// (e.g. this page was reloaded mid-build) so the button keeps showing
+// "Genererer..." until it ends.
+async function manusLoadLastPdfRun(path, fileStatus) {
+  const res = await manusApi('manus_pdf_status', {}, { prompt: false });
+  if (!res.ok || !res.data.status || manusPdfGenerating) return;
+  const st = res.data.status;
+  if (st.state === 'failed') {
+    manusPdfLastFailure = st;
+    renderMainViewActions();
+  } else if (st.state === 'running' && Number(res.data.now) - Number(st.startedAt) < MANUS_PDF_POLL_TIMEOUT_MS) {
+    const before = await fileStatus;
+    manusPdfGenerating = true;
+    renderManusPdfLinksSection();
+    renderMainViewActions();
+    manusPollPdfCompletion(Number(st.startedAt), before, path);
+  }
+}
+
+// manus_pdf_status is a cheap read of one small file, so it can poll often.
 const MANUS_PDF_POLL_INTERVAL_MS = 3000;
 // A generous backstop, not the primary completion signal: a normal
-// generate-pdfs.js run in the worker takes well under a minute. The
-// timeout branch below says so explicitly instead of silently reverting to
-// idle as if generation had succeeded.
+// generate-pdfs.js run in the worker takes well under a minute, and a
+// failed one reports itself through manus_pdf_status. The timeout branch
+// below says so explicitly instead of silently reverting to idle as if
+// generation had succeeded.
 const MANUS_PDF_POLL_TIMEOUT_MS = 10 * 60 * 1000;
+// The worker checks for the request every 2 s; a run that hasn't started
+// after this long (and isn't queued behind an older one) means the worker
+// isn't running.
+const MANUS_PDF_PICKUP_TIMEOUT_MS = 30 * 1000;
 
-function manusPollPdfCompletion(beforeDate, url) {
+// Polls manus_pdf_status for the run that started at/after `requestedAt`
+// (server ms, from manus_regenerate_pdfs). Done → the usual success path,
+// failed → the error modal. If the status can't be read (no stored
+// password, network), falls back to watching manus.pdf's Last-Modified.
+function manusPollPdfCompletion(requestedAt, beforeDate, url) {
   const startedAt = Date.now();
   const beforeTime = beforeDate ? beforeDate.getTime() : null;
+  let pickedUp = false;
+
+  const stop = () => {
+    manusPdfGenerating = false;
+    renderManusPdfLinksSection();
+    renderMainViewActions();
+  };
+  const succeed = (date) => {
+    manusPdfPollTimedOut = false;
+    manusPdfLastFailure = null;
+    if (date) manusPdfLastGeneratedAt = date;
+    manusPdfConfirmedAbsent = false;
+    manusPdfCheckFailed = false;
+    stop();
+    siteShowToast("PDF'erne er opdateret");
+  };
 
   const tick = async () => {
     if (Date.now() - startedAt > MANUS_PDF_POLL_TIMEOUT_MS) {
-      manusPdfGenerating = false;
       manusPdfPollTimedOut = true;
-      renderManusPdfLinksSection();
-      renderMainViewActions();
+      stop();
       siteShowToast('Kunne ikke bekræfte at PDF’erne er opdateret. Tjek Koordinator-siden om lidt');
       return;
     }
-    const current = await manusFetchPdfStatus(url);
-    const currentTime = current.date ? current.date.getTime() : null;
-    if (currentTime !== null && currentTime !== beforeTime) {
-      manusPdfGenerating = false;
-      manusPdfPollTimedOut = false;
-      manusPdfLastGeneratedAt = current.date;
-      manusPdfConfirmedAbsent = false;
-      manusPdfCheckFailed = false;
-      renderManusPdfLinksSection();
-      renderMainViewActions();
-      siteShowToast("PDF'erne er opdateret");
-      return;
+    const res = requestedAt != null ? await manusApi('manus_pdf_status', {}, { prompt: false }) : { ok: false };
+    if (res.ok) {
+      const st = res.data.status;
+      const ours = !!st && Number(st.startedAt) >= requestedAt;
+      if (ours && st.state === 'done') {
+        succeed((await manusFetchPdfStatus(url)).date);
+        return;
+      }
+      if (ours && st.state === 'failed') {
+        manusPdfPollTimedOut = false;
+        manusPdfLastFailure = st;
+        stop();
+        manusOpenPdfErrorModal(st);
+        return;
+      }
+      if (ours) pickedUp = true;
+      // An older run still going delays ours, so only give up when nothing
+      // is running at all.
+      const olderRunning = !!st && !ours && st.state === 'running';
+      if (!pickedUp && !olderRunning && Date.now() - startedAt > MANUS_PDF_PICKUP_TIMEOUT_MS) {
+        stop();
+        const el = manusMainViewErrorEl();
+        if (el) el.textContent = "PDF-generatoren startede ikke. Prøv igen om lidt — ellers kører serverens worker ikke.";
+        return;
+      }
+    } else {
+      const current = await manusFetchPdfStatus(url);
+      const currentTime = current.date ? current.date.getTime() : null;
+      if (currentTime !== null && currentTime !== beforeTime) {
+        succeed(current.date);
+        return;
+      }
     }
     setTimeout(tick, MANUS_PDF_POLL_INTERVAL_MS);
   };
   setTimeout(tick, MANUS_PDF_POLL_INTERVAL_MS);
+}
+
+// ── PDF build errors ─────────────────────────────────────────
+// A failed run's `errors` (scripts/generate-pdfs.js buildErrorEntry): one
+// per document that failed, each located as precisely as the LaTeX log
+// allows — scene (sceneUid/sceneId/sceneName/actLabel) and part (titel with
+// an optional field, roller, manus with partLine; Program's medvirkende/
+// ordliste/qr), plus LaTeX's message, the offending line and the log tail.
+
+// Danish explanation of LaTeX's most common errors, or null.
+function manusPdfErrorHint(e) {
+  const msg = String(e.message || '');
+  if (e.char) {
+    const greek = /[Ͱ-Ͽ]/.test(e.char);
+    return greek
+      ? `Tegnet "${e.char}" kan ikke bruges direkte i LaTeX. Græske bogstaver skrives i matematik, fx $\\Lambda$ eller $\\lambda$.`
+      : `Tegnet "${e.char}" kan ikke bruges direkte i LaTeX. Erstat det med en LaTeX-kommando, eller fjern det.`;
+  }
+  if (/^Undefined control sequence/.test(msg)) return 'Ukendt kommando — tjek stavningen af kommandoen (det, der starter med \\) i linjen.';
+  if (/Missing \$ inserted/.test(msg)) return 'Matematik uden for $…$ — fx ^, _ eller en matematikkommando, der skal stå mellem $-tegn.';
+  if (/Missing \} inserted|Runaway argument|File ended while scanning|Paragraph ended before/.test(msg)) return 'En { eller } mangler — tjek at alle krøllede parenteser er lukket.';
+  if (/Extra \}|Too many \}'s/.test(msg)) return 'Der er en } for meget.';
+  if (/Environment .* undefined/.test(msg)) return 'Ukendt miljø i \\begin{…}.';
+  if (/\\begin\{.*\} on input line \d+ ended by/.test(msg)) return 'En \\begin{…} og \\end{…} passer ikke sammen.';
+  if (/Misplaced alignment tab character &/.test(msg)) return 'Et &-tegn skal skrives som \\&.';
+  if (/macro parameter character #/.test(msg)) return '#-tegnet skal skrives som \\#.';
+  if (/File `.*' not found/.test(msg)) return 'En fil, som LaTeX skal bruge, mangler.';
+  return null;
+}
+
+const MANUS_PDF_ERROR_FIELD_LABELS = { title: 'Titel', author: 'Forfatter', melody: 'Melodi' };
+
+// "Ekstranumre · E-1 "Λλ" — Titel" / "Program — Medvirkende, linje 3".
+function manusPdfErrorWhere(e) {
+  let part = '';
+  if (e.part === 'titel') part = MANUS_PDF_ERROR_FIELD_LABELS[e.field] || 'Titel / forfatter / melodi';
+  else if (e.part === 'roller') part = 'Roller';
+  else if (e.part === 'manus') part = e.partLine ? `Manus, linje ${e.partLine}` : 'Manus';
+  else if (e.part === 'medvirkende' || e.part === 'ordliste') {
+    part = (e.part === 'medvirkende' ? 'Medvirkende' : 'Ordliste') + (e.partLine ? `, linje ${e.partLine}` : '');
+  } else if (e.part === 'qr') part = e.qrLabel ? `QR-kode "${e.qrLabel}"` : 'QR-koder';
+
+  if (e.sceneId || e.sceneName) {
+    const scene = [e.actLabel, e.sceneId].filter(Boolean).join(' · ');
+    return `${scene}${scene ? ' ' : ''}"${e.sceneName}"${part ? ' — ' + part : ''}`;
+  }
+  if (e.document === 'program' && part) return `Program — ${part}`;
+  return e.documentLabel || 'PDF-generering';
+}
+
+// The same mistake (e.g. a bad title) breaks every document it appears in;
+// those are shown once, listing the affected documents.
+function manusGroupPdfErrors(errors) {
+  const groups = new Map();
+  for (const e of errors) {
+    const key = JSON.stringify([e.sceneUid || e.sceneId || e.document, e.part, e.field, e.partLine, e.message]);
+    const docLabel = e.document === 'scene' ? 'Scene-PDF' : (e.documentLabel || e.document);
+    if (!groups.has(key)) groups.set(key, { error: e, documents: [] });
+    const group = groups.get(key);
+    if (!group.documents.includes(docLabel)) group.documents.push(docLabel);
+    // Prefer the scene document's own entry: it has the exact line.
+    if (e.document === 'scene') group.error = e;
+  }
+  return [...groups.values()];
+}
+
+// Selects line `lineNo` (1-based) of a textarea and scrolls it into view.
+function manusSelectTextareaLine(textarea, lineNo) {
+  const lines = textarea.value.split('\n');
+  const n = Math.max(1, Math.min(lineNo, lines.length));
+  let start = 0;
+  for (let i = 0; i < n - 1; i++) start += lines[i].length + 1;
+  textarea.focus();
+  textarea.setSelectionRange(start, start + lines[n - 1].length);
+  const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 18;
+  textarea.scrollTop = Math.max(0, (n - 3) * lineHeight);
+}
+
+// Selects the first line containing `needle`; false if there is none.
+function manusSelectTextareaText(textarea, needle) {
+  if (!needle) return false;
+  const idx = textarea.value.indexOf(needle);
+  if (idx === -1) return false;
+  manusSelectTextareaLine(textarea, textarea.value.slice(0, idx).split('\n').length);
+  return true;
+}
+
+// The header textarea's line for a title/author/melody error.
+function manusSelectHeaderField(textarea, e) {
+  const macro = { title: '\\title{', author: '\\author{', melody: '\\melody{' }[e.field];
+  if (e.char && manusSelectTextareaText(textarea, e.char)) return;
+  if (macro) manusSelectTextareaText(textarea, macro);
+}
+
+// Opens the place an error points at — the scene's editor on the right tab
+// (Manus for titel/manus, Rollefordeling for roller; a video/bandsang row's
+// own editor) or Program's textarea — with the offending line selected.
+// Line numbers refer to the saved data, so after further edits they may be
+// off; the scene is still right. Null when there's nowhere to go (e.g. the
+// scene isn't in this tab's draft any more).
+function manusPdfErrorGoto(e) {
+  if (e.part === 'medvirkende' || e.part === 'ordliste' || e.part === 'qr') {
+    return () => {
+      manusSetActiveTab('program');
+      if (e.part === 'qr') return;
+      const textarea = document.querySelector(`textarea[data-program-field="${e.part}"]`);
+      if (textarea && e.partLine) manusSelectTextareaLine(textarea, e.partLine);
+    };
+  }
+  if (!manusDraft || !(e.sceneUid || e.sceneId)) return null;
+  const row = manusDraft.rows.find(r => e.sceneUid && r.uid === e.sceneUid);
+  if (!row) return null;
+
+  return () => {
+    if (manusRowIsManualMedia(row)) {
+      manusSetActiveTab('select');
+      openVideoBandsangModal(row);
+      const modals = document.querySelectorAll('.manus-script-modal');
+      const textareas = modals.length ? modals[modals.length - 1].querySelectorAll('textarea') : [];
+      const [header, roles, body] = textareas;
+      if (e.part === 'manus' && body) manusSelectTextareaLine(body, e.partLine || 1);
+      else if (e.part === 'roller' && roles) manusSelectTextareaText(roles, e.char);
+      else if (header) manusSelectHeaderField(header, e);
+      return;
+    }
+    if (e.part === 'roller') {
+      manusSetActiveTab('rollefordeling');
+      const badge = document.querySelector(`[data-manus-role-badge="${CSS.escape(row.key)}"]`) || document.createElement('span');
+      openRoleSceneModal(row, badge);
+      const textarea = document.querySelector(`[data-manus-role-textarea="${CSS.escape(row.key)}"]`);
+      if (textarea) manusSelectTextareaText(textarea, e.char);
+      return;
+    }
+    manusSetActiveTab('manus');
+    openScriptSceneModal(row);
+    if (e.part === 'manus') {
+      const textarea = document.querySelector(`[data-manus-script-textarea="${CSS.escape(row.key)}"]`);
+      if (textarea) manusSelectTextareaLine(textarea, e.partLine || 1);
+    } else {
+      const header = document.querySelector(`[data-manus-header-textarea="${CSS.escape(row.key)}"]`);
+      if (header) manusSelectHeaderField(header, e);
+    }
+  };
+}
+
+function manusOpenPdfErrorModal(status) {
+  const errors = Array.isArray(status && status.errors) ? status.errors : [];
+  const groups = manusGroupPdfErrors(errors);
+  const { modal, form, actions, close } = siteOpenModalWithClose("PDF'erne kunne ikke genereres");
+  modal.classList.add('manus-pdf-error-modal');
+
+  const intro = document.createElement('p');
+  intro.className = 'manus-pdf-error-intro';
+  const count = groups.length === 1 ? 'Der er 1 fejl' : `Der er ${groups.length} fejl`;
+  const when = status && status.finishedAt
+    ? ` (${manusFormatGeneratedAt(new Date(Number(status.finishedAt))).replace('Sidst genereret:', 'kørt')})`
+    : '';
+  intro.textContent = `${count}, der skal rettes${when}. manus.pdf, de personlige manuskripter og programmet er ikke opdateret. `
+    + 'LaTeX stopper ved første fejl i hver fil, så der kan dukke flere op, når disse er rettet.';
+  form.appendChild(intro);
+
+  for (const { error: e, documents } of groups) {
+    const block = document.createElement('div');
+    block.className = 'manus-pdf-error';
+
+    const where = document.createElement('h3');
+    where.className = 'manus-pdf-error-where';
+    where.textContent = manusPdfErrorWhere(e);
+    block.appendChild(where);
+
+    const hint = manusPdfErrorHint(e);
+    const what = document.createElement('p');
+    what.className = 'manus-pdf-error-what';
+    what.textContent = hint || e.message || 'Ukendt fejl';
+    block.appendChild(what);
+
+    const snippetText = e.fieldValue != null && e.fieldValue !== ''
+      ? `${MANUS_PDF_ERROR_FIELD_LABELS[e.field] || 'Felt'}: ${e.fieldValue}`
+      : (e.sourceLine ? (e.partLine ? `${e.partLine}: ` : '') + e.sourceLine : '');
+    if (snippetText) {
+      const snippet = document.createElement('pre');
+      snippet.className = 'manus-pdf-error-snippet';
+      snippet.textContent = snippetText;
+      block.appendChild(snippet);
+    }
+    if (e.atEnd) {
+      const atEnd = document.createElement('p');
+      atEnd.className = 'manus-pdf-error-meta';
+      atEnd.textContent = 'LaTeX opdagede fejlen først ved slutningen af manus — den kan sidde tidligere.';
+      block.appendChild(atEnd);
+    }
+
+    const meta = document.createElement('p');
+    meta.className = 'manus-pdf-error-meta';
+    meta.textContent = (hint && e.message ? `LaTeX: ${e.message} · ` : '') + `Påvirker: ${documents.join(', ')}`;
+    block.appendChild(meta);
+
+    const footer = document.createElement('div');
+    footer.className = 'manus-pdf-error-footer';
+    if (e.log) {
+      const details = document.createElement('details');
+      details.className = 'manus-pdf-error-log';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Vis LaTeX-log';
+      details.appendChild(summary);
+      const pre = document.createElement('pre');
+      pre.textContent = e.log;
+      details.appendChild(pre);
+      footer.appendChild(details);
+    }
+    const goto = manusPdfErrorGoto(e);
+    if (goto) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-small manus-pdf-error-goto';
+      btn.textContent = e.document === 'program' && !e.sceneId ? 'Gå til Program' : 'Gå til scenen';
+      btn.addEventListener('click', () => { close(); goto(); });
+      footer.appendChild(btn);
+    }
+    if (footer.childNodes.length) block.appendChild(footer);
+
+    form.appendChild(block);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'site-btn-warm';
+  closeBtn.textContent = 'Luk';
+  closeBtn.addEventListener('click', close);
+  actions.appendChild(closeBtn);
 }
 
 // Re-triggers the PDF pipeline (scripts/generate-pdfs.js, run by the
@@ -5717,7 +6019,8 @@ async function manusRegeneratePdfs() {
     return;
   }
   siteShowToast(manusIsDirty() ? 'PDF-generering startet (uden dine ugemte ændringer)' : 'PDF-generering startet');
-  manusPollPdfCompletion(before, referenceUrl);
+  const requestedAt = Number(result.data.requestedAt);
+  manusPollPdfCompletion(Number.isFinite(requestedAt) ? requestedAt : null, before, referenceUrl);
 }
 
 // Bottom action bar of Main Manus View: a left-side cluster ("Generér
@@ -5755,11 +6058,21 @@ function renderMainViewActions() {
   });
   left.appendChild(generateBtn);
 
-  const pdfStatus = document.createElement('span');
-  pdfStatus.className = 'manus-pdf-status';
-  pdfStatus.setAttribute('data-manus-pdf-timestamp', '');
-  pdfStatus.textContent = manusPdfStatusText();
-  left.appendChild(pdfStatus);
+  if (manusPdfLastFailure && !manusPdfGenerating) {
+    const failed = document.createElement('button');
+    failed.type = 'button';
+    failed.className = 'manus-pdf-status manus-pdf-status-failed';
+    failed.textContent = 'Seneste generering fejlede — vis detaljer';
+    const failure = manusPdfLastFailure;
+    failed.addEventListener('click', () => manusOpenPdfErrorModal(failure));
+    left.appendChild(failed);
+  } else {
+    const pdfStatus = document.createElement('span');
+    pdfStatus.className = 'manus-pdf-status';
+    pdfStatus.setAttribute('data-manus-pdf-timestamp', '');
+    pdfStatus.textContent = manusPdfStatusText();
+    left.appendChild(pdfStatus);
+  }
 
   mount.appendChild(left);
   manusLoadPdfTimestampIfNeeded();

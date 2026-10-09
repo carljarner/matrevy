@@ -21,4 +21,7 @@ RUN ln -s /data/site/data data \
 # the files the worker writes (and vice versa).
 USER 33:33
 ENV HOME=/tmp
+# generate-pdfs.js's run status, read by update-data.php's manus_pdf_status;
+# generated/ isn't web-served.
+ENV PDF_STATUS_FILE=/data/site/generated/pdf-status.json
 CMD ["bash", "/app/worker.sh"]

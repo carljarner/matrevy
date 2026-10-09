@@ -5,3 +5,4 @@ server/config.php
 # scripts/generate-pdfs.js dev tooling (see package.json)
 node_modules/
 .pdf-build/
+.pdf-status.json
