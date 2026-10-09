@@ -5935,7 +5935,7 @@ function manusSlugifyName(name) {
 
 // Quick-open buttons for the last-generated PDFs, sitting between the pool/
 // guide row and Main Manus View — visible to boss/admin always, and to a
-// plain revyst-level visitor only once Admin-indstillinger's "Revyster kan
+// plain revyst-level visitor only once Boss-indstillinger's "Revyster kan
 // se manus" toggle (CONFIG_DATA.pdfLinksVisibleToRevyst, which also gates
 // Øveplan's scenes) is on, so
 // boss/admin can proof a freshly (re)generated set privately before
@@ -6138,7 +6138,7 @@ function renderPoolLayoutVisibility() {
 // at the very bottom of the page, admin-only (hidden entirely, not just
 // collapsed, below that level — unlike the rest of Main Manus View, which
 // is boss-visible).
-// One admin-settings toggle column: reads/writes a single config boolean
+// One Boss-indstillinger toggle column: reads/writes a single config boolean
 // field via siteSaveResource('config', ...) + getEffectiveConfig()'s
 // localStorage-backed configOverride (same shape as every other page's own
 // override shadow — see the comment above configOverride's declaration),
@@ -6193,7 +6193,7 @@ function renderAdminToggleColumn(container, { id, label: labelText, checked, onC
 
 function renderAdminSettings() {
   const section = document.getElementById('manus-admin-settings');
-  if (!siteHasLevel('admin')) {
+  if (!siteHasLevel('boss')) {
     section.style.display = 'none';
     return;
   }
@@ -6203,7 +6203,7 @@ function renderAdminSettings() {
   const head = document.createElement('div');
   head.className = 'card-head';
   const h2 = document.createElement('h2');
-  h2.textContent = 'Admin-indstillinger';
+  h2.textContent = 'Boss-indstillinger';
   head.appendChild(h2);
   section.appendChild(head);
 

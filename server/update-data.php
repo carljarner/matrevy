@@ -5642,8 +5642,10 @@ function save_wiki($payload) {
   respond(200, ['ok' => true, 'sha' => $sha]);
 }
 
-// Admin-only site-wide settings, each sent independently and only applied
-// when its key is present in the payload — a Koordinator toggle save must
+// Site-wide settings, each sent independently and only applied when its key
+// is present in the payload. The resource is boss-level (Manus's
+// Boss-indstillinger toggles), but currentProductionFolder stays admin-only
+// (checked below) — a Koordinator toggle save must
 // not silently wipe currentProductionFolder (and vice versa), since
 // update_file() only merges what this callback actually touches.
 //
@@ -5665,11 +5667,14 @@ function save_wiki($payload) {
 // type (manuscripts_create/manuscripts_update, enforced above — not just a
 // client-side hide) once boss/admin has closed submissions for it, e.g. once
 // every sketch is already in. Off (uploads open) by default; flipped from
-// Manus's own Admin-indstillinger toggles (js/manus.js's renderAdminSettings).
+// Manus's own Boss-indstillinger toggles (js/manus.js's renderAdminSettings).
 // uploadsClosedForRevyst is the legacy single flag both used to share — still
 // accepted and read as a fallback, removed once either per-type key is saved.
 function save_config($payload) {
   $hasFolder = array_key_exists('currentProductionFolder', $payload);
+  if ($hasFolder && $GLOBALS['level'] !== 'admin') {
+    respond(403, ['error' => 'insufficient_level']);
+  }
   $folder = $payload['currentProductionFolder'] ?? '';
   if ($hasFolder && (!is_string($folder) || ($folder !== '' && !preg_match('#^[A-Za-z0-9_-]+$#', $folder)))) {
     respond(400, ['error' => 'invalid_shape']);
@@ -6178,7 +6183,7 @@ $RESOURCES = [
   'bosses'        => ['level' => 'admin', 'save' => 'save_bosses'],
   'wiki'          => ['level' => 'boss',  'save' => 'save_wiki'],
   'manuscripts'   => ['level' => 'admin', 'save' => 'save_manuscripts'],
-  'config'        => ['level' => 'admin', 'save' => 'save_config'],
+  'config'        => ['level' => 'boss',  'save' => 'save_config'],
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
   'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
   'lokaler'       => ['level' => 'admin', 'save' => 'save_lokaler'],
