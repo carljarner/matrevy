@@ -2176,7 +2176,7 @@ a.manus-pdf-title:focus-visible {
   .manus-print-box .manus-points-box-mean { box-shadow: 0 0 0 2px #fff; }
 
   /* Udskriv → Aktfordeling cut-out cards (manusPrintAktCards): legend, then
-     a 4-up grid of 2:1 of square cards with dashed cut lines. Keeps colours. */
+     a 3-up grid of 8:3 cards with dashed cut lines. Keeps colours. */
   .manus-akt-legend,
   .manus-akt-cards,
   .manus-akt-legend *,
@@ -2210,12 +2210,12 @@ a.manus-pdf-title:focus-visible {
 
   .manus-akt-cards {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 
   .manus-akt-card {
     position: relative;
-    aspect-ratio: 2 / 1;
+    aspect-ratio: 8 / 3;
     border: 1px dashed #888;
     page-break-inside: avoid;
     break-inside: avoid;
@@ -2242,6 +2242,8 @@ a.manus-pdf-title:focus-visible {
     gap: 0.1rem;
     text-align: center;
     color: #000;
+    /* A heavy sans prints far blacker than the site's serif. */
+    font-family: "Arial Black", "Helvetica Neue", Arial, sans-serif;
     overflow-wrap: anywhere;
     hyphens: auto;
   }
@@ -2251,24 +2253,28 @@ a.manus-pdf-title:focus-visible {
   .manus-akt-card-triangle .manus-akt-card-text { inset: 32% 24% 3%; }
   .manus-akt-card-hexagon .manus-akt-card-text  { inset: 8% 18%; }
   .manus-akt-card-octagon .manus-akt-card-text  { inset: 8% 12%; }
+  .manus-akt-card-fish .manus-akt-card-text     { inset: 16% 30% 16% 8%; }
 
   .manus-akt-card-title {
-    font-weight: 700;
-    font-size: 8pt;
+    font-weight: 900;
+    font-size: 12pt;
     line-height: 1.15;
   }
 
   .manus-akt-card-avg {
-    font-size: 7pt;
-    font-weight: 600;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 8pt;
+    font-weight: 700;
   }
 
-  /* Rhombus/triangle leave the least room inside the outline. */
+  /* Rhombus/triangle/fish leave the least room inside the outline. */
+  .manus-akt-card-fish .manus-akt-card-title,
   .manus-akt-card-rhombus .manus-akt-card-title,
-  .manus-akt-card-triangle .manus-akt-card-title { font-size: 6.5pt; }
+  .manus-akt-card-triangle .manus-akt-card-title { font-size: 9.5pt; }
 
+  .manus-akt-card-fish .manus-akt-card-avg,
   .manus-akt-card-rhombus .manus-akt-card-avg,
-  .manus-akt-card-triangle .manus-akt-card-avg { font-size: 6pt; }
+  .manus-akt-card-triangle .manus-akt-card-avg { font-size: 7pt; }
 }
 
 /* --- Program tab (Medvirkende / Ordliste / QR-koder) ------------- */

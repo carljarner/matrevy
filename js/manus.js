@@ -1538,7 +1538,7 @@ const MANUS_AKT_TAGS_KEY = 'matrevy-manus-akt-tags';
 
 // 200×100 (2:1, matching the printed cards) viewBox outlines; order is the
 // order new Stil labels are assigned.
-const MANUS_AKT_SHAPES = ['rect', 'rounded', 'hexagon', 'rhombus', 'triangle', 'octagon'];
+const MANUS_AKT_SHAPES = ['rect', 'rounded', 'hexagon', 'rhombus', 'triangle', 'octagon', 'fish'];
 const MANUS_AKT_SHAPE_PATHS = {
   rect: 'M4 4H196V96H4Z',
   rounded: 'M28 4H172A24 24 0 0 1 196 28V72A24 24 0 0 1 172 96H28A24 24 0 0 1 4 72V28A24 24 0 0 1 28 4Z',
@@ -1546,6 +1546,8 @@ const MANUS_AKT_SHAPE_PATHS = {
   triangle: 'M100 4L196 96H4Z',
   hexagon: 'M40 4H160L196 50L160 96H40L4 50Z',
   octagon: 'M30 4H170L196 30V70L170 96H30L4 70V30Z',
+  // Head left, forked tail right.
+  fish: 'M4 50C22 -2 118 -2 148 40L196 6L180 50L196 94L148 60C118 102 22 102 4 50Z',
 };
 // Shape keys from the first (square-card) version, still possibly in a
 // browser's stored labels.
@@ -1557,8 +1559,14 @@ const MANUS_AKT_COLORS = [
   '#f9a8d4', '#5eead4', '#fdba74', '#bef264', '#cbd5e1',
 ];
 
+// A card's untinted part (its left half, or all of it without a Tema):
+// light grey for sketches so they stand apart from the white songs.
+function manusAktEmptyFill(type) {
+  return type === 'sketch' ? '#e5e5e5' : '#ffffff';
+}
+
 const MANUS_AKT_SEED_STYLES = {
-  sang: [['Sang', 'rect'], ['Rap', 'rounded'], ['Sang/rap', 'hexagon'], ['Fisk', 'rhombus']],
+  sang: [['Sang', 'rect'], ['Rap', 'rounded'], ['Andet', 'hexagon'], ['Fisk', 'fish']],
   sketch: [['Kort', 'rect'], ['Lang', 'rounded'], ['Serie', 'hexagon'], ['Musik', 'rhombus']],
 };
 
@@ -1647,6 +1655,8 @@ function manusAktBucket(store, type) {
   }
   for (const style of store[type].styles) {
     if (MANUS_AKT_SHAPE_ALIASES[style.shape]) style.shape = MANUS_AKT_SHAPE_ALIASES[style.shape];
+    // Fisk was seeded as a rhombus before the fish shape existed.
+    if (type === 'sang' && style.name === 'Fisk' && style.shape === 'rhombus') style.shape = 'fish';
   }
   return store[type];
 }
@@ -1683,10 +1693,13 @@ function manusAktItemLook(store, type, itemId) {
   return { shape: style ? style.shape : 'rect', colors };
 }
 
-// The shape filled with one vertical stripe per colour (white if none),
-// outlined in black. createElementNS only — never innerHTML.
+// The shape outlined in black, its left half always `emptyFill` (white by
+// default; grey for sketches) and its right half split into one vertical
+// stripe per colour — or all `emptyFill` if none. `full` stripes the whole
+// shape instead (the legend's Tema swatches). createElementNS only — never
+// innerHTML.
 let manusAktSvgCounter = 0;
-function manusBuildAktShapeSvg(shape, colors) {
+function manusBuildAktShapeSvg(shape, colors, { emptyFill = '#ffffff', full = false } = {}) {
   const NS = 'http://www.w3.org/2000/svg';
   const d = MANUS_AKT_SHAPE_PATHS[shape] || MANUS_AKT_SHAPE_PATHS.rect;
   const clipId = `manus-akt-clip-${++manusAktSvgCounter}`;
@@ -1705,13 +1718,18 @@ function manusBuildAktShapeSvg(shape, colors) {
   defs.appendChild(clip);
   svg.appendChild(defs);
 
-  const fills = colors.length > 0 ? colors : ['#ffffff'];
   const g = document.createElementNS(NS, 'g');
   g.setAttribute('clip-path', `url(#${clipId})`);
-  const stripe = 200 / fills.length;
-  fills.forEach((color, i) => {
+  const background = document.createElementNS(NS, 'rect');
+  background.setAttribute('width', '200');
+  background.setAttribute('height', '100');
+  background.setAttribute('fill', emptyFill);
+  g.appendChild(background);
+  const start = full ? 0 : 100;
+  const stripe = (200 - start) / Math.max(colors.length, 1);
+  colors.forEach((color, i) => {
     const rect = document.createElementNS(NS, 'rect');
-    rect.setAttribute('x', String(i * stripe));
+    rect.setAttribute('x', String(start + i * stripe));
     rect.setAttribute('y', '0');
     // A hair wider than the stripe so no anti-aliasing seam shows between.
     rect.setAttribute('width', String(stripe + 0.5));
@@ -1925,7 +1943,7 @@ function openAktTagModal(type) {
       swatch.title = isStyle ? 'Skift form' : 'Skift farve';
       swatch.appendChild(isStyle
         ? manusBuildAktShapeSvg(label.shape, [])
-        : manusBuildAktShapeSvg('rect', [label.color]));
+        : manusBuildAktShapeSvg('rect', [label.color], { full: true }));
       swatch.addEventListener('click', () => {
         const palette = isStyle ? MANUS_AKT_SHAPES : MANUS_AKT_COLORS;
         const key = isStyle ? 'shape' : 'color';
@@ -2141,7 +2159,7 @@ function openAktTagModal(type) {
     const look = manusAktItemLook(store, type, item.id);
     const preview = document.createElement('span');
     preview.className = 'manus-akt-item-preview';
-    preview.appendChild(manusBuildAktShapeSvg(look.shape, look.colors));
+    preview.appendChild(manusBuildAktShapeSvg(look.shape, look.colors, { emptyFill: manusAktEmptyFill(type) }));
     head.appendChild(preview);
 
     const title = document.createElement('span');
@@ -2211,7 +2229,43 @@ function openAktTagModal(type) {
 // Udskriv: a legend, then one cut-out card per picked item (best average
 // first) — shape = Stil, striped fill = Tema(er). Keeps colours in print
 // (see .manus-akt-* in manus.css's @media print block).
-function manusPrintAktCards(type) {
+// Running time per picked item id, in minutes: the Main Manus View's draft
+// row (which has any edit and the \eta{} backfill), else its saved scene's
+// or the stored submission's duration, else parsed from its .tex right now — most
+// submissions only get a stored duration once Gem has run. A 0 means
+// \eta{} didn't parse, same as none.
+async function manusAktResolveDurations(items) {
+  const usable = d => (typeof d === 'number' && d > 0 ? d : null);
+  const rows = manusDraft ? manusDraft.rows : [];
+  const scenes = getEffectiveScenesData();
+  const out = new Map();
+  await Promise.all(items.map(async (item) => {
+    const row = rows.find(r => (r.submission && r.submission.id === item.id)
+      || (r.scene && item.pdfPath && r.scene.sourcePdf === item.pdfPath));
+    const scene = item.pdfPath && scenes.find(sc => sc.sourcePdf === item.pdfPath);
+    let d = usable(row && row.duration) ?? usable(scene && scene.duration) ?? usable(item.duration);
+    if (d === null && item.texPath) {
+      // A record that lags behind a selection move still names submitted/,
+      // so the selected-scene folder is tried as well.
+      const moved = item.texPath.replace(/\/submitted\//, `/${item.type === 'sang' ? 'songs' : 'sketches'}/`);
+      for (const path of [...new Set([item.texPath, moved])]) {
+        try {
+          const res = await fetch(MANUS_TEX_RAW_BASE + path);
+          if (!res.ok) continue;
+          d = usable(extractTexDuration(await res.text()));
+          break;
+        } catch {
+          // No duration then — the card just shows the average.
+        }
+      }
+    }
+    if (d !== null) out.set(item.id, d);
+  }));
+  return out;
+}
+
+async function manusPrintAktCards(type) {
+  const emptyFill = manusAktEmptyFill(type);
   const store = loadAktTagStore();
   const bucket = manusAktBucket(store, type);
   const sheet = document.getElementById('manus-print-sheet');
@@ -2235,8 +2289,8 @@ function manusPrintAktCards(type) {
       const entry = document.createElement('span');
       entry.className = 'manus-akt-legend-entry';
       entry.appendChild(isStyle
-        ? manusBuildAktShapeSvg(l.shape, [])
-        : manusBuildAktShapeSvg('rect', [l.color]));
+        ? manusBuildAktShapeSvg(l.shape, [], { emptyFill })
+        : manusBuildAktShapeSvg('rect', [l.color], { full: true }));
       entry.appendChild(document.createTextNode(l.name || '–'));
       row.appendChild(entry);
     }
@@ -2245,6 +2299,7 @@ function manusPrintAktCards(type) {
   sheet.appendChild(legend);
 
   const picked = manusAktItems(type).filter(i => bucket.items[i.id] && bucket.items[i.id].picked);
+  const durations = await manusAktResolveDurations(picked);
   const grid = document.createElement('div');
   grid.className = 'manus-akt-cards';
   for (const item of picked) {
@@ -2253,17 +2308,26 @@ function manusPrintAktCards(type) {
     card.className = `manus-akt-card manus-akt-card-${look.shape}`;
     const inner = document.createElement('div');
     inner.className = 'manus-akt-card-inner';
-    inner.appendChild(manusBuildAktShapeSvg(look.shape, look.colors));
+    const shapeSvg = manusBuildAktShapeSvg(look.shape, look.colors, { emptyFill });
+    // The paths are drawn 2:1; stretch them to the card's flatter 8:3
+    // (the outline is non-scaling, so it stays an even width).
+    shapeSvg.setAttribute('preserveAspectRatio', 'none');
+    inner.appendChild(shapeSvg);
     const text = document.createElement('div');
     text.className = 'manus-akt-card-text';
     const name = document.createElement('span');
     name.className = 'manus-akt-card-title';
     name.textContent = item.title;
     text.appendChild(name);
-    if (item.avg !== null) {
+    const meta = [];
+    if (item.avg !== null) meta.push(`avg. ${formatPointsAvg(item.avg)}`);
+    if (durations.has(item.id)) {
+      meta.push(`time. ${Math.round(durations.get(item.id) * 10) / 10} min`);
+    }
+    if (meta.length > 0) {
       const avg = document.createElement('span');
       avg.className = 'manus-akt-card-avg';
-      avg.textContent = `avg. ${formatPointsAvg(item.avg)}`;
+      avg.textContent = meta.join(', ');
       text.appendChild(avg);
     }
     inner.appendChild(text);
