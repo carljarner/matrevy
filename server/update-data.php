@@ -399,6 +399,7 @@ if ($action !== 'save') {
 //   .regen-pdfs-requested  message has [regen-pdfs] -> rerun generate-pdfs.js
 //   .archive-sync-requested any change under archive/ -> mirror archive/ to
 //                           the GitHub repo once writes have gone quiet
+//                           (data/config.json -> right away)
 function github_api($method, $path, $payload = null) {
   if (strpos($path, 'contents/') !== 0) {
     respond(500, ['error' => 'unsupported_api_path']);
@@ -462,6 +463,12 @@ function github_api($method, $path, $payload = null) {
     }
     if (strpos($rel, 'archive/') === 0) {
       touch($root . '/.archive-sync-requested');
+    }
+    // config.json decides what the GitHub mirror shows of the current
+    // production (pdfLinksVisibleToRevyst, currentProductionFolder), so sync
+    // now: a backdated flag counts as already quiet in worker.sh.
+    if ($rel === 'data/config.json') {
+      touch($root . '/.archive-sync-requested', time() - 86400);
     }
     if (strpos((string) ($payload['message'] ?? ''), '[regen-pdfs]') !== false) {
       touch($root . '/.regen-pdfs-requested');

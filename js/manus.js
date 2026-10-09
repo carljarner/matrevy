@@ -6466,7 +6466,9 @@ function renderPoolLayoutVisibility() {
 // sketchUploadsClosedForRevyst/songUploadsClosedForRevyst so their labels
 // can read as a positive "revyster kan uploade" rather than a double-negative
 // "luk ikke for uploads".
-function renderAdminToggleColumn(container, { id, label: labelText, checked, onChange, savedText }) {
+// `confirm(next)` (optional) asks first: a Promise of true/false, where
+// false puts the switch back without saving.
+function renderAdminToggleColumn(container, { id, label: labelText, checked, confirm, onChange, savedText }) {
   const col = document.createElement('div');
   col.className = 'manus-admin-toggle-col';
 
@@ -6488,6 +6490,10 @@ function renderAdminToggleColumn(container, { id, label: labelText, checked, onC
 
   input.addEventListener('change', async () => {
     const next = input.checked;
+    if (confirm && !(await confirm(next))) {
+      input.checked = !next;
+      return;
+    }
     input.disabled = true;
     const res = await onChange(next);
     input.disabled = false;
@@ -6558,6 +6564,7 @@ function renderAdminSettings() {
     id: 'manus-pdf-toggle',
     label: 'Revyster kan se manus',
     checked: !!getEffectiveConfig().pdfLinksVisibleToRevyst,
+    confirm: manusConfirmPublish,
     onChange: async (next) => {
       const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
       if (res.ok) {
@@ -6570,6 +6577,49 @@ function renderAdminSettings() {
   });
 
   section.appendChild(columns);
+}
+
+// "Revyster kan se manus" publishes more than the PDF links: Øveplan's
+// scenes, Arkiv's Manus pill and the GitHub mirror's view of the current
+// production (server/worker.sh) all follow it, so either direction asks.
+function manusConfirmPublish(next) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const { form, actions, close } = siteOpenModalWithClose(next ? 'Offentliggør manus?' : 'Skjul manus?');
+    function finish(value) {
+      if (answered) return;
+      answered = true;
+      close();
+      resolve(value);
+    }
+
+    const info = document.createElement('p');
+    info.textContent = next
+      ? "Dette vil opdatere GitHub, øveplanen og gøre manus-PDF'erne tilgængelige gennem revyst-login."
+      : "Dette vil opdatere GitHub, øveplanen og skjule manus-PDF'erne for revyster igen.";
+    form.appendChild(info);
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'site-btn-warm';
+    cancelBtn.textContent = 'Annuller';
+    cancelBtn.addEventListener('click', () => finish(false));
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.type = 'button';
+    confirmBtn.className = next ? 'site-btn-success' : 'site-btn-danger';
+    confirmBtn.textContent = next ? 'Offentliggør' : 'Skjul';
+    confirmBtn.addEventListener('click', () => finish(true));
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+
+    // ✕, Escape and a backdrop click close the modal without an answer.
+    const overlay = form.closest('.login-overlay');
+    new MutationObserver((_, obs) => {
+      if (!overlay.isConnected) { obs.disconnect(); if (!answered) { answered = true; resolve(false); } }
+    }).observe(document.body, { childList: true });
+  });
 }
 
 // "Manus" -> "Manus for MatRevy 2026" once an active production folder is

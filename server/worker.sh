@@ -5,7 +5,9 @@
 #
 # Also mirrors SITE/archive to the GitHub repo's archive/ folder, so old and
 # current productions stay browsable there (Arkiv's GitHub links, the Manus
-# Guide, Program QR codes). One-way: the server is the source of truth.
+# Guide, Program QR codes). One-way: the server is the source of truth. The
+# current production shows only submitted/ until the manus is published
+# (see archive_sync).
 #
 # /app/{data,archive,js,calendar.ics} are symlinks into SITE (Dockerfile.worker),
 # so both scripts run unchanged against the live data.
@@ -49,20 +51,58 @@ archive_sync() {
   git -C "$repo" config user.name 'MatRevy arkiv'
   git -C "$repo" config user.email 'noreply@matematikrevy.dk'
 
-  local attempt
+  # Until Manus's "Revyster kan se manus" (config.pdfLinksVisibleToRevyst) is
+  # on, the current production is mirrored as a "hidden" view: every scene in
+  # submitted/ (selected ones copied back from sketches/ and songs/ as their
+  # current server version) and none of the generated PDFs (top-level *.pdf,
+  # manuskripter/). Turning it on makes the next sync a plain full mirror,
+  # which removes the copies again; update-data.php makes a config write sync
+  # right away instead of after the quiet period.
+  local hidden_folder
+  hidden_folder=$(node -e '
+    try {
+      const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+      const f = typeof c.currentProductionFolder === "string" ? c.currentProductionFolder : "";
+      if (/^[A-Za-z0-9_-]+$/.test(f) && !c.pdfLinksVisibleToRevyst) process.stdout.write(f);
+    } catch (e) {}
+  ' "$SITE/data/config.json")
+
+  local attempt message
   for attempt in 1 2; do
     git -C "$repo" fetch -q origin main || return 1
     git -C "$repo" reset -q --hard origin/main || return 1
     # README.md is repo-managed (excluded files are never deleted); *.tmp-*
     # are update-data.php's in-flight atomic writes.
-    rsync -a --delete --exclude '/README.md' --exclude '*.tmp-*' --exclude '.DS_Store' \
-      "$SITE/archive/" "$repo/archive/" || return 1
+    if [ -z "$hidden_folder" ]; then
+      rsync -a --delete --exclude '/README.md' --exclude '*.tmp-*' --exclude '.DS_Store' \
+        "$SITE/archive/" "$repo/archive/" || return 1
+      message='Arkiv: synkroniseret fra matematikrevy.dk [skip ci]'
+    else
+      # Every other year as usual; an excluded folder is left alone by --delete.
+      rsync -a --delete --exclude '/README.md' --exclude '*.tmp-*' --exclude '.DS_Store' \
+        --exclude "/$hidden_folder/" "$SITE/archive/" "$repo/archive/" || return 1
+      # Rebuilt from scratch, so whatever an earlier published sync pushed
+      # (sketches/, songs/, PDFs) goes away.
+      local view="$repo/archive/$hidden_folder" src="$SITE/archive/$hidden_folder" dir
+      rm -rf "$view"
+      if [ -d "$src" ]; then
+        rsync -a --exclude '*.tmp-*' --exclude '.DS_Store' \
+          --exclude '/sketches/' --exclude '/songs/' --exclude '/manuskripter/' --exclude '/*.pdf' \
+          "$src/" "$view/" || return 1
+        for dir in sketches songs; do
+          [ -d "$src/$dir" ] || continue
+          mkdir -p "$view/submitted" || return 1
+          rsync -a --exclude '*.tmp-*' --exclude '.DS_Store' "$src/$dir/" "$view/submitted/" || return 1
+        done
+      fi
+      message='Arkiv: synkroniseret fra matematikrevy.dk (manus skjult) [skip ci]'
+    fi
     git -C "$repo" add -A archive || return 1
     if git -C "$repo" diff --cached --quiet; then
       log "archive sync: no changes"
       return 0
     fi
-    git -C "$repo" commit -q -m 'Arkiv: synkroniseret fra matematikrevy.dk [skip ci]' || return 1
+    git -C "$repo" commit -q -m "$message" || return 1
     if git -C "$repo" push -q origin HEAD:main; then
       log "archive sync: pushed $(git -C "$repo" rev-parse --short HEAD)"
       return 0
