@@ -47,7 +47,7 @@ There are four levels: public, revyst, boss and admin. Each level beyond public 
 └── data/README.md       Schemas for every data file
 ```
 
-The `data/`, `posts/` and `wiki/` folders, `calendar.ics` and the generated `js/*-data.js` files in the repo are **old copies from Oct 2, 2026**. The live data is on the server, and `migration-guide.md` lists when these copies get removed from git.
+The `data/`, `posts/` and `wiki/` folders, `calendar.ics` and the generated `js/*-data.js` files in the repo are **old copies from Oct 2, 2026**. The live data is on the server, and `plans/migration-guide.md` lists when these copies get removed from git.
 
 `archive/` is different: the worker mirrors the server's archive into it (one-way), about 5 minutes after the last change, so old and current productions stay browsable on GitHub. Don't edit it in the repo. Because the worker pushes to `main`, run `git pull --rebase` before you push.
 

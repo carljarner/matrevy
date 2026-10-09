@@ -2,7 +2,7 @@
 
 Schemas for the site's public data files.
 
-**The live files are on the server**, in `/srv/matrevy/data/site/data/` on web-1, not in this repo folder (the repo copies are stale snapshots from Oct 2, 2026 until the cleanup in `migration-guide.md` untracks them). They're edited through the site's own tools (Manus, Kalender, Forside, Wiki, Koordinator, …), which save through `server/update-data.php`. The worker container regenerates the embedded `js/*-data.js` files a couple of seconds after every save (see CLAUDE.md → Hosting & data flow). After a hand edit on the server, trigger the same with `touch /srv/matrevy/data/site/.embed-requested`. Locally, run `node scripts/embed-scenes.js`.
+**The live files are on the server**, in `/srv/matrevy/data/site/data/` on web-1, not in this repo folder (the repo copies are stale snapshots from Oct 2, 2026 until the cleanup in `plans/migration-guide.md` untracks them). They're edited through the site's own tools (Manus, Kalender, Forside, Wiki, Koordinator, …), which save through `server/update-data.php`. The worker container regenerates the embedded `js/*-data.js` files a couple of seconds after every save (see CLAUDE.md → Hosting & data flow). After a hand edit on the server, trigger the same with `touch /srv/matrevy/data/site/.embed-requested`. Locally, run `node scripts/embed-scenes.js`.
 
 ## Files
 

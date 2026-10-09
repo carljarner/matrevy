@@ -366,7 +366,7 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
-// ── Local draft backup (tier A in autosave.md) ───────────────
+// ── Local draft backup (tier A in plans/autosave.md) ───────────────
 // A copy of a Gem page's unsaved draft in localStorage, so a closed tab,
 // crashed browser or locked phone doesn't lose it: the page writes it while
 // the draft is dirty, clears it once clean, and on load offers a found one
