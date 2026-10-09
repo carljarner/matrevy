@@ -4,17 +4,14 @@
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage[danish]{babel}
-\usepackage{amssymb}
+\usepackage{amsmath,amssymb}
 
-
-\revyname{MatematikRevyen}
+\revyname{MatRevy}
 \revyyear{2026}
-% HUSK AT OPDATERE VERSIONSNUMMER
-\version{0.1}
-\eta{$n$ minutter}
-\status{Færdig}
+\version{2026-10-09}
+\eta{3 minutter}
 
-\title{Par-tal-lederdebat}
+\title{Par-tal-leder debat}
 \author{Louie '24, Thais '22 og Philip '24}
 
 \begin{document}
@@ -22,25 +19,10 @@
 
 \begin{roles}
 \role{Clement}[Skuespiller] Debatleder
-\role{\ensuremath{\emptyset}}[Skuespiller] Liste \ensuremath{\emptyset}, den tomme mængde. Siger ingenting
-\role{\ensuremath{\mathbb{N}}}[Skuespiller] Lalleglade. Siger til alle de andre, at deres holdninger er så ringe
-\role{\ensuremath{\mathbb{N}_0}}[Skuespiller] Lille fringe-parti med hjemmelavet podie. Mener selv, han er \ensuremath{\mathbb{N}}, bare bedre
-\role{\ensuremath{\mathbb{Z}}}[Skuespiller] Spytter ikke facts, skøre
-\role{\ensuremath{\mathbb{Q}}}[Skuespiller] Det rationelle parti
-\role{\ensuremath{\mathbb{R}}}[Skuespiller] Seriøse og lidt arrogante. Føler sig bedre end de andre: ``Vi er bare mere fuldstændige end jer''
-\role{\ensuremath{\mathbb{C}}}[Skuespiller] Nyt parti, lidt over det hele
-\role{Ninjaer}[Scenefolk] Fjerner \ensuremath{\mathbb{N}_0}
-\role{Publikum} Publikum
+\role{Ninjaer}[Scenefolk] Fjerner \textbackslash{}ensuremath\{\textbackslash{}mathbb\{N\}\_0\}
 \end{roles}
 
-\begin{props}
-\prop{Podier}[Person, der skaffer] Et til hvert parti, med partiets mængdesymbol på
-\prop{Hjemmelavet podie}[Person, der skaffer] Til \ensuremath{\mathbb{N}_0}, skal tydeligt se hjemmelavet ud
-\end{props}
-
-
 \begin{sketch}
-
 \scene{Sceneopstilling fra venstre: \ensuremath{\emptyset}, \ensuremath{\mathbb{N}}, (\ensuremath{\mathbb{N}_0}), \ensuremath{\mathbb{Z}}, \ensuremath{\mathbb{Q}}, \ensuremath{\mathbb{R}}, \ensuremath{\mathbb{C}}. Alle partierne står bag hver deres podie med deres mængdesymbol på. Clement står ved siden af og introducerer debatten til publikum.}
 
 \says{Clement} Velkommen til aftenens par-tal-lederdebat.
@@ -187,6 +169,5 @@ Hvem vil egentlig gå sammen med, hvis jeres parti kommer ind i Folketinget?
 \says{\ensuremath{\mathbb{N}}} Men vi er jo lige store?!
 
 \scene{Tæppe}
-
 \end{sketch}
 \end{document}
