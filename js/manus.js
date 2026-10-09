@@ -2906,13 +2906,13 @@ async function manusImportFromTex(row) {
     const res = await fetch(MANUS_TEX_RAW_BASE + texPath);
     if (!res.ok) return;
     const text = await res.text();
-    const imported = [];
+    const importedFields = [];
 
     if (!row.scriptBody) {
       const body = extractTexScriptBody(text);
       if (body && !row.scriptBody) {
         row.scriptBody = body;
-        imported.push('scriptBody');
+        importedFields.push('scriptBody');
         const textarea = document.querySelector(`[data-manus-script-textarea="${row.key}"]`);
         if (textarea && !textarea.value) textarea.value = body;
       }
@@ -2928,11 +2928,11 @@ async function manusImportFromTex(row) {
     let headerChanged = false;
     if (!row.writtenBy) {
       const author = extractTexAuthor(text);
-      if (author) { row.writtenBy = author; headerChanged = true; imported.push('writtenBy'); }
+      if (author) { row.writtenBy = author; headerChanged = true; importedFields.push('writtenBy'); }
     }
     if (manusRowIsSong(row) && !row.melody) {
       const melody = extractTexMelody(text);
-      if (melody) { row.melody = melody; headerChanged = true; imported.push('melody'); }
+      if (melody) { row.melody = melody; headerChanged = true; importedFields.push('melody'); }
     }
     if (headerChanged) {
       const headerEl = document.querySelector(`[data-manus-header-textarea="${row.key}"]`);
@@ -2950,7 +2950,7 @@ async function manusImportFromTex(row) {
           description: r.description,
           tags: [classifyOrKeep(r.roleCode, isSong, isDans)],
         }));
-        imported.push('cast');
+        importedFields.push('cast');
         const roleBadge = document.querySelector(`[data-manus-role-badge="${row.key}"]`);
         if (roleBadge) roleBadge.textContent = manusRoleBadgeText(row);
         // Refresh whichever overlay happens to already be open for this row
@@ -2970,13 +2970,13 @@ async function manusImportFromTex(row) {
       const mins = extractTexDuration(text);
       if (row.duration == null && mins != null) {
         row.duration = mins;
-        imported.push('duration');
+        importedFields.push('duration');
         const durationInput = document.querySelector(`[data-manus-select-duration="${row.key}"]`);
         if (durationInput && durationInput.value === '') durationInput.value = String(mins);
       }
     }
 
-    if (imported.length) manusAbsorbImportIntoBaseline(row, imported);
+    if (importedFields.length) manusAbsorbImportIntoBaseline(row, importedFields);
   } catch (e) { /* offline, or not reachable yet — leave scriptBody/cast empty */ }
 }
 
