@@ -2333,14 +2333,44 @@ function manusAbsorbImportIntoBaseline(row, fields) {
     manusLastSavedSnapshot = manusSerializeDraft(baseline);
   } catch (e) { /* malformed/stale snapshot — leave dirty as the safe fallback */ }
   // Same for the merge base, so a backfill never counts as "my change" and
-  // can't conflict with someone else's real edit of that field.
-  const baseScene = manusDraft && manusDraft._base && manusDraft._base
+  // can't conflict with someone else's real edit of that field. The server
+  // still has the pre-import value, so it's remembered in _importedFrom:
+  // Gem treats a live value still equal to it as unchanged
+  // (manusApplyImportedToTheirs), else every save would see the server's
+  // empty field as someone else's edit.
+  const draft = manusDraft;
+  const baseScene = draft && draft._base && draft._base
     .flatMap(a => a.scenes).find(sc => sc.uid === row.uid);
   if (!baseScene) return;
+  if (!draft._importedFrom) draft._importedFrom = {};
+  const original = draft._importedFrom[row.uid] || (draft._importedFrom[row.uid] = {});
   const now = manusRowScene(row, { code: row.lane }, 0);
   for (const f of fields) {
+    if (!(f in original)) original[f] = f in baseScene ? JSON.stringify(baseScene[f]) : null;
     if (f in now) baseScene[f] = JSON.parse(JSON.stringify(now[f]));
     else delete baseScene[f];
+  }
+}
+
+// The other half of manusAbsorbImportIntoBaseline: in the live scenes, a
+// back-filled field that still has its pre-import value takes the base's
+// (imported) value, so the merge sees it as untouched by others.
+function manusApplyImportedToTheirs(draft, theirsActs) {
+  const importedFrom = draft._importedFrom;
+  if (!importedFrom) return;
+  const baseByUid = new Map(draft._base.flatMap(a => a.scenes).map(sc => [sc.uid, sc]));
+  for (const act of theirsActs) {
+    for (const scene of act.scenes) {
+      const original = importedFrom[scene.uid];
+      const base = baseByUid.get(scene.uid);
+      if (!original || !base) continue;
+      for (const [f, was] of Object.entries(original)) {
+        const live = f in scene ? JSON.stringify(scene[f]) : null;
+        if (live !== was) continue;
+        if (f in base) scene[f] = JSON.parse(JSON.stringify(base[f]));
+        else delete scene[f];
+      }
+    }
   }
 }
 
@@ -2873,11 +2903,13 @@ async function manusImportFromTex(row) {
     const res = await fetch(MANUS_TEX_RAW_BASE + texPath);
     if (!res.ok) return;
     const text = await res.text();
+    const imported = [];
 
     if (!row.scriptBody) {
       const body = extractTexScriptBody(text);
       if (body && !row.scriptBody) {
         row.scriptBody = body;
+        imported.push('scriptBody');
         const textarea = document.querySelector(`[data-manus-script-textarea="${row.key}"]`);
         if (textarea && !textarea.value) textarea.value = body;
       }
@@ -2893,11 +2925,11 @@ async function manusImportFromTex(row) {
     let headerChanged = false;
     if (!row.writtenBy) {
       const author = extractTexAuthor(text);
-      if (author) { row.writtenBy = author; headerChanged = true; }
+      if (author) { row.writtenBy = author; headerChanged = true; imported.push('writtenBy'); }
     }
     if (manusRowIsSong(row) && !row.melody) {
       const melody = extractTexMelody(text);
-      if (melody) { row.melody = melody; headerChanged = true; }
+      if (melody) { row.melody = melody; headerChanged = true; imported.push('melody'); }
     }
     if (headerChanged) {
       const headerEl = document.querySelector(`[data-manus-header-textarea="${row.key}"]`);
@@ -2915,6 +2947,7 @@ async function manusImportFromTex(row) {
           description: r.description,
           tags: [classifyOrKeep(r.roleCode, isSong, isDans)],
         }));
+        imported.push('cast');
         const roleBadge = document.querySelector(`[data-manus-role-badge="${row.key}"]`);
         if (roleBadge) roleBadge.textContent = manusRoleBadgeText(row);
         // Refresh whichever overlay happens to already be open for this row
@@ -2932,14 +2965,15 @@ async function manusImportFromTex(row) {
 
     if (row.duration == null) {
       const mins = extractTexDuration(text);
-      if (row.duration == null) {
+      if (row.duration == null && mins != null) {
         row.duration = mins;
+        imported.push('duration');
         const durationInput = document.querySelector(`[data-manus-select-duration="${row.key}"]`);
         if (durationInput && durationInput.value === '') durationInput.value = String(mins);
       }
     }
 
-    manusAbsorbImportIntoBaseline(row, ['scriptBody', 'writtenBy', 'melody', 'cast', 'duration']);
+    if (imported.length) manusAbsorbImportIntoBaseline(row, imported);
   } catch (e) { /* offline, or not reachable yet — leave scriptBody/cast empty */ }
 }
 
@@ -5455,6 +5489,7 @@ async function manusSaveMainInner() {
     const read = await manusApi('manus_read', {});
     if (!read.ok) return fail(read.message);
     const theirsActs = manusNormalizeFileActs((read.data.scenes || {}).acts);
+    manusApplyImportedToTheirs(draft, theirsActs);
     merge = manusMergeActs(draft._base, mineActs, theirsActs, choices);
     if (merge.conflicts.some(c => !choices[c.key])) {
       const answered = await manusAskConflicts(merge.conflicts, choices);
