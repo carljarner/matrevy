@@ -5,12 +5,13 @@
 Speculative roadmap for turning the single-tenant `matematikrevy.dk` codebase into a
 platform other student revues could run their own isolated instance of: one underlying
 codebase, each revy ("tenant") gets its own data, branding, and choice of which tools are
-enabled, provisioned through a setup wizard rather than a source-code fork.
+enabled, provisioned through a setup step rather than a source-code fork.
 
-**Status of this file**: parked. Written 2026-08-28 after a discussion of feasibility, cost,
-and shape — no code exists yet, nothing below is started. Revisit after the fall production,
-once the current single-tenant feature set has been fully exercised in practice.
-`matrevy-plan.md` remains the only active roadmap until then.
+**Status of this file**: parked. First written 2026-08-28; revised 2026-10-04 after the
+move to web-1 (Hetzner + Coolify, see CLAUDE.md / README.md), which invalidated several of
+the original premises (see "What changed with web-1"). No code exists yet, nothing below is
+started. Revisit after the fall production, once the current single-tenant feature set has
+been fully exercised in practice.
 
 ## Why not a git branch/fork per revy
 
@@ -18,182 +19,177 @@ The tempting model — give each revy their own branch or fork of the repo — w
 and rejected. Every bug fix or feature built afterward would need to be cherry-picked or
 merged into N branches, and any revy that customized theirs makes that merge conflict-prone.
 A year in, that's not one product with N customers, it's N slowly-diverging products that
-happen to share ancestry. A **setup wizard** implies configuration, not forking source: one
-codebase, one deployment, and a tenant identifier that scopes every read/write — the wizard's
-job is "create a tenant record + seed default data," never "cut a branch."
+happen to share ancestry. Tenants must differ by **configuration and data**, never by
+source: one codebase, one `main` branch.
+
+## What changed with web-1 (2026-10-02)
+
+The 2026-08-28 version of this plan assumed GitHub Pages + Simply.com + git-commits-as-
+database, and argued for a real backend + database mainly to fix that setup. Since the move:
+
+- **The propagation-delay argument is gone.** Saves go to local disk (`github_api()` is now
+  a local-disk stand-in) and are visible on the next page load within ~3 s; the GitHub embed
+  workflow is retired and `SITE_OVERRIDE_TTL_MS` is down to 30 s. A database is no longer
+  needed for speed — it has to justify itself on other grounds (cross-tenant queries, real
+  conflict detection, running on more than one host).
+- **"Move off static hosting" is done.** Every request already passes through Apache/PHP on a
+  server we control, so server-side tenant resolution is possible today without new infra.
+- **Coolify makes a third deployment model cheap** (below), which the original plan's
+  fork-vs-rewrite framing didn't have.
+
+## Deployment models
+
+| | A: Per-tenant deployment (recommended first) | B: One shared app + database |
+|---|---|---|
+| Shape | One Coolify Compose app **per tenant**, all built from the same repo `main` | One deployment; every row/file scoped by `tenant_id` |
+| Code divergence | None — one push redeploys every tenant | None |
+| Isolation | OS/container-level: a tenant's data dir is the only one mounted | Application-level: a missed tenant filter leaks across tenants |
+| Code change needed | Small (see Phase 1) | Large (Phase 4: data layer rewrite) |
+| Per-tenant cost | One `web` + one `worker` container (image layers shared; worker idle almost always) | ~zero |
+| Backup / restore / delete one tenant | One folder | Per-tenant queries/exports |
+| Breaks down at | Tens of tenants (RAM, Coolify UI sprawl, manual provisioning) | Scales to hundreds; needed for cross-tenant features or multi-host HA |
+
+**Recommendation**: start with **A**. It reuses today's architecture almost unchanged and
+keeps the "no build step, no server framework, no database — anyone can read the whole
+system" property. Move to **B** only when tenant count, cross-tenant features or
+availability requirements actually demand it. A rough, unmeasured estimate: 10–20 tenants
+fit on a mid-size Hetzner VPS before resizing (a one-click vertical scale) or sharing one
+worker across tenants becomes necessary.
 
 ## Architecture Decisions (recommended, to revisit before Phase 0)
 
-- **This is a genuinely different project, not an increment.** It trades the current
-  deliberate simplicity (no build step, no server framework, no database — anyone can read
-  the source and understand the whole system) for real infrastructure (database, tenant
-  model, provisioning) in exchange for supporting multiple organizations cleanly. Worth it
-  if the goal is "other revys use this as a product"; probably not worth it for just one or
-  two extra groups, where duplicating the repo + duplicating the Simply.com deployment (no
-  shared-codebase gymnastics, just N fixed, small deployments) is genuinely less total work.
-- **Tenant resolution**: by subdomain (`revy1.matrevy.dk`, `revy2.matrevy.dk`), resolved
-  server-side before any of today's access-level gating (`site.js`'s `SITE_PAGES` /
-  `applyPageGate()`) even runs.
-- **Data layer**: replace the GitHub-embed pipeline (`scripts/embed-scenes.js` +
-  `.github/workflows/embed-scenes.yml`, which regenerates `*-data.js` globals from
-  `data/*.json` and is why a public-data save takes ~1-2 minutes to propagate today) with a
-  real multi-tenant database — every table gets a `tenant_id`. This is the actual latency win
-  of paying for a server: not "servers are faster than GitHub Pages," but "stop using git
-  commits as the database," which removes the propagation delay and the 5-minute
-  optimistic-override hack (`SITE_OVERRIDE_TTL_MS` in the data-driven-page convention) that
-  exists specifically to paper over it.
-- **Private tools are the smaller lift**: Budget already namespaces its data per `budgetId`
-  (`BUDGET_DATA_DIR/<budgetId>/...`, `server/update-data.php`'s `budget_resolve_budget_id()`).
-  Generalizing that pattern into a real per-tenant directory (or per-tenant DB rows) for
-  Budget/Forms/Sheets is a much smaller, lower-risk step than the public-data rewrite, since
-  these already go through per-resource server actions rather than the embed pipeline.
-- **Auth**: keep the existing lightweight shared-password-per-level model (public/revyst/
-  boss/admin) rather than building real per-user accounts — just scope the three passwords
-  per tenant instead of globally, consistent with "shared passwords, not real auth" already
-  being a documented, accepted trade-off. Real per-user login stays a `matrevy-plan.md`
-  "Later / parked" item, orthogonal to this effort.
-- **Feature selection (tool picking)**: a tenant config record carries an `enabledTools`
-  list; nav/page rendering checks it alongside the existing access-level rank. This composes
-  naturally onto `SITE_PAGES` — the site already centralizes "what pages exist and who can
-  see them" in one place, so this is additive, not a redesign. It's the cheap part of the
-  vision and doesn't reduce the scope of the data-layer/auth work above it.
-- **Infra**: move off GitHub Pages (static-only, no server-side tenant resolution) + Simply.com
-  flat-file PHP for the parts that become tenant-scoped. A real backend (could stay simple)
-  plus a managed Postgres (e.g. Supabase/Neon) or a lighter edge option (Cloudflare
-  Workers + D1) fits better than either current host once "which tenant is this request for"
-  has to be resolved server-side before anything else.
+- **Tenant resolution (model A)**: implicit — each deployment *is* one tenant, so no
+  request-level resolution is needed. Traefik routes by `Host` to the right deployment.
+  (Model B would resolve by subdomain or `Host` server-side before any of `site.js`'s
+  `SITE_PAGES`/`applyPageGate()` gating runs.)
+- **Domains**: either each revy's own domain, or subdomains of a platform domain
+  (`revy2.matrevy.dk`). Per-subdomain certificates work with Traefik's default HTTP-01
+  challenge; a **wildcard** certificate needs DNS-01 via the DNS provider's API, which Simply
+  likely doesn't support in Traefik — that would mean moving the platform domain's DNS to
+  Cloudflare or Hetzner DNS.
+- **Data layer (model A)**: unchanged — each tenant gets `/srv/<tenant>/data/{site,budget,
+  forms,faellesspisning}`, mounted at `/data` exactly as matrevy's is today. Flat JSON +
+  `flock` is fine at per-revy scale.
+- **Auth**: keep the shared-password-per-level model (public/revyst/boss/admin). In model A
+  the three passwords are simply each deployment's own Coolify env vars — already
+  tenant-scoped with zero code. Real per-user login stays orthogonal to this effort.
+- **Feature selection (tool picking)**: an `enabledTools` list in the tenant's
+  `data/config.json`; `site.js` checks it alongside `SITE_LEVEL_RANK` when rendering
+  `SITE_PAGES`, and `update-data.php` refuses actions for disabled tools. Additive, not a
+  redesign.
+- **Archive mirror**: today `worker.sh` pushes `archive/` to this repo. Per tenant it must
+  be off (empty `ARCHIVE_SYNC_DEPLOY_KEY`) or point at the tenant's own repo (needs the
+  target repo to become an env var).
+- **GDPR**: hosting other revues' personal data (names, phone numbers, receipts) makes the
+  operator their **data processor** — needs a data processing agreement
+  (databehandleraftale) per tenant and a defined tenant-deletion procedure. Model A makes
+  deletion and per-tenant restore a single folder.
 
 ## Phases
 
-### Phase 0 — Decide platform & infra foundation
+### Phase 0 — Decide the model & prove it
 
-**Intent**: lock in the concrete choices the rest of the work depends on, before writing
-any tenant-aware code.
+**Intent**: lock in the choices the rest depends on before writing tenant-aware code.
 
-**Expected outcomes**: hosting/backend stack chosen; tenant-resolution strategy chosen
-(subdomain vs. path); confirm the "one shared deployment" model over per-tenant
-deployments; a minimal "hello tenant" prototype (resolve tenant from request, nothing else)
-proving the chosen infra actually works end-to-end.
-
-**Status**: [ ] not started
-
----
-
-### Phase 1 — Tenant model & config-driven feature flags
-
-**Intent**: introduce the tenant concept and the "which tools are enabled" layer first,
-since it's additive on top of the existing `SITE_PAGES`/`applyPageGate()` gate and can be
-proven against a single default tenant before the data-layer rewrite exists.
-
-**Expected outcomes**: a tenant config shape (`{tenantId, enabledTools, branding, ...}`);
-`SITE_PAGES` gating extended to also check the current tenant's `enabledTools`, alongside
-the existing access-level rank; still backed by today's single-tenant data underneath.
+**Expected outcomes**: model A vs. B confirmed; domain strategy (own domains vs. platform
+subdomains, and if wildcard, where DNS lives); a throwaway second Coolify deployment of the
+current repo on a test domain with its own `/srv/<tenant>/data`, proving two instances run
+side by side on web-1 without interfering (ports, data, worker, archive mirror off). Measure
+real RAM/disk per instance to replace the estimate above.
 
 **Status**: [ ] not started
 
 ---
 
-### Phase 2 — Auth & credentials per tenant
+### Phase 1 — De-hardcode the single tenant
 
-**Intent**: move the three shared passwords from global (`config.php`) to per-tenant.
+**Intent**: make the repo deployable as a different revy purely through config, with
+matematikrevy.dk as the first instance and no behaviour change for it.
 
-**Expected outcomes**: login flow resolves tenant first, then validates against that
-tenant's three passwords; `getSiteAuth()`/`SITE_LEVEL_RANK`-style logic in `site.js` and
-`password_level()` in `server/update-data.php` become tenant-scoped.
-
-**Status**: [ ] not started
-
----
-
-### Phase 3 — Private-tool data migration (Budget / Forms / Sheets)
-
-**Intent**: the lowest-risk data-layer step — generalize Budget's existing `budgetId`
-namespacing into full tenant scoping, and retrofit Forms/Sheets (which today have no
-per-instance namespacing at all) to match.
-
-**Expected outcomes**: `BUDGET_DATA_DIR`/`FORMS_DATA_DIR`/`SHEETS_DATA_DIR` (or their DB
-equivalents) keyed by tenant; every `$BUDGET_ACTIONS`/`$FORMS_ACTIONS`/`$SHEETS_ACTIONS`
-handler resolves tenant before resolving budget/form/sheet id.
+**Expected outcomes**:
+- `SITE_API_ENDPOINT` → plain `/update-data.php` and CORS → same-origin (already on the
+  migration cleanup list).
+- Archive-mirror target repo as an env var in `worker.sh`.
+- Branding from config: ~50 `matematikrevy` references across HTML titles, JS, PHP and
+  scripts, plus the LaTeX templates used by `generate-pdfs.js`.
+- A first-run seed: every `data/*.json` and `program.json` must exist before the first save
+  (`update_file()` has no create-if-missing), so a fresh instance needs a seed script or a
+  create-if-missing branch.
 
 **Status**: [ ] not started
 
 ---
 
-### Phase 4 — Public data & backend rewrite (the big one)
+### Phase 2 — Tool selection (`enabledTools`)
 
-**Intent**: replace the GitHub-embed pipeline for scenes/cast/calendar/wiki/posts/archive
-with tenant-scoped database reads/writes — the core of the rewrite, and the part that
-actually removes the current 1-2 minute save-propagation delay.
+**Intent**: let a tenant turn tools on/off.
 
-**Expected outcomes**: a real database schema for these resources, tenant-scoped; the
-front-end's embedded-global convention (`<script src="scenes-data.js">` etc.) replaced by
-live tenant-scoped API calls; `scripts/embed-scenes.js` and `embed-scenes.yml` retired (or
-kept only if a hybrid/static-per-tenant approach is chosen in Phase 0 — decide there, not
-here); existing production data migrated into "tenant 1" as part of this phase.
+**Expected outcomes**: `enabledTools` in `config.json`; `SITE_PAGES` rendering,
+`applyPageGate()` and `injectSitePrefetchLinks()` respect it; `update-data.php` rejects
+actions/resources of disabled tools; admin UI to toggle them (Koordinator).
 
 **Status**: [ ] not started
 
 ---
 
-### Phase 4.5 — Live push (optional, not yet scoped into Phase 4)
+### Phase 3 — Provisioning
 
-**Intent**: Phase 4 only removes save-*propagation* latency (a reload sees fresh data
-instantly) — it does not make other people's already-open tabs update without a reload.
-That's a separate feature, additive on top of Phase 4's database, not a side effect of it.
-Worth tracking explicitly so it isn't assumed to come for free.
+**Intent**: make onboarding a revy a repeatable procedure, not an afternoon of clicking.
 
-**Scope**, once Phase 4's backend exists:
-- **Transport**: SSE for one-way server→client push covers nearly every case here
-  (reflecting someone else's edit, not live co-editing); WebSockets only needed for
-  bidirectional cases (presence, cursors). Given how few concurrent coordinators there
-  ever are, even a few-second poll could be an acceptable cheap first cut requiring no new
-  infra.
-- **Fan-out**: server tracks which clients are subscribed to which tenant/resource and
-  notifies on change. Free if the Phase 0 backend choice is Postgres-based (e.g. Supabase
-  Realtime pushes table changes out of the box); a hand-rolled backend would need to build
-  this itself.
-- **Client-side re-render**: the real work, page by page. Most data-driven pages already
-  follow a "rebuild from data → render" pattern (e.g. `schedule.js`'s
-  `renderGrid()+renderSceneSidebar()+saveState()` flush sequence), so wiring "new data
-  arrived, re-run render" is evolutionary — but every data-driven page (Kalender, Wiki,
-  Posts, Manus, Budget, Forms, Fællesspisning...) needs that wiring individually, there's
-  no one shared choke point for it today.
-- **Conflicts**: doesn't need CRDTs/OT. "Someone else wrote, here's fresh state, re-render
-  (retry if your own pending write just went stale)" is sufficient given real usage is a
-  handful of infrequent coordinators, not simultaneous character-level editing.
-
-**Expected outcomes**: a chosen push transport; at least one page (Kalender or Posts are
-the best candidates — most likely to have two boss/revyst users active at once) wired end
-to end as proof; a documented pattern for wiring up the rest incrementally afterward.
+**Expected outcomes**: first a documented checklist (DNS record, Coolify app from the repo,
+env vars incl. three generated passwords, data dir + seed, backup coverage — restic already
+backs up all of `/srv`); later, if tenant count warrants it, a script against Coolify's API.
+Conceptually like Koordinator's close/start-year flow: a sequence of idempotent creates.
 
 **Status**: [ ] not started
 
 ---
 
-### Phase 5 — Setup wizard (provisioning)
+### Phase 4 — First external tenant
 
-**Intent**: build the actual onboarding flow once there's a real tenant/data model for it
-to provision against.
+**Intent**: prove the whole system with a second real organization.
 
-**Expected outcomes**: an admin-only (cross-tenant) wizard: pick `enabledTools`, set
-branding/categories, generate the tenant's three passwords, seed empty/default data only
-for the tools chosen. Conceptually similar in spirit to Koordinator's existing
-"Afslut produktionsår" sequential-save flow (`js/koordinator.js`) — a provisioning
-action is likewise a sequence of straightforward creates/seeds, not a bespoke transaction.
+**Expected outcomes**: a second revy onboarded end-to-end via Phase 3; data processing
+agreement signed; one full production cycle (uploads → Manus → PDFs → close year) run on it.
 
 **Status**: [ ] not started
 
 ---
 
-### Phase 6 — Cutover & first external tenant
+### Phase 5 — Shared app + database (model B; only if needed)
 
-**Intent**: prove the whole system with a second real organization, not just the migrated
-original.
+**Intent**: consolidate into one deployment when model A's limits are actually hit — tens
+of tenants, cross-tenant features (e.g. a shared revy-archive), or a need for multi-host
+availability.
 
-**Expected outcomes**: `matematikrevy.dk`'s own data confirmed live as tenant 1 under the
-new system; a second real revy onboarded through the wizard end-to-end; GitHub
-Pages + Simply.com decommissioned for production data (GitHub kept for code hosting/CI
-only).
+**Expected outcomes**: a tenant-scoped schema (Postgres; managed or self-hosted on Coolify)
+for public and private data; tenant resolved from `Host` before any gating; passwords per
+tenant in the database instead of env vars. Private tools are the smaller lift — Budget
+already namespaces per `budgetId` (`budget_resolve_budget_id()`), and Forms/Fællesspisning
+go through per-resource server actions. Public data is the big part: the embedded-global
+convention (`<script src="scenes-data.js">`) either becomes live API reads or stays as
+per-tenant generated files (decide then; the latter keeps `file://` offline mode). Existing
+instances migrated in one at a time.
+
+**Status**: [ ] not started
+
+---
+
+### Phase 5.5 — Live push (optional, independent of the model)
+
+**Intent**: make other people's already-open tabs update without a reload. Neither model
+gives this for free.
+
+**Scope**: SSE for one-way server→client push covers nearly every case (WebSockets only for
+presence/cursors); a few-second poll is an acceptable no-infra first cut given how few
+concurrent coordinators there are. The real work is client-side: every data-driven page
+needs "new data arrived → re-render" wiring individually (most already follow a
+rebuild-from-data → render pattern). No CRDTs/OT needed — "someone else wrote, here's fresh
+state, re-render" suffices. Pairs naturally with the "Edit conflicts are last-save-wins" fix
+in CLAUDE.md (send the loaded `sha`, 409 on mismatch).
+
+**Expected outcomes**: one page (Kalender or Posts) wired end to end, plus a documented
+pattern for the rest.
 
 **Status**: [ ] not started
 
@@ -201,16 +197,13 @@ only).
 
 ## Open questions to resolve before starting (Phase 0)
 
-- Subdomain vs. path-based tenant routing — and what that means for custom domains per revy
-  later.
-- Concrete backend + database choice (cost, ops burden, how much of the "no build step, no
-  server framework" simplicity is worth preserving vs. trading away).
-- Whether a handful of tenants is better served by this full rewrite at all, vs. just
-  duplicating the current single-tenant repo + Simply.com deployment per revy (cheaper up
-  front, more ongoing manual work per tenant, no shared-improvement problem since there's no
-  shared codebase to diverge).
-- Data migration plan for the current site's real production data into "tenant 1."
-- Whether per-tenant custom branding/theming goes beyond `SITE_PAGES`/categories into
-  actual visual re-theming (colors, logo) — scope not discussed yet.
-- Backup/durability story for the new database, mirroring the still-open "no off-host backup"
-  gap already tracked for Budget's private data in `matrevy-plan.md`.
+- Is there real demand from other revues, and how many? A handful favours model A firmly.
+- Domain strategy: each revy's own domain vs. platform subdomains — and if wildcard, moving
+  the platform domain's DNS off Simply.
+- Who operates it: is the maintainer willing to be data processor (GDPR) and on-call for
+  other organizations? What happens to tenants if the maintainer steps away?
+- Branding scope: names/titles/LaTeX only, or full visual re-theming (colors, logo)?
+- Which matrevy-specific conventions (Danish UI, `revy.sty`, act codes 1/2/3/E, Stjerneark,
+  Fællesspisning) are actually shared by other revues, and which need to become config?
+- Single-VPS availability: acceptable for other organizations, or does onboarding them
+  raise the bar to a standby server / documented rebuild time?
