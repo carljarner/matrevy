@@ -4090,7 +4090,20 @@ function manusRoleBadgeText(row) {
 // category override anymore — classification is always auto-derived from
 // the roleCode typed in the textarea.
 function openRoleSceneModal(row, badge) {
-  const { modal, form, actions } = siteOpenModalWithClose(manusRowTitle(row));
+  // The textarea's text as of opening/the last "Opdater" — anything else in
+  // it hasn't reached row.cast yet, so closing (✕, Escape, backdrop) asks
+  // first instead of silently dropping it.
+  let appliedText = formatRolesText(row.cast);
+  let closeConfirm = null;
+  const { modal, form, actions, close } = siteOpenModalWithClose(manusRowTitle(row), {
+    beforeClose() {
+      if (closeConfirm) { closeConfirm(); return false; }
+      if (textarea.value === appliedText) return true;
+      openUnappliedRolesConfirm();
+      return false;
+    },
+    onClose() { if (closeConfirm) closeConfirm(); },
+  });
   modal.classList.add('manus-role-modal');
 
   let summaryEl = renderRoleTagsList(row);
@@ -4101,14 +4114,10 @@ function openRoleSceneModal(row, badge) {
   textarea.rows = 12;
   textarea.spellcheck = false;
   textarea.setAttribute('data-manus-role-textarea', row.key);
-  textarea.value = formatRolesText(row.cast);
+  textarea.value = appliedText;
   form.appendChild(siteEditField('Roller (LaTeX)', textarea));
 
-  const updateBtn = document.createElement('button');
-  updateBtn.type = 'button';
-  updateBtn.className = 'site-btn-success';
-  updateBtn.textContent = 'Opdater';
-  updateBtn.addEventListener('click', () => {
+  function applyRoles() {
     const isSong = manusRowIsSong(row);
     const isDans = manusRowIsDans(row);
     // Tags are edited independently of the LaTeX text (see
@@ -4123,11 +4132,53 @@ function openRoleSceneModal(row, badge) {
       const tags = existing && existing.length ? existing.slice() : [classifyOrKeep(r.roleCode, isSong, isDans)];
       return { name: r.name, roleCode: r.roleCode, description: r.description, tags };
     });
+    appliedText = textarea.value;
     const nextSummary = renderRoleTagsList(row);
     summaryEl.replaceWith(nextSummary);
     summaryEl = nextSummary;
     badge.textContent = manusRoleBadgeText(row);
-  });
+  }
+
+  // Stacked on the role modal; its own backdrop click (and Escape, via the
+  // role modal's beforeClose above) just returns to editing.
+  function openUnappliedRolesConfirm() {
+    const confirm = siteOpenEditModal('Opdater roller?', {
+      onClose() { closeConfirm = null; },
+    });
+    closeConfirm = confirm.close;
+
+    const info = document.createElement('p');
+    info.textContent = 'Du har ændret rollerne uden at trykke Opdater. Vil du opdatere dem, før vinduet lukkes?';
+    confirm.form.appendChild(info);
+
+    const discardBtn = document.createElement('button');
+    discardBtn.type = 'button';
+    discardBtn.className = 'site-btn-danger';
+    discardBtn.textContent = 'Kassér';
+    discardBtn.addEventListener('click', () => { confirm.close(); close(); });
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.className = 'site-btn-warm';
+    cancelBtn.textContent = 'Annuller';
+    cancelBtn.addEventListener('click', () => { confirm.close(); textarea.focus(); });
+
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.className = 'site-btn-success';
+    applyBtn.textContent = 'Opdater';
+    applyBtn.addEventListener('click', () => { applyRoles(); confirm.close(); close(); });
+
+    confirm.actions.appendChild(discardBtn);
+    confirm.actions.appendChild(cancelBtn);
+    confirm.actions.appendChild(applyBtn);
+  }
+
+  const updateBtn = document.createElement('button');
+  updateBtn.type = 'button';
+  updateBtn.className = 'site-btn-success';
+  updateBtn.textContent = 'Opdater';
+  updateBtn.addEventListener('click', applyRoles);
   actions.appendChild(updateBtn);
 }
 
@@ -6310,6 +6361,15 @@ function manusSlugifyName(name) {
     .replace(/[^A-Za-z0-9_]/g, '');
 }
 
+// The saved scenes generate-pdfs.js compiles a PDF for — its hasScript(),
+// minus the reserved pool pseudo-act.
+function manusScenesWithPdf() {
+  return getEffectiveScenesData().filter((s) =>
+    String(s.id).split('-')[0] !== MANUS_POOL_ACT_CODE
+    && !!s.scriptBody
+    && (s.types || []).some((t) => t === 'sketch' || t === 'sang' || t === 'bandsang' || t === 'video'));
+}
+
 // Quick-open buttons for the last-generated PDFs, sitting between the pool/
 // guide row and Main Manus View — visible to boss/admin always, and to a
 // plain revyst-level visitor only once Boss-indstillinger's "Revyster kan
@@ -6434,13 +6494,18 @@ function renderManusPdfLinksSection() {
     // (Sang)"; not a data/cast.json roster entry, so it's added here rather
     // than sourced from getEffectiveCastData(); pinned first among the
     // per-person options since it's always relevant.
+    // generate-pdfs.js only writes a manuscript for someone cast in at
+    // least one scene with a script (and Sangboss only when there's a song),
+    // deleting the rest — so only those are offered (manusScenesWithPdf).
+    const pdfScenes = manusScenesWithPdf();
     const names = getEffectiveCastData()
       .map((c) => c.name)
-      .slice()
+      .filter((name) => pdfScenes.some((s) => (s.cast || []).some((c) => c.name === name)))
       .sort((a, b) => a.localeCompare(b, 'da'));
+    const hasSong = pdfScenes.some((s) => (s.types || []).some((t) => t === 'sang' || t === 'bandsang'));
     const options = [
       { value: 'manus.pdf', label: 'Manus' },
-      { value: `manuskripter/${manusSlugifyName('Sangboss')}.pdf`, label: 'Manus (Sang)' },
+      ...(hasSong ? [{ value: `manuskripter/${manusSlugifyName('Sangboss')}.pdf`, label: 'Manus (Sang)' }] : []),
       ...names.map((name) => ({ value: `manuskripter/${manusSlugifyName(name)}.pdf`, label: name })),
     ];
     siteOpenDropdownPicker(manusBtn, options, null, (filename) => {

@@ -1105,30 +1105,57 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
 // ── Individual manuscripts: one per cast.json roster entry ──────
 // Same merge helper as the master manus.pdf, filtered to only the
 // scenes that actor is cast in (in act order) and with their name centered
-// on the title page. Generated unconditionally for
-// every roster entry, even one cast in nothing this cycle (an empty
-// manuscript is still a valid, if uneventful, result).
+// on the title page. Only written for someone with at least one compiled
+// scene — an empty manuscript (just a title page) is left out — and any
+// other PDF in manuskripter/ (someone since removed from every scene, or
+// from the roster) is deleted, so the folder matches the current casting.
+// Returns the written paths' set so the Sangboss pass can add its own
+// before the cleanup runs.
 async function buildActorManuskripts(actsData, prodMeta, scenePdfPaths, castRoster, currentFolder) {
+  const written = new Set();
   for (const person of castRoster) {
     const name = person.name;
+    const sceneFilter = (scene) => (scene.cast || []).some((c) => c.name === name);
+    if (!manuskriptHasScenes(actsData, scenePdfPaths, sceneFilter)) continue;
     const outPath = root(`archive/${currentFolder}/manuskripter/${slugify(name)}.pdf`);
     await buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, {
       skuespillerName: name,
-      sceneFilter: (scene) => (scene.cast || []).some((c) => c.name === name),
+      sceneFilter,
     });
+    written.add(outPath);
+  }
+  return written;
+}
+
+function manuskriptHasScenes(actsData, scenePdfPaths, sceneFilter) {
+  return actsData.some((act) => act.scenes.some((scene) => sceneFilter(scene) && scenePdfPaths.has(scene.id)));
+}
+
+// Deletes every manuskripter/*.pdf this run didn't write.
+function removeStaleManuskripts(currentFolder, written) {
+  const dir = root(`archive/${currentFolder}/manuskripter`);
+  if (!fs.existsSync(dir)) return;
+  for (const file of fs.readdirSync(dir)) {
+    const abs = path.join(dir, file);
+    if (!file.toLowerCase().endsWith('.pdf') || written.has(abs)) continue;
+    console.log(`  Removing empty/stale manuscript ${file}`);
+    fs.unlinkSync(abs);
   }
 }
 
 // ── Sangboss: a fixed pseudo-person, not a cast.json roster entry, whose
 // manuscript is every song scene regardless of cast — used by whoever is
 // responsible for the singers, not for a specific actor's own scenes.
-// Generated unconditionally alongside the real per-actor manuscripts.
+// Like the per-actor ones, skipped when there's no song to put in it.
 async function buildSangbossManuskript(actsData, prodMeta, scenePdfPaths, currentFolder) {
+  const sceneFilter = (scene) => isSongScene(scene);
+  if (!manuskriptHasScenes(actsData, scenePdfPaths, sceneFilter)) return null;
   const outPath = root(`archive/${currentFolder}/manuskripter/${slugify('Sangboss')}.pdf`);
   await buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, {
     skuespillerName: 'Sangboss',
-    sceneFilter: (scene) => isSongScene(scene),
+    sceneFilter,
   });
+  return outPath;
 }
 
 // ── Main ─────────────────────────────────────────────────────
@@ -1333,8 +1360,10 @@ async function main() {
   // 6) One personalized manuscript per cast.json roster entry, plus the
   // fixed Sangboss manuscript (every song, regardless of cast).
   console.log('  Building individual manuscripts...');
-  await buildActorManuskripts(realActs, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
-  await buildSangbossManuskript(realActs, prodMeta, scenePdfPaths, currentFolder);
+  const writtenManuskripts = await buildActorManuskripts(realActs, prodMeta, scenePdfPaths, castJson.cast, currentFolder);
+  const sangbossPath = await buildSangbossManuskript(realActs, prodMeta, scenePdfPaths, currentFolder);
+  if (sangbossPath) writtenManuskripts.add(sangbossPath);
+  removeStaleManuskripts(currentFolder, writtenManuskripts);
 
   // 7) Program — assemble the sections compiled in step 4.
   if (sectionBytes) {
@@ -1421,6 +1450,6 @@ module.exports = {
   deriveSourceTexPath,
   extractTexMelody, extractTexAuthor,
   buildSceneTex, buildAktoversigtTex, buildRolleoversigtTex, buildManuskriptPdf, buildActorManuskripts,
-  buildSangbossManuskript,
+  buildSangbossManuskript, removeStaleManuskripts,
   resolveProgramImages, generateQrFiles, buildProgramSections, composeProgramPdf, imposeBooklet,
 };

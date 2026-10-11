@@ -479,7 +479,12 @@ async function siteFileStatus(path) {
 // Imperative overlay in the openLoginModal (site.js) style.
 // Returns { overlay, modal, form, error, actions, close } — the
 // caller appends its own fields to `form` and buttons to `actions`.
-function siteOpenEditModal(titleText) {
+// Optional `opts`: `beforeClose()` runs before a user-initiated close
+// (backdrop click here, plus ✕/Escape in siteOpenModalWithClose) and can
+// return false to keep the modal open (e.g. to ask about unsaved changes);
+// `onClose()` runs whenever the modal actually closes. The returned `close`
+// always closes; `requestClose` goes through `beforeClose`.
+function siteOpenEditModal(titleText, opts = {}) {
   const overlay = document.createElement('div');
   overlay.className = 'login-overlay';
 
@@ -504,7 +509,15 @@ function siteOpenEditModal(titleText) {
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
 
-  function close() { overlay.remove(); }
+  function close() {
+    if (!overlay.isConnected) return;
+    overlay.remove();
+    if (opts.onClose) opts.onClose();
+  }
+  function requestClose() {
+    if (opts.beforeClose && opts.beforeClose() === false) return;
+    close();
+  }
   // A click event's target can be the overlay even when the drag that
   // produced it started inside the modal — e.g. dragging a <textarea>'s
   // resize handle, or selecting text, past the modal's edge and releasing
@@ -514,46 +527,38 @@ function siteOpenEditModal(titleText) {
   // click from a drag that merely ends there.
   let backdropMousedown = false;
   overlay.addEventListener('mousedown', (e) => { backdropMousedown = e.target === overlay; });
-  overlay.addEventListener('click', (e) => { if (e.target === overlay && backdropMousedown) close(); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && backdropMousedown) requestClose(); });
 
-  return { overlay, modal, form, error, actions, close };
+  return { overlay, modal, form, error, actions, close, requestClose };
 }
 
 // Variant of siteOpenEditModal with an X-close button top-right instead of
 // a "Luk"/"Annuller" button in the actions row, plus Escape-to-close.
 // Returns the same shape (minus `overlay`, which callers don't need here).
-function siteOpenModalWithClose(titleText) {
-  const { overlay, modal, form, error, actions, close } = siteOpenEditModal(titleText);
+function siteOpenModalWithClose(titleText, opts = {}) {
+  const { modal, form, error, actions, close, requestClose } = siteOpenEditModal(titleText, {
+    beforeClose: opts.beforeClose,
+    onClose() {
+      document.removeEventListener('keydown', onKeydown);
+      if (opts.onClose) opts.onClose();
+    },
+  });
   modal.classList.add('site-modal');
 
-  function closeModal() {
-    document.removeEventListener('keydown', onKeydown);
-    close();
-  }
   function onKeydown(e) {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') requestClose();
   }
   document.addEventListener('keydown', onKeydown);
-  // Backdrop click closes via the overlay's own listener (from
-  // siteOpenEditModal) — also strip our Escape listener in that case. Same
-  // mousedown-must-also-be-on-the-backdrop guard as that listener (see its
-  // own comment), so a resize-drag release over the backdrop doesn't strip
-  // the Escape handler out from under a modal that correctly didn't close.
-  let backdropMousedown = false;
-  overlay.addEventListener('mousedown', (e) => { backdropMousedown = e.target === overlay; });
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay && backdropMousedown) document.removeEventListener('keydown', onKeydown);
-  });
 
   const closeX = document.createElement('button');
   closeX.type = 'button';
   closeX.className = 'site-modal-close';
   closeX.textContent = '✕';
   closeX.setAttribute('aria-label', 'Luk');
-  closeX.addEventListener('click', closeModal);
+  closeX.addEventListener('click', requestClose);
   modal.insertBefore(closeX, modal.firstChild);
 
-  return { modal, form, error, actions, close: closeModal };
+  return { modal, form, error, actions, close };
 }
 
 // Labeled field helper for the edit modal: returns the wrapper div
