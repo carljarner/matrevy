@@ -1542,10 +1542,11 @@ function bandRerenderFolder(row) {
 }
 
 // The window is opened synchronously (inside the click) so popup blockers
-// allow it, then pointed at the blob once it has arrived.
+// allow it, then pointed at the blob once it has arrived. location.replace
+// (and leaving the blank page untouched) keeps the tab at one history entry,
+// so iOS Safari's Back closes it and returns here — like Manus's PDF links.
 async function bandOpenFile(row, file) {
   const win = window.open('', '_blank');
-  if (win) win.document.title = file.name;
   const result = await bandFetchFile(row, file);
   if (!result.ok) {
     if (win) win.close();
@@ -1553,7 +1554,7 @@ async function bandOpenFile(row, file) {
     return;
   }
   const url = URL.createObjectURL(result.blob);
-  if (win) win.location.href = url;
+  if (win) win.location.replace(url);
   else bandSaveBlob(result.blob, file.name);
   setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
 }
