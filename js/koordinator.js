@@ -2388,10 +2388,11 @@ function koordLokSaveBlob(blob, name) {
 }
 
 // The window is opened synchronously (inside the click) so popup blockers
-// allow it, then pointed at the blob once it has arrived (location.replace,
-// so iOS Back closes the tab) — as bandOpenFile.
+// allow it, then pointed at the blob once it has arrived; on iOS the file
+// opens in this tab instead (see siteIsIos) — as bandOpenFile.
 async function koordLokOpenFile(file) {
-  const win = window.open('', '_blank');
+  const sameTab = siteIsIos();
+  const win = sameTab ? null : window.open('', '_blank');
   const result = await koordLokFetchFile(file);
   if (!result.ok) {
     if (win) win.close();
@@ -2399,6 +2400,7 @@ async function koordLokOpenFile(file) {
     return;
   }
   const url = URL.createObjectURL(result.blob);
+  if (sameTab) { window.location.href = url; return; }
   if (win) win.location.replace(url);
   else koordLokSaveBlob(result.blob, file.name);
   setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);

@@ -475,6 +475,17 @@ async function siteFileStatus(path) {
   }
 }
 
+// ── Opening a fetched (password-gated) file ──────────────────
+// True on iPhone/iPad (iPadOS reports itself as a Mac, hence the touch
+// check). Bandet's and Koordinator's files arrive as a blob, so the new tab
+// has to be opened empty and pointed at it afterwards, and iOS Safari won't
+// close a tab like that on Back (it does for Manus's plain PDF links). Those
+// pages open the file in the same tab on iOS instead, so Back returns there.
+function siteIsIos() {
+  return /iP(hone|ad|od)/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
 // ── Edit modal ───────────────────────────────────────────────
 // Imperative overlay in the openLoginModal (site.js) style.
 // Returns { overlay, modal, form, error, actions, close } — the
