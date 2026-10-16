@@ -4,29 +4,31 @@
    719px is the site-wide mobile breakpoint.
    ========================================================= */
 
-/* --- Title row: centered h1, Rediger/Færdig pinned top-right -------- */
-.ninjas-title-row {
-  position: relative;
-  margin-bottom: 1.5rem;
+/* --- Sheet card head: title left, Print centred, Rediger/Færdig right -- */
+.ninjas-card-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
-.ninjas-title-row h1 {
-  margin-bottom: 0;
+.ninjas-card-head h2 {
+  margin: 0;
 }
 
 .ninjas-edit-btn {
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
+  justify-self: end;
+}
+
+.ninjas-print-btn,
+.ninjas-edit-btn {
   height: 2rem;
   padding-top: 0;
   padding-bottom: 0;
   font-size: 0.85rem;
   background: var(--surface);
 }
-
-.ninjas-edit-btn[hidden] { display: none; }
 
 /* While editing, the toggle reads "Færdig" in the selected orange. */
 .ninjas-edit-btn.ninjas-edit-active {
@@ -37,15 +39,6 @@
 
 @media (hover: hover) {
   .ninjas-edit-btn:hover { background: var(--accent-warm-fill); }
-}
-
-@media (max-width: 719px) {
-  .ninjas-edit-btn {
-    position: static;
-    transform: none;
-    display: block;
-    margin: 0.75rem auto 0;
-  }
 }
 
 /* --- Page tabs — copy of band.css's .band-mode-tabs (per-feature
@@ -273,7 +266,7 @@ textarea.ninjas-field {
   text-align: center;
 }
 
-.ninjas-mic-cell {
+.ninjas-table .ninjas-mic-cell {
   text-align: center;
 }
 
@@ -431,4 +424,76 @@ textarea.ninjas-field {
     min-width: 8rem;
     max-width: 9rem;
   }
+}
+
+/* --- Print (the card's Print button) --------------------------------
+   Only the sheet on screen, landscape, black ruled lines. Mikrofonplan
+   columns take their mic's full colour, like the old Mic-plan sheet. */
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  .site-header,
+  .site-footer,
+  .page-content > h1,
+  .ninjas-mode-tabs,
+  .ninjas-print-btn,
+  .ninjas-edit-btn {
+    display: none !important;
+  }
+
+  body { background: #fff; }
+  .page-content { max-width: none; padding: 0; margin: 0; }
+
+  .ninjas-sheet-card {
+    border: none;
+    box-shadow: none;
+    padding: 0;
+    background: #fff;
+  }
+
+  .ninjas-card-head { display: block; margin-bottom: 0.4rem; }
+
+  .ninjas-table-wrap { overflow: visible; padding: 0; }
+
+  .ninjas-table {
+    width: 100%;
+    min-width: 0;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .ninjas-table th,
+  .ninjas-table td {
+    box-shadow: none;
+    border: 1px solid #000;
+    color: #000;
+    padding: 0.2rem 0.3rem;
+  }
+
+  .ninjas-table thead { display: table-header-group; }
+  .ninjas-table tr { break-inside: avoid; }
+
+  .ninjas-table .ninjas-col-title,
+  .ninjas-act-inner { position: static; }
+  .ninjas-table .ninjas-col-title { background: #fff; min-width: 0; }
+
+  .ninjas-mic-table .ninjas-mic-head,
+  .ninjas-mic-table .ninjas-mic-cell { min-width: 0; width: auto; }
+
+  .ninjas-mic-table td.ninjas-cell-warn { box-shadow: none; }
+
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-yellow { background: #ffe94d; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-red { background: #f26b5e; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-green { background: #5fd17a; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-blue { background: #6fa1e6; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-cream { background: #fff2cc; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-rose { background: #f4cccc; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-mint { background: #d9ead3; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-sky { background: #c9daf8; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-orange { background: #ffc000; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-brown { background: #bf9000; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-purple { background: #c39bd3; }
+  .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-grey { background: #c4c4c4; }
 }

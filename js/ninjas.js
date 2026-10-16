@@ -6,9 +6,10 @@
    - Mikrofonplan: replaces the old Mic-plan spreadsheet — one row per
      scene (grouped by act), one column per mic (name, tape label, colour),
      a cell = who wears it (a name, "X", …).
-   - Cues: replaces the old Cueark — per scene Instruktør, Start cue,
-     Giver cue, Slut cue, Bemærkninger; each instructor gets their own
-     colour automatically.
+   - Cues: replaces the old Cueark — per scene Instruktør (read-only, the
+     scene's Instruktør role(s) from Manus), Start cue, Giver cue, Slut
+     cue, Bemærkninger; each instructor gets their own colour
+     automatically.
 
    Rows come from Manus (SCENES_DATA, or a fresh Manus save's override),
    keyed by the scene's permanent uid, so a cell follows its scene when it
@@ -17,7 +18,8 @@
    store via authenticated ninjas_* actions, always for the current
    production.
 
-   Any revyst can edit, behind the Rediger/Færdig toggle top-right. Live
+   Any revyst can edit, behind each sheet's own Rediger/Færdig toggle in
+   its card's top-right corner. Live
    writes like Fællesspisning: a cell commits on blur/Enter, one cell per
    request, so several people can edit at once.
 
@@ -126,8 +128,9 @@ const NINJAS_COLORS = [
 ];
 
 // Mirrors ninjas_cue_fields() in update-data.php.
+// `derived`: filled from Manus (the scene's Instruktør role), never edited.
 const NINJAS_CUE_COLUMNS = [
-  { key: 'instruktoer', label: 'Instruktør' },
+  { key: 'instruktoer', label: 'Instruktør', derived: true },
   { key: 'startCue', label: 'Start cue', suggestions: ['Lys', 'Band', 'Lyd', 'AV'] },
   { key: 'giverCue', label: 'Giver cue' },
   { key: 'slutCue', label: 'Slut cue' },
@@ -135,7 +138,13 @@ const NINJAS_CUE_COLUMNS = [
 ];
 const NINJAS_INSTRUCTOR_COLORS = 8; // .ninjas-instr-0 … -7 in ninjas.css
 
-let ninjasEditing = false;
+// Each sheet has its own Rediger/Færdig toggle; only the active tab's
+// sheet is on screen, so the shared helpers read ninjasIsEditing().
+const ninjasEditing = { mikrofonplan: false, cues: false };
+let ninjasPrinting = false; // prints always render the read-only sheet
+function ninjasIsEditing() {
+  return !ninjasPrinting && !!ninjasEditing[ninjasActiveTab];
+}
 let ninjasDoc = null; // {mics, micCells, cues, extraRows} once loaded
 let ninjasDragMicId = null;
 // Cell commits not yet confirmed by the server: cellId → value. Re-applied
@@ -185,7 +194,29 @@ function ninjasCastNames(scene) {
   return names;
 }
 
-// [{act, label, rows:[{key, title, cast, extra?}]}], in Manus's act order,
+// Mirrors ROLE_CATEGORIES in manus.js/schedule.js.
+const NINJAS_ROLE_CATEGORIES = ['Instruktør', 'Koreograf', 'Skuespil', 'Sang/Rap', 'Dans', 'Kor', 'Statist', 'Ninja'];
+
+// A cast member with the Instruktør role — checked against `tags` first
+// (role only stores tags[0]), else the classified role, else a raw script
+// code (contains 'I', as in classifyRoleCode()).
+function ninjasIsInstructor(member) {
+  if (Array.isArray(member.tags) && member.tags.length) return member.tags.includes('Instruktør');
+  const role = (member.role || '').trim();
+  if (NINJAS_ROLE_CATEGORIES.includes(role)) return role === 'Instruktør';
+  return role.includes('I');
+}
+
+function ninjasInstructors(scene) {
+  const names = [];
+  for (const member of scene.cast || []) {
+    const name = member && typeof member.name === 'string' ? member.name.trim() : '';
+    if (name && ninjasIsInstructor(member) && !names.includes(name)) names.push(name);
+  }
+  return names.join(', ');
+}
+
+// [{act, label, rows:[{key, title, cast, instructors, extra?}]}], in Manus's act order,
 // with the extra rows spliced in after their afterKey (null = first in the
 // act; an unknown afterKey = last in the act).
 function ninjasBuildGroups() {
@@ -206,10 +237,11 @@ function ninjasBuildGroups() {
       key: ninjasSceneKey(scene),
       title: scene.name || scene.title || 'Unavngivet scene',
       cast: ninjasCastNames(scene),
+      instructors: ninjasInstructors(scene),
     });
   }
   const extras = (ninjasDoc ? ninjasDoc.extraRows : []).map((x) => ({
-    key: `x${x.id}`, title: x.title, cast: [], extra: x,
+    key: `x${x.id}`, title: x.title, cast: [], instructors: '', extra: x,
   }));
   for (const row of extras) group(row.extra.act);
   for (const g of groups) {
@@ -267,7 +299,6 @@ async function ninjasLoad() {
     root.replaceChildren();
     ninjasRenderTabs(root);
     root.appendChild(ninjasMessageCard(result.message || 'Kunne ikke indlæse planen.', result.detail !== 'no_production'));
-    ninjasUpdateEditButton();
     return;
   }
   ninjasApplyDoc(result.data);
@@ -307,7 +338,6 @@ function ninjasRender() {
       root.appendChild(ninjasBuildMicCard(groups));
     }
   }
-  ninjasUpdateEditButton();
   for (const ta of root.querySelectorAll('.ninjas-autogrow')) ninjasAutogrow(ta);
 }
 
@@ -331,20 +361,42 @@ function ninjasRenderTabs(root) {
   root.appendChild(tabs);
 }
 
-// The Rediger/Færdig toggle top-right: only where there's a sheet to edit.
-function ninjasUpdateEditButton() {
-  const btn = document.getElementById('ninjas-edit-btn');
-  if (!btn) return;
-  btn.hidden = !(ninjasDoc && ninjasActiveTab !== 'ninjaplan' && ninjasManusVisible());
-  btn.textContent = ninjasEditing ? 'Færdig' : 'Rediger';
-  btn.classList.toggle('ninjas-edit-active', ninjasEditing);
+// A sheet card's head: its title, a Print button top-centre, and its own
+// Rediger/Færdig toggle in the top-right corner.
+function ninjasCardHead(title) {
+  const head = el('div', 'ninjas-card-head');
+  head.appendChild(el('h2', null, title));
+  const print = el('button', 'btn-small ninjas-print-btn', 'Print');
+  print.type = 'button';
+  print.addEventListener('click', ninjasPrint);
+  head.appendChild(print);
+  const editing = ninjasIsEditing();
+  const btn = el('button', 'btn-small ninjas-edit-btn' + (editing ? ' ninjas-edit-active' : ''), editing ? 'Færdig' : 'Rediger');
+  btn.type = 'button';
+  btn.addEventListener('click', ninjasToggleEditing);
+  head.appendChild(btn);
+  return head;
+}
+
+// Prints the sheet on screen (landscape, see @media print in ninjas.css),
+// always in read mode; edit mode comes back once the dialog closes.
+function ninjasPrint() {
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  siteCloseFieldPopup();
+  ninjasPrinting = true;
+  ninjasRender();
+  window.addEventListener('afterprint', () => {
+    ninjasPrinting = false;
+    ninjasRender();
+  }, { once: true });
+  window.print();
 }
 
 function ninjasToggleEditing() {
   // Commit whatever is being typed (its blur fires before the re-render).
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
   siteCloseFieldPopup();
-  ninjasEditing = !ninjasEditing;
+  ninjasEditing[ninjasActiveTab] = !ninjasEditing[ninjasActiveTab];
   ninjasRender();
 }
 
@@ -489,7 +541,7 @@ function ninjasActRow(group, colSpan) {
   td.colSpan = colSpan;
   const inner = el('div', 'ninjas-act-inner');
   inner.appendChild(el('span', 'ninjas-act-label', group.label));
-  if (ninjasEditing) {
+  if (ninjasIsEditing()) {
     const plus = ninjasAddPlusBtn(`Tilføj en ekstra række i ${group.label}`);
     plus.classList.add('ninjas-act-plus');
     plus.addEventListener('click', () => ninjasOpenExtraRowModal(group, null));
@@ -504,7 +556,7 @@ function ninjasActRow(group, colSpan) {
 // its editor in edit mode.
 function ninjasTitleCell(group, row) {
   const td = el('td', 'ninjas-col-title' + (row.extra ? ' ninjas-extra-title' : ''));
-  if (row.extra && ninjasEditing) {
+  if (row.extra && ninjasIsEditing()) {
     const btn = el('button', 'ninjas-extra-btn', row.title);
     btn.type = 'button';
     btn.title = 'Rediger den ekstra række';
@@ -520,16 +572,16 @@ function ninjasTitleCell(group, row) {
 // ── Mikrofonplan ─────────────────────────────────────────────
 function ninjasBuildMicCard(groups) {
   const card = el('section', 'card ninjas-sheet-card');
-  card.appendChild(el('h2', null, 'Mikrofonplan'));
+  card.appendChild(ninjasCardHead('Mikrofonplan'));
   const wrap = el('div', 'ninjas-table-wrap');
-  const table = el('table', 'ninjas-table ninjas-mic-table' + (ninjasEditing ? ' ninjas-editing' : ''));
+  const table = el('table', 'ninjas-table ninjas-mic-table' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
   const mics = ninjasDoc.mics;
 
   const thead = el('thead');
   const headRow = el('tr');
   headRow.appendChild(el('th', 'ninjas-col-title', 'Nummer'));
   for (const mic of mics) headRow.appendChild(ninjasMicHeader(mic));
-  if (ninjasEditing) {
+  if (ninjasIsEditing()) {
     const th = el('th', 'ninjas-col-add');
     const plus = ninjasAddPlusBtn('Tilføj mikrofon');
     plus.addEventListener('click', () => ninjasOpenMicModal(null));
@@ -540,7 +592,7 @@ function ninjasBuildMicCard(groups) {
   thead.appendChild(headRow);
   table.appendChild(thead);
 
-  const colSpan = 1 + mics.length + (ninjasEditing ? 1 : 0);
+  const colSpan = 1 + mics.length + (ninjasIsEditing() ? 1 : 0);
   const tbody = el('tbody');
   for (const group of groups) {
     tbody.appendChild(ninjasActRow(group, colSpan));
@@ -550,7 +602,7 @@ function ninjasBuildMicCard(groups) {
   wrap.appendChild(table);
   card.appendChild(wrap);
   if (!mics.length) {
-    card.appendChild(el('p', 'ninjas-muted', ninjasEditing
+    card.appendChild(el('p', 'ninjas-muted', ninjasIsEditing()
       ? 'Ingen mikrofoner endnu — tilføj en med +.'
       : 'Ingen mikrofoner endnu — tryk Rediger for at tilføje.'));
   }
@@ -561,7 +613,7 @@ function ninjasMicHeader(mic) {
   const th = el('th', `ninjas-mic-head ninjas-color-${mic.color}`);
   th.appendChild(el('div', 'ninjas-mic-name', mic.name));
   if (mic.label) th.appendChild(el('div', 'ninjas-mic-label', mic.label));
-  if (!ninjasEditing) return th;
+  if (!ninjasIsEditing()) return th;
   th.classList.add('ninjas-mic-head-editable');
   th.tabIndex = 0;
   th.title = 'Klik for at redigere — træk for at flytte';
@@ -643,7 +695,7 @@ function ninjasMicRow(group, row) {
     const cellId = `mic|${row.key}|${mic.id}`;
     const td = el('td', `ninjas-mic-cell ninjas-color-${mic.color}`);
     cells.push({ td, cellId });
-    if (!ninjasEditing) {
+    if (!ninjasIsEditing()) {
       td.textContent = ninjasGetLocal(cellId);
       tr.appendChild(td);
       continue;
@@ -664,7 +716,7 @@ function ninjasMicRow(group, row) {
     td.appendChild(input);
     tr.appendChild(td);
   }
-  if (ninjasEditing) tr.appendChild(el('td', 'ninjas-col-add'));
+  if (ninjasIsEditing()) tr.appendChild(el('td', 'ninjas-col-add'));
   ninjasPaintMicRow(row, cells);
   return tr;
 }
@@ -800,9 +852,9 @@ function ninjasConfirm(title, description, confirmLabel, onConfirm) {
 // ── Cues ─────────────────────────────────────────────────────
 function ninjasBuildCuesCard(groups) {
   const card = el('section', 'card ninjas-sheet-card');
-  card.appendChild(el('h2', null, 'Cues'));
+  card.appendChild(ninjasCardHead('Cues'));
   const wrap = el('div', 'ninjas-table-wrap');
-  const table = el('table', 'ninjas-table ninjas-cue-table' + (ninjasEditing ? ' ninjas-editing' : ''));
+  const table = el('table', 'ninjas-table ninjas-cue-table' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
 
   const thead = el('thead');
   const headRow = el('tr');
@@ -830,8 +882,16 @@ function ninjasCueRow(group, row, instrCells) {
   for (const col of NINJAS_CUE_COLUMNS) {
     const cellId = `cue|${row.key}|${col.key}`;
     const td = el('td', `ninjas-cue-cell ninjas-cue-col-${col.key}`);
-    if (col.key === 'instruktoer') instrCells.push({ td, cellId });
-    if (!ninjasEditing) {
+    if (col.derived) {
+      // Read-only: the scene's Instruktør role(s) in Manus.
+      td.textContent = row.instructors;
+      td.classList.add('ninjas-cue-derived');
+      if (!row.extra) td.title = 'Fra Manus (rollen Instruktør)';
+      instrCells.push({ td, name: row.instructors });
+      tr.appendChild(td);
+      continue;
+    }
+    if (!ninjasIsEditing()) {
       td.textContent = ninjasGetLocal(cellId);
       tr.appendChild(td);
       continue;
@@ -842,13 +902,9 @@ function ninjasCueRow(group, row, instrCells) {
     ta.value = ninjasGetLocal(cellId);
     ta.setAttribute('aria-label', `${col.label} — ${row.title}`);
     ta.addEventListener('input', () => ninjasAutogrow(ta));
-    const commit = () => ninjasCommitCell(cellId, ta.value,
-      col.key === 'instruktoer' ? () => ninjasPaintInstructors(instrCells) : null);
+    const commit = () => ninjasCommitCell(cellId, ta.value, null);
     ta.addEventListener('change', commit);
-    if (col.key === 'instruktoer') {
-      // Instructors already on the sheet.
-      ninjasWireSuggestions(ta, () => ninjasDistinctValues('instruktoer'), commit);
-    } else if (col.suggestions) {
+    if (col.suggestions) {
       ninjasWireSuggestions(ta, () => col.suggestions, commit);
     }
     ninjasWireCommitKeys(ta);
@@ -858,21 +914,12 @@ function ninjasCueRow(group, row, instrCells) {
   return tr;
 }
 
-function ninjasDistinctValues(field) {
-  const seen = new Map();
-  for (const cues of Object.values(ninjasDoc.cues)) {
-    const value = cues && typeof cues[field] === 'string' ? cues[field].trim() : '';
-    if (value && !seen.has(ninjasNorm(value))) seen.set(ninjasNorm(value), value);
-  }
-  return [...seen.values()].sort((a, b) => a.localeCompare(b, 'da'));
-}
-
 // Each distinct instructor gets the next colour, in order of first
 // appearance down the sheet (the old Cueark's per-person colouring).
 function ninjasPaintInstructors(cells) {
   const order = new Map();
-  for (const { td, cellId } of cells) {
-    const norm = ninjasNorm(ninjasGetLocal(cellId));
+  for (const { td, name } of cells) {
+    const norm = ninjasNorm(name);
     for (let i = 0; i < NINJAS_INSTRUCTOR_COLORS; i++) td.classList.remove(`ninjas-instr-${i}`);
     if (!norm) continue;
     if (!order.has(norm)) order.set(norm, order.size % NINJAS_INSTRUCTOR_COLORS);
@@ -946,8 +993,6 @@ function ninjasOpenExtraRowModal(group, row) {
 function ninjasInit() {
   const root = ninjasRoot();
   if (!root) return;
-  const editBtn = document.getElementById('ninjas-edit-btn');
-  if (editBtn) editBtn.addEventListener('click', ninjasToggleEditing);
   if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(() => ninjasPending.size > 0);
   window.addEventListener('beforeunload', (e) => {
     if (!ninjasPending.size) return;

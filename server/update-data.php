@@ -4915,7 +4915,8 @@ function handle_kostume($action, $body) {
 //      cues:{<rowKey>:{instruktoer, startCue, giverCue, slutCue, note}},
 //      extraRows:[{id, act, afterKey, title}], updatedAt}
 // Rows themselves come from scenes.json on the client; a rowKey is a
-// scene's permanent uid ('s…', or 'id:<act-number>' for a legacy scene
+// scene's permanent uid ('s…' for a scene made in Manus, 'sub:<id>' for one
+// chosen from the upload pool, or 'id:<act-number>' for a legacy scene
 // without one) or 'x<id>' for an extra row. Cells of scenes that no longer
 // exist are kept, just not shown. Always the current production's document
 // (never a folder from the request body). Dispatched early, so hoisted
@@ -4957,7 +4958,7 @@ function ninjas_id() {
 
 function ninjas_valid_row_key($key) {
   return is_string($key)
-    && preg_match('/^(s[0-9a-f]{6,40}|id:[0-9A-Za-z-]{1,20}|x[0-9a-f]{8,40})$/', $key) === 1;
+    && preg_match('/^(s[0-9a-f]{6,40}|sub:[0-9a-f]{8,40}|id:[0-9A-Za-z-]{1,20}|x[0-9a-f]{8,40})$/', $key) === 1;
 }
 
 function ninjas_valid_act($act) {
