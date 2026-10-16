@@ -247,18 +247,6 @@ body {
   outline-offset: 2px;
 }
 
-/* Viewing below the real login level — amber so it's never forgotten. */
-.site-view-switch-reduced {
-  background: var(--accent-warm-text);
-  border-color: var(--accent-warm);
-}
-
-@media (hover: hover) {
-  .site-view-switch-reduced:hover {
-    background: #b07a0a;
-  }
-}
-
 .site-gate-login {
   background: var(--accent);
   border: none;
@@ -588,7 +576,7 @@ body {
 }
 
 .site-view-switch ~ .site-menu-btn {
-  margin-left: -1.25rem; /* header gap is 2rem */
+  margin-left: -0.75rem; /* header gap is 2rem */
 }
 
 .site-menu-nav {

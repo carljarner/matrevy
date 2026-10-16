@@ -302,8 +302,7 @@ function buildViewLevelSwitch() {
 
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'site-login-btn site-view-switch-btn'
-    + (auth.level !== auth.realLevel ? ' site-view-switch-reduced' : '');
+  btn.className = 'site-login-btn site-view-switch-btn';
   btn.textContent = SITE_LEVEL_LABELS[auth.level] + ' ▾';
   btn.title = 'Se siden som et andet niveau';
   btn.setAttribute('aria-expanded', 'false');
