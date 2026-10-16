@@ -585,7 +585,7 @@ function ninjasBuildMicCard(groups) {
 
   const thead = el('thead');
   const headRow = el('tr');
-  headRow.appendChild(el('th', 'ninjas-col-title', 'Nummer'));
+  headRow.appendChild(el('th', 'ninjas-col-title')); // scene titles — no heading
   for (const mic of mics) headRow.appendChild(ninjasMicHeader(mic));
   if (ninjasIsEditing()) {
     const th = el('th', 'ninjas-col-add');
@@ -864,7 +864,7 @@ function ninjasBuildCuesCard(groups) {
 
   const thead = el('thead');
   const headRow = el('tr');
-  headRow.appendChild(el('th', 'ninjas-col-title', 'Nummer'));
+  headRow.appendChild(el('th', 'ninjas-col-title')); // scene titles — no heading
   for (const col of NINJAS_CUE_COLUMNS) headRow.appendChild(el('th', `ninjas-cue-col-${col.key}`, col.label));
   thead.appendChild(headRow);
   table.appendChild(thead);

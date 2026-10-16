@@ -305,9 +305,6 @@ function faellesRender(root) {
     connectBtn.addEventListener('click', () => faellesOpenConnectModal(root));
     actions.appendChild(connectBtn);
   }
-  const refreshBtn = faellesBtn('Opdater');
-  refreshBtn.addEventListener('click', () => faellesLoad(root));
-  actions.appendChild(refreshBtn);
   toolbar.appendChild(actions);
   card.appendChild(toolbar);
 
@@ -469,32 +466,50 @@ function faellesRenderRow(row, columns, showAddDate) {
   return tr;
 }
 
+// Row saves started but not yet answered — drives the beforeunload guard
+// and the stale-page banner's "gem først" (see Init).
+let faellesSavesPending = 0;
+
 // Commits the row's current in-memory answers/days to the server. A brand
 // new (id === null) row with an empty Navn is a no-op — an abandoned "+"
 // click must leave nothing behind server-side. Commits on the same row
-// are serialized via row._inFlight — without this, blurring two fields on
-// the same still-unsaved row in quick succession could fire two
-// concurrent "create" requests and produce a duplicate row.
-async function faellesCommitRow(row, tr) {
+// run strictly one after another on the row._inFlight chain — without
+// this, blurring two fields on the same still-unsaved row in quick
+// succession could fire two concurrent "create" requests and produce a
+// duplicate row. Each request is built when its turn comes, so it carries
+// every edit made so far, and row._editSeq tells a reply apart from edits
+// made while it was in flight: only a reply to the latest edit may
+// replace the row's answers/days (an older one would wipe the newer
+// edits, which the next queued commit is about to send).
+function faellesCommitRow(row, tr) {
   if (row.id === null && !faellesRowHasContent(row)) return;
-  if (row._inFlight) await row._inFlight;
+  row._editSeq = (row._editSeq || 0) + 1;
+  faellesSavesPending++;
+  const run = () => faellesSendRow(row, tr).finally(() => { faellesSavesPending--; });
+  row._inFlight = (row._inFlight || Promise.resolve()).then(run, run);
+}
+
+async function faellesSendRow(row, tr) {
+  const seq = row._editSeq;
+  if (row._sentSeq === seq) return; // an earlier queued commit already sent these edits
+  row._sentSeq = seq;
   const body = { answers: row.answers, dayOverrides: row.dayOverrides || {} };
   if (row.id !== null) body.rowId = row.id;
-  const promise = faellesApi('faelles_upsert_row', body);
-  row._inFlight = promise;
-  const result = await promise;
-  row._inFlight = null;
+  const result = await faellesApi('faelles_upsert_row', body);
   const errorBox = document.querySelector('.faelles-error');
   if (!result.ok) {
+    row._sentSeq = null; // let a later commit retry these edits
     if (errorBox && result.message) errorBox.textContent = result.message;
     return;
   }
   if (errorBox) errorBox.textContent = '';
   const wasNew = row.id === null;
   row.id = result.data.row.id;
-  row.answers = result.data.row.answers;
   row.createdAt = result.data.row.createdAt;
-  row.dayOverrides = result.data.row.dayOverrides || {};
+  if (row._editSeq === seq) {
+    row.answers = result.data.row.answers;
+    row.dayOverrides = result.data.row.dayOverrides || {};
+  }
   if (wasNew) faellesState.rows.push(row);
   faellesRefreshSummary(tr);
 }
@@ -948,6 +963,12 @@ function faellesOpenDeleteDayConfirm(col, root) {
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.getElementById('faelles-root');
   if (!root) return;
+  if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(() => faellesSavesPending > 0);
+  window.addEventListener('beforeunload', (e) => {
+    if (!faellesSavesPending) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
     faellesLoad(root);
