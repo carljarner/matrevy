@@ -224,6 +224,41 @@ body {
   }
 }
 
+/* Level switch (boss/admin "view as"), just left of the login button —
+   and left of the hamburger once the header collapses. It takes the
+   auto margin, so the login button only needs a small gap after it. */
+.site-view-switch {
+  position: relative;
+  margin-left: auto;
+}
+
+.site-view-switch + .site-auth {
+  margin-left: -1.25rem; /* header gap is 2rem */
+}
+
+.site-view-switch .site-nav-dropdown {
+  left: auto;
+  right: 0;
+  min-width: 8rem;
+}
+
+.site-view-switch-btn:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
+/* Viewing below the real login level — amber so it's never forgotten. */
+.site-view-switch-reduced {
+  background: var(--accent-warm-text);
+  border-color: var(--accent-warm);
+}
+
+@media (hover: hover) {
+  .site-view-switch-reduced:hover {
+    background: #b07a0a;
+  }
+}
+
 .site-gate-login {
   background: var(--accent);
   border: none;
@@ -550,6 +585,10 @@ body {
 
 .site-header-collapsed .site-menu-btn {
   display: flex;
+}
+
+.site-view-switch ~ .site-menu-btn {
+  margin-left: -1.25rem; /* header gap is 2rem */
 }
 
 .site-menu-nav {

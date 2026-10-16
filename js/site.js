@@ -65,9 +65,28 @@ function getSiteAuth() {
     const raw = localStorage.getItem(SITE_AUTH_KEY);
     if (!raw) return null;
     const auth = JSON.parse(raw);
-    if (auth && (auth.level === 'revyst' || auth.level === 'boss' || auth.level === 'admin')) return auth;
+    if (auth && (auth.level === 'revyst' || auth.level === 'boss' || auth.level === 'admin')) {
+      // A boss/admin can view the site as a lower level (the header's
+      // level switch). `level` is what the UI follows; `realLevel` is
+      // what the password actually unlocks — writes always send it.
+      const view = auth.viewLevel;
+      const level = (SITE_LEVEL_RANK[view] >= SITE_LEVEL_RANK.revyst && SITE_LEVEL_RANK[view] <= SITE_LEVEL_RANK[auth.level])
+        ? view : auth.level;
+      return { level, realLevel: auth.level, password: auth.password };
+    }
   } catch (e) { /* ignore */ }
   return null;
+}
+
+// Stores which level a boss/admin views the site as and reloads, like
+// login/logout. A fresh login writes no viewLevel, so it starts at full.
+function siteSetViewLevel(level) {
+  const auth = getSiteAuth();
+  if (!auth || siteIsFileProtocol()) return;
+  const stored = { level: auth.realLevel, password: auth.password };
+  if (level !== auth.realLevel) stored.viewLevel = level;
+  try { localStorage.setItem(SITE_AUTH_KEY, JSON.stringify(stored)); } catch (e) { /* ignore */ }
+  location.reload();
 }
 
 function siteHasLevel(required) {
@@ -187,10 +206,14 @@ function renderDesktopNavGroup(nav, label, visible, current, isCurrent) {
   }
   wrap.appendChild(dropdown);
   nav.appendChild(wrap);
+  siteWireHeaderDropdown(wrap, btn, dropdown);
+}
 
-  // Self-contained open/close/outside-click/Escape handling — this
-  // page may not have loaded site-utils.js (schedule.html doesn't),
-  // so it can't reuse that file's shared popup helpers.
+// Self-contained open/close/outside-click/Escape handling for a header
+// dropdown (Redskaber, the level switch) — this page may not have loaded
+// site-utils.js (schedule.html doesn't), so it can't reuse that file's
+// shared popup helpers.
+function siteWireHeaderDropdown(wrap, btn, dropdown) {
   let onDocClick = null;
   let onKeydown = null;
   function closeDropdown() {
@@ -254,13 +277,56 @@ function buildAuthButton() {
   btn.className = 'site-login-btn';
   const auth = getSiteAuth();
   if (auth) {
-    btn.textContent = `Log ud (${auth.level})`;
+    btn.textContent = `Log ud (${auth.realLevel})`;
     btn.addEventListener('click', siteLogout);
   } else {
     btn.textContent = 'Log ind';
     btn.addEventListener('click', openLoginModal);
   }
   return btn;
+}
+
+const SITE_LEVEL_LABELS = { revyst: 'Revyst', boss: 'Boss', admin: 'Admin' };
+
+// Lets a boss/admin view the site as a lower level without logging out
+// (boss: Revyst/Boss, admin: all three). UI only — writes still send the
+// real password, so revyst-level actions keep working at any view.
+// Stays in the header next to the hamburger when the header collapses.
+function buildViewLevelSwitch() {
+  if (siteIsFileProtocol()) return null;
+  const auth = getSiteAuth();
+  if (!auth || auth.realLevel === 'revyst') return null;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'site-view-switch';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-login-btn site-view-switch-btn'
+    + (auth.level !== auth.realLevel ? ' site-view-switch-reduced' : '');
+  btn.textContent = SITE_LEVEL_LABELS[auth.level] + ' ▾';
+  btn.title = 'Se siden som et andet niveau';
+  btn.setAttribute('aria-expanded', 'false');
+  wrap.appendChild(btn);
+
+  const dropdown = document.createElement('div');
+  dropdown.className = 'site-field-pop site-nav-dropdown';
+  dropdown.hidden = true;
+  for (const level of ['revyst', 'boss', 'admin']) {
+    if (SITE_LEVEL_RANK[level] > SITE_LEVEL_RANK[auth.realLevel]) continue;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'site-list-row' + (level === auth.level ? ' site-list-selected' : '');
+    row.textContent = SITE_LEVEL_LABELS[level];
+    row.addEventListener('click', () => {
+      if (level === auth.level) { dropdown.hidden = true; return; }
+      siteSetViewLevel(level);
+    });
+    dropdown.appendChild(row);
+  }
+  wrap.appendChild(dropdown);
+  siteWireHeaderDropdown(wrap, btn, dropdown);
+  return wrap;
 }
 
 function renderSiteHeader() {
@@ -277,6 +343,9 @@ function renderSiteHeader() {
   nav.className = 'site-nav';
   buildSiteNavLinks(nav, { mobile: false });
   header.appendChild(nav);
+
+  const viewSwitch = buildViewLevelSwitch();
+  if (viewSwitch) header.appendChild(viewSwitch);
 
   const authBtn = buildAuthButton();
   if (authBtn) {
