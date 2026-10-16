@@ -17,6 +17,10 @@ Plain HTML/CSS/JS with one PHP file as the write API. There's no framework and n
 | Formularer | `forms.html` | Revyst fills in; boss builds |
 | Fællesspisning | `faellesspisning.html` | Revyst |
 | Øveplan (under "Redskaber") | `schedule.html` | Revyst; saved in your own browser only |
+| Kostumetinder (under "Redskaber") | `kostumetinder.html` | Revyst; costume sheet for the current revy |
+| Ninjas, Mics & Cues (under "Redskaber") | `ninjas.html` | Revyst; mic plan and cue sheet for the current revy |
+| Rekvisitten (under "Redskaber") | `rekvisitten.html` | Revyst; under udvikling |
+| Teknikken (under "Redskaber") | `teknikken.html` | Revyst; under udvikling |
 | Koordinator | `koordinator.html` | Admin |
 
 There are four levels: public, revyst, boss and admin. Each level beyond public has a shared password, handed out verbally. Logging in happens top right.

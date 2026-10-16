@@ -30,6 +30,8 @@ define('BUDGET_DATA_DIR', matrevy_env('BUDGET_DATA_DIR', '/data/budget'));
 define('FORMS_DATA_DIR', matrevy_env('FORMS_DATA_DIR', '/data/forms'));
 define('FAELLESSPISNING_DATA_DIR', matrevy_env('FAELLESSPISNING_DATA_DIR', '/data/faellesspisning'));
 define('BAND_DATA_DIR', matrevy_env('BAND_DATA_DIR', '/data/band'));
+define('KOSTUME_DATA_DIR', matrevy_env('KOSTUME_DATA_DIR', '/data/kostumetinder'));
+define('NINJAS_DATA_DIR', matrevy_env('NINJAS_DATA_DIR', '/data/ninjas'));
 define('LOKALER_DATA_DIR', matrevy_env('LOKALER_DATA_DIR', '/data/lokaler'));
 
 // Writable public site files (data/, archive/, posts/, wiki/, plus the

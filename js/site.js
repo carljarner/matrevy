@@ -41,6 +41,10 @@ const SITE_PAGES = [
   { href: 'forms.html',       label: 'Formularer',  level: 'revyst' },
   { href: 'faellesspisning.html', label: 'Fællesspisning', level: 'revyst' },
   { href: 'band.html',        label: 'Bandet',      level: 'revyst', group: 'redskaber' },
+  { href: 'kostumetinder.html', label: 'Kostumetinder', level: 'revyst', group: 'redskaber' },
+  { href: 'ninjas.html',      label: 'Ninjas, Mics & Cues', level: 'revyst', group: 'redskaber' },
+  { href: 'rekvisitten.html', label: 'Rekvisitten', level: 'revyst', group: 'redskaber' },
+  { href: 'teknikken.html',   label: 'Teknikken',   level: 'revyst', group: 'redskaber' },
   { href: 'schedule.html',    label: 'Øveplan',     level: 'revyst', group: 'redskaber' },
   { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
 ];

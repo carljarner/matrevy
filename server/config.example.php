@@ -75,6 +75,18 @@ define('FAELLESSPISNING_DATA_DIR', '/absolute/path/to/matrevy-faellesspisning-da
 // all created on first write.
 define('BAND_DATA_DIR', '/absolute/path/to/matrevy-band-data');
 
+// Absolute path on the server for the PRIVATE Kostumetinder datastore (the
+// costume sheet: who needs what, who has it — carries names). Never a
+// web-served folder. Must be PHP-writable. Layout: <revyFolder>/kostumer.json,
+// created on first write.
+define('KOSTUME_DATA_DIR', '/absolute/path/to/matrevy-kostume-data');
+
+// Absolute path on the server for the PRIVATE Ninjas, Mics & Cues datastore
+// (the mic plan and cue sheet: names per scene). Never a web-served folder.
+// Must be PHP-writable. Layout: <revyFolder>/ninjas.json, created on first
+// write.
+define('NINJAS_DATA_DIR', '/absolute/path/to/matrevy-ninjas-data');
+
 // Absolute path on the server for the PRIVATE store of Koordinator's signed
 // room-booking forms (PDFs with names/signatures). Never a web-served
 // folder. Must be PHP-writable. Layout: files.json + files/<fileId>.pdf,
