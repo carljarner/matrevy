@@ -67,6 +67,15 @@
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
+/* Split mode ("Revyster kan se manus" on): one stack per type, valgt above
+   ikke valgt — see renderColumns() in js/manus.js. */
+.manus-columns-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
 .manus-columns .card {
   margin-bottom: 0;
   min-width: 0;
@@ -1751,6 +1760,10 @@ a.manus-pdf-title:focus-visible {
 @media (max-width: 719px) {
   .manus-layout { grid-template-columns: 1fr; }
   .manus-columns { grid-template-columns: 1fr; }
+  /* One column: interleave the two stacks so both "(valgt)" cards come
+     first, then both "(ikke valgt)" ones. */
+  .manus-columns-split .manus-columns-stack { display: contents; }
+  .manus-columns-split .manus-column-unchosen { order: 1; }
   .manus-select-columns { grid-template-columns: 1fr; gap: 0.75rem; }
   .manus-select-overlay-lists { grid-template-columns: 1fr; }
 

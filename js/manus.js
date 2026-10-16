@@ -378,14 +378,13 @@ function renderPdfRow(item, displayTitle = item.title) {
 // revyst visitor (who has nothing else on the page to look at), closed by
 // default for boss/admin (who land on a much longer page, Main Manus View
 // included, and don't need the raw pool expanded every time).
-function renderColumn(type) {
+function renderColumn(type, { items = getEffectiveManuscripts().filter(s => s.type === type),
+  label = MANUS_TYPE_COLUMN_LABEL[type], expanded = !siteHasLevel('boss'),
+  emptyText = 'Ingen upload endnu.' } = {}) {
   const section = document.createElement('section');
   section.className = 'card manus-column';
 
-  const items = getEffectiveManuscripts().filter(s => s.type === type);
   const { normal, fisk } = manusSortWithFisk(items, s => s.fisk === true, s => s.title);
-
-  let expanded = !siteHasLevel('boss');
 
   const list = document.createElement('div');
   list.className = 'manus-col-list';
@@ -404,7 +403,7 @@ function renderColumn(type) {
     list.style.display = expanded ? '' : 'none';
   });
   const h2 = document.createElement('h2');
-  h2.textContent = MANUS_TYPE_COLUMN_LABEL[type];
+  h2.textContent = label;
   header.appendChild(h2);
   const count = document.createElement('span');
   count.className = 'manus-col-count';
@@ -415,7 +414,7 @@ function renderColumn(type) {
   if (items.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
-    empty.textContent = 'Ingen upload endnu.';
+    empty.textContent = emptyText;
     list.appendChild(empty);
   } else {
     for (const item of normal) list.appendChild(renderPdfRow(item));
@@ -428,10 +427,39 @@ function renderColumn(type) {
   return section;
 }
 
+// Once "Revyster kan se manus" is on, each type's column splits into
+// "<Type> (valgt)" (open) above "<Type> (ikke valgt)" (closed), chosen =
+// manusSubmissionIsSelected(). Each column is a `.manus-columns-stack`; at
+// ≤719px the stacks become `display: contents` and the cards are reordered
+// by CSS (`.manus-column-unchosen` last), so a phone reads Sange (valgt),
+// Sketches (valgt), Sange (ikke valgt), Sketches (ikke valgt).
 function renderColumns() {
   const mount = document.getElementById('manus-columns');
   mount.textContent = '';
-  for (const type of MANUS_TYPES) mount.appendChild(renderColumn(type));
+  const split = !!getEffectiveConfig().pdfLinksVisibleToRevyst;
+  mount.classList.toggle('manus-columns-split', split);
+  for (const type of MANUS_TYPES) {
+    if (!split) { mount.appendChild(renderColumn(type)); continue; }
+    const items = getEffectiveManuscripts().filter(s => s.type === type);
+    const label = MANUS_TYPE_COLUMN_LABEL[type];
+    const stack = document.createElement('div');
+    stack.className = 'manus-columns-stack';
+    stack.appendChild(renderColumn(type, {
+      items: items.filter(manusSubmissionIsSelected),
+      label: `${label} (valgt)`,
+      expanded: true,
+      emptyText: 'Ingen valgt.',
+    }));
+    const unchosen = renderColumn(type, {
+      items: items.filter(s => !manusSubmissionIsSelected(s)),
+      label: `${label} (ikke valgt)`,
+      expanded: false,
+      emptyText: 'Ingen.',
+    });
+    unchosen.classList.add('manus-column-unchosen');
+    stack.appendChild(unchosen);
+    mount.appendChild(stack);
+  }
 }
 
 // ── Bottom CTA: Upload manus (revyst only) ───────────────────
