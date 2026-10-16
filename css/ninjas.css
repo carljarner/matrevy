@@ -324,15 +324,6 @@ textarea.ninjas-field {
 .ninjas-cue-col-slutCue     { min-width: 13rem; }
 .ninjas-cue-col-note        { min-width: 12rem; }
 
-/* One colour per instructor, in order of first appearance (ninjas.js). */
-.ninjas-cue-table td.ninjas-instr-0 { background: #f7c6ef; }
-.ninjas-cue-table td.ninjas-instr-1 { background: #c8f0c0; }
-.ninjas-cue-table td.ninjas-instr-2 { background: #f9c9c4; }
-.ninjas-cue-table td.ninjas-instr-3 { background: #c9daf8; }
-.ninjas-cue-table td.ninjas-instr-4 { background: #ffe8a3; }
-.ninjas-cue-table td.ninjas-instr-5 { background: #d7c8f3; }
-.ninjas-cue-table td.ninjas-instr-6 { background: #bfe9e6; }
-.ninjas-cue-table td.ninjas-instr-7 { background: #f6d5b5; }
 
 /* --- Suggestion popup under a cell ---------------------------------- */
 .ninjas-suggest-pop {
@@ -474,6 +465,7 @@ textarea.ninjas-field {
 
   .ninjas-table thead { display: table-header-group; }
   .ninjas-table tr { break-inside: avoid; }
+  .ninjas-table tr.ninjas-print-break { break-before: page; page-break-before: always; }
 
   .ninjas-table .ninjas-col-title,
   .ninjas-act-inner { position: static; }
@@ -483,6 +475,9 @@ textarea.ninjas-field {
   .ninjas-mic-table .ninjas-mic-cell { min-width: 0; width: auto; }
 
   .ninjas-mic-table td.ninjas-cell-warn { box-shadow: none; }
+
+  /* Names in bold, so they stand out on the coloured columns. */
+  .ninjas-mic-table td.ninjas-mic-cell { font-weight: 700; }
 
   .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-yellow { background: #ffe94d; }
   .ninjas-mic-table td.ninjas-mic-cell.ninjas-color-red { background: #f26b5e; }

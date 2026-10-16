@@ -8,8 +8,7 @@
      a cell = who wears it (a name, "X", …).
    - Cues: replaces the old Cueark — per scene Instruktør (read-only, the
      scene's Instruktør role(s) from Manus), Start cue, Giver cue, Slut
-     cue, Bemærkninger; each instructor gets their own colour
-     automatically.
+     cue, Bemærkninger.
 
    Rows come from Manus (SCENES_DATA, or a fresh Manus save's override),
    keyed by the scene's permanent uid, so a cell follows its scene when it
@@ -136,7 +135,6 @@ const NINJAS_CUE_COLUMNS = [
   { key: 'slutCue', label: 'Slut cue' },
   { key: 'note', label: 'Bemærkninger' },
 ];
-const NINJAS_INSTRUCTOR_COLORS = 8; // .ninjas-instr-0 … -7 in ninjas.css
 
 // Each sheet has its own Rediger/Færdig toggle; only the active tab's
 // sheet is on screen, so the shared helpers read ninjasIsEditing().
@@ -350,7 +348,11 @@ function ninjasRenderTabs(root) {
     btn.type = 'button';
     btn.addEventListener('click', () => {
       if (tab.key === ninjasActiveTab) return;
+      // Leaving a sheet ends its edit mode — commit whatever is being typed
+      // first (its blur fires before the re-render).
+      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       siteCloseFieldPopup();
+      ninjasEditing[ninjasActiveTab] = false;
       ninjasActiveTab = tab.key;
       try { localStorage.setItem(NINJAS_TAB_KEY, ninjasActiveTab); } catch (e) { /* ignore */ }
       // Re-read so each tab shows what others saved meanwhile.
@@ -535,8 +537,12 @@ function ninjasWireSuggestions(input, getOptions, onPick) {
 }
 
 // ── Act heading row (both sheets) ────────────────────────────
+// Printouts start a new page at Akt 3 (Akt 1-2 on page one, Akt 3 and
+// Ekstranumre on page two — see .ninjas-print-break in ninjas.css).
+const NINJAS_PRINT_BREAK_ACT = '3';
+
 function ninjasActRow(group, colSpan) {
-  const tr = el('tr', 'ninjas-act-row');
+  const tr = el('tr', 'ninjas-act-row' + (group.act === NINJAS_PRINT_BREAK_ACT ? ' ninjas-print-break' : ''));
   const td = el('td');
   td.colSpan = colSpan;
   const inner = el('div', 'ninjas-act-inner');
@@ -864,19 +870,17 @@ function ninjasBuildCuesCard(groups) {
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  const instrCells = [];
   for (const group of groups) {
     tbody.appendChild(ninjasActRow(group, 1 + NINJAS_CUE_COLUMNS.length));
-    for (const row of group.rows) tbody.appendChild(ninjasCueRow(group, row, instrCells));
+    for (const row of group.rows) tbody.appendChild(ninjasCueRow(group, row));
   }
   table.appendChild(tbody);
   wrap.appendChild(table);
   card.appendChild(wrap);
-  ninjasPaintInstructors(instrCells);
   return card;
 }
 
-function ninjasCueRow(group, row, instrCells) {
+function ninjasCueRow(group, row) {
   const tr = el('tr', 'ninjas-row');
   tr.appendChild(ninjasTitleCell(group, row));
   for (const col of NINJAS_CUE_COLUMNS) {
@@ -887,7 +891,6 @@ function ninjasCueRow(group, row, instrCells) {
       td.textContent = row.instructors;
       td.classList.add('ninjas-cue-derived');
       if (!row.extra) td.title = 'Fra Manus (rollen Instruktør)';
-      instrCells.push({ td, name: row.instructors });
       tr.appendChild(td);
       continue;
     }
@@ -912,19 +915,6 @@ function ninjasCueRow(group, row, instrCells) {
     tr.appendChild(td);
   }
   return tr;
-}
-
-// Each distinct instructor gets the next colour, in order of first
-// appearance down the sheet (the old Cueark's per-person colouring).
-function ninjasPaintInstructors(cells) {
-  const order = new Map();
-  for (const { td, name } of cells) {
-    const norm = ninjasNorm(name);
-    for (let i = 0; i < NINJAS_INSTRUCTOR_COLORS; i++) td.classList.remove(`ninjas-instr-${i}`);
-    if (!norm) continue;
-    if (!order.has(norm)) order.set(norm, order.size % NINJAS_INSTRUCTOR_COLORS);
-    td.classList.add(`ninjas-instr-${order.get(norm)}`);
-  }
 }
 
 // ── Extra rows (Bandintro, …) ────────────────────────────────
