@@ -93,6 +93,12 @@ define('NINJAS_DATA_DIR', '/absolute/path/to/matrevy-ninjas-data');
 // created on first upload.
 define('LOKALER_DATA_DIR', '/absolute/path/to/matrevy-lokaler-data');
 
+// Absolute path on the server for the PRIVATE Rekvisitten datastore (prop
+// list, who-when, shopping list, accounts — names). Never a web-served
+// folder. Must be PHP-writable. Layout: <revyFolder>/rekvisitten.json,
+// created on first write.
+define('REKVISIT_DATA_DIR', '/absolute/path/to/matrevy-rekvisit-data');
+
 // Absolute path on the server for Teknikken's file store (videos, slides,
 // images, 5 GB in total). Never a web-served folder. Must be PHP-writable
 // with room to spare (uploads are refused below 2 GB free). Layout:

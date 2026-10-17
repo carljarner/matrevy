@@ -7,6 +7,7 @@
   <title>Rekvisitten · Matematikrevyen</title>
   <link rel="stylesheet" href="css/style.css" />
   <link rel="icon" type="image/png" href="img/favicon.png" />
+  <link rel="stylesheet" href="css/rekvisit.css" />
 </head>
 <body>
   <!-- Nav + login rendered by site.js from its central page registry -->
@@ -15,12 +16,11 @@
   </header>
 
   <main class="page-content">
-    <h1>Rekvisitten</h1>
-
-    <section class="card">
-      <h2>Under udvikling</h2>
-      <p>Denne side er under udvikling.</p>
-    </section>
+    <div class="rekvisit-title-row">
+      <h1>Rekvisitten</h1>
+      <div id="rekvisit-revy-picker" class="rekvisit-revy-picker"></div>
+    </div>
+    <div id="rekvisit-root"></div>
   </main>
 
   <footer class="site-footer">
@@ -29,5 +29,10 @@
   </footer>
 
   <script src="js/site.js"></script>
+  <script src="js/site-utils.js"></script>
+  <script src="js/config-data.js"></script>
+  <script src="js/archive-data.js"></script>
+  <script src="js/calendar-data.js"></script>
+  <script src="js/rekvisit.js"></script>
 </body>
 </html>

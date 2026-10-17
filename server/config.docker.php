@@ -33,6 +33,7 @@ define('BAND_DATA_DIR', matrevy_env('BAND_DATA_DIR', '/data/band'));
 define('KOSTUME_DATA_DIR', matrevy_env('KOSTUME_DATA_DIR', '/data/kostumetinder'));
 define('NINJAS_DATA_DIR', matrevy_env('NINJAS_DATA_DIR', '/data/ninjas'));
 define('LOKALER_DATA_DIR', matrevy_env('LOKALER_DATA_DIR', '/data/lokaler'));
+define('REKVISIT_DATA_DIR', matrevy_env('REKVISIT_DATA_DIR', '/data/rekvisitten'));
 define('TEKNIK_DATA_DIR', matrevy_env('TEKNIK_DATA_DIR', '/data/teknikken'));
 
 // Writable public site files (data/, archive/, posts/, wiki/, plus the

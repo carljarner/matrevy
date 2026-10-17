@@ -19,7 +19,7 @@ Plain HTML/CSS/JS with one PHP file as the write API. There's no framework and n
 | Øveplan (under "Redskaber") | `schedule.html` | Revyst; saved in your own browser only |
 | Kostumetinder (under "Redskaber") | `kostumetinder.html` | Revyst; costume sheet for the current revy |
 | Ninjas, Mics & Cues (under "Redskaber") | `ninjas.html` | Revyst; mic plan and cue sheet for the current revy |
-| Rekvisitten (under "Redskaber") | `rekvisitten.html` | Revyst; under udvikling |
+| Rekvisitten (under "Redskaber") | `rekvisitten.html` | Revyst; the prop crew's sheets per revy (Rekvisitter, Hvem hvornår?, Indkøbsliste, Brændimprenering, Regnskab) |
 | Teknikken (under "Redskaber") | `teknikken.html` | Revyst; under udvikling |
 | Koordinator | `koordinator.html` | Admin |
 

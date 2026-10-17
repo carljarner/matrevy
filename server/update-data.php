@@ -320,6 +320,36 @@ if (isset($KOSTUME_ACTIONS[$action])) {
   handle_kostume($action, $body);
 }
 
+// ── Rekvisitten actions (five prop-crew sheets per revy) ──
+// Rekvisitter / Hvem, hvornår? / Indkøbsliste / Brændimprenering (a view
+// of Rekvisitter's rows) / Regnskab, one document per revy folder in the
+// private REKVISIT_DATA_DIR. Any revy can be read at the revyst tier;
+// writes below boss only reach the current production's folder.
+$REKVISIT_ACTIONS = [
+  'rekvisit_read'               => 'revyst',
+  'rekvisit_upsert_row'         => 'revyst', // {sheet, row:{id?, …fields}, afterId?}
+  'rekvisit_delete_row'         => 'revyst', // idempotent
+  'rekvisit_reorder'            => 'revyst', // full permutation of a sheet's row ids
+  'rekvisit_save_column_labels' => 'revyst',
+  'rekvisit_save_column_widths' => 'revyst',
+  'rekvisit_save_columns'       => 'revyst', // custom + hidden built-ins
+  'rekvisit_set_budget'         => 'revyst', // Regnskab's budget
+  'rekvisit_add_day'            => 'revyst', // Hvem, hvornår? extra day
+  'rekvisit_delete_day'         => 'revyst',
+  'rekvisit_hide_day'           => 'revyst', // hide a Kalender date on this sheet
+];
+if (isset($REKVISIT_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$REKVISIT_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  $rekvisitFolder = rekvisit_folder_from_body($body);
+  if ($action !== 'rekvisit_read' && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']
+      && $rekvisitFolder !== manus_current_production_folder()) {
+    respond(403, ['error' => 'read_only']);
+  }
+  handle_rekvisit($action, $rekvisitFolder, $body);
+}
+
 // ── Ninjas, Mics & Cues actions (mic plan + cue sheet per revy) ──
 // Names per scene, so it lives in the private NINJAS_DATA_DIR. Fully open
 // at the revyst tier (the page's Rediger toggle is UI only); always the
@@ -4989,6 +5019,491 @@ function handle_kostume($action, $body) {
     case 'kostume_save_columns':       return kostume_save_columns($body);
     case 'kostume_save_column_labels': return kostume_save_column_labels($body);
     case 'kostume_save_column_widths': return kostume_save_column_widths($body);
+  }
+  respond(400, ['error' => 'unknown_action']);
+}
+
+// ── Rekvisitten datastore (private, local files under REKVISIT_DATA_DIR) ──
+//   REKVISIT_DATA_DIR/<folder>/rekvisitten.json
+//     {sheets: {rekvisitter, hvem, indkob, braend, regnskab}, updatedAt}
+// A row sheet is {rows, columnLabels, columnWidths, customColumns,
+// hiddenColumns}; hvem adds {extraDays:[{id,date,title}], hiddenDays:[date]}
+// and its rows carry days:{YYYY-MM-DD: text}; regnskab adds {budget}.
+// braend has no rows of its own — it shows Rekvisitter's rows, whose
+// braend/braendNote fields it edits — so it only stores titles/widths.
+// The folder comes from the body (any revy can be read); the dispatch
+// block limits writes below boss to the current production. A copy of the
+// kostume_* handlers generalised to several sheets. Dispatched early, so
+// hoisted functions only.
+
+function rekvisit_dir() {
+  if (!defined('REKVISIT_DATA_DIR') || !is_string(REKVISIT_DATA_DIR) || REKVISIT_DATA_DIR === '') {
+    respond(500, ['error' => 'rekvisit_not_configured']);
+  }
+  return rtrim(REKVISIT_DATA_DIR, '/');
+}
+
+// Same charset as Arkiv's slugifyFolderName() output (band_valid_folder()).
+function rekvisit_folder_from_body($body) {
+  $folder = $body['folder'] ?? '';
+  if (!is_string($folder) || preg_match('/^[A-Za-z0-9][A-Za-z0-9_-]{0,80}$/', $folder) !== 1) {
+    respond(400, ['error' => 'bad_folder']);
+  }
+  return $folder;
+}
+
+// Built-in columns per sheet: fields = [key => 'text'|'status'] stored on
+// each row; locked = can't be hidden; custom = text columns can be added;
+// extraKeys = rename/resize-only keys (derived or borrowed columns).
+// Mirrors REKVISIT_SHEETS in rekvisit.js.
+function rekvisit_sheet_defs() {
+  return [
+    'rekvisitter' => [
+      'rows' => true, 'locked' => 'rekvisit', 'custom' => true, 'extraKeys' => [],
+      'fields' => [
+        'rekvisit' => 'text', 'scene' => 'text', 'instruktoer' => 'text', 'kommentar' => 'text',
+        'type' => 'text', 'status' => 'status', 'ansvarlig' => 'text', 'ekstra' => 'text',
+        'braend' => 'status', 'braendNote' => 'text',
+      ],
+      // braendNote only shows on the Brændimprenering tab.
+      'hideable' => ['scene', 'instruktoer', 'kommentar', 'type', 'status', 'ansvarlig', 'ekstra', 'braend'],
+    ],
+    'hvem' => [
+      'rows' => true, 'locked' => 'navn', 'custom' => false, 'extraKeys' => [],
+      'fields' => ['navn' => 'text'], 'hideable' => [],
+    ],
+    'indkob' => [
+      'rows' => true, 'locked' => 'hvad', 'custom' => true, 'extraKeys' => [],
+      'fields' => ['hvad' => 'text', 'hvor' => 'text', 'forventetPris' => 'text', 'faktiskPris' => 'text', 'kobt' => 'status'],
+      'hideable' => ['hvor', 'forventetPris', 'faktiskPris', 'kobt'],
+    ],
+    'braend' => [
+      'rows' => false, 'locked' => null, 'custom' => false,
+      'extraKeys' => ['rekvisit', 'kommentar', 'braend', 'braendNote'],
+      'fields' => [], 'hideable' => [],
+    ],
+    'regnskab' => [
+      'rows' => true, 'locked' => 'udgift', 'custom' => true, 'extraKeys' => ['rest'],
+      'fields' => ['udgift' => 'text', 'belob' => 'text', 'bilag' => 'text', 'lagtUd' => 'text', 'behandlet' => 'status'],
+      'hideable' => ['belob', 'bilag', 'lagtUd', 'behandlet'],
+    ],
+  ];
+}
+
+// Pill values per status column; '' is each one's default.
+function rekvisit_status_values($sheet, $key) {
+  $map = [
+    'rekvisitter/status' => ['', 'igang', 'faerdig', 'droppet'],
+    'rekvisitter/braend' => ['', 'ja', 'skalikke'],
+    'indkob/kobt' => ['', 'ja'],
+    'regnskab/behandlet' => ['', 'maaske', 'ja'],
+  ];
+  return $map[$sheet . '/' . $key] ?? [''];
+}
+
+function rekvisit_sheet_def($sheet, $needRows) {
+  $defs = rekvisit_sheet_defs();
+  if (!is_string($sheet) || !isset($defs[$sheet]) || ($needRows && !$defs[$sheet]['rows'])) {
+    respond(400, ['error' => 'bad_sheet']);
+  }
+  return $defs[$sheet];
+}
+
+function rekvisit_default_row_count() {
+  return 10;
+}
+
+function rekvisit_doc_path($folder) {
+  return rekvisit_dir() . '/' . $folder . '/rekvisitten.json';
+}
+
+// Stable across reads (like kostume_default_id()), so a default row can be
+// edited or moved before anything is written.
+function rekvisit_default_id($folder, $salt) {
+  return substr(sha1('rekvisit/' . $folder . '/' . $salt), 0, 16);
+}
+
+function rekvisit_valid_id($id) {
+  return is_string($id) && preg_match('/^[0-9a-f]{8,40}$/', $id) === 1;
+}
+
+function rekvisit_id() {
+  return dechex(time()) . bin2hex(random_bytes(4));
+}
+
+function rekvisit_valid_date($date) {
+  return is_string($date) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) === 1;
+}
+
+function rekvisit_custom_key_valid($key) {
+  return is_string($key) && preg_match('/^c[0-9a-f]{8,40}$/', $key) === 1;
+}
+
+function rekvisit_blank_row($sheet) {
+  $row = [];
+  foreach (rekvisit_sheet_defs()[$sheet]['fields'] as $key => $type) $row[$key] = '';
+  if ($sheet === 'hvem') $row['days'] = (object) [];
+  return $row;
+}
+
+// The sheet as stored, with every field back-filled (a sheet that was
+// never written reads as its default: blank rows with stable ids).
+function rekvisit_sheet($doc, $folder, $sheet) {
+  $def = rekvisit_sheet_defs()[$sheet];
+  $stored = is_array($doc['sheets'][$sheet] ?? null) ? $doc['sheets'][$sheet] : null;
+  $out = $stored ?? [];
+  if ($def['rows'] && !is_array($out['rows'] ?? null)) {
+    $out['rows'] = [];
+    for ($i = 0; $i < rekvisit_default_row_count(); $i++) {
+      $out['rows'][] = array_merge(['id' => rekvisit_default_id($folder, $sheet . '/row' . $i)], rekvisit_blank_row($sheet));
+    }
+  }
+  $out['columnLabels'] = (object) ($out['columnLabels'] ?? []);
+  $out['columnWidths'] = (object) ($out['columnWidths'] ?? []);
+  if ($def['custom']) {
+    $custom = [];
+    foreach (is_array($out['customColumns'] ?? null) ? $out['customColumns'] : [] as $col) {
+      if (is_array($col) && rekvisit_custom_key_valid($col['key'] ?? null)) $custom[] = $col;
+    }
+    $out['customColumns'] = $custom;
+  }
+  if ($def['hideable']) {
+    $hidden = is_array($out['hiddenColumns'] ?? null) ? $out['hiddenColumns'] : [];
+    $out['hiddenColumns'] = array_values(array_intersect($hidden, $def['hideable']));
+  }
+  if ($sheet === 'hvem') {
+    $out['extraDays'] = array_values(array_filter(is_array($out['extraDays'] ?? null) ? $out['extraDays'] : [], function ($d) {
+      return is_array($d) && rekvisit_valid_id($d['id'] ?? null) && rekvisit_valid_date($d['date'] ?? null);
+    }));
+    $out['hiddenDays'] = array_values(array_filter(is_array($out['hiddenDays'] ?? null) ? $out['hiddenDays'] : [], 'rekvisit_valid_date'));
+    foreach ($out['rows'] as &$row) {
+      $row['days'] = (object) (is_array($row['days'] ?? null) ? $row['days'] : []);
+    }
+    unset($row);
+  }
+  if ($sheet === 'regnskab') {
+    $out['budget'] = is_string($out['budget'] ?? null) ? $out['budget'] : '';
+  }
+  return $out;
+}
+
+function rekvisit_custom_keys($sheetDoc) {
+  return array_column(is_array($sheetDoc['customColumns'] ?? null) ? $sheetDoc['customColumns'] : [], 'key');
+}
+
+// Every key a row of this sheet may carry (status ones included).
+function rekvisit_value_keys($sheet, $sheetDoc) {
+  return array_merge(array_keys(rekvisit_sheet_defs()[$sheet]['fields']), rekvisit_custom_keys($sheetDoc));
+}
+
+// Keys whose title/width can be stored.
+function rekvisit_label_keys($sheet, $sheetDoc) {
+  return array_merge(rekvisit_value_keys($sheet, $sheetDoc), rekvisit_sheet_defs()[$sheet]['extraKeys']);
+}
+
+function rekvisit_load($folder) {
+  $path = rekvisit_doc_path($folder);
+  if (!is_file($path)) return ['sheets' => [], 'updatedAt' => null];
+  $doc = json_decode((string) file_get_contents($path), true);
+  return is_array($doc) ? $doc : ['sheets' => [], 'updatedAt' => null];
+}
+
+// Flock'd read-modify-write of one sheet — copy of kostume_mutate().
+// $mutate gets the back-filled sheet and returns it.
+function rekvisit_mutate($folder, $sheet, $mutate) {
+  $dir = rekvisit_dir() . '/' . $folder;
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'rekvisit_storage_unavailable']);
+  }
+  $path = rekvisit_doc_path($folder);
+  $fh = @fopen($path, 'c+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'rekvisit_storage_unavailable']);
+  }
+  $raw = stream_get_contents($fh);
+  $doc = ($raw === '' || $raw === false) ? null : json_decode($raw, true);
+  if (!is_array($doc)) $doc = ['sheets' => []];
+  if (!is_array($doc['sheets'] ?? null)) $doc['sheets'] = [];
+  $doc['sheets'][$sheet] = $mutate(rekvisit_sheet($doc, $folder, $sheet));
+  $doc['updatedAt'] = date('c');
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  return $doc['sheets'][$sheet];
+}
+
+function rekvisit_read($folder) {
+  $doc = rekvisit_load($folder);
+  $sheets = [];
+  foreach (array_keys(rekvisit_sheet_defs()) as $sheet) $sheets[$sheet] = rekvisit_sheet($doc, $folder, $sheet);
+  respond(200, ['ok' => true, 'folder' => $folder, 'sheets' => $sheets, 'updatedAt' => $doc['updatedAt'] ?? null]);
+}
+
+// {sheet, row:{id?, …fields, days?}, afterId?} — create appends at the end
+// (or right after afterId); update merges only the sent fields. Hvem's
+// `days` merges per date ('' clears one).
+function rekvisit_upsert_row($folder, $body) {
+  $sheet = $body['sheet'] ?? '';
+  $def = rekvisit_sheet_def($sheet, true);
+  $rowIn = $body['row'] ?? null;
+  if (!is_array($rowIn)) respond(400, ['error' => 'invalid_shape']);
+  $rowId = $rowIn['id'] ?? null;
+  if ($rowId !== null && !rekvisit_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  $sheetDoc = rekvisit_sheet(rekvisit_load($folder), $folder, $sheet);
+  $fields = [];
+  foreach (rekvisit_value_keys($sheet, $sheetDoc) as $key) {
+    if (!array_key_exists($key, $rowIn)) continue;
+    $value = $rowIn[$key];
+    if (($def['fields'][$key] ?? 'text') === 'status') {
+      if (!in_array($value, rekvisit_status_values($sheet, $key), true)) respond(400, ['error' => 'invalid_shape']);
+    } elseif (!is_string($value) || mb_strlen($value) > 1000) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $fields[$key] = $value;
+  }
+  $days = null;
+  if ($sheet === 'hvem' && array_key_exists('days', $rowIn)) {
+    if (!is_array($rowIn['days']) || count($rowIn['days']) > 400) respond(400, ['error' => 'invalid_shape']);
+    $days = [];
+    foreach ($rowIn['days'] as $date => $text) {
+      if (!rekvisit_valid_date((string) $date) || !is_string($text) || mb_strlen($text) > 200) {
+        respond(400, ['error' => 'invalid_shape']);
+      }
+      $days[(string) $date] = $text;
+    }
+  }
+  $afterId = $body['afterId'] ?? null;
+  if ($afterId !== null && !rekvisit_valid_id($afterId)) respond(400, ['error' => 'invalid_shape']);
+
+  $savedRow = null;
+  $applyDays = function ($row) use ($days) {
+    if ($days === null) return $row;
+    $current = (array) ($row['days'] ?? []);
+    foreach ($days as $date => $text) {
+      if ($text === '') unset($current[$date]);
+      else $current[$date] = $text;
+    }
+    $row['days'] = (object) $current;
+    return $row;
+  };
+  rekvisit_mutate($folder, $sheet, function ($s) use ($sheet, $rowId, $fields, $afterId, $applyDays, &$savedRow) {
+    if ($rowId !== null) {
+      foreach ($s['rows'] as &$row) {
+        if ($row['id'] === $rowId) {
+          $row = $applyDays(array_merge($row, $fields));
+          $savedRow = $row;
+          break;
+        }
+      }
+      unset($row);
+      if ($savedRow === null) respond(404, ['error' => 'not_found']);
+      return $s;
+    }
+    $savedRow = $applyDays(array_merge(['id' => rekvisit_id()], rekvisit_blank_row($sheet), $fields));
+    $insertAt = count($s['rows']);
+    if ($afterId !== null) {
+      foreach ($s['rows'] as $i => $row) {
+        if ($row['id'] === $afterId) { $insertAt = $i + 1; break; }
+      }
+    }
+    array_splice($s['rows'], $insertAt, 0, [$savedRow]);
+    return $s;
+  });
+  respond(200, ['ok' => true, 'row' => $savedRow]);
+}
+
+function rekvisit_delete_row($folder, $body) {
+  $sheet = $body['sheet'] ?? '';
+  rekvisit_sheet_def($sheet, true);
+  $rowId = $body['rowId'] ?? '';
+  if (!rekvisit_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  rekvisit_mutate($folder, $sheet, function ($s) use ($rowId) {
+    $s['rows'] = array_values(array_filter($s['rows'], function ($r) use ($rowId) {
+      return $r['id'] !== $rowId;
+    }));
+    return $s;
+  });
+  respond(200, ['ok' => true]);
+}
+
+// {sheet, order:[ids]} — must name exactly the current rows (409 stale_rows).
+function rekvisit_reorder($folder, $body) {
+  $sheet = $body['sheet'] ?? '';
+  rekvisit_sheet_def($sheet, true);
+  $order = $body['order'] ?? null;
+  if (!is_array($order)) respond(400, ['error' => 'invalid_shape']);
+  foreach ($order as $id) {
+    if (!rekvisit_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  }
+  $s = rekvisit_mutate($folder, $sheet, function ($s) use ($order) {
+    $byId = [];
+    foreach ($s['rows'] as $row) $byId[$row['id']] = $row;
+    if (count($order) !== count($byId) || count(array_unique($order)) !== count($order)) {
+      respond(409, ['error' => 'stale_rows']);
+    }
+    $next = [];
+    foreach ($order as $id) {
+      if (!isset($byId[$id])) respond(409, ['error' => 'stale_rows']);
+      $next[] = $byId[$id];
+    }
+    $s['rows'] = $next;
+    return $s;
+  });
+  respond(200, ['ok' => true, 'rows' => $s['rows']]);
+}
+
+// {sheet, customColumns:[{key?, label}], hiddenColumns:[keys]} — full
+// replace. A custom column without a key is new; one left out is deleted
+// together with its values, title and width.
+function rekvisit_save_columns($folder, $body) {
+  $sheet = $body['sheet'] ?? '';
+  $def = rekvisit_sheet_def($sheet, true);
+  $customIn = $body['customColumns'] ?? null;
+  $hiddenIn = $body['hiddenColumns'] ?? null;
+  if (!is_array($customIn) || !is_array($hiddenIn) || count($customIn) > 30) respond(400, ['error' => 'invalid_shape']);
+  if (!$def['custom'] && $customIn) respond(400, ['error' => 'invalid_shape']);
+  $custom = [];
+  foreach ($customIn as $col) {
+    $key = is_array($col) ? ($col['key'] ?? null) : null;
+    $label = is_array($col) && is_string($col['label'] ?? null) ? trim($col['label']) : '';
+    if (($key !== null && !rekvisit_custom_key_valid($key)) || $label === '' || mb_strlen($label) > 100) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $custom[] = ['key' => $key ?? ('c' . rekvisit_id() . bin2hex(random_bytes(2))), 'label' => $label];
+  }
+  $hidden = [];
+  foreach ($hiddenIn as $key) {
+    if (!in_array($key, $def['hideable'], true)) respond(400, ['error' => 'invalid_shape']);
+    if (!in_array($key, $hidden, true)) $hidden[] = $key;
+  }
+  $s = rekvisit_mutate($folder, $sheet, function ($s) use ($custom, $hidden) {
+    $removed = array_diff(rekvisit_custom_keys($s), array_column($custom, 'key'));
+    if ($removed) {
+      foreach ($s['rows'] as &$row) {
+        foreach ($removed as $key) unset($row[$key]);
+      }
+      unset($row);
+      foreach (['columnLabels', 'columnWidths'] as $mapKey) {
+        $map = (array) ($s[$mapKey] ?? []);
+        foreach ($removed as $key) unset($map[$key]);
+        $s[$mapKey] = (object) $map;
+      }
+    }
+    $s['customColumns'] = $custom;
+    $s['hiddenColumns'] = $hidden;
+    return $s;
+  });
+  respond(200, ['ok' => true, 'customColumns' => $s['customColumns'], 'hiddenColumns' => $s['hiddenColumns']]);
+}
+
+// {sheet, columnLabels:{key: title}} — full replace; only renamed columns
+// are stored.
+function rekvisit_save_column_labels($folder, $body) {
+  $sheet = $body['sheet'] ?? '';
+  rekvisit_sheet_def($sheet, false);
+  $labels = $body['columnLabels'] ?? null;
+  if (!is_array($labels)) respond(400, ['error' => 'invalid_shape']);
+  $allowed = rekvisit_label_keys($sheet, rekvisit_sheet(rekvisit_load($folder), $folder, $sheet));
+  $clean = [];
+  foreach ($labels as $key => $label) {
+    if (!in_array($key, $allowed, true)) respond(400, ['error' => 'invalid_shape']);
+    if (!is_string($label) || mb_strlen($label) > 100) respond(400, ['error' => 'invalid_shape']);
+    if (trim($label) !== '') $clean[$key] = $label;
+  }
+  $s = rekvisit_mutate($folder, $sheet, function ($s) use ($clean) {
+    $s['columnLabels'] = (object) $clean;
+    return $s;
+  });
+  respond(200, ['ok' => true, 'columnLabels' => $s['columnLabels']]);
+}
+
+// {sheet, columnWidths:{key: px}} — full replace; only resized columns are
+// stored.
+function rekvisit_save_column_widths($folder, $body) {
+  $sheet = $body['sheet'] ?? '';
+  rekvisit_sheet_def($sheet, false);
+  $widths = $body['columnWidths'] ?? null;
+  if (!is_array($widths)) respond(400, ['error' => 'invalid_shape']);
+  $keys = rekvisit_label_keys($sheet, rekvisit_sheet(rekvisit_load($folder), $folder, $sheet));
+  $clean = [];
+  foreach ($widths as $key => $px) {
+    if (!in_array($key, $keys, true) || !is_int($px) || $px < 40 || $px > 1000) respond(400, ['error' => 'invalid_shape']);
+    $clean[$key] = $px;
+  }
+  $s = rekvisit_mutate($folder, $sheet, function ($s) use ($clean) {
+    $s['columnWidths'] = (object) $clean;
+    return $s;
+  });
+  respond(200, ['ok' => true, 'columnWidths' => $s['columnWidths']]);
+}
+
+// {budget} — Regnskab's budget, free text (parsed client-side like Beløb).
+function rekvisit_set_budget($folder, $body) {
+  $budget = $body['budget'] ?? null;
+  if (!is_string($budget) || mb_strlen($budget) > 30) respond(400, ['error' => 'invalid_shape']);
+  $s = rekvisit_mutate($folder, 'regnskab', function ($s) use ($budget) {
+    $s['budget'] = trim($budget);
+    return $s;
+  });
+  respond(200, ['ok' => true, 'budget' => $s['budget']]);
+}
+
+// {date, title?} — a Hvem, hvornår?-only day column (never touches Kalender).
+function rekvisit_add_day($folder, $body) {
+  $date = $body['date'] ?? '';
+  $title = $body['title'] ?? '';
+  if (!rekvisit_valid_date($date) || !is_string($title) || mb_strlen($title) > 80) respond(400, ['error' => 'invalid_shape']);
+  $day = ['id' => rekvisit_id(), 'date' => $date, 'title' => trim($title)];
+  $s = rekvisit_mutate($folder, 'hvem', function ($s) use ($day) {
+    $s['extraDays'][] = $day;
+    // Adding a date that was hidden brings it back.
+    $s['hiddenDays'] = array_values(array_diff($s['hiddenDays'], [$day['date']]));
+    return $s;
+  });
+  respond(200, ['ok' => true, 'extraDays' => $s['extraDays'], 'hiddenDays' => $s['hiddenDays']]);
+}
+
+// {dayId} — idempotent. Cells on that date stay on the rows (harmless).
+function rekvisit_delete_day($folder, $body) {
+  $dayId = $body['dayId'] ?? '';
+  if (!rekvisit_valid_id($dayId)) respond(400, ['error' => 'invalid_shape']);
+  $s = rekvisit_mutate($folder, 'hvem', function ($s) use ($dayId) {
+    $s['extraDays'] = array_values(array_filter($s['extraDays'], function ($d) use ($dayId) {
+      return $d['id'] !== $dayId;
+    }));
+    return $s;
+  });
+  respond(200, ['ok' => true, 'extraDays' => $s['extraDays']]);
+}
+
+// {date} — hides a Kalender date on this sheet only.
+function rekvisit_hide_day($folder, $body) {
+  $date = $body['date'] ?? '';
+  if (!rekvisit_valid_date($date)) respond(400, ['error' => 'invalid_shape']);
+  $s = rekvisit_mutate($folder, 'hvem', function ($s) use ($date) {
+    if (!in_array($date, $s['hiddenDays'], true)) $s['hiddenDays'][] = $date;
+    return $s;
+  });
+  respond(200, ['ok' => true, 'hiddenDays' => $s['hiddenDays']]);
+}
+
+function handle_rekvisit($action, $folder, $body) {
+  switch ($action) {
+    case 'rekvisit_read':               return rekvisit_read($folder);
+    case 'rekvisit_upsert_row':         return rekvisit_upsert_row($folder, $body);
+    case 'rekvisit_delete_row':         return rekvisit_delete_row($folder, $body);
+    case 'rekvisit_reorder':            return rekvisit_reorder($folder, $body);
+    case 'rekvisit_save_columns':       return rekvisit_save_columns($folder, $body);
+    case 'rekvisit_save_column_labels': return rekvisit_save_column_labels($folder, $body);
+    case 'rekvisit_save_column_widths': return rekvisit_save_column_widths($folder, $body);
+    case 'rekvisit_set_budget':         return rekvisit_set_budget($folder, $body);
+    case 'rekvisit_add_day':            return rekvisit_add_day($folder, $body);
+    case 'rekvisit_delete_day':         return rekvisit_delete_day($folder, $body);
+    case 'rekvisit_hide_day':           return rekvisit_hide_day($folder, $body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
