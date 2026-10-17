@@ -1919,7 +1919,7 @@ function openAktTagModal(type) {
 
     const printBtn = document.createElement('button');
     printBtn.type = 'button';
-    printBtn.className = 'site-btn-warm manus-points-col-center';
+    printBtn.className = 'site-btn-success manus-points-col-end';
     printBtn.textContent = 'Udskriv';
     printBtn.addEventListener('click', () => {
       // Close first so the modal isn't sitting on top of the print sheet
@@ -1928,15 +1928,8 @@ function openAktTagModal(type) {
       manusPrintAktCards(type);
     });
 
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'site-btn-warm manus-points-col-end';
-    closeBtn.textContent = 'Luk';
-    closeBtn.addEventListener('click', close);
-
     buttonRow.appendChild(resetBtn);
     buttonRow.appendChild(printBtn);
-    buttonRow.appendChild(closeBtn);
     form.appendChild(buttonRow);
   }
 
@@ -3782,6 +3775,20 @@ function renderSelectionColumn() {
   aktGroup.appendChild(aktBtnRow);
   section.appendChild(aktGroup);
 
+  const printGroup = renderSelectPanelGroup('Custom print');
+  const printBtnRow = document.createElement('div');
+  printBtnRow.className = 'manus-select-panel-btn-row';
+  for (const type of MANUS_TYPES) {
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.className = 'site-btn-warm';
+    printBtn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
+    printBtn.addEventListener('click', () => openCustomPrintModal(type));
+    printBtnRow.appendChild(printBtn);
+  }
+  printGroup.appendChild(printBtnRow);
+  section.appendChild(printGroup);
+
   const selectGroup = renderSelectPanelGroup('Vælg Scener');
   const selectBtn = document.createElement('button');
   selectBtn.type = 'button';
@@ -3794,41 +3801,13 @@ function renderSelectionColumn() {
   return section;
 }
 
-// ── "Custom Print": one merged PDF of chosen scenes, N copies each ──
-// Its own card between Udvælgelse and Videoer & Bandsange. Per type, a
+// ── "Custom print": one merged PDF of chosen scenes, N copies each ──
+// A group in Udvælgelse (between Aktfordeling and Vælg Scener). Per type, a
 // modal picks scenes (Scener) and copies per scene (Antal, default = the
 // scene's number of roles); Print fetches each scene's PDF, merges them
 // alphabetically with pdf-lib (vendored, lazy-loaded) and opens the result
 // in a new tab. Picks and edited counts are per browser, keyed by row uid.
 const MANUS_CUSTOM_PRINT_KEY = 'matrevy-manus-custom-print';
-
-function renderCustomPrintColumn() {
-  const section = document.createElement('section');
-  section.className = 'card manus-column';
-
-  const header = document.createElement('div');
-  header.className = 'manus-col-header';
-  const h2 = document.createElement('h2');
-  h2.textContent = 'Custom Print';
-  header.appendChild(h2);
-  section.appendChild(header);
-
-  const group = renderSelectPanelGroup('Print');
-  const btnRow = document.createElement('div');
-  btnRow.className = 'manus-select-panel-btn-row';
-  for (const type of MANUS_TYPES) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'site-btn-warm';
-    btn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
-    btn.addEventListener('click', () => openCustomPrintModal(type));
-    btnRow.appendChild(btn);
-  }
-  group.appendChild(btnRow);
-  section.appendChild(group);
-
-  return section;
-}
 
 function loadCustomPrintStore() {
   try {
@@ -3892,8 +3871,8 @@ function openCustomPrintModal(type) {
   const texCounts = new Map();
   let page = 'scenes'; // 'scenes' | 'counts'
 
-  const { modal, form, actions, close } = siteOpenModalWithClose(
-    `Custom Print (${MANUS_TYPE_COLUMN_LABEL[type]})`
+  const { modal, form, actions } = siteOpenModalWithClose(
+    `Custom print (${MANUS_TYPE_COLUMN_LABEL[type]})`
   );
   modal.classList.add('manus-akt-modal');
   actions.style.display = 'none';
@@ -3952,18 +3931,11 @@ function openCustomPrintModal(type) {
 
     const printBtn = document.createElement('button');
     printBtn.type = 'button';
-    printBtn.className = 'site-btn-success manus-points-col-center';
-    printBtn.textContent = 'Print';
+    printBtn.className = 'site-btn-success manus-points-col-end';
+    printBtn.textContent = 'Udskriv';
     printBtn.addEventListener('click', () => manusCustomPrint(rows.filter(isPicked).sort(byTitle), effectiveCount, printBtn));
 
-    const closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'site-btn-warm manus-points-col-end';
-    closeBtn.textContent = 'Luk';
-    closeBtn.addEventListener('click', close);
-
     buttonRow.appendChild(printBtn);
-    buttonRow.appendChild(closeBtn);
     form.appendChild(buttonRow);
   }
 
@@ -4154,50 +4126,147 @@ function openCustomPrintModal(type) {
   renderBody();
 }
 
-// `rows` already in print order (alphabetical). The window is opened
-// synchronously in the click so popup blockers allow it (as bandOpenFile).
+// Centered progress box over everything (incl. the Custom print modal):
+// a label, a bar and a "x af y" line, plus Annuller while working. Returns
+// small setters; nothing here touches the PDF itself.
+function manusOpenPdfProgress(onCancel) {
+  const overlay = document.createElement('div');
+  overlay.className = 'manus-cprint-progress-overlay';
+  const box = document.createElement('div');
+  box.className = 'manus-cprint-progress';
+  box.setAttribute('role', 'status');
+  box.setAttribute('aria-live', 'polite');
+
+  const label = document.createElement('p');
+  label.className = 'manus-cprint-progress-label';
+  box.appendChild(label);
+  const bar = document.createElement('div');
+  bar.className = 'manus-cprint-progress-bar';
+  const fill = document.createElement('div');
+  fill.className = 'manus-cprint-progress-fill';
+  bar.appendChild(fill);
+  box.appendChild(bar);
+  const detail = document.createElement('p');
+  detail.className = 'manus-cprint-progress-detail';
+  box.appendChild(detail);
+
+  const actions = document.createElement('div');
+  actions.className = 'login-actions';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'site-btn-warm';
+  cancelBtn.textContent = 'Annuller';
+  cancelBtn.addEventListener('click', onCancel);
+  actions.appendChild(cancelBtn);
+  box.appendChild(actions);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  return {
+    set(text, done, total, unit) {
+      label.textContent = text;
+      fill.style.width = total ? `${Math.min(100, (done / total) * 100)}%` : '100%';
+      detail.textContent = total ? `${done} af ${total} ${unit}` : '';
+    },
+    // Last resort when the browser blocked the automatic new tab: the
+    // click on this button is a fresh user gesture, so it always opens.
+    ready(pageCount, onOpen, onClose) {
+      label.textContent = 'PDF’en er klar';
+      fill.style.width = '100%';
+      detail.textContent = `${pageCount} sider`;
+      actions.textContent = '';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'site-btn-warm';
+      closeBtn.textContent = 'Luk';
+      closeBtn.addEventListener('click', onClose);
+      const openBtn = document.createElement('button');
+      openBtn.type = 'button';
+      openBtn.className = 'site-btn-success';
+      openBtn.textContent = 'Åbn PDF';
+      openBtn.addEventListener('click', onOpen);
+      actions.appendChild(closeBtn);
+      actions.appendChild(openBtn);
+      openBtn.focus();
+    },
+    close() { overlay.remove(); },
+  };
+}
+
+const manusNextFrame = () => new Promise(resolve => setTimeout(resolve, 0));
+
+// `rows` already in print order (alphabetical). Builds the whole PDF in
+// memory behind a progress box and only then opens it in a new tab (on iOS
+// in this tab). Nothing is uploaded or stored: the blob URL is revoked a
+// minute after it opens.
 async function manusCustomPrint(rows, countOf, btn) {
   const jobs = rows.map(row => ({ row, count: countOf(row) })).filter(j => j.count > 0);
   if (!jobs.length) {
     siteShowToast('Vælg mindst én scene med et antal over 0.');
     return;
   }
-  const sameTab = siteIsIos();
-  const win = sameTab ? null : window.open('', '_blank');
-  if (win) win.document.title = 'Laver PDF…';
-  const label = btn.textContent;
+  let cancelled = false;
+  const progress = manusOpenPdfProgress(() => { cancelled = true; });
   btn.disabled = true;
-  btn.textContent = 'Laver PDF…';
+  const finish = () => { progress.close(); btn.disabled = false; };
   try {
+    progress.set('Henter scener…', 0, jobs.length, 'scener');
     const PDFLib = await manusLoadPdfLib();
-    const out = await PDFLib.PDFDocument.create();
-    for (const { row, count } of jobs) {
-      let src;
+    // Fetch + parse every source first, so the page total is known before
+    // the assembling bar starts.
+    for (const [i, job] of jobs.entries()) {
+      if (cancelled) { finish(); return; }
       try {
-        const res = await fetch(manusRowPdfPath(row), { cache: 'no-cache' });
+        const res = await fetch(manusRowPdfPath(job.row), { cache: 'no-cache' });
         if (!res.ok) throw new Error(String(res.status));
-        src = await PDFLib.PDFDocument.load(await res.arrayBuffer(), { ignoreEncryption: true });
+        job.src = await PDFLib.PDFDocument.load(await res.arrayBuffer(), { ignoreEncryption: true });
       } catch (e) {
-        throw new Error(`Kunne ikke hente PDF'en til "${manusRowTitle(row)}".`);
+        throw new Error(`Kunne ikke hente PDF'en til "${manusRowTitle(job.row)}".`);
       }
+      progress.set('Henter scener…', i + 1, jobs.length, 'scener');
+    }
+
+    const total = jobs.reduce((sum, j) => sum + j.src.getPageCount() * j.count, 0);
+    let done = 0;
+    progress.set('Samler PDF…', 0, total, 'sider');
+    await manusNextFrame();
+    const out = await PDFLib.PDFDocument.create();
+    for (const { src, count } of jobs) {
       const indices = src.getPageIndices();
       for (let i = 0; i < count; i++) {
+        if (cancelled) { finish(); return; }
         const pages = await out.copyPages(src, indices);
         for (const p of pages) out.addPage(p);
+        done += pages.length;
+        progress.set('Samler PDF…', done, total, 'sider');
+        await manusNextFrame();
       }
     }
-    const blob = new Blob([await out.save()], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    if (sameTab) { window.location.href = url; return; }
-    if (win) win.location.replace(url);
-    else window.open(url, '_blank');
-    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+
+    progress.set('Gemmer PDF…', total, total, 'sider');
+    await manusNextFrame();
+    const bytes = await out.save();
+    if (cancelled) { finish(); return; }
+    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    if (siteIsIos()) { window.location.href = url; return; }
+    const win = window.open(url, '_blank');
+    if (win) {
+      finish();
+      setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+      return;
+    }
+    progress.ready(total, () => {
+      window.open(url, '_blank');
+      finish();
+      setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+    }, () => {
+      finish();
+      URL.revokeObjectURL(url);
+    });
   } catch (e) {
-    if (win) win.close();
+    finish();
     siteShowToast(e.message === 'pdf-lib' ? 'Kunne ikke indlæse PDF-værktøjet.' : e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = label;
   }
 }
 
@@ -4364,13 +4433,12 @@ function renderSelectTab() {
   columns.className = 'manus-select-columns';
   for (const type of MANUS_TYPES) columns.appendChild(renderSelectColumn(type));
 
-  // Third column is a stack of cards (Udvælgelse, Custom Print, then
-  // Videoer & Bandsange) rather than a single grid item, so each reads as
-  // its own section without disturbing the Sange/Sketches columns' widths.
+  // Third column is a stack of two cards (Udvælgelse, then Videoer &
+  // Bandsange below it) rather than a single grid item, so the latter reads
+  // as its own section without disturbing the Sange/Sketches columns' widths.
   const col3 = document.createElement('div');
   col3.className = 'manus-select-col-stack';
   col3.appendChild(renderSelectionColumn());
-  col3.appendChild(renderCustomPrintColumn());
   col3.appendChild(renderMediaColumn());
   columns.appendChild(col3);
 

@@ -535,6 +535,14 @@ a.manus-pdf-title:focus-visible {
   grid-template-columns: 1fr 1fr 1fr;
   align-items: start;
   gap: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+/* The grid/stack gaps do the spacing here; a .card's own margin-bottom
+   would double the gap between stacked cards (the grid's margin-bottom
+   keeps the space above the action row). */
+.manus-select-columns .card {
+  margin-bottom: 0;
 }
 
 /* Same min-width:0 opt-out as .manus-columns .card above — without it a
@@ -2095,6 +2103,59 @@ a.manus-pdf-title:focus-visible {
   margin: 0;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+/* Progress box while the PDF is assembled (manusOpenPdfProgress) — above
+   the Custom print modal (200) and field popups (210), below tooltips. */
+.manus-cprint-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.manus-cprint-progress {
+  width: min(360px, 90vw);
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: var(--modal-shadow);
+  text-align: center;
+}
+
+.manus-cprint-progress-label {
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.manus-cprint-progress-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.manus-cprint-progress-fill {
+  width: 0;
+  height: 100%;
+  background: var(--accent-warm-text);
+  transition: width 0.15s ease-out;
+}
+
+.manus-cprint-progress-detail {
+  margin: 0.5rem 0 0;
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.manus-cprint-progress .login-actions {
+  margin-top: 1rem;
 }
 
 @media (max-width: 719px) {
