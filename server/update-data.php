@@ -61,6 +61,13 @@ function respond($code, $data) {
   exit;
 }
 
+// Teknikken's signed download links (teknik_download_url) are the one GET
+// this endpoint answers: a plain browser navigation, so big files download
+// natively instead of through fetch(). The token is the authorization.
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['teknik_dl'])) {
+  teknik_serve_download($_GET['teknik_dl']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   respond(405, ['error' => 'method_not_allowed']);
 }
@@ -349,6 +356,31 @@ if (isset($LOKALER_ACTIONS[$action])) {
     respond(403, ['error' => 'insufficient_level']);
   }
   handle_lokaler($action, $body);
+}
+
+// ── Teknikken actions (the tech crew's Drive-like file store) ──
+// Videos, slides and images in a nested folder tree, in the private
+// TEKNIK_DATA_DIR. One store for the whole site, not per revy, and never
+// archived. Fully open at the revyst tier. Uploads are chunked (files go up
+// to 500 MB); downloads go through the signed GET branch above.
+$TEKNIK_ACTIONS = [
+  'teknik_read'          => 'revyst', // {folders, files, maxUploadBytes}
+  'teknik_create_folder' => 'revyst',
+  'teknik_rename_folder' => 'revyst',
+  'teknik_delete_folder' => 'revyst', // idempotent — the whole subtree and its files
+  'teknik_rename_file'   => 'revyst', // the shown/download name only; the extension stays
+  'teknik_delete_file'   => 'revyst', // idempotent
+  'teknik_upload_start'  => 'revyst', // {folderId, name, size} → uploadId
+  'teknik_upload_chunk'  => 'revyst', // {uploadId, offset, contentBase64}, ≤8 MB, in order
+  'teknik_upload_finish' => 'revyst', // records the file
+  'teknik_upload_abort'  => 'revyst', // idempotent
+  'teknik_download_url'  => 'revyst', // a signed ?teknik_dl= link, valid 10 min
+];
+if (isset($TEKNIK_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$TEKNIK_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  handle_teknik($action, $body);
 }
 
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
@@ -5384,6 +5416,490 @@ function handle_lokaler($action, $body) {
     case 'lokaler_rename_file': return lokaler_rename_file($body);
     case 'lokaler_delete_file': return lokaler_delete_file($body);
     case 'lokaler_file':        return lokaler_file($body);
+  }
+  respond(400, ['error' => 'unknown_action']);
+}
+
+// ── Teknikken datastore (private, local files under TEKNIK_DATA_DIR) ──
+//   TEKNIK_DATA_DIR/teknikken.json   {folders:[{id, name, parentId, createdAt}],
+//                                     files:[{id, folderId, name, ext, size, uploadedAt}], updatedAt}
+//   TEKNIK_DATA_DIR/files/<fileId>   the bytes (name is metadata only)
+//   TEKNIK_DATA_DIR/uploads/<uploadId>.{part,json}   uploads in progress
+// A Drive-like folder tree for the tech crew's videos/slides/images. One
+// store for the whole site (not per revy) and never archived — files are
+// temporary. Files can be up to 500 MB, far past php.ini's 25 MB request
+// limit, so uploads arrive in ≤8 MB base64 chunks and downloads go through
+// a signed GET URL (teknik_serve_download(), dispatched near the top) that
+// the browser downloads natively. Dispatched early, so hoisted functions only.
+
+function teknik_dir() {
+  if (!defined('TEKNIK_DATA_DIR') || !is_string(TEKNIK_DATA_DIR) || TEKNIK_DATA_DIR === '') {
+    respond(500, ['error' => 'teknik_not_configured']);
+  }
+  return rtrim(TEKNIK_DATA_DIR, '/');
+}
+
+function teknik_max_upload_bytes() {
+  return 500 * 1024 * 1024;
+}
+
+function teknik_max_chunk_bytes() {
+  return 8 * 1024 * 1024;
+}
+
+// Free space an upload must leave behind on the shared disk.
+function teknik_disk_reserve_bytes() {
+  return 2 * 1024 * 1024 * 1024;
+}
+
+function teknik_valid_id($id) {
+  return is_string($id) && preg_match('/^[0-9a-f]{8,40}$/', $id) === 1;
+}
+
+function teknik_id() {
+  return dechex(time()) . bin2hex(random_bytes(4));
+}
+
+function teknik_ensure_dir($dir) {
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'teknik_storage_unavailable']);
+  }
+}
+
+function teknik_doc_path() {
+  return teknik_dir() . '/teknikken.json';
+}
+
+function teknik_file_path($fileId) {
+  return teknik_dir() . '/files/' . $fileId;
+}
+
+function teknik_upload_path($uploadId, $suffix) {
+  return teknik_dir() . '/uploads/' . $uploadId . '.' . $suffix;
+}
+
+function teknik_default_doc() {
+  return ['folders' => [], 'files' => [], 'updatedAt' => null];
+}
+
+// Folder/file names: one line, no path separators, ≤200 chars.
+function teknik_clean_name($name) {
+  if (!is_string($name)) return '';
+  $name = trim(preg_replace('/[\x00-\x1f\x7f]/u', '', str_replace(['/', '\\'], '-', $name)) ?? '');
+  return mb_strlen($name) > 200 ? '' : $name;
+}
+
+function teknik_load() {
+  $path = teknik_doc_path();
+  if (!is_file($path)) return teknik_default_doc();
+  $doc = json_decode((string) file_get_contents($path), true);
+  return is_array($doc) ? $doc : teknik_default_doc();
+}
+
+// Flock'd read-modify-write — copy of kostume_mutate().
+function teknik_mutate($mutate) {
+  teknik_ensure_dir(teknik_dir());
+  $path = teknik_doc_path();
+  $fh = @fopen($path, 'c+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'teknik_storage_unavailable']);
+  }
+  $raw = stream_get_contents($fh);
+  $doc = ($raw === '' || $raw === false) ? teknik_default_doc() : json_decode($raw, true);
+  if (!is_array($doc)) $doc = teknik_default_doc();
+  $doc = $mutate($doc);
+  $doc['updatedAt'] = date('c');
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  return $doc;
+}
+
+function teknik_folder_exists($doc, $folderId) {
+  if ($folderId === null) return true;
+  foreach ($doc['folders'] ?? [] as $folder) {
+    if ($folder['id'] === $folderId) return true;
+  }
+  return false;
+}
+
+// null (the root) or a valid id; anything else is a 400.
+function teknik_folder_id_from($value) {
+  if ($value === null || $value === '') return null;
+  if (!teknik_valid_id($value)) respond(400, ['error' => 'invalid_shape']);
+  return $value;
+}
+
+function teknik_find_file($doc, $fileId) {
+  foreach ($doc['files'] ?? [] as $file) {
+    if ($file['id'] === $fileId) return $file;
+  }
+  return null;
+}
+
+function teknik_read($body) {
+  $doc = teknik_load();
+  respond(200, [
+    'ok' => true,
+    'folders' => $doc['folders'] ?? [],
+    'files' => $doc['files'] ?? [],
+    'maxUploadBytes' => teknik_max_upload_bytes(),
+    'updatedAt' => $doc['updatedAt'] ?? null,
+  ]);
+}
+
+function teknik_create_folder($body) {
+  $parentId = teknik_folder_id_from($body['parentId'] ?? null);
+  $name = teknik_clean_name($body['name'] ?? '');
+  if ($name === '') respond(400, ['error' => 'invalid_shape']);
+  $folder = ['id' => teknik_id(), 'name' => $name, 'parentId' => $parentId, 'createdAt' => date('c')];
+  teknik_mutate(function ($doc) use ($folder) {
+    if (!teknik_folder_exists($doc, $folder['parentId'])) respond(404, ['error' => 'not_found']);
+    $doc['folders'][] = $folder;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'folder' => $folder]);
+}
+
+function teknik_rename_folder($body) {
+  $folderId = $body['folderId'] ?? '';
+  $name = teknik_clean_name($body['name'] ?? '');
+  if (!teknik_valid_id($folderId) || $name === '') respond(400, ['error' => 'invalid_shape']);
+  $saved = null;
+  teknik_mutate(function ($doc) use ($folderId, $name, &$saved) {
+    foreach ($doc['folders'] as &$folder) {
+      if ($folder['id'] !== $folderId) continue;
+      $folder['name'] = $name;
+      $saved = $folder;
+    }
+    unset($folder);
+    if ($saved === null) respond(404, ['error' => 'not_found']);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'folder' => $saved]);
+}
+
+// Removes the folder, every folder below it and all their files' bytes.
+// Idempotent: an unknown id is ok.
+function teknik_delete_folder($body) {
+  $folderId = $body['folderId'] ?? '';
+  if (!teknik_valid_id($folderId)) respond(400, ['error' => 'invalid_shape']);
+  $removedFiles = [];
+  teknik_mutate(function ($doc) use ($folderId, &$removedFiles) {
+    $doomed = [$folderId => true];
+    // Parents can be listed after their children, so sweep until stable.
+    do {
+      $grew = false;
+      foreach ($doc['folders'] as $folder) {
+        if (!isset($doomed[$folder['id']]) && isset($doomed[$folder['parentId'] ?? ''])) {
+          $doomed[$folder['id']] = true;
+          $grew = true;
+        }
+      }
+    } while ($grew);
+    $doc['folders'] = array_values(array_filter($doc['folders'], function ($f) use ($doomed) {
+      return !isset($doomed[$f['id']]);
+    }));
+    $kept = [];
+    foreach ($doc['files'] as $file) {
+      if (isset($doomed[$file['folderId'] ?? ''])) $removedFiles[] = $file['id'];
+      else $kept[] = $file;
+    }
+    $doc['files'] = $kept;
+    return $doc;
+  });
+  foreach ($removedFiles as $fileId) {
+    if (teknik_valid_id($fileId)) @unlink(teknik_file_path($fileId));
+  }
+  respond(200, ['ok' => true]);
+}
+
+// {fileId, name} — `name` without extension; the stored extension is kept.
+function teknik_rename_file($body) {
+  $fileId = $body['fileId'] ?? '';
+  $name = teknik_clean_name($body['name'] ?? '');
+  if (!teknik_valid_id($fileId) || $name === '' || mb_strlen($name) > 190) respond(400, ['error' => 'invalid_shape']);
+  $saved = null;
+  teknik_mutate(function ($doc) use ($fileId, $name, &$saved) {
+    foreach ($doc['files'] as &$file) {
+      if ($file['id'] !== $fileId) continue;
+      $file['name'] = $file['ext'] !== '' ? $name . '.' . $file['ext'] : $name;
+      $saved = $file;
+    }
+    unset($file);
+    if ($saved === null) respond(404, ['error' => 'not_found']);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'file' => $saved]);
+}
+
+function teknik_delete_file($body) {
+  $fileId = $body['fileId'] ?? '';
+  if (!teknik_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  teknik_mutate(function ($doc) use ($fileId) {
+    $doc['files'] = array_values(array_filter($doc['files'], function ($f) use ($fileId) {
+      return $f['id'] !== $fileId;
+    }));
+    return $doc;
+  });
+  @unlink(teknik_file_path($fileId));
+  respond(200, ['ok' => true]);
+}
+
+// ── Chunked upload ──
+// start → chunk × N (strictly in order, by byte offset) → finish. A chunk
+// whose bytes are already on disk (a retry after a lost reply) is ok.
+
+function teknik_upload_meta($uploadId) {
+  if (!teknik_valid_id($uploadId)) respond(400, ['error' => 'invalid_shape']);
+  $meta = json_decode((string) @file_get_contents(teknik_upload_path($uploadId, 'json')), true);
+  if (!is_array($meta) || !is_file(teknik_upload_path($uploadId, 'part'))) respond(404, ['error' => 'upload_not_found']);
+  return $meta;
+}
+
+function teknik_remove_upload($uploadId) {
+  @unlink(teknik_upload_path($uploadId, 'part'));
+  @unlink(teknik_upload_path($uploadId, 'json'));
+}
+
+// Abandoned uploads (closed tab, lost connection) older than a day.
+function teknik_sweep_uploads() {
+  $cutoff = time() - 24 * 3600;
+  foreach (glob(teknik_dir() . '/uploads/*') ?: [] as $path) {
+    if (is_file($path) && @filemtime($path) < $cutoff) @unlink($path);
+  }
+}
+
+// {folderId, name, size}
+function teknik_upload_start($body) {
+  $folderId = teknik_folder_id_from($body['folderId'] ?? null);
+  $name = teknik_clean_name($body['name'] ?? '');
+  $size = $body['size'] ?? null;
+  if ($name === '' || !is_int($size) || $size < 1) respond(400, ['error' => 'invalid_shape']);
+  if ($size > teknik_max_upload_bytes()) respond(413, ['error' => 'too_large']);
+  if (!teknik_folder_exists(teknik_load(), $folderId)) respond(404, ['error' => 'not_found']);
+  teknik_ensure_dir(teknik_dir() . '/uploads');
+  teknik_ensure_dir(teknik_dir() . '/files');
+  teknik_sweep_uploads();
+  $free = @disk_free_space(teknik_dir());
+  if ($free !== false && $free < $size + teknik_disk_reserve_bytes()) respond(507, ['error' => 'disk_full']);
+  $uploadId = teknik_id() . bin2hex(random_bytes(4));
+  $meta = ['folderId' => $folderId, 'name' => $name, 'size' => $size, 'startedAt' => date('c')];
+  if (@file_put_contents(teknik_upload_path($uploadId, 'part'), '') === false
+      || @file_put_contents(teknik_upload_path($uploadId, 'json'), json_encode($meta)) === false) {
+    teknik_remove_upload($uploadId);
+    respond(500, ['error' => 'teknik_storage_unavailable']);
+  }
+  respond(200, ['ok' => true, 'uploadId' => $uploadId, 'chunkBytes' => teknik_max_chunk_bytes()]);
+}
+
+// {uploadId, offset, contentBase64}
+function teknik_upload_chunk($body) {
+  $uploadId = $body['uploadId'] ?? '';
+  $meta = teknik_upload_meta($uploadId);
+  $offset = $body['offset'] ?? null;
+  if (!is_int($offset) || $offset < 0) respond(400, ['error' => 'invalid_shape']);
+  $raw = base64_decode((string) ($body['contentBase64'] ?? ''), true);
+  if ($raw === false || $raw === '' || strlen($raw) > teknik_max_chunk_bytes()) respond(400, ['error' => 'invalid_content']);
+  if ($offset + strlen($raw) > $meta['size']) respond(400, ['error' => 'invalid_content']);
+
+  $path = teknik_upload_path($uploadId, 'part');
+  $fh = @fopen($path, 'r+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'teknik_storage_unavailable']);
+  }
+  $have = fstat($fh)['size'];
+  if ($offset + strlen($raw) <= $have) {
+    // Already written (a retried chunk) — nothing to do.
+  } elseif ($offset !== $have) {
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    respond(409, ['error' => 'bad_offset', 'received' => $have]);
+  } else {
+    fseek($fh, $offset);
+    $written = fwrite($fh, $raw);
+    fflush($fh);
+    if ($written !== strlen($raw)) {
+      ftruncate($fh, $have);
+      flock($fh, LOCK_UN);
+      fclose($fh);
+      respond(500, ['error' => 'teknik_storage_unavailable']);
+    }
+    $have = $offset + $written;
+  }
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  respond(200, ['ok' => true, 'received' => $have]);
+}
+
+// {uploadId}
+function teknik_upload_finish($body) {
+  $uploadId = $body['uploadId'] ?? '';
+  $meta = teknik_upload_meta($uploadId);
+  $part = teknik_upload_path($uploadId, 'part');
+  clearstatcache(true, $part);
+  if (filesize($part) !== $meta['size']) respond(400, ['error' => 'incomplete_upload']);
+  $fileId = teknik_id();
+  $dest = teknik_file_path($fileId);
+  if (!@rename($part, $dest)) respond(500, ['error' => 'teknik_storage_unavailable']);
+  @unlink(teknik_upload_path($uploadId, 'json'));
+  $ext = strtolower(pathinfo($meta['name'], PATHINFO_EXTENSION));
+  if (!preg_match('/^[a-z0-9]{1,10}$/', $ext)) $ext = '';
+  $file = [
+    'id' => $fileId,
+    'folderId' => $meta['folderId'],
+    'name' => $meta['name'],
+    'ext' => $ext,
+    'size' => $meta['size'],
+    'uploadedAt' => date('c'),
+  ];
+  teknik_mutate(function ($doc) use ($file, $dest) {
+    // The folder may have been deleted while the upload ran.
+    if (!teknik_folder_exists($doc, $file['folderId'])) {
+      @unlink($dest);
+      respond(404, ['error' => 'not_found']);
+    }
+    $doc['files'][] = $file;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'file' => $file]);
+}
+
+function teknik_upload_abort($body) {
+  $uploadId = $body['uploadId'] ?? '';
+  if (!teknik_valid_id($uploadId)) respond(400, ['error' => 'invalid_shape']);
+  teknik_remove_upload($uploadId);
+  respond(200, ['ok' => true]);
+}
+
+// ── Download via signed URL ──
+// The page asks for a short-lived URL and navigates to it, so the browser
+// downloads natively (progress, no memory limit, works on phones) instead
+// of holding a 500 MB blob. The token is an HMAC over {f, e, i}, keyed on
+// the three passwords, so a new season's passwords void old links.
+
+function teknik_download_secret() {
+  $parts = [];
+  foreach (['REVYST_PASSWORD', 'BOSS_PASSWORD', 'ADMIN_PASSWORD'] as $name) {
+    $parts[] = defined($name) ? (string) constant($name) : '';
+  }
+  return hash('sha256', 'teknik-download|' . implode('|', $parts));
+}
+
+function teknik_b64url_encode($bytes) {
+  return rtrim(strtr(base64_encode($bytes), '+/', '-_'), '=');
+}
+
+function teknik_b64url_decode($text) {
+  return base64_decode(strtr($text, '-_', '+/'), true);
+}
+
+// Types the browser may show inline; everything else is a plain download.
+function teknik_inline_types() {
+  return [
+    'pdf' => 'application/pdf',
+    'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif', 'webp' => 'image/webp',
+    'mp4' => 'video/mp4', 'm4v' => 'video/x-m4v', 'mov' => 'video/quicktime',
+    'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'wav' => 'audio/wav',
+  ];
+}
+
+// {fileId, inline}
+function teknik_download_url($body) {
+  $fileId = $body['fileId'] ?? '';
+  if (!teknik_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  $file = teknik_find_file(teknik_load(), $fileId);
+  if ($file === null || !is_file(teknik_file_path($fileId))) respond(404, ['error' => 'not_found']);
+  $inline = !empty($body['inline']) && isset(teknik_inline_types()[$file['ext']]);
+  $payload = teknik_b64url_encode(json_encode(['f' => $fileId, 'e' => time() + 600, 'i' => $inline ? 1 : 0]));
+  $token = $payload . '.' . teknik_b64url_encode(hash_hmac('sha256', $payload, teknik_download_secret(), true));
+  respond(200, ['ok' => true, 'query' => 'teknik_dl=' . $token, 'inline' => $inline]);
+}
+
+// GET ?teknik_dl=<token>. Plain-text errors: this is a browser navigation,
+// not a fetch().
+function teknik_serve_download($token) {
+  header_remove('Content-Type');
+  header_remove('Access-Control-Allow-Origin');
+  header('X-Content-Type-Options: nosniff');
+  $fail = function ($code, $text) {
+    http_response_code($code);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo $text;
+    exit;
+  };
+  $parts = is_string($token) ? explode('.', $token) : [];
+  if (count($parts) !== 2) $fail(400, 'Ugyldigt link.');
+  $mac = teknik_b64url_encode(hash_hmac('sha256', $parts[0], teknik_download_secret(), true));
+  if (!hash_equals($mac, $parts[1])) $fail(403, 'Ugyldigt link.');
+  $claims = json_decode((string) teknik_b64url_decode($parts[0]), true);
+  if (!is_array($claims) || !teknik_valid_id($claims['f'] ?? null) || !is_int($claims['e'] ?? null)) $fail(400, 'Ugyldigt link.');
+  if ($claims['e'] < time()) $fail(403, 'Linket er udløbet. Gå tilbage til Teknikken og prøv igen.');
+  $file = teknik_find_file(teknik_load(), $claims['f']);
+  $path = teknik_file_path($claims['f']);
+  if ($file === null || !is_file($path)) $fail(404, 'Filen findes ikke længere.');
+
+  $types = teknik_inline_types();
+  $inline = !empty($claims['i']) && isset($types[$file['ext']]);
+  $size = filesize($path);
+  $start = 0;
+  $end = $size - 1;
+  $range = $_SERVER['HTTP_RANGE'] ?? '';
+  if ($range !== '' && preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $m) && ($m[1] !== '' || $m[2] !== '')) {
+    if ($m[1] === '') {
+      $start = max(0, $size - (int) $m[2]);
+    } else {
+      $start = (int) $m[1];
+      if ($m[2] !== '') $end = min($end, (int) $m[2]);
+    }
+    if ($start > $end || $start >= $size) {
+      http_response_code(416);
+      header("Content-Range: bytes */$size");
+      exit;
+    }
+    http_response_code(206);
+    header("Content-Range: bytes $start-$end/$size");
+  }
+  $asciiName = preg_replace('/[^A-Za-z0-9._ -]/', '_', $file['name']);
+  header('Content-Type: ' . ($inline ? $types[$file['ext']] : 'application/octet-stream'));
+  header('Content-Length: ' . ($end - $start + 1));
+  header('Accept-Ranges: bytes');
+  header('Cache-Control: private, no-store');
+  header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']));
+  set_time_limit(0);
+  while (ob_get_level() > 0) ob_end_clean();
+  $fh = fopen($path, 'rb');
+  fseek($fh, $start);
+  $left = $end - $start + 1;
+  while ($left > 0 && !feof($fh) && !connection_aborted()) {
+    $buf = fread($fh, min(1024 * 1024, $left));
+    if ($buf === false || $buf === '') break;
+    echo $buf;
+    flush();
+    $left -= strlen($buf);
+  }
+  fclose($fh);
+  exit;
+}
+
+function handle_teknik($action, $body) {
+  switch ($action) {
+    case 'teknik_read':          return teknik_read($body);
+    case 'teknik_create_folder': return teknik_create_folder($body);
+    case 'teknik_rename_folder': return teknik_rename_folder($body);
+    case 'teknik_delete_folder': return teknik_delete_folder($body);
+    case 'teknik_rename_file':   return teknik_rename_file($body);
+    case 'teknik_delete_file':   return teknik_delete_file($body);
+    case 'teknik_upload_start':  return teknik_upload_start($body);
+    case 'teknik_upload_chunk':  return teknik_upload_chunk($body);
+    case 'teknik_upload_finish': return teknik_upload_finish($body);
+    case 'teknik_upload_abort':  return teknik_upload_abort($body);
+    case 'teknik_download_url':  return teknik_download_url($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }

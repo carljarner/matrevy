@@ -92,3 +92,9 @@ define('NINJAS_DATA_DIR', '/absolute/path/to/matrevy-ninjas-data');
 // folder. Must be PHP-writable. Layout: files.json + files/<fileId>.pdf,
 // created on first upload.
 define('LOKALER_DATA_DIR', '/absolute/path/to/matrevy-lokaler-data');
+
+// Absolute path on the server for Teknikken's file store (videos, slides,
+// images up to 500 MB each). Never a web-served folder. Must be PHP-writable
+// with room to spare (uploads are refused below 2 GB free). Layout:
+// teknikken.json + files/<fileId> + uploads/, created on first write.
+define('TEKNIK_DATA_DIR', '/absolute/path/to/matrevy-teknikken-data');
