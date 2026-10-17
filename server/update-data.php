@@ -239,7 +239,8 @@ $FAELLES_ACTIONS = [
   'faelles_read'            => 'revyst', // {rows, connection, extraDays, hiddenDays, updatedAt} — also lazily syncs a connected form
   'faelles_upsert_row'      => 'revyst', // create (no rowId) or update (rowId given) one row
   'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
-  'faelles_save_connection' => 'admin',  // connect (formId given) or disconnect (formId: null) a Formularer form
+  'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
+  'faelles_set_attendance_mode' => 'boss', // 'out' (new rows auto-signed-up) or 'in' (new rows start unchecked) — only rows created afterwards
   'faelles_add_day'         => 'boss',   // add a Fællesspisning-only day column (never the public `calendar` resource)
   'faelles_delete_day'      => 'boss',   // remove one — the only way to correct a mistaken add
   'faelles_hide_day'        => 'boss',   // hide a real calendar-sourced day column from this sheet only — the event itself is untouched
@@ -3342,7 +3343,17 @@ function faelles_doc_path() {
 }
 
 function faelles_default_doc() {
-  return ['rows' => [], 'connection' => null, 'extraDays' => [], 'hiddenDays' => [], 'updatedAt' => null];
+  return ['rows' => [], 'connection' => null, 'extraDays' => [], 'hiddenDays' => [], 'attendanceMode' => 'out', 'updatedAt' => null];
+}
+
+// The sheet's opt-in/opt-out setting for rows created from now on: 'out'
+// (default — a new row is checked for every day from its createdAt on) or
+// 'in' (a new row starts with every day unchecked). Each row gets its own
+// copy stamped at creation (faelles_upsert_row/faelles_sync_connection), so
+// switching it never changes a row that already exists; a row without the
+// field predates the setting and counts as 'out'.
+function faelles_attendance_mode($doc) {
+  return (($doc['attendanceMode'] ?? null) === 'in') ? 'in' : 'out';
 }
 
 // A document written before extraDays/hiddenDays existed has no such key —
@@ -3558,6 +3569,7 @@ function faelles_sync_connection($connection) {
           'answers' => ['navn' => $navn, 'madforbehold' => $madforbehold],
           'dayOverrides' => faelles_overrides_for_json([]),
           'source' => ['formId' => $formId, 'responseId' => $rid],
+          'attendanceMode' => faelles_attendance_mode($doc),
           'createdAt' => $now,
           'updatedAt' => $now,
         ];
@@ -3593,7 +3605,7 @@ function faelles_maybe_sync($doc) {
 function faelles_read($body) {
   $doc = faelles_load();
   $doc = faelles_maybe_sync($doc);
-  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Revyst: create (no rowId) or update (rowId given) one row from an
@@ -3605,7 +3617,9 @@ function faelles_read($body) {
 // there for why `source` tagging happens there, not here). `createdAt` is
 // left untouched on an update — it's the row's own "day they filled out
 // the form," the anchor the opt-out default is computed from client-side,
-// and must never move just because an existing row was edited later.
+// and must never move just because an existing row was edited later. The
+// same goes for `attendanceMode`, stamped from the document's setting only
+// on create.
 function faelles_upsert_row($body) {
   $rowId = $body['rowId'] ?? null;
   if ($rowId !== null && (!is_string($rowId) || !faelles_valid_id($rowId))) {
@@ -3636,6 +3650,7 @@ function faelles_upsert_row($body) {
         'id' => faelles_id(),
         'answers' => $answers,
         'dayOverrides' => faelles_overrides_for_json($overrides),
+        'attendanceMode' => faelles_attendance_mode($doc),
         'createdAt' => $now,
         'updatedAt' => $now,
       ];
@@ -3689,6 +3704,19 @@ function faelles_save_connection($body) {
   });
   $doc = faelles_sync_connection($doc['connection']);
   respond(200, ['ok' => true, 'connection' => $doc['connection'], 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
+}
+
+// Boss: sets the opt-in/opt-out default for rows created from now on (see
+// faelles_attendance_mode) — existing rows keep their own stamped mode.
+function faelles_set_attendance_mode($body) {
+  $mode = $body['mode'] ?? null;
+  if ($mode !== 'in' && $mode !== 'out') respond(400, ['error' => 'invalid_shape']);
+  $doc = faelles_mutate(function ($doc) use ($mode) {
+    $doc['attendanceMode'] = $mode;
+    $doc['updatedAt'] = date('c');
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'attendanceMode' => faelles_attendance_mode($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Boss: adds a Fællesspisning-only day column — never written to the
@@ -3755,6 +3783,7 @@ function handle_faelles($action, $body) {
     case 'faelles_upsert_row':      return faelles_upsert_row($body);
     case 'faelles_delete_row':      return faelles_delete_row($body);
     case 'faelles_save_connection': return faelles_save_connection($body);
+    case 'faelles_set_attendance_mode': return faelles_set_attendance_mode($body);
     case 'faelles_add_day':         return faelles_add_day($body);
     case 'faelles_delete_day':      return faelles_delete_day($body);
     case 'faelles_hide_day':        return faelles_hide_day($body);

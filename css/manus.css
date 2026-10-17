@@ -1765,6 +1765,7 @@ a.manus-pdf-title:focus-visible {
   .manus-columns-split .manus-columns-stack { display: contents; }
   .manus-columns-split .manus-column-unchosen { order: 1; }
   .manus-select-columns { grid-template-columns: 1fr; gap: 0.75rem; }
+  .manus-select-columns .manus-columns-stack { gap: 0.75rem; }
   .manus-select-overlay-lists { grid-template-columns: 1fr; }
 
   /* "Vælg scener" tab: three stacked columns of full-size cards read as

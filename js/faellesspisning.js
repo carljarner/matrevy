@@ -7,11 +7,13 @@
    events), a checkbox marks "eating that day," plus a summary of
    headcount + food preferences per day.
 
-   Opt-out attendance: a day defaults to checked for a row from that row's
-   own createdAt date onward (i.e. everyone is auto-signed-up for every
-   rehearsal from the day they fill out the form) and unchecked before it.
+   Attendance default per row (`row.attendanceMode`, stamped at creation
+   from the sheet's own setting): 'out' (the default, and every row from
+   before the setting) — a day is checked from the row's own createdAt
+   date onward (everyone auto-signed-up from the day they fill out the
+   form) and unchecked before it; 'in' — every day starts unchecked.
    `row.dayOverrides` ({dayId: bool}) stores only explicit deviations from
-   that default — see faellesIsDayChecked/faellesRowJoinDate below.
+   that default — see faellesDayDefault/faellesIsDayChecked below.
 
    Same privacy posture as Budget/Forms: names and food preferences never
    touch the public repo / embed pipeline, only the private Simply.com
@@ -20,16 +22,16 @@
 
    One audience for the grid itself (any revyst+ visitor can add/edit/
    delete any row — a fully open shared spreadsheet, no per-row
-   ownership). Boss additionally gets:
+   ownership). Boss/admin additionally get:
    - a "+" after the last date column to add a Fællesspisning-only day
      column directly (stored on this page's own private document, via
      `faelles_add_day` — never the public `calendar` resource, so it does
      NOT create a Kalender event).
-   Admin (not boss) additionally gets:
-   - a "Forbind" button to connect the sheet to a Formularer form (which
-     field answers Navn, which answers Madforbehold) — once connected,
-     every response (existing and future) is synced into the grid
-     automatically, no manual re-import needed.
+   - the "Boss Box" card above the sheet: "Forbind til formular" (connect
+     the sheet to a Formularer form — which field answers Navn, which
+     answers Madforbehold — after which every response, existing and
+     future, is synced into the grid automatically) and the opt-in/opt-out
+     setting for rows added from then on.
 
    Only two columns exist beyond the day columns — Navn and Madforbehold,
    fixed, not boss-configurable (there used to be an extra-field editor
@@ -249,17 +251,30 @@ function faellesRowJoinDate(row) {
   return (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
 }
 
+// A saved row keeps the mode stamped on it at creation (none = it predates
+// the setting = 'out'); an unsaved draft previews the sheet's current one,
+// which is what the server will stamp on it.
+function faellesRowMode(row) {
+  if (row.id === null) return (faellesState && faellesState.attendanceMode) || 'out';
+  return row.attendanceMode === 'in' ? 'in' : 'out';
+}
+
+function faellesDayDefault(row, col) {
+  if (faellesRowMode(row) === 'in') return false;
+  return col.date >= faellesRowJoinDate(row);
+}
+
 function faellesIsDayChecked(row, col) {
   const overrides = row.dayOverrides || {};
   if (Object.prototype.hasOwnProperty.call(overrides, col.id)) return !!overrides[col.id];
-  return col.date >= faellesRowJoinDate(row);
+  return faellesDayDefault(row, col);
 }
 
 // ── State ─────────────────────────────────────────────────────
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { rows, connection, extraDays, hiddenDays, updatedAt } once loaded
+let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -282,6 +297,7 @@ async function faellesLoad(root) {
     connection: result.data.connection || null,
     extraDays: result.data.extraDays || [],
     hiddenDays: result.data.hiddenDays || [],
+    attendanceMode: result.data.attendanceMode === 'in' ? 'in' : 'out',
     updatedAt: result.data.updatedAt || null,
   };
   faellesRender(root);
@@ -291,21 +307,14 @@ function faellesRender(root) {
   root.replaceChildren();
   if (!faellesState) return;
 
+  if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
+    root.appendChild(faellesBuildBossBox(root));
+  }
+
   const card = el('section', 'card');
 
   const toolbar = el('div', 'faelles-toolbar');
   toolbar.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
-  const actions = el('div', 'faelles-toolbar-actions');
-  if (typeof siteHasLevel === 'function' && siteHasLevel('admin')) {
-    // Just "Forbind"/"Forbundet" at every width — the connected form's own
-    // title (however long) now shows inside the connect modal instead (see
-    // faellesOpenConnectModal's own "Forbundet til: …" line below).
-    const connectLabel = faellesState.connection ? 'Forbundet' : 'Forbind';
-    const connectBtn = faellesBtn(connectLabel);
-    connectBtn.addEventListener('click', () => faellesOpenConnectModal(root));
-    actions.appendChild(connectBtn);
-  }
-  toolbar.appendChild(actions);
   card.appendChild(toolbar);
 
   card.appendChild(el('div', 'faelles-error'));
@@ -318,6 +327,62 @@ function faellesRender(root) {
   card.appendChild(wrap);
 
   root.appendChild(card);
+}
+
+// ── Boss Box (boss/admin settings above the sheet) ───────────
+function faellesBuildBossBox(root) {
+  const card = el('section', 'card faelles-boss-card');
+  card.appendChild(el('h2', null, 'Boss Box'));
+
+  const connectSection = el('div', 'faelles-boss-section');
+  connectSection.appendChild(el('h3', null, 'Forbind til formular'));
+  connectSection.appendChild(el('p', 'faelles-boss-hint',
+    'Forbind arket til en formular fra Formularer, og vælg hvilke felter der svarer til Navn og Madforbehold. '
+    + 'Alle nuværende og fremtidige svar bliver automatisk tilføjet som rækker. '
+    + 'Fjerner du forbindelsen, bliver rækkerne stående.'));
+  const connectRow = el('div', 'faelles-boss-field');
+  const connection = faellesState.connection;
+  connectRow.appendChild(el('span', 'faelles-boss-status' + (connection ? ' faelles-boss-status-on' : ''),
+    connection ? `Forbundet til: ${connection.formTitle || 'formular'}` : 'Ikke forbundet'));
+  const connectBtn = faellesBtn(connection ? 'Skift forbindelse' : 'Forbind');
+  connectBtn.addEventListener('click', () => faellesOpenConnectModal(root));
+  connectRow.appendChild(connectBtn);
+  connectSection.appendChild(connectRow);
+  card.appendChild(connectSection);
+
+  const modeSection = el('div', 'faelles-boss-section');
+  modeSection.appendChild(el('h3', null, 'Tilmelding for nye rækker'));
+  modeSection.appendChild(el('p', 'faelles-boss-hint',
+    'Gælder kun rækker der tilføjes fremover — eksisterende rækker ændres ikke.'));
+  const modeOptions = [
+    { value: 'out', label: 'Automatisk tilmeldt alle dage (opt-out)' },
+    { value: 'in', label: 'Ikke tilmeldt nogen dage (opt-in)' },
+  ];
+  const picker = siteCreateDropdownField(modeOptions, faellesState.attendanceMode);
+  picker.classList.add('faelles-boss-select');
+  picker.setAttribute('aria-label', 'Tilmelding for nye rækker');
+  picker.addEventListener('change', async () => {
+    const previous = faellesState.attendanceMode;
+    const mode = picker.value;
+    if (mode === previous) return;
+    const result = await faellesApi('faelles_set_attendance_mode', { mode });
+    if (!result.ok) {
+      picker.value = previous;
+      if (result.message) siteShowToast(result.message);
+      return;
+    }
+    faellesState.attendanceMode = result.data.attendanceMode;
+    siteShowToast(faellesState.attendanceMode === 'in'
+      ? 'Nye rækker starter uden tilmeldte dage'
+      : 'Nye rækker bliver automatisk tilmeldt');
+  });
+  const modeRow = el('div', 'faelles-boss-field');
+  modeRow.appendChild(el('label', 'faelles-boss-label', 'Nye rækker'));
+  modeRow.appendChild(picker);
+  modeSection.appendChild(modeRow);
+  card.appendChild(modeSection);
+
+  return card;
 }
 
 function faellesBuildTable(root) {
@@ -443,7 +508,7 @@ function faellesRenderRow(row, columns, showAddDate) {
     cb.type = 'checkbox';
     cb.checked = faellesIsDayChecked(row, col);
     cb.addEventListener('change', () => {
-      const isDefault = cb.checked === (col.date >= faellesRowJoinDate(row));
+      const isDefault = cb.checked === faellesDayDefault(row, col);
       if (!row.dayOverrides) row.dayOverrides = {};
       if (isDefault) delete row.dayOverrides[col.id];
       else row.dayOverrides[col.id] = cb.checked;
@@ -506,6 +571,7 @@ async function faellesSendRow(row, tr) {
   const wasNew = row.id === null;
   row.id = result.data.row.id;
   row.createdAt = result.data.row.createdAt;
+  row.attendanceMode = result.data.row.attendanceMode;
   if (row._editSeq === seq) {
     row.answers = result.data.row.answers;
     row.dayOverrides = result.data.row.dayOverrides || {};
@@ -652,7 +718,7 @@ function faellesFormYear(f, currentYear) {
   return f.productionYear != null ? f.productionYear : currentYear;
 }
 
-// ── Boss: connect the sheet to a Formularer form ─────────────
+// ── Boss: connect the sheet to a Formularer form (from the Boss Box) ──
 // Pick a form (e.g. "Tilmelding 2026"), then which of its fields answers
 // Navn and which answers Madforbehold. Reuses Forms' own boss-level
 // actions directly (forms_admin_list/forms_admin_read) rather than adding

@@ -21,10 +21,71 @@
   font-size: 0.9rem;
 }
 
-.faelles-toolbar-actions {
+/* --- Boss Box (boss/admin settings above the sheet) ---------------- */
+
+.faelles-boss-card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.15rem;
+}
+
+.faelles-boss-section h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.faelles-boss-section + .faelles-boss-section {
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.faelles-boss-hint {
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* Label/status and control on one line (copy of band.css's .band-boss-field). */
+.faelles-boss-field {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.5rem 0.75rem;
+}
+
+.faelles-boss-label,
+.faelles-boss-status {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.faelles-boss-label {
+  white-space: nowrap;
+}
+
+.faelles-boss-status-on {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* As wide as its text, beside the label (overrides .site-field-btn's
+   width: 100%) — same as band.css's .band-boss-select. */
+.faelles-boss-select {
+  flex: 0 0 auto;
+  width: auto;
+  height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.85rem;
+  background: var(--surface);
+}
+
+@media (max-width: 719px) {
+  .faelles-boss-field {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .faelles-error {

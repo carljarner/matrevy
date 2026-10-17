@@ -3368,37 +3368,73 @@ function renderDropTailCard(laneCode) {
 }
 
 // ── Tab 1: Vælg scener ─────────────────────────────────────────
+// Each type renders as two collapsible cards, "<Type> (valgt)" (open) above
+// "<Type> (ikke valgt)" (closed) — the same split the upload pool shows
+// (renderColumns()), chosen = the draft row's `selected`. Open/closed state
+// survives re-renders (e.g. after the Vælg scener overlay's Gem) via
+// manusSelectColExpanded, keyed `<type>:<valgt|ikke>`; a reload resets it.
+const manusSelectColExpanded = new Map();
+
 function renderSelectColumn(type) {
+  const rows = manusDraft.rows.filter(r => manusRowType(r) === type);
+  const label = MANUS_TYPE_COLUMN_LABEL[type];
+  const stack = document.createElement('div');
+  stack.className = 'manus-columns-stack';
+  stack.appendChild(renderSelectColumnCard(rows.filter(r => r.selected === true), {
+    label: `${label} (valgt)`, stateKey: `${type}:valgt`, defaultExpanded: true,
+    emptyText: rows.length ? 'Ingen valgt.' : 'Ingen upload endnu.',
+  }));
+  stack.appendChild(renderSelectColumnCard(rows.filter(r => r.selected !== true), {
+    label: `${label} (ikke valgt)`, stateKey: `${type}:ikke`, defaultExpanded: false,
+    emptyText: 'Ingen.',
+  }));
+  return stack;
+}
+
+function renderSelectColumnCard(rows, { label, stateKey, defaultExpanded, emptyText }) {
   const section = document.createElement('section');
   section.className = 'card manus-column';
 
-  const rows = manusDraft.rows.filter(r => manusRowType(r) === type);
   const { normal, fisk } = manusSortWithFisk(rows, manusRowIsFisk, manusRowTitle);
-  const selectedCount = rows.filter(r => r.selected === true).length;
-
-  const header = document.createElement('div');
-  header.className = 'manus-col-header';
-  const h2 = document.createElement('h2');
-  h2.textContent = MANUS_TYPE_COLUMN_LABEL[type];
-  header.appendChild(h2);
-  const count = document.createElement('span');
-  count.className = 'manus-col-count';
-  count.textContent = `(${selectedCount})`;
-  header.appendChild(count);
-  section.appendChild(header);
+  let expanded = manusSelectColExpanded.has(stateKey) ? manusSelectColExpanded.get(stateKey) : defaultExpanded;
 
   const list = document.createElement('div');
   list.className = 'manus-col-list';
+
+  const header = document.createElement('button');
+  header.type = 'button';
+  header.className = 'manus-col-header';
+  header.setAttribute('aria-expanded', String(expanded));
+  const chevron = document.createElement('span');
+  chevron.className = 'manus-chevron';
+  chevron.textContent = '▾';
+  header.appendChild(chevron);
+  header.addEventListener('click', () => {
+    expanded = !expanded;
+    manusSelectColExpanded.set(stateKey, expanded);
+    header.setAttribute('aria-expanded', String(expanded));
+    list.style.display = expanded ? '' : 'none';
+  });
+  const h2 = document.createElement('h2');
+  h2.textContent = label;
+  header.appendChild(h2);
+  const count = document.createElement('span');
+  count.className = 'manus-col-count';
+  count.textContent = `(${rows.length})`;
+  header.appendChild(count);
+  section.appendChild(header);
+
   if (!rows.length) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
-    empty.textContent = 'Ingen upload endnu.';
+    empty.textContent = emptyText;
     list.appendChild(empty);
   } else {
     for (const row of normal) list.appendChild(renderSelectRow(row));
     if (fisk.length) list.appendChild(manusCreateFiskDivider());
     for (const row of fisk) list.appendChild(renderSelectRow(row, { displayTitle: manusFiskLabel(manusRowTitle(row)) }));
   }
+  list.style.display = expanded ? '' : 'none';
   section.appendChild(list);
 
   return section;
@@ -6679,7 +6715,7 @@ function renderAdminSettings() {
   const head = document.createElement('div');
   head.className = 'card-head';
   const h2 = document.createElement('h2');
-  h2.textContent = 'Boss-indstillinger';
+  h2.textContent = 'Boss Box';
   head.appendChild(h2);
   section.appendChild(head);
 

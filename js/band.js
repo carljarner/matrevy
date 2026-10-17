@@ -579,7 +579,7 @@ function bandRenderOversigt(root) {
 // Which revy/instance ordinary revyster can edit; the rest are view-only.
 function bandBuildBossSettingsCard() {
   const card = el('section', 'card band-boss-card');
-  card.appendChild(el('h2', null, 'Boss-indstillinger'));
+  card.appendChild(el('h2', null, 'Boss Box'));
   card.appendChild(el('p', 'band-muted band-boss-hint',
     'Revyster kan kun redigere den aktive mappe'));
   const options = bandRevyOptions();
