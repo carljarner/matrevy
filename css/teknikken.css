@@ -89,7 +89,38 @@
   width: min(380px, 92vw);
 }
 
-/* --- Card head: breadcrumb | buttons ------------------------------- */
+/* --- Usage bar: top centre, above the card ------------------------- */
+.teknik-usage {
+  max-width: 26rem;
+  margin: 0 auto 1.25rem;
+  text-align: center;
+}
+
+.teknik-usage-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--input-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.teknik-usage-fill {
+  height: 100%;
+  background: var(--accent-warm);
+  transition: width 0.3s ease;
+}
+
+.teknik-usage-full .teknik-usage-fill {
+  background: var(--danger);
+}
+
+.teknik-usage-text {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* --- Card head: title | buttons ------------------------------------ */
 .teknik-card-head {
   display: flex;
   align-items: center;
@@ -99,65 +130,33 @@
   margin-bottom: 0.75rem;
 }
 
-.teknik-breadcrumb {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-  min-width: 0;
-}
-
-.teknik-crumb-current {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.teknik-crumb {
-  background: none;
-  border: 1px solid transparent;
-  padding: 0.1rem 0.35rem;
-  font: inherit;
-  font-size: 16.5px; /* = the card's h2 (the current folder) */
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .teknik-crumb:hover {
-    color: var(--accent-warm-text);
-    text-decoration: underline;
-  }
-}
-
-.teknik-crumb:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-.teknik-crumb-sep {
-  color: var(--text-muted);
-}
-
 .teknik-head-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-/* --- Folder/file list ---------------------------------------------- */
+/* --- Folder/file tree ---------------------------------------------- */
 .teknik-card {
   transition: box-shadow 0.15s ease;
 }
 
+/* --depth (set per row) indents an open folder's contents. */
 .teknik-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.35rem 0.25rem;
+  padding: 0.35rem 0.25rem 0.35rem calc(0.25rem + var(--depth, 0) * 1.6rem);
   box-shadow: inset 0 -1px 0 0 var(--border);
   border-radius: 4px;
+}
+
+.teknik-file-row {
+  cursor: grab;
+}
+
+.teknik-row.teknik-dragging {
+  opacity: 0.45;
 }
 
 .teknik-row-main {
@@ -198,10 +197,18 @@
   font-weight: 600;
 }
 
+.teknik-chevron {
+  flex: none;
+  width: 0.9rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Chevron + icon take the same width as a file's badge, so names line up. */
 .teknik-folder-icon {
   display: inline-flex;
   flex: none;
-  min-width: 3.6rem;
+  width: calc(3.6rem - 0.9rem - 0.6rem);
   justify-content: center;
   color: var(--accent-warm-text);
 }
@@ -220,20 +227,51 @@
   flex: none;
 }
 
+.teknik-empty-row {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  padding-left: calc(4.45rem + var(--depth, 0) * 1.6rem);
+}
+
 .teknik-empty {
   text-align: center;
   padding: 1.5rem 0;
 }
 
-/* Files dragged from the desktop over the card / a folder / a crumb. */
-.teknik-card.teknik-dragover {
+.teknik-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  margin: 0.75rem 0 0;
+}
+
+/* Dragging needs a mouse; touch screens move files from the edit modal. */
+@media (hover: none) {
+  .teknik-hint { display: none; }
+}
+
+/* Drop highlight: a folder row, or the whole card for the top level. */
+.teknik-card.teknik-drop-target {
   box-shadow: 0 0 0 2px var(--accent-warm);
 }
 
-.teknik-row.teknik-dragover,
-.teknik-crumb.teknik-dragover {
+.teknik-row.teknik-drop-target {
   background: var(--accent-warm-fill);
   box-shadow: inset 0 0 0 2px var(--accent-warm);
+}
+
+/* Off-screen drag image (the site-wide recipe — never display:none). */
+.teknik-drag-ghost {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--accent-warm);
+  color: var(--text);
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 /* Type badge — band.css's .band-file-kind, one colour per kind. */
@@ -255,6 +293,49 @@
 .teknik-kind-pdf { background: var(--danger); }
 .teknik-kind-image { background: var(--success); }
 .teknik-kind-audio { background: var(--accent); }
+
+/* --- Upload modal -------------------------------------------------- */
+.teknik-upload-modal {
+  width: min(460px, 92vw);
+}
+
+.teknik-upload-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.teknik-upload-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.teknik-upload-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.teknik-upload-item-size {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.teknik-upload-space {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
 
 /* --- Upload panel -------------------------------------------------- */
 .teknik-uploads-head {
@@ -323,6 +404,11 @@
   .teknik-row {
     flex-wrap: wrap;
     row-gap: 0;
+    padding-left: calc(0.25rem + var(--depth, 0) * 1rem);
+  }
+
+  .teknik-empty-row {
+    padding-left: calc(4.45rem + var(--depth, 0) * 1rem);
   }
 
   .teknik-row-main {
