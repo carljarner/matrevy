@@ -274,7 +274,7 @@ function faellesIsDayChecked(row, col) {
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, updatedAt } once loaded
+let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, notice, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -298,6 +298,7 @@ async function faellesLoad(root) {
     extraDays: result.data.extraDays || [],
     hiddenDays: result.data.hiddenDays || [],
     attendanceMode: result.data.attendanceMode === 'in' ? 'in' : 'out',
+    notice: typeof result.data.notice === 'string' ? result.data.notice : '',
     updatedAt: result.data.updatedAt || null,
   };
   faellesRender(root);
@@ -315,6 +316,7 @@ function faellesRender(root) {
 
   const toolbar = el('div', 'faelles-toolbar');
   toolbar.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
+  toolbar.appendChild(faellesBuildNotice());
   card.appendChild(toolbar);
 
   card.appendChild(el('div', 'faelles-error'));
@@ -329,10 +331,72 @@ function faellesRender(root) {
   root.appendChild(card);
 }
 
+// ── Notice centered above the sheet (boss/admin edit it in place) ──
+// Plain text below boss; boss/admin get an inline-styled input (Fællesspisning's
+// own inline field recipe) that saves on blur/Enter.
+function faellesBuildNotice() {
+  const wrap = el('div', 'faelles-notice-wrap');
+  if (!(typeof siteHasLevel === 'function' && siteHasLevel('boss'))) {
+    if (faellesState.notice) wrap.appendChild(el('div', 'faelles-notice', faellesState.notice));
+    return wrap;
+  }
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'faelles-notice faelles-notice-input';
+  input.maxLength = 200;
+  input.value = faellesState.notice;
+  input.placeholder = 'Tilføj en besked…';
+  input.setAttribute('aria-label', 'Besked over arket');
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') input.blur();
+    else if (e.key === 'Escape') { input.value = faellesState.notice; input.blur(); }
+  });
+  input.addEventListener('blur', async () => {
+    const value = input.value.trim();
+    if (value === faellesState.notice) { input.value = value; return; }
+    faellesSavesPending++;
+    const result = await faellesApi('faelles_set_notice', { notice: value });
+    faellesSavesPending--;
+    if (!result.ok) {
+      input.value = faellesState.notice;
+      if (result.message) siteShowToast(result.message);
+      return;
+    }
+    faellesState.notice = result.data.notice;
+    input.value = faellesState.notice;
+  });
+  wrap.appendChild(input);
+  return wrap;
+}
+
 // ── Boss Box (boss/admin settings above the sheet) ───────────
+// Collapsed on every page load; kept in memory only, so it stays open across
+// faellesRender's re-render after connecting/disconnecting.
+let faellesBossBoxOpen = false;
+
 function faellesBuildBossBox(root) {
   const card = el('section', 'card faelles-boss-card');
-  card.appendChild(el('h2', null, 'Boss Box'));
+  const body = el('div', 'faelles-boss-body');
+  const heading = el('h2', 'faelles-boss-heading');
+  const toggle = el('button', 'faelles-boss-toggle');
+  toggle.type = 'button';
+  const chevron = el('span', 'faelles-boss-chevron');
+  toggle.appendChild(chevron);
+  toggle.appendChild(document.createTextNode('Boss Box'));
+  heading.appendChild(toggle);
+  card.appendChild(heading);
+  card.appendChild(body);
+  const applyOpen = () => {
+    chevron.textContent = faellesBossBoxOpen ? '▾' : '▸';
+    toggle.setAttribute('aria-expanded', faellesBossBoxOpen ? 'true' : 'false');
+    body.hidden = !faellesBossBoxOpen;
+    card.classList.toggle('open', faellesBossBoxOpen);
+  };
+  toggle.addEventListener('click', () => {
+    faellesBossBoxOpen = !faellesBossBoxOpen;
+    applyOpen();
+  });
+  applyOpen();
 
   const connectSection = el('div', 'faelles-boss-section');
   connectSection.appendChild(el('h3', null, 'Forbind til formular'));
@@ -348,15 +412,15 @@ function faellesBuildBossBox(root) {
   connectBtn.addEventListener('click', () => faellesOpenConnectModal(root));
   connectRow.appendChild(connectBtn);
   connectSection.appendChild(connectRow);
-  card.appendChild(connectSection);
+  body.appendChild(connectSection);
 
   const modeSection = el('div', 'faelles-boss-section');
   modeSection.appendChild(el('h3', null, 'Tilmelding for nye rækker'));
   modeSection.appendChild(el('p', 'faelles-boss-hint',
-    'Gælder kun rækker der tilføjes fremover — eksisterende rækker ændres ikke.'));
+    'Gælder kun rækker der tilføjes fremover.'));
   const modeOptions = [
-    { value: 'out', label: 'Automatisk tilmeldt alle dage (opt-out)' },
-    { value: 'in', label: 'Ikke tilmeldt nogen dage (opt-in)' },
+    { value: 'out', label: 'Automatisk tilmeldt alle dage' },
+    { value: 'in', label: 'Ikke tilmeldt nogen dage' },
   ];
   const picker = siteCreateDropdownField(modeOptions, faellesState.attendanceMode);
   picker.classList.add('faelles-boss-select');
@@ -377,10 +441,10 @@ function faellesBuildBossBox(root) {
       : 'Nye rækker bliver automatisk tilmeldt');
   });
   const modeRow = el('div', 'faelles-boss-field');
-  modeRow.appendChild(el('label', 'faelles-boss-label', 'Nye rækker'));
+  modeRow.appendChild(el('label', 'faelles-boss-label', 'Nye rækker er'));
   modeRow.appendChild(picker);
   modeSection.appendChild(modeRow);
-  card.appendChild(modeSection);
+  body.appendChild(modeSection);
 
   return card;
 }

@@ -3571,7 +3571,9 @@ function manusCreateDurationInput(row) {
 // call site below omits both and falls back to the row's real committed state.
 function renderSelectRow(row, { interactive = false, selected = row.selected === true, onToggle = null, displayTitle = manusRowTitle(row) } = {}) {
   const el = document.createElement('div');
-  el.className = 'manus-select-row' + (selected ? ' manus-select-row-selected' : '');
+  // Only the overlay's toggle rows show the selected highlight — the tab's
+  // read-only lists already sit in separate "(valgt)"/"(ikke valgt)" cards.
+  el.className = 'manus-select-row' + (interactive && selected ? ' manus-select-row-selected' : '');
 
   // Outside the selection overlay this row is just a read-only listing (like
   // the upload pool's own columns — see renderPdfRow), so the title opens

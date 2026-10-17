@@ -241,6 +241,7 @@ $FAELLES_ACTIONS = [
   'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
   'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
   'faelles_set_attendance_mode' => 'boss', // 'out' (new rows auto-signed-up) or 'in' (new rows start unchecked) — only rows created afterwards
+  'faelles_set_notice'      => 'boss',   // the short text shown centered above the sheet ('' = none)
   'faelles_add_day'         => 'boss',   // add a Fællesspisning-only day column (never the public `calendar` resource)
   'faelles_delete_day'      => 'boss',   // remove one — the only way to correct a mistaken add
   'faelles_hide_day'        => 'boss',   // hide a real calendar-sourced day column from this sheet only — the event itself is untouched
@@ -3356,6 +3357,12 @@ function faelles_attendance_mode($doc) {
   return (($doc['attendanceMode'] ?? null) === 'in') ? 'in' : 'out';
 }
 
+// The short boss-editable text centered above the sheet. Never set = the
+// default below; a boss can clear it to '' (shows nothing).
+function faelles_notice($doc) {
+  return (isset($doc['notice']) && is_string($doc['notice'])) ? $doc['notice'] : 'Madtilmelding lukker kl. 12 på dagen';
+}
+
 // A document written before extraDays/hiddenDays existed has no such key —
 // back-fill rather than migrate on disk, same posture as
 // budget_normalize_years_shape.
@@ -3605,7 +3612,7 @@ function faelles_maybe_sync($doc) {
 function faelles_read($body) {
   $doc = faelles_load();
   $doc = faelles_maybe_sync($doc);
-  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Revyst: create (no rowId) or update (rowId given) one row from an
@@ -3719,6 +3726,19 @@ function faelles_set_attendance_mode($body) {
   respond(200, ['ok' => true, 'attendanceMode' => faelles_attendance_mode($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
+// Boss: sets the text shown centered above the sheet (see faelles_notice).
+function faelles_set_notice($body) {
+  $notice = $body['notice'] ?? null;
+  if (!is_string($notice) || mb_strlen($notice) > 200) respond(400, ['error' => 'invalid_shape']);
+  $notice = trim($notice);
+  $doc = faelles_mutate(function ($doc) use ($notice) {
+    $doc['notice'] = $notice;
+    $doc['updatedAt'] = date('c');
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'notice' => faelles_notice($doc), 'updatedAt' => $doc['updatedAt']]);
+}
+
 // Boss: adds a Fællesspisning-only day column — never written to the
 // public `calendar` resource (see the "+" button's own comment in
 // faellesspisning.js), so this does NOT create a Kalender event.
@@ -3784,6 +3804,7 @@ function handle_faelles($action, $body) {
     case 'faelles_delete_row':      return faelles_delete_row($body);
     case 'faelles_save_connection': return faelles_save_connection($body);
     case 'faelles_set_attendance_mode': return faelles_set_attendance_mode($body);
+    case 'faelles_set_notice':      return faelles_set_notice($body);
     case 'faelles_add_day':         return faelles_add_day($body);
     case 'faelles_delete_day':      return faelles_delete_day($body);
     case 'faelles_hide_day':        return faelles_hide_day($body);
