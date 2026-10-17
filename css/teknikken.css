@@ -239,15 +239,10 @@
   padding: 1.5rem 0;
 }
 
-.teknik-hint {
-  text-align: center;
-  font-size: 0.8rem;
-  margin: 0.75rem 0 0;
-}
-
-/* Dragging needs a mouse; touch screens move files from the edit modal. */
-@media (hover: none) {
-  .teknik-hint { display: none; }
+.teknik-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
 }
 
 /* Drop highlight: a folder row, or the whole card for the top level. */

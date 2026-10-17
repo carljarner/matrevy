@@ -309,12 +309,6 @@ function teknikRender() {
   const uploadBtn = teknikBtn('Upload filer');
   uploadBtn.addEventListener('click', () => teknikPickFiles(null));
   headActions.appendChild(uploadBtn);
-  if (teknikState.files.length) {
-    const allBtn = teknikBtn('Download alt');
-    allBtn.title = 'Hele Teknikken som én .zip-fil';
-    allBtn.addEventListener('click', () => teknikDownloadFolder(null));
-    headActions.appendChild(allBtn);
-  }
   head.appendChild(headActions);
   card.appendChild(head);
 
@@ -325,8 +319,14 @@ function teknikRender() {
       'Her er ingen filer endnu. Opret en mappe, eller træk filer hertil.'));
   }
   card.appendChild(list);
-  card.appendChild(el('p', 'teknik-muted teknik-hint',
-    'Træk en fil over på en mappe for at flytte den — eller herned for at lægge den øverst.'));
+  if (teknikState.files.length) {
+    const foot = el('div', 'teknik-card-foot');
+    const allBtn = teknikBtn('Download alt');
+    allBtn.title = 'Hele Teknikken som én .zip-fil';
+    allBtn.addEventListener('click', () => teknikDownloadFolder(null));
+    foot.appendChild(allBtn);
+    card.appendChild(foot);
+  }
   teknikWireDrop(card);
 
   // The usage bar and the upload panel survive re-renders of the list.
