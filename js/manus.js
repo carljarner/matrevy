@@ -3794,6 +3794,413 @@ function renderSelectionColumn() {
   return section;
 }
 
+// ── "Custom Print": one merged PDF of chosen scenes, N copies each ──
+// Its own card between Udvælgelse and Videoer & Bandsange. Per type, a
+// modal picks scenes (Scener) and copies per scene (Antal, default = the
+// scene's number of roles); Print fetches each scene's PDF, merges them
+// alphabetically with pdf-lib (vendored, lazy-loaded) and opens the result
+// in a new tab. Picks and edited counts are per browser, keyed by row uid.
+const MANUS_CUSTOM_PRINT_KEY = 'matrevy-manus-custom-print';
+
+function renderCustomPrintColumn() {
+  const section = document.createElement('section');
+  section.className = 'card manus-column';
+
+  const header = document.createElement('div');
+  header.className = 'manus-col-header';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Custom Print';
+  header.appendChild(h2);
+  section.appendChild(header);
+
+  const group = renderSelectPanelGroup('Print');
+  const btnRow = document.createElement('div');
+  btnRow.className = 'manus-select-panel-btn-row';
+  for (const type of MANUS_TYPES) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'site-btn-warm';
+    btn.textContent = MANUS_TYPE_COLUMN_LABEL[type];
+    btn.addEventListener('click', () => openCustomPrintModal(type));
+    btnRow.appendChild(btn);
+  }
+  group.appendChild(btnRow);
+  section.appendChild(group);
+
+  return section;
+}
+
+function loadCustomPrintStore() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MANUS_CUSTOM_PRINT_KEY) || '{}');
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveCustomPrintStore(store) {
+  try { localStorage.setItem(MANUS_CUSTOM_PRINT_KEY, JSON.stringify(store)); } catch (e) { /* private mode */ }
+}
+
+function manusCustomPrintId(row) {
+  return row.uid || row.key;
+}
+
+let manusPdfLibPromise = null;
+
+function manusLoadPdfLib() {
+  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  if (!manusPdfLibPromise) {
+    manusPdfLibPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'js/vendor/pdf-lib.min.js';
+      script.onload = () => (window.PDFLib ? resolve(window.PDFLib) : reject(new Error('pdf-lib')));
+      script.onerror = () => { manusPdfLibPromise = null; reject(new Error('pdf-lib')); };
+      document.head.appendChild(script);
+    });
+  }
+  return manusPdfLibPromise;
+}
+
+// Role count from the row's .tex, for a row whose roles aren't imported yet
+// (read-only — never touches row.cast). Cached per tex path for the page.
+const manusTexRoleCountCache = new Map();
+
+function manusTexRoleCount(row) {
+  const texPath = manusRowTexPath(row);
+  if (!texPath) return Promise.resolve(null);
+  if (!manusTexRoleCountCache.has(texPath)) {
+    manusTexRoleCountCache.set(texPath, fetch(MANUS_TEX_RAW_BASE + texPath)
+      .then(res => (res.ok ? res.text() : null))
+      .then(text => (text === null ? null : extractTexRoles(text).length))
+      .catch(() => null));
+  }
+  return manusTexRoleCountCache.get(texPath);
+}
+
+function openCustomPrintModal(type) {
+  const store = loadCustomPrintStore();
+  if (!store[type] || typeof store[type] !== 'object') store[type] = {};
+  const bucket = store[type];
+  if (!bucket.picked || typeof bucket.picked !== 'object') bucket.picked = {};
+  if (!bucket.counts || typeof bucket.counts !== 'object') bucket.counts = {};
+
+  const rows = manusDraft.rows.filter(r => manusRowType(r) === type && manusRowPdfPath(r));
+  const byTitle = (a, b) => manusRowTitle(a).localeCompare(manusRowTitle(b), 'da');
+  // Role-count defaults resolved from .tex files, by row id.
+  const texCounts = new Map();
+  let page = 'scenes'; // 'scenes' | 'counts'
+
+  const { modal, form, actions, close } = siteOpenModalWithClose(
+    `Custom Print (${MANUS_TYPE_COLUMN_LABEL[type]})`
+  );
+  modal.classList.add('manus-akt-modal');
+  actions.style.display = 'none';
+
+  const persist = () => saveCustomPrintStore(store);
+  const isPicked = row => bucket.picked[manusCustomPrintId(row)] === true;
+  const setPicked = (row, picked) => {
+    const id = manusCustomPrintId(row);
+    if (picked) bucket.picked[id] = true;
+    else delete bucket.picked[id];
+  };
+
+  // null = not known yet (the .tex is still being read).
+  function defaultCount(row) {
+    const n = manusCastCount(row);
+    if (n > 0) return n;
+    const id = manusCustomPrintId(row);
+    return texCounts.has(id) ? texCounts.get(id) : null;
+  }
+
+  function effectiveCount(row) {
+    const stored = bucket.counts[manusCustomPrintId(row)];
+    if (Number.isInteger(stored) && stored >= 0) return stored;
+    const d = defaultCount(row);
+    return d && d > 0 ? d : 1;
+  }
+
+  function renderBody() {
+    form.textContent = '';
+
+    const tabs = document.createElement('div');
+    tabs.className = 'manus-points-view-tabs';
+    for (const [key, label] of [['scenes', 'Scener'], ['counts', 'Antal']]) {
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'manus-points-view-tab';
+      tab.classList.toggle('active', page === key);
+      tab.textContent = label;
+      tab.addEventListener('click', () => {
+        if (page === key) return;
+        page = key;
+        renderBody();
+      });
+      tabs.appendChild(tab);
+    }
+    form.appendChild(tabs);
+
+    const pageEl = document.createElement('div');
+    pageEl.className = 'manus-akt-page';
+    form.appendChild(pageEl);
+    if (page === 'scenes') renderScenesPage(pageEl);
+    else renderCountsPage(pageEl);
+
+    const buttonRow = document.createElement('div');
+    buttonRow.className = 'manus-points-grid-row';
+
+    const printBtn = document.createElement('button');
+    printBtn.type = 'button';
+    printBtn.className = 'site-btn-success manus-points-col-center';
+    printBtn.textContent = 'Print';
+    printBtn.addEventListener('click', () => manusCustomPrint(rows.filter(isPicked).sort(byTitle), effectiveCount, printBtn));
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'site-btn-warm manus-points-col-end';
+    closeBtn.textContent = 'Luk';
+    closeBtn.addEventListener('click', close);
+
+    buttonRow.appendChild(printBtn);
+    buttonRow.appendChild(closeBtn);
+    form.appendChild(buttonRow);
+  }
+
+  function renderScenesPage(pageEl) {
+    const count = document.createElement('p');
+    count.className = 'manus-akt-count';
+    pageEl.appendChild(count);
+    const updateCount = () => {
+      count.textContent = `${rows.filter(isPicked).length} af ${rows.length} valgt`;
+    };
+    updateCount();
+
+    const scroll = document.createElement('div');
+    scroll.className = 'manus-akt-scroll';
+    pageEl.appendChild(scroll);
+
+    if (!rows.length) {
+      const empty = document.createElement('p');
+      empty.className = 'manus-col-empty';
+      empty.textContent = 'Ingen scener med PDF endnu.';
+      scroll.appendChild(empty);
+      return;
+    }
+
+    const label = MANUS_TYPE_COLUMN_LABEL[type];
+    const groups = rows.some(r => r.selected === true)
+      ? [[`${label} (valgt)`, rows.filter(r => r.selected === true)],
+         [`${label} (ikke valgt)`, rows.filter(r => r.selected !== true)]]
+      : [[label, rows]];
+
+    for (const [heading, groupRows] of groups) {
+      const group = document.createElement('div');
+      group.className = 'manus-cprint-group';
+
+      const head = document.createElement('div');
+      head.className = 'manus-cprint-group-head';
+      const h3 = document.createElement('h3');
+      h3.textContent = heading;
+      head.appendChild(h3);
+      const allBtn = document.createElement('button');
+      allBtn.type = 'button';
+      allBtn.className = 'btn-small';
+      head.appendChild(allBtn);
+      group.appendChild(head);
+
+      const list = document.createElement('div');
+      list.className = 'manus-col-list manus-akt-scene-grid';
+      const syncs = [];
+      const syncAllBtn = () => {
+        const allPicked = groupRows.length > 0 && groupRows.every(isPicked);
+        allBtn.textContent = allPicked ? 'Fravælg alle' : 'Vælg alle';
+        allBtn.disabled = !groupRows.length;
+      };
+      allBtn.addEventListener('click', () => {
+        const pick = !groupRows.every(isPicked);
+        for (const row of groupRows) setPicked(row, pick);
+        persist();
+        for (const sync of syncs) sync();
+        syncAllBtn();
+        updateCount();
+      });
+
+      const addRow = (row, displayTitle) => {
+        const el = document.createElement('div');
+        el.className = 'manus-select-row';
+        el.setAttribute('role', 'button');
+        el.tabIndex = 0;
+        const title = document.createElement('span');
+        title.className = 'manus-pdf-title';
+        title.textContent = displayTitle;
+        el.appendChild(title);
+        const sync = () => {
+          const picked = isPicked(row);
+          el.classList.toggle('manus-select-row-selected', picked);
+          el.setAttribute('aria-pressed', String(picked));
+        };
+        const toggle = () => {
+          setPicked(row, !isPicked(row));
+          persist();
+          sync();
+          syncAllBtn();
+          updateCount();
+        };
+        el.addEventListener('click', toggle);
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+        });
+        sync();
+        syncs.push(sync);
+        list.appendChild(el);
+      };
+
+      if (!groupRows.length) {
+        const empty = document.createElement('p');
+        empty.className = 'manus-col-empty';
+        empty.textContent = 'Ingen.';
+        list.appendChild(empty);
+      } else {
+        const { normal, fisk } = manusSortWithFisk(groupRows, manusRowIsFisk, manusRowTitle);
+        for (const row of normal) addRow(row, manusRowTitle(row));
+        if (fisk.length) list.appendChild(manusCreateFiskDivider());
+        for (const row of fisk) addRow(row, manusFiskLabel(manusRowTitle(row)));
+      }
+      syncAllBtn();
+      group.appendChild(list);
+      scroll.appendChild(group);
+    }
+  }
+
+  function renderCountsPage(pageEl) {
+    const picked = rows.filter(isPicked).sort(byTitle);
+
+    const total = document.createElement('p');
+    total.className = 'manus-akt-count';
+    pageEl.appendChild(total);
+    const updateTotal = () => {
+      const n = picked.reduce((sum, row) => sum + effectiveCount(row), 0);
+      total.textContent = `${picked.length} scener, ${n} eksemplarer i alt`;
+    };
+    updateTotal();
+
+    const scroll = document.createElement('div');
+    scroll.className = 'manus-akt-scroll';
+    pageEl.appendChild(scroll);
+
+    if (!picked.length) {
+      const empty = document.createElement('p');
+      empty.className = 'manus-col-empty';
+      empty.textContent = 'Vælg scener under Scener først.';
+      scroll.appendChild(empty);
+      return;
+    }
+
+    const list = document.createElement('div');
+    list.className = 'manus-col-list manus-akt-scene-grid';
+    for (const row of picked) {
+      const id = manusCustomPrintId(row);
+      const el = document.createElement('div');
+      el.className = 'manus-select-row';
+
+      const title = document.createElement('span');
+      title.className = 'manus-pdf-title';
+      title.textContent = manusRowIsFisk(row) ? manusFiskLabel(manusRowTitle(row)) : manusRowTitle(row);
+      el.appendChild(title);
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.className = 'manus-select-duration';
+      input.setAttribute('aria-label', `Antal af ${manusRowTitle(row)}`);
+      const paint = () => {
+        const stored = bucket.counts[id];
+        if (Number.isInteger(stored)) { input.value = String(stored); return; }
+        const pending = manusCastCount(row) === 0 && !texCounts.has(id);
+        input.value = pending ? '' : String(effectiveCount(row));
+        input.placeholder = pending ? '…' : '';
+      };
+      paint();
+      input.addEventListener('input', () => {
+        const v = input.value.replace(/[^0-9]/g, '').slice(0, 3);
+        if (v !== input.value) input.value = v;
+        // Empty = back to the role-count default.
+        if (v === '') delete bucket.counts[id];
+        else bucket.counts[id] = Number(v);
+        persist();
+        updateTotal();
+      });
+      input.addEventListener('blur', paint);
+      el.appendChild(input);
+
+      const suffix = document.createElement('span');
+      suffix.className = 'manus-akt-duration-suffix';
+      suffix.textContent = 'stk';
+      el.appendChild(suffix);
+
+      if (manusCastCount(row) === 0 && !texCounts.has(id)) {
+        manusTexRoleCount(row).then((n) => {
+          texCounts.set(id, n);
+          if (document.activeElement !== input) paint();
+          updateTotal();
+        });
+      }
+      list.appendChild(el);
+    }
+    scroll.appendChild(list);
+  }
+
+  renderBody();
+}
+
+// `rows` already in print order (alphabetical). The window is opened
+// synchronously in the click so popup blockers allow it (as bandOpenFile).
+async function manusCustomPrint(rows, countOf, btn) {
+  const jobs = rows.map(row => ({ row, count: countOf(row) })).filter(j => j.count > 0);
+  if (!jobs.length) {
+    siteShowToast('Vælg mindst én scene med et antal over 0.');
+    return;
+  }
+  const sameTab = siteIsIos();
+  const win = sameTab ? null : window.open('', '_blank');
+  if (win) win.document.title = 'Laver PDF…';
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Laver PDF…';
+  try {
+    const PDFLib = await manusLoadPdfLib();
+    const out = await PDFLib.PDFDocument.create();
+    for (const { row, count } of jobs) {
+      let src;
+      try {
+        const res = await fetch(manusRowPdfPath(row), { cache: 'no-cache' });
+        if (!res.ok) throw new Error(String(res.status));
+        src = await PDFLib.PDFDocument.load(await res.arrayBuffer(), { ignoreEncryption: true });
+      } catch (e) {
+        throw new Error(`Kunne ikke hente PDF'en til "${manusRowTitle(row)}".`);
+      }
+      const indices = src.getPageIndices();
+      for (let i = 0; i < count; i++) {
+        const pages = await out.copyPages(src, indices);
+        for (const p of pages) out.addPage(p);
+      }
+    }
+    const blob = new Blob([await out.save()], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    if (sameTab) { window.location.href = url; return; }
+    if (win) win.location.replace(url);
+    else window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+  } catch (e) {
+    if (win) win.close();
+    siteShowToast(e.message === 'pdf-lib' ? 'Kunne ikke indlæse PDF-værktøjet.' : e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
 // Its own card, stacked below Udvælgelse in the same (third) column — see
 // renderSelectTab()'s .manus-select-col-stack wrapper — rather than a panel
 // inside Udvælgelse, so it reads as a peer of Sange/Sketches, not a control
@@ -3957,12 +4364,13 @@ function renderSelectTab() {
   columns.className = 'manus-select-columns';
   for (const type of MANUS_TYPES) columns.appendChild(renderSelectColumn(type));
 
-  // Third column is a stack of two cards (Udvælgelse, then Videoer &
-  // Bandsange below it) rather than a single grid item, so the latter reads
-  // as its own section without disturbing the Sange/Sketches columns' widths.
+  // Third column is a stack of cards (Udvælgelse, Custom Print, then
+  // Videoer & Bandsange) rather than a single grid item, so each reads as
+  // its own section without disturbing the Sange/Sketches columns' widths.
   const col3 = document.createElement('div');
   col3.className = 'manus-select-col-stack';
   col3.appendChild(renderSelectionColumn());
+  col3.appendChild(renderCustomPrintColumn());
   col3.appendChild(renderMediaColumn());
   columns.appendChild(col3);
 

@@ -2076,6 +2076,27 @@ a.manus-pdf-title:focus-visible {
   font-weight: 600;
 }
 
+/* --- "Custom Print" modal (js/manus.js's openCustomPrintModal) ---------
+   Reuses the Aktfordeling modal's shape; adds a heading row per
+   valgt/ikke valgt group with its "Vælg alle" toggle. */
+.manus-cprint-group + .manus-cprint-group {
+  margin-top: 1rem;
+}
+
+.manus-cprint-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.manus-cprint-group-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 @media (max-width: 719px) {
   .manus-akt-labels {
     grid-template-columns: 1fr;
