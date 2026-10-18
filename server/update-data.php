@@ -6234,8 +6234,12 @@ function teknik_sweep_uploads() {
 function teknik_upload_start($body) {
   $folderId = teknik_folder_id_from($body['folderId'] ?? null);
   $name = teknik_clean_name($body['name'] ?? '');
+  // Who uploaded it: a free-text name (shared passwords, no real identity).
+  $uploadedBy = teknik_clean_name($body['uploadedBy'] ?? '');
   $size = $body['size'] ?? null;
-  if ($name === '' || !is_int($size) || $size < 1) respond(400, ['error' => 'invalid_shape']);
+  if ($name === '' || $uploadedBy === '' || mb_strlen($uploadedBy) > 80 || !is_int($size) || $size < 1) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
   if ($size > teknik_quota_bytes()) respond(413, ['error' => 'quota_exceeded']);
   $doc = teknik_load();
   if (!teknik_folder_exists($doc, $folderId)) respond(404, ['error' => 'not_found']);
@@ -6256,7 +6260,7 @@ function teknik_upload_start($body) {
     respond(413, ['error' => 'quota_exceeded', 'usedBytes' => $used, 'quotaBytes' => teknik_quota_bytes()]);
   }
   $uploadId = teknik_id() . bin2hex(random_bytes(4));
-  $meta = ['folderId' => $folderId, 'name' => $name, 'size' => $size, 'startedAt' => date('c')];
+  $meta = ['folderId' => $folderId, 'name' => $name, 'uploadedBy' => $uploadedBy, 'size' => $size, 'startedAt' => date('c')];
   $created = @file_put_contents(teknik_upload_path($uploadId, 'part'), '') !== false
     && @file_put_contents(teknik_upload_path($uploadId, 'json'), json_encode($meta)) !== false;
   flock($lock, LOCK_UN);
@@ -6332,6 +6336,7 @@ function teknik_upload_finish($body) {
     'size' => $meta['size'],
     'crc32' => $crc,
     'uploadedAt' => date('c'),
+    'uploadedBy' => is_string($meta['uploadedBy'] ?? null) ? $meta['uploadedBy'] : '',
   ];
   teknik_mutate(function ($doc) use ($file, $dest) {
     // The folder may have been deleted while the upload ran.

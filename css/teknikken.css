@@ -120,19 +120,25 @@
   font-size: 0.85rem;
 }
 
-/* --- Card head: title | buttons ------------------------------------ */
+/* --- Card head: title | + Mappe (centred) | upload buttons ---------- */
+/* 1fr auto 1fr keeps the middle truly centred whatever the sides measure. */
 .teknik-card-head {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
-  flex-wrap: wrap;
   margin-bottom: 0.75rem;
 }
 
-.teknik-head-actions {
-  display: flex;
-  flex-wrap: wrap;
+.teknik-head-center {
+  justify-self: center;
+}
+
+/* Equal widths: both buttons take the wider label's width. */
+.teknik-upload-btns {
+  justify-self: end;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.5rem;
 }
 
@@ -291,7 +297,7 @@
 
 /* --- Upload modal -------------------------------------------------- */
 .teknik-upload-modal {
-  width: min(460px, 92vw);
+  width: min(520px, 92vw);
 }
 
 .teknik-upload-list {
@@ -302,13 +308,29 @@
   overflow-y: auto;
 }
 
+/* Same look as .edit-field label (Uploadet af / Upload til). */
+.teknik-upload-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 .teknik-upload-item {
+  margin-bottom: 0.6rem;
+}
+
+.teknik-upload-item-head {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.3rem 0;
-  font-size: 0.9rem;
-  box-shadow: inset 0 -1px 0 0 var(--border);
+  margin-bottom: 0.3rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.teknik-upload-item input {
+  width: 100%;
 }
 
 .teknik-upload-item-name {
@@ -330,6 +352,29 @@
   color: var(--text-muted);
   font-size: 0.85rem;
   text-align: center;
+}
+
+/* Video modal: "Vælg …" button with the chosen file underneath. */
+.teknik-pick-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.teknik-pick-chosen {
+  align-self: stretch;
+  margin-bottom: 0;
+}
+
+.teknik-pick-chosen[hidden] {
+  display: none;
+}
+
+.teknik-upload-note {
+  margin: 0 0 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
 }
 
 /* --- Upload panel -------------------------------------------------- */
@@ -395,6 +440,20 @@
 }
 
 @media (max-width: 719px) {
+  /* Title + Mappe on one line, the two upload buttons full-width below. */
+  .teknik-card-head {
+    grid-template-columns: 1fr auto;
+  }
+
+  .teknik-head-center {
+    justify-self: end;
+  }
+
+  .teknik-upload-btns {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+
   /* Name + actions on the first line, size/date underneath. */
   .teknik-row {
     flex-wrap: wrap;

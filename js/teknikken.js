@@ -302,14 +302,20 @@ function teknikRender() {
 
   const head = el('div', 'card-head teknik-card-head');
   head.appendChild(el('h2', null, 'Filer'));
-  const headActions = el('div', 'teknik-head-actions');
-  const newFolderBtn = teknikBtn('+ Ny mappe');
+  const center = el('div', 'teknik-head-center');
+  const newFolderBtn = teknikBtn('+ Mappe');
   newFolderBtn.addEventListener('click', () => teknikOpenNewFolderModal(null));
-  headActions.appendChild(newFolderBtn);
+  center.appendChild(newFolderBtn);
+  head.appendChild(center);
+  // Equal-width pair (CSS grid 1fr 1fr).
+  const uploadBtns = el('div', 'teknik-upload-btns');
   const uploadBtn = teknikBtn('Upload filer');
   uploadBtn.addEventListener('click', () => teknikPickFiles(null));
-  headActions.appendChild(uploadBtn);
-  head.appendChild(headActions);
+  uploadBtns.appendChild(uploadBtn);
+  const videoBtn = teknikBtn('Upload videoer');
+  videoBtn.addEventListener('click', () => teknikOpenVideoUploadModal(null));
+  uploadBtns.appendChild(videoBtn);
+  head.appendChild(uploadBtns);
   card.appendChild(head);
 
   const list = el('div', 'teknik-list');
@@ -421,7 +427,8 @@ function teknikBuildFileRow(file, depth) {
   row.appendChild(open);
   const date = (file.uploadedAt || '').slice(0, 10);
   row.appendChild(el('span', 'teknik-row-meta',
-    teknikFormatBytes(file.size || 0) + (date ? ' · ' + formatDaDate(date) : '')));
+    teknikFormatBytes(file.size || 0) + (date ? ' · ' + formatDaDate(date) : '')
+    + (file.uploadedBy ? ' · ' + file.uploadedBy : '')));
 
   const actions = el('div', 'teknik-row-actions');
   const downloadBtn = teknikIconBtn(teknikDownloadIcon(), 'Download');
@@ -682,7 +689,10 @@ function teknikWireDrop(card) {
     }
     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
     e.preventDefault();
-    teknikOpenUploadModal(Array.from(e.dataTransfer.files), folderId);
+    const dropped = Array.from(e.dataTransfer.files);
+    // A lone video goes to the video flow (it needs its project file).
+    if (dropped.length === 1 && teknikIsVideo(dropped[0])) teknikOpenVideoUploadModal(folderId, dropped[0]);
+    else teknikOpenUploadModal(dropped, folderId);
   });
 }
 
@@ -760,10 +770,62 @@ function teknikPickFiles(folderId) {
   input.click();
 }
 
-// Lists the chosen files and asks which folder they go into (defaulting
-// to the one they were dropped on); refuses a batch that won't fit.
+// The uploader's name, remembered per browser so it's only typed once.
+const TEKNIK_UPLOADER_KEY = 'matrevy-teknik-uploader';
+
+function teknikFileExt(name) {
+  return (name.includes('.') ? name.split('.').pop() : '').toLowerCase();
+}
+
+function teknikIsVideo(file) {
+  return teknikFileKind(teknikFileExt(file.name)).key === 'video';
+}
+
+// The Afsender field shared by both upload modals.
+function teknikBuildUploaderField() {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 80;
+  input.placeholder = 'Dit navn';
+  try { input.value = localStorage.getItem(TEKNIK_UPLOADER_KEY) || ''; } catch (e) { /* storage blocked */ }
+  return input;
+}
+
+function teknikRememberUploader(name) {
+  try { localStorage.setItem(TEKNIK_UPLOADER_KEY, name); } catch (e) { /* storage blocked */ }
+}
+
+function teknikCleanBaseName(value) {
+  return value.trim().replace(/[\\/]/g, '-');
+}
+
+function teknikNotEnoughSpace(total, free) {
+  return `Der er ikke plads: filerne fylder ${teknikFormatBytes(total)}, men der er kun ${teknikFormatBytes(free)} ledigt `
+    + `(højst ${teknikFormatBytes(teknikQuotaBytes)} i alt). Slet nogle filer først.`;
+}
+
+// Enter moves to the next text field, and submits from the last one.
+function teknikWireEnterChain(inputs, submit) {
+  inputs.forEach((input, i) => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (i + 1 < inputs.length) inputs[i + 1].focus();
+      else submit();
+    });
+  });
+}
+
+// Asks who is uploading (required), lets each file be renamed (prefilled
+// with its own name, extension kept) and which folder they go into
+// (defaulting to the one they were dropped on); refuses a batch that won't fit.
+// Videos are refused here — they go through teknikOpenVideoUploadModal().
 function teknikOpenUploadModal(files, folderId) {
   const valid = files.filter((file) => {
+    if (teknikIsVideo(file)) {
+      siteShowToast(`"${file.name}" er en video — brug "Upload videoer".`);
+      return false;
+    }
     if (file.size) return true;
     siteShowToast(`"${file.name}" blev sprunget over — tom fil eller en mappe.`);
     return false;
@@ -775,15 +837,29 @@ function teknikOpenUploadModal(files, folderId) {
     valid.length === 1 ? 'Upload fil' : `Upload ${valid.length} filer`
   );
   modal.classList.add('teknik-upload-modal');
+  const uploaderInput = teknikBuildUploaderField();
+  form.appendChild(siteEditField('Afsender', uploaderInput));
+
+  form.appendChild(el('p', 'teknik-upload-label', valid.length === 1 ? 'Filnavn' : 'Filnavne'));
   const list = el('ul', 'teknik-upload-list');
-  for (const file of valid) {
-    const item = el('li', 'teknik-upload-item');
-    const kind = teknikFileKind((file.name.includes('.') ? file.name.split('.').pop() : '').toLowerCase());
-    item.appendChild(el('span', 'teknik-kind teknik-kind-' + kind.key, kind.label));
-    item.appendChild(el('span', 'teknik-upload-item-name', file.name));
-    item.appendChild(el('span', 'teknik-upload-item-size', teknikFormatBytes(file.size)));
+  const entries = valid.map((file) => {
+    const ext = teknikFileExt(file.name);
+    const item = el('li', 'edit-field teknik-upload-item'); // .edit-field = site input styling
+    const head = el('div', 'teknik-upload-item-head');
+    const kind = teknikFileKind(ext);
+    head.appendChild(el('span', 'teknik-kind teknik-kind-' + kind.key, kind.label));
+    head.appendChild(el('span', 'teknik-upload-item-name', file.name));
+    head.appendChild(el('span', 'teknik-upload-item-size', teknikFormatBytes(file.size)));
+    item.appendChild(head);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 180;
+    input.value = teknikFileDisplayName({ name: file.name, ext });
+    input.setAttribute('aria-label', `Navn til ${file.name}`);
+    item.appendChild(input);
     list.appendChild(item);
-  }
+    return { file, ext, input };
+  });
   form.appendChild(list);
   const folderField = siteCreateDropdownField(teknikFolderOptions(), folderId || '');
   form.appendChild(siteEditField('Upload til', folderField));
@@ -795,23 +871,180 @@ function teknikOpenUploadModal(files, folderId) {
   cancelBtn.addEventListener('click', close);
   const uploadBtn = teknikPillBtn('Upload', 'site-btn-success');
   if (total > free) {
-    error.textContent = `Der er ikke plads: filerne fylder ${teknikFormatBytes(total)}, men der er kun ${teknikFormatBytes(free)} ledigt `
-      + `(højst ${teknikFormatBytes(teknikQuotaBytes)} i alt). Slet nogle filer først.`;
+    error.textContent = teknikNotEnoughSpace(total, free);
     uploadBtn.disabled = true;
   }
-  uploadBtn.addEventListener('click', () => {
+  function submit() {
+    if (uploadBtn.disabled) return;
+    const uploadedBy = uploaderInput.value.trim();
+    if (!uploadedBy) {
+      error.textContent = 'Skriv hvem du er.';
+      uploaderInput.focus();
+      return;
+    }
+    const missing = entries.find((entry) => !entry.input.value.trim());
+    if (missing) {
+      error.textContent = 'Giv hver fil et navn.';
+      missing.input.focus();
+      return;
+    }
+    teknikRememberUploader(uploadedBy);
     const target = folderField.value || null;
     close();
     if (target) { teknikOpenFolders.add(target); teknikSaveOpenFolders(); teknikRender(); }
-    teknikEnqueue(valid, target);
-  });
+    teknikEnqueue(entries.map(({ file, ext, input }) => {
+      const base = teknikCleanBaseName(input.value);
+      return { file, name: ext ? `${base}.${ext}` : base };
+    }), target, uploadedBy);
+  }
+  uploadBtn.addEventListener('click', submit);
+  teknikWireEnterChain([uploaderInput, ...entries.map((entry) => entry.input)], submit);
   actions.appendChild(cancelBtn);
   actions.appendChild(uploadBtn);
-  uploadBtn.focus();
+  if (uploaderInput.value) uploadBtn.focus();
+  else uploaderInput.focus();
+}
+
+// ── Video upload modal ───────────────────────────────────────
+const TEKNIK_VIDEO_EXTS = TEKNIK_KINDS.find((k) => k.key === 'video').exts;
+
+// A "Vælg …" button + the chosen file underneath. `check(file)` returns an
+// error message or ''. Returns {wrap, get file()}.
+function teknikFilePickField(buttonLabel, accept, check, onPick) {
+  let chosen = null;
+  const wrap = el('div', 'teknik-pick-row');
+  const btn = teknikBtn(buttonLabel);
+  const shown = el('div', 'teknik-upload-item-head teknik-pick-chosen');
+  shown.hidden = true;
+  btn.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = accept;
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      if (file) pick(file);
+    });
+    input.click();
+  });
+  function pick(file) {
+    const problem = check(file);
+    if (problem) { onPick(null, problem); return; }
+    chosen = file;
+    const kind = teknikFileKind(teknikFileExt(file.name));
+    shown.replaceChildren(
+      el('span', 'teknik-kind teknik-kind-' + kind.key, kind.label),
+      el('span', 'teknik-upload-item-name', file.name),
+      el('span', 'teknik-upload-item-size', teknikFormatBytes(file.size)),
+    );
+    shown.hidden = false;
+    btn.textContent = 'Skift fil';
+    onPick(file, '');
+  }
+  wrap.appendChild(btn);
+  wrap.appendChild(shown);
+  return { wrap, pick, get file() { return chosen; } };
+}
+
+// One video + its whole editing project as a .zip, both required, uploaded
+// as "<Navn>.<ext>" and "<Navn> (projektfil).zip".
+function teknikOpenVideoUploadModal(folderId, initialVideo) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Upload video');
+  modal.classList.add('teknik-upload-modal');
+
+  const uploaderInput = teknikBuildUploaderField();
+  form.appendChild(siteEditField('Afsender', uploaderInput));
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.maxLength = 160;
+  nameInput.placeholder = 'Fx Intro-video';
+  let nameTouched = false;
+  nameInput.addEventListener('input', () => { nameTouched = true; });
+
+  const video = teknikFilePickField(
+    'Vælg video',
+    'video/*,' + TEKNIK_VIDEO_EXTS.map((ext) => '.' + ext).join(','),
+    (file) => {
+      if (!teknikIsVideo(file)) return `"${file.name}" er ikke en videofil.`;
+      return file.size ? '' : `"${file.name}" er tom.`;
+    },
+    (file, problem) => {
+      error.textContent = problem;
+      if (file && (!nameTouched || !nameInput.value.trim())) {
+        nameInput.value = teknikFileDisplayName({ name: file.name, ext: teknikFileExt(file.name) });
+        nameTouched = false;
+      }
+      refreshSpace();
+    },
+  );
+  const project = teknikFilePickField(
+    'Vælg .zip',
+    '.zip,application/zip',
+    (file) => {
+      if (teknikFileExt(file.name) !== 'zip') return `"${file.name}" er ikke en .zip-fil.`;
+      return file.size ? '' : `"${file.name}" er tom.`;
+    },
+    (file, problem) => { error.textContent = problem; refreshSpace(); },
+  );
+  const videoField = el('div', 'edit-field');
+  videoField.appendChild(el('p', 'teknik-upload-label', 'Videofil'));
+  videoField.appendChild(video.wrap);
+  form.appendChild(videoField);
+  const projectField = el('div', 'edit-field');
+  projectField.appendChild(el('p', 'teknik-upload-label', 'Projektfil'));
+  projectField.appendChild(el('p', 'teknik-upload-note',
+    'Hele projektet (fx Premiere- eller Final Cut-mappen) pakket som én .zip-fil.'));
+  projectField.appendChild(project.wrap);
+  form.appendChild(projectField);
+
+  form.appendChild(siteEditField('Navn', nameInput));
+  const folderField = siteCreateDropdownField(teknikFolderOptions(), folderId || '');
+  form.appendChild(siteEditField('Upload til', folderField));
+  const space = el('p', 'teknik-upload-space');
+  form.appendChild(space);
+
+  const cancelBtn = teknikPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const uploadBtn = teknikPillBtn('Upload', 'site-btn-success');
+
+  function total() {
+    return (video.file ? video.file.size : 0) + (project.file ? project.file.size : 0);
+  }
+  function refreshSpace() {
+    const free = teknikFreeBytes();
+    space.textContent = `I alt ${teknikFormatBytes(total())} · ${teknikFormatBytes(free)} ledigt`;
+    uploadBtn.disabled = total() > free;
+    if (uploadBtn.disabled) error.textContent = teknikNotEnoughSpace(total(), free);
+  }
+
+  function submit() {
+    if (uploadBtn.disabled) return;
+    const uploadedBy = uploaderInput.value.trim();
+    const base = teknikCleanBaseName(nameInput.value);
+    if (!uploadedBy) { error.textContent = 'Skriv hvem du er.'; uploaderInput.focus(); return; }
+    if (!video.file) { error.textContent = 'Vælg en videofil.'; return; }
+    if (!project.file) { error.textContent = 'Vælg projektfilen (.zip).'; return; }
+    if (!base) { error.textContent = 'Giv videoen et navn.'; nameInput.focus(); return; }
+    teknikRememberUploader(uploadedBy);
+    const target = folderField.value || null;
+    close();
+    if (target) { teknikOpenFolders.add(target); teknikSaveOpenFolders(); teknikRender(); }
+    teknikEnqueue([
+      { file: video.file, name: `${base}.${teknikFileExt(video.file.name)}` },
+      { file: project.file, name: `${base} (projektfil).zip` },
+    ], target, uploadedBy);
+  }
+  uploadBtn.addEventListener('click', submit);
+  teknikWireEnterChain([uploaderInput, nameInput], submit);
+  actions.appendChild(cancelBtn);
+  actions.appendChild(uploadBtn);
+  if (initialVideo) video.pick(initialVideo);
+  refreshSpace();
+  if (!uploaderInput.value) uploaderInput.focus();
 }
 
 // ── Upload queue ─────────────────────────────────────────────
-// [{key, file, folderId, sent, state: 'waiting'|'uploading'|'failed', message, cancelled, uploadId}]
+// [{key, file, name, uploadedBy, folderId, sent, state: 'waiting'|'uploading'|'failed', message, cancelled, uploadId}]
 const teknikQueue = [];
 let teknikQueueRunning = false;
 let teknikUploadKey = 0;
@@ -826,9 +1059,10 @@ function teknikUploadPanel() {
   return teknikPanelEl;
 }
 
-function teknikEnqueue(files, folderId) {
-  for (const file of files) {
-    teknikQueue.push({ key: ++teknikUploadKey, file, folderId, sent: 0, state: 'waiting', message: '', cancelled: false, uploadId: null });
+// `items` = [{file, name}], name being the one given in the upload modal.
+function teknikEnqueue(items, folderId, uploadedBy) {
+  for (const { file, name } of items) {
+    teknikQueue.push({ key: ++teknikUploadKey, file, name, uploadedBy, folderId, sent: 0, state: 'waiting', message: '', cancelled: false, uploadId: null });
   }
   teknikRenderUploads();
   teknikRunQueue();
@@ -857,7 +1091,7 @@ function teknikRenderUploads() {
 function teknikBuildUploadRow(item) {
   const row = el('div', 'teknik-upload');
   const top = el('div', 'teknik-upload-top');
-  top.appendChild(el('span', 'teknik-upload-name', item.file.name));
+  top.appendChild(el('span', 'teknik-upload-name', item.name));
   top.appendChild(el('span', 'teknik-upload-where', '→ ' + (item.folderId ? teknikFolderPath(item.folderId) || 'slettet mappe' : 'Øverst')));
   const status = el('span', 'teknik-upload-status');
   item.statusEl = status;
@@ -914,7 +1148,7 @@ async function teknikRunQueue() {
       teknikQueue.splice(teknikQueue.indexOf(item), 1);
       teknikState.files.push(outcome.file);
       teknikRender();
-      siteShowToast(`"${item.file.name}" er uploadet.`);
+      siteShowToast(`"${item.name}" er uploadet.`);
     } else if (outcome.cancelled) {
       teknikRemoveFromQueue(item);
     } else {
@@ -945,7 +1179,9 @@ function teknikDelay(ms) {
 // Returns {ok, file} | {cancelled} | {message}.
 async function teknikUploadOne(item) {
   const { file } = item;
-  const start = await teknikApi('teknik_upload_start', { folderId: item.folderId, name: file.name, size: file.size });
+  const start = await teknikApi('teknik_upload_start', {
+    folderId: item.folderId, name: item.name, uploadedBy: item.uploadedBy, size: file.size,
+  });
   if (!start.ok) return { message: start.message || 'Annulleret' };
   item.uploadId = start.data.uploadId;
   const chunkBytes = Math.min(TEKNIK_CHUNK_BYTES, start.data.chunkBytes || TEKNIK_CHUNK_BYTES);
