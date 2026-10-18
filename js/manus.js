@@ -4657,7 +4657,12 @@ function openRoleSceneModal(row, badge) {
   textarea.spellcheck = false;
   textarea.setAttribute('data-manus-role-textarea', row.key);
   textarea.value = appliedText;
-  form.appendChild(siteEditField('Roller (LaTeX)', textarea));
+  const rolesField = siteEditField('Roller (LaTeX)', textarea);
+  const formatHint = document.createElement('div');
+  formatHint.className = 'manus-role-format-hint';
+  formatHint.textContent = '\\role{kode}[Navn] Beskrivelse';
+  rolesField.insertBefore(formatHint, textarea);
+  form.appendChild(rolesField);
 
   function applyRoles() {
     const isSong = manusRowIsSong(row);
@@ -4902,6 +4907,27 @@ function manusRenameCastName(from, to) {
   manusUpdateSaveStatus();
 }
 
+// A plain pencil — a copy of calendar.js's calPencilIcon() (not loaded here).
+function manusPencilIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const body = document.createElementNS(svgNS, 'path');
+  body.setAttribute('d', 'M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z');
+  svg.appendChild(body);
+  const tip = document.createElementNS(svgNS, 'path');
+  tip.setAttribute('d', 'M9 4l3 3');
+  svg.appendChild(tip);
+  return svg;
+}
+
 function openCastListModal() {
   // The Omdøb dialog stacked on top, if open: Escape (and ✕) closes just
   // that one, like openRoleSceneModal's confirm.
@@ -4917,7 +4943,7 @@ function openCastListModal() {
 
   const intro = document.createElement('p');
   intro.className = 'manus-castlist-intro';
-  intro.textContent = 'Alle navne fra rollerne (\\role{kode}[Navn]) samlet ét sted. Tjek for stavefejl, og slå Revyst fra for navne, der ikke er en rigtig person (fx Skuespiller) — de får ikke eget manus og tælles ikke med i Øveplan.';
+  intro.textContent = 'Alle navne fra rollerne samlet. Tjek for stavefejl, og slå Revyst fra for navne, der ikke er en rigtig person (fx Skuespiller), så får de ikke eget manus og tælles ikke med i Øveplan.';
   form.appendChild(intro);
 
   const summary = document.createElement('p');
@@ -5005,7 +5031,7 @@ function openCastListModal() {
 
     const head = document.createElement('div');
     head.className = 'manus-castlist-row manus-castlist-head';
-    for (const text of ['Navn', 'Revyst', '']) {
+    for (const text of ['Navn', 'Revyst', 'Omdøb']) {
       const cell = document.createElement('span');
       cell.textContent = text;
       head.appendChild(cell);
@@ -5059,8 +5085,10 @@ function openCastListModal() {
       actions.className = 'manus-castlist-actions';
       const renameBtn = document.createElement('button');
       renameBtn.type = 'button';
-      renameBtn.className = 'btn-small';
-      renameBtn.textContent = 'Omdøb';
+      renameBtn.className = 'manus-castlist-edit-btn';
+      renameBtn.title = 'Omdøb';
+      renameBtn.setAttribute('aria-label', `Omdøb ${item.name}`);
+      renameBtn.appendChild(manusPencilIcon());
       renameBtn.addEventListener('click', () => openRename(item));
       actions.appendChild(renameBtn);
       row.appendChild(actions);

@@ -1438,6 +1438,14 @@ a.manus-pdf-title:focus-visible {
   width: min(560px, 94vw);
 }
 
+/* The \role{kode}[Navn] Beskrivelse format line under "Roller (LaTeX)". */
+.manus-role-format-hint {
+  margin: -0.15rem 0 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 /* Rollefordeling's "Cast list" (renderCastListSection/openCastListModal in
    manus.js): a header with a Rediger button at the bottom of the last act
    column, and a modal listing every name once — name + scene count +
@@ -1482,7 +1490,7 @@ a.manus-pdf-title:focus-visible {
 
 .manus-castlist-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 4.5rem 5.5rem;
+  grid-template-columns: minmax(0, 1fr) 4.5rem 4.5rem;
   align-items: center;
   gap: 0.75rem;
   padding: 0.4rem 0.6rem;
@@ -1503,7 +1511,7 @@ a.manus-pdf-title:focus-visible {
   color: var(--text-muted);
 }
 
-.manus-castlist-head > :nth-child(2) {
+.manus-castlist-head > :nth-child(n+2) {
   text-align: center;
 }
 
@@ -1551,7 +1559,35 @@ a.manus-pdf-title:focus-visible {
 
 .manus-castlist-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
+}
+
+/* Icon-only rename button, like Kalender's .cal-list-edit-btn. */
+.manus-castlist-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .manus-castlist-edit-btn:hover {
+    background: var(--accent-warm-fill);
+    color: var(--accent-warm-text);
+  }
+}
+
+.manus-castlist-edit-btn:focus-visible {
+  outline: none;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
 }
 
 /* --- Rollefordeling's editable roles+tags summary (renderRoleTagLine() in
