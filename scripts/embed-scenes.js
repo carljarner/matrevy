@@ -131,6 +131,19 @@ const EMBEDS = [
     },
   },
   {
+    out: 'js/fravaer-data.js',
+    sources: 'data/fravaer.json',
+    globals: () => {
+      // Tolerates a missing file — created by the first Koordinator save
+      // or form connection.
+      const fravaer = fs.existsSync(root('data/fravaer.json'))
+        ? readJson('data/fravaer.json')
+        : { rows: [], connection: null };
+      console.log(`  fravaer: ${fravaer.rows.length} rows`);
+      return { FRAVAER_DATA: fravaer };
+    },
+  },
+  {
     out: 'js/gantt-data.js',
     sources: 'data/gantt.json',
     globals: () => {

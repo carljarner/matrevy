@@ -2283,6 +2283,7 @@ async function koordLokSaveNow() {
     }
     renderLokGrid();
     renderLokOther();
+    renderFraGrid();
   } else {
     lokalerLastSavedSnapshot = snapshot;
   }
@@ -2578,6 +2579,33 @@ function koordLokWireFileDrop(zone) {
   });
 }
 
+// The card body below `head`, collapsed/expanded by a chevron in the head
+// (state remembered per browser under `storageKey`). Lokalebooking, Fravær.
+function koordCollapsibleBody(card, head, storageKey, label) {
+  const body = el('div', 'koord-lok-body');
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(storageKey) === '1'; } catch (e) { /* ignore */ }
+  const toggle = el('button', 'koord-lok-collapse-btn');
+  toggle.type = 'button';
+  function paintCollapsed() {
+    body.hidden = collapsed;
+    card.classList.toggle('koord-lok-collapsed', collapsed);
+    toggle.textContent = collapsed ? '▸' : '▾';
+    toggle.title = collapsed ? 'Vis' : 'Skjul';
+    toggle.setAttribute('aria-label', collapsed ? `Vis ${label}` : `Skjul ${label}`);
+    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  }
+  toggle.addEventListener('click', () => {
+    collapsed = !collapsed;
+    try { localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch (e) { /* ignore */ }
+    paintCollapsed();
+  });
+  paintCollapsed();
+  head.appendChild(toggle);
+  card.appendChild(body);
+  return body;
+}
+
 function renderLokalerTab(container) {
   koordLokEnsureDraft();
 
@@ -2588,27 +2616,7 @@ function renderLokalerTab(container) {
 
   // Everything below the head lives in `body`, so the head's chevron
   // toggle can collapse the whole section (remembered per browser).
-  const body = el('div', 'koord-lok-body');
-  let collapsed = false;
-  try { collapsed = localStorage.getItem(KOORD_LOK_COLLAPSED_KEY) === '1'; } catch (e) { /* ignore */ }
-  const toggle = el('button', 'koord-lok-collapse-btn');
-  toggle.type = 'button';
-  function paintCollapsed() {
-    body.hidden = collapsed;
-    card.classList.toggle('koord-lok-collapsed', collapsed);
-    toggle.textContent = collapsed ? '▸' : '▾';
-    toggle.title = collapsed ? 'Vis' : 'Skjul';
-    toggle.setAttribute('aria-label', collapsed ? 'Vis Lokalebooking' : 'Skjul Lokalebooking');
-    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-  }
-  toggle.addEventListener('click', () => {
-    collapsed = !collapsed;
-    try { localStorage.setItem(KOORD_LOK_COLLAPSED_KEY, collapsed ? '1' : '0'); } catch (e) { /* ignore */ }
-    paintCollapsed();
-  });
-  paintCollapsed();
-  head.appendChild(toggle);
-  card.appendChild(body);
+  const body = koordCollapsibleBody(card, head, KOORD_LOK_COLLAPSED_KEY, 'Lokalebooking');
 
   // Hint text left, the Fra/Til period right, on one row (wraps when narrow).
   const topRow = el('div', 'koord-lok-top');
@@ -2632,6 +2640,7 @@ function renderLokalerTab(container) {
     lokalerDraft.range = { start, end };
     koordLokUpdateSaveStatus();
     renderLokGrid();
+    renderFraGrid();
   }
   koordLokRangeFields = { fromField, toField };
   fromField.addEventListener('change', () => onRangeChange(fromField));
@@ -2677,17 +2686,572 @@ function renderLokalerTab(container) {
   body.appendChild(saveBar);
   container.appendChild(card);
 
-  const fravaerCard = el('section', 'card');
-  const fravaerHead = el('div', 'card-head');
-  fravaerHead.appendChild(el('h2', null, 'Fravær'));
-  fravaerCard.appendChild(fravaerHead);
-  container.appendChild(fravaerCard);
+  renderFravaerCard(container);
 
   renderLokGrid();
   renderLokOther();
   koordLokPaintSaveStatus();
   renderLokFiles();
   if (koordLokFiles === null) koordLokLoadFiles();
+}
+
+// ── Fravær (people × rehearsal days) ─────────────────────────
+// Replaces copying absences from the Fravær form into Øveplan by hand.
+// One row per person, one column per Lokalebooking day (koordLokalerDays(),
+// so the Fra/Til window is shared), free-text cells ("14:00 - 16:00")
+// keyed by row id + ISO date — data/fravaer.json, admin `fravaer`
+// resource, embedded for Øveplan's Fravær button. Auto-saved draft with
+// the same merge on save as Lokalebooking. A connected Formularer form's
+// answers are imported server-side, each once (on connect and on every
+// submit — fravaer_import_responses()), as ordinary rows: editing or
+// deleting one sticks. `connection` is server-owned and never in the draft.
+const KOORD_FRA_COLLAPSED_KEY = 'matrevy-koord-fra-collapsed';
+let koordFravaerOverride = siteLoadOverride('fravaer');
+let fravaerDraft = null;          // {rows}
+let fravaerBase = null;           // the rows as this tab last knew them on the server
+let fravaerLastSavedSnapshot = '';
+let koordFraConnection = null;
+let koordFraSaveError = null;
+let koordFraDragItem = null;
+let koordFraRefreshed = false;    // re-read once per page load (imports since the embed)
+
+function koordFraNormalizeDoc(doc) {
+  doc = doc || {};
+  return {
+    rows: (Array.isArray(doc.rows) ? doc.rows : []).map((r) => ({
+      ...r,
+      // PHP's json_encode writes an empty map as [] — treat it as {}.
+      days: (r.days && !Array.isArray(r.days)) ? { ...r.days } : {},
+    })),
+    connection: (doc.connection && typeof doc.connection === 'object' && !Array.isArray(doc.connection)) ? doc.connection : null,
+  };
+}
+
+function getEffectiveFravaerDoc() {
+  return koordFraNormalizeDoc(koordFravaerOverride || (typeof FRAVAER_DATA !== 'undefined' ? FRAVAER_DATA : null));
+}
+
+function koordFraEnsureDraft() {
+  if (fravaerDraft) return;
+  const doc = getEffectiveFravaerDoc();
+  koordFraConnection = doc.connection;
+  fravaerDraft = { rows: doc.rows };
+  fravaerBase = structuredClone(fravaerDraft);
+  fravaerLastSavedSnapshot = JSON.stringify(fravaerDraft);
+}
+
+function fravaerIsDirty() {
+  return JSON.stringify(fravaerDraft) !== fravaerLastSavedSnapshot;
+}
+
+function koordFraUpdateSaveStatus() {
+  if (fravaerDraft && fravaerIsDirty()) koordFraAutosave.schedule();
+  koordFraPaintSaveStatus();
+}
+
+function koordFraPaintSaveStatus() {
+  koordPaintAutosaveStatus(document.getElementById('koord-fra-save-status'),
+    koordFraAutosave.isBusy(), koordFraSaveError, Boolean(fravaerDraft) && fravaerIsDirty());
+}
+
+// One row merged field by field, its cells per date.
+function koordFraMergeRow(b, m, t, ctx) {
+  const { days: bd, ...bRest } = b || {};
+  const { days: md, ...mRest } = m;
+  const { days: td, ...tRest } = t;
+  const out = koordMergeFields(bRest, mRest, tRest, ctx);
+  const bDays = bd || {};
+  const mDays = md || {};
+  const tDays = td || {};
+  const days = {};
+  for (const date of new Set([...Object.keys(mDays), ...Object.keys(tDays)])) {
+    const v = koordMergeValue(bDays[date] || '', mDays[date] || '', tDays[date] || '', ctx);
+    if (v) days[date] = v;
+  }
+  out.days = days;
+  // Keep mine's key order, so an unchanged row serializes the same and the
+  // draft doesn't look dirty.
+  const ordered = {};
+  for (const k of [...Object.keys(m), ...Object.keys(out)]) if (k in out) ordered[k] = out[k];
+  return ordered;
+}
+
+function koordFraMergeDoc(base, mine, theirs, ctx) {
+  return { rows: koordMergeList((base || { rows: [] }).rows, mine.rows, theirs.rows, ctx, koordFraMergeRow) };
+}
+
+function koordFraSetOverride(rows) {
+  koordFravaerOverride = { rows, connection: koordFraConnection };
+  siteSaveOverride('fravaer', koordFravaerOverride);
+}
+
+// Takes a live document from the server (a re-read, or a connect's
+// result) into the draft, keeping this tab's unsaved edits.
+function koordFraTakeLive(doc) {
+  const live = koordFraNormalizeDoc(doc);
+  const before = JSON.stringify(fravaerDraft);
+  const ctx = { tookTheirs: false, conflicts: 0 };
+  const merged = koordFraMergeDoc(fravaerBase, fravaerDraft, { rows: live.rows }, ctx);
+  // The rendered inputs edit the draft's row objects in place — only swap
+  // the draft (and re-render) when something actually came in.
+  if (JSON.stringify(merged) !== before) {
+    fravaerDraft = merged;
+    renderFraGrid();
+  }
+  fravaerBase = { rows: live.rows };
+  fravaerLastSavedSnapshot = JSON.stringify(fravaerBase);
+  koordFraConnection = live.connection;
+  koordFraSetOverride(live.rows);
+  koordFraPaintConnection();
+  koordFraUpdateSaveStatus();
+}
+
+async function koordFraRefresh() {
+  if (koordFraRefreshed || koordFraAutosave.isBusy()) return;
+  koordFraRefreshed = true;
+  const read = await siteReadResource('fravaer');
+  if (!read.ok || !read.data || koordFraAutosave.isBusy()) return;
+  koordFraTakeLive(read.data);
+}
+
+async function koordFraSaveNow() {
+  if (!fravaerDraft) return { ok: true, message: '' };
+  const snapshot = JSON.stringify(fravaerDraft);
+  const mine = JSON.parse(snapshot);
+  let liveConnection = koordFraConnection;
+  const result = await koordSaveMerged('fravaer', (data, ctx) => {
+    const live = koordFraNormalizeDoc(data);
+    liveConnection = live.connection;
+    return koordFraMergeDoc(fravaerBase, mine, live, ctx);
+  });
+  if (!result.ok) return result;
+  const merged = result.payload;
+  koordFraConnection = liveConnection;
+  koordFraSetOverride(merged.rows);
+  fravaerBase = structuredClone(merged);
+  if (result.ctx.tookTheirs && fravaerDraft) {
+    fravaerDraft = koordFraMergeDoc(mine, fravaerDraft, merged, { tookTheirs: false, conflicts: 0 });
+    fravaerLastSavedSnapshot = JSON.stringify(merged);
+    renderFraGrid();
+  } else {
+    fravaerLastSavedSnapshot = snapshot;
+  }
+  koordFraPaintConnection();
+  koordMergeToast('Fraværet', result.ctx);
+  return result;
+}
+
+const koordFraAutosave = siteCreateAutosave({
+  save: koordFraSaveNow,
+  onStatus(state, message) {
+    if (state === 'saved') koordFraSaveError = null;
+    else if (state === 'error') koordFraSaveError = message;
+    koordFraPaintSaveStatus();
+  },
+});
+
+// The cast roster Øveplan matches names against (a fresher Manus save
+// first, like Øveplan's own loadScenes()).
+function koordFraCastNames() {
+  const override = siteLoadOverride('manus');
+  const cast = (override && Array.isArray(override.cast)) ? override.cast
+    : (typeof CAST_DATA !== 'undefined' && Array.isArray(CAST_DATA)) ? CAST_DATA : [];
+  return cast.map((c) => c && c.name).filter(Boolean);
+}
+
+function koordFraTextInput(value, className, onInput) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'koord-mp-field ' + className;
+  input.value = value || '';
+  input.addEventListener('input', () => {
+    onInput(input.value);
+    koordFraUpdateSaveStatus();
+  });
+  return input;
+}
+
+function koordFraRowHasContent(row) {
+  return Boolean((row.name || '').trim()) || Object.keys(row.days || {}).length > 0;
+}
+
+function koordFraWireDrag(rowEl, row, rows) {
+  rowEl.draggable = true;
+  rowEl.addEventListener('dragstart', (e) => {
+    koordFraDragItem = row;
+    e.dataTransfer.effectAllowed = 'move';
+    const ghost = koordMpGetDragImageEl();
+    ghost.replaceChildren(el('div', 'koord-mp-drag-image-line', (row.name || '').trim() || 'Række'));
+    e.dataTransfer.setDragImage(ghost, 12, 16);
+  });
+  rowEl.addEventListener('dragend', () => { koordFraDragItem = null; });
+  koordWireDropHighlight(rowEl, () => {
+    if (koordFraDragItem && koordFraDragItem !== row && rows.includes(koordFraDragItem)) {
+      koordMoveDraftItem(rows, koordFraDragItem, row, renderFraGrid);
+      koordFraUpdateSaveStatus();
+    }
+  });
+}
+
+// Structural render — on add/remove/drag/save/range change, never on a
+// keystroke (that would steal focus).
+function renderFraGrid() {
+  const mount = document.getElementById('koord-fra-grid');
+  if (!mount || !fravaerDraft) return;
+  mount.textContent = '';
+  const days = koordLokalerDays();
+  const rows = fravaerDraft.rows;
+  const castNames = koordFraCastNames();
+  const castKeys = new Set(castNames.map((n) => n.trim().toLowerCase()));
+
+  const datalist = el('datalist');
+  datalist.id = 'koord-fra-cast';
+  castNames.forEach((name) => {
+    const option = document.createElement('option');
+    option.value = name;
+    datalist.appendChild(option);
+  });
+  mount.appendChild(datalist);
+
+  if (!days.length) {
+    mount.appendChild(el('p', 'koord-lok-empty', 'Ingen øvedage i kalenderen i den valgte periode.'));
+  }
+
+  const wrap = el('div', 'koord-lok-table-wrap');
+  const table = el('table', 'koord-lok-table');
+  const thead = el('thead');
+  const headRow = el('tr');
+  headRow.appendChild(el('th', 'koord-lok-th-room', 'Navn'));
+  days.forEach((day) => {
+    const d = parseIsoDate(day.date);
+    const th = el('th', 'koord-lok-th-day');
+    if (day.titles.length) {
+      day.titles.forEach((t) => th.appendChild(el('div', 'koord-lok-th-title', t)));
+      th.title = day.titles.join(' · ');
+    }
+    th.appendChild(el('div', 'koord-lok-th-date',
+      `${DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()}/${d.getMonth() + 1}`));
+    headRow.appendChild(th);
+  });
+  headRow.appendChild(el('th', 'koord-lok-th-remove'));
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = el('tbody');
+  rows.forEach((row) => {
+    const tr = el('tr', 'koord-lok-tr');
+    koordFraWireDrag(tr, row, rows);
+
+    const nameTd = el('td', 'koord-lok-td-room');
+    const nameWrap = el('div', 'koord-lok-room-wrap');
+    nameWrap.appendChild(el('span', 'boss-manage-drag-handle', '⠿'));
+    const nameInput = koordFraTextInput(row.name, 'koord-lok-room-input', (v) => {
+      row.name = v;
+      paintName();
+    });
+    nameInput.placeholder = 'Navn';
+    nameInput.setAttribute('list', 'koord-fra-cast');
+    // A name Øveplan can't match to the cast roster is tinted, with why.
+    function paintName() {
+      const name = nameInput.value.trim();
+      const unknown = Boolean(name) && castKeys.size > 0 && !castKeys.has(name.toLowerCase());
+      nameInput.classList.toggle('koord-fra-name-unknown', unknown);
+      const parts = [];
+      if (name) parts.push(name);
+      if (unknown) parts.push('Ikke på rollelisten — Øveplan kan ikke hente det');
+      if (row.source) parts.push('Hentet fra formularen');
+      nameInput.title = parts.join('\n');
+    }
+    paintName();
+    nameWrap.appendChild(nameInput);
+    if (row.source) {
+      const mark = el('span', 'koord-fra-source', 'F');
+      mark.title = 'Hentet fra formularen';
+      nameWrap.appendChild(mark);
+    }
+    nameTd.appendChild(nameWrap);
+    tr.appendChild(nameTd);
+
+    days.forEach((day) => {
+      const td = el('td', 'koord-lok-td-cell');
+      const input = koordFraTextInput(row.days[day.date], 'koord-lok-cell-input', (v) => {
+        if (v.trim()) row.days[day.date] = v;
+        else delete row.days[day.date];
+        input.title = v;
+      });
+      input.title = row.days[day.date] || '';
+      input.setAttribute('aria-label', `${row.name || 'Navn'} ${day.date}`);
+      td.appendChild(input);
+      tr.appendChild(td);
+    });
+
+    const removeTd = el('td', 'koord-lok-td-remove');
+    removeTd.appendChild(koordLokRemoveBtn('Fjern linje', () => {
+      const remove = () => {
+        const idx = rows.indexOf(row);
+        if (idx !== -1) rows.splice(idx, 1);
+        koordFraUpdateSaveStatus();
+        renderFraGrid();
+      };
+      if (!koordFraRowHasContent(row)) { remove(); return; }
+      koordMpDeleteConfirm(
+        row.name ? `Fjern "${row.name}"?` : 'Fjern denne linje?',
+        row.source ? 'Linjen er hentet fra formularen og kommer ikke igen.' : null,
+        remove
+      );
+    }));
+    tr.appendChild(removeTd);
+    tbody.appendChild(tr);
+  });
+
+  // Drop-tail row: the only way to drop a row after the last one.
+  const tailTr = el('tr', 'koord-lok-tr koord-lok-drop-tail');
+  const tailTd = el('td');
+  tailTd.colSpan = days.length + 2;
+  tailTr.appendChild(tailTd);
+  koordWireDropHighlight(tailTr, () => {
+    if (koordFraDragItem && rows.includes(koordFraDragItem)) {
+      koordMoveDraftItem(rows, koordFraDragItem, null, renderFraGrid);
+      koordFraUpdateSaveStatus();
+    }
+  });
+  tbody.appendChild(tailTr);
+  table.appendChild(tbody);
+  koordLokWireGridKeys(table);
+  wrap.appendChild(table);
+  mount.appendChild(wrap);
+
+  const addRow = el('div', 'koord-lok-add-row');
+  addRow.appendChild(koordLokAddPlus('Tilføj linje', () => {
+    rows.push({ id: koordMpNewId('p'), name: '', days: {} });
+    koordFraUpdateSaveStatus();
+    renderFraGrid();
+    const inputs = mount.querySelectorAll('.koord-lok-room-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }));
+  mount.appendChild(addRow);
+}
+
+function koordFraPaintConnection() {
+  const mount = document.getElementById('koord-fra-connection');
+  if (!mount) return;
+  mount.textContent = '';
+  const conn = koordFraConnection;
+  const text = el('span', 'koord-fra-connection-text',
+    conn ? `Forbundet til: ${conn.formTitle || 'formular'}` : 'Ikke forbundet til en formular');
+  if (conn && conn.formTitle) text.title = conn.formTitle;
+  mount.appendChild(text);
+  const btn = el('button', 'btn-small', conn ? 'Skift forbindelse' : 'Forbind');
+  btn.type = 'button';
+  btn.addEventListener('click', koordFraOpenConnectModal);
+  mount.appendChild(btn);
+}
+
+// "Øvning: 18. oktober 2026 (10:00–16:00)" (the Fravær template's labels)
+// or "18/10" → ISO date; the year defaults to the Fra/Til window's.
+function koordFraDateFromLabel(label) {
+  const text = String(label || '').toLowerCase();
+  const defaultYear = Number(koordLokRange().start.slice(0, 4));
+  const iso = (y, m, d) => {
+    const date = new Date(y, m - 1, d);
+    if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+    return koordLokIso(date);
+  };
+  let m = text.match(/(\d{1,2})\.\s*([a-zæøå]{3,})\.?(?:\s+(\d{4}))?/);
+  if (m) {
+    const month = DA_MONTHS.findIndex((name) => name.startsWith(m[2].slice(0, 3)));
+    if (month !== -1) return iso(m[3] ? Number(m[3]) : defaultYear, month + 1, Number(m[1]));
+  }
+  m = text.match(/(\d{1,2})\/(\d{1,2})(?:[/-](\d{4}))?/);
+  if (m) return iso(m[3] ? Number(m[3]) : defaultYear, Number(m[2]), Number(m[1]));
+  return null;
+}
+
+async function koordFraOpenConnectModal() {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Forbind til formular');
+  modal.classList.add('koord-fra-connect-modal');
+  const conn = koordFraConnection;
+  if (conn) form.appendChild(el('p', 'koord-fra-connect-current', `Forbundet til: ${conn.formTitle || 'formular'}`));
+
+  const status = el('p', 'koord-lok-hint', 'Indlæser formularer…');
+  form.appendChild(status);
+  const listResult = await koordBudgetApi('forms_admin_list', {});
+  status.remove();
+  if (!listResult.ok) {
+    error.textContent = listResult.message || 'Kunne ikke hente formularer.';
+    return;
+  }
+  // Newest first (ids start with a hex timestamp).
+  const forms = (listResult.data.forms || []).slice().sort((a, b) => b.id.localeCompare(a.id));
+  if (!forms.length) {
+    form.appendChild(el('p', 'koord-lok-hint', 'Ingen formularer fundet.'));
+    return;
+  }
+  const initialFormId = (conn && forms.some((f) => f.id === conn.formId)) ? conn.formId
+    : (forms.find((f) => /frav/i.test(f.title || '')) || forms[0]).id;
+  const formPicker = siteCreateDropdownField(
+    forms.map((f) => ({ value: f.id, label: `${f.title || '(uden titel)'} (${f.responseCount} svar)` })),
+    initialFormId);
+  form.appendChild(siteEditField('Formular', formPicker));
+
+  const fieldsMount = el('div');
+  form.appendChild(fieldsMount);
+
+  let current = null; // {formId, navnPicker, mappings: [{fieldId, checkbox, dateField}], reimport}
+
+  async function loadForm(formId) {
+    current = null;
+    error.textContent = '';
+    fieldsMount.replaceChildren(el('p', 'koord-lok-hint', 'Indlæser felter…'));
+    const read = await koordBudgetApi('forms_admin_read', { formId });
+    if (formPicker.value !== formId) return; // switched meanwhile
+    fieldsMount.replaceChildren();
+    if (!read.ok) {
+      error.textContent = read.message || 'Kunne ikke hente formularen.';
+      return;
+    }
+    const def = read.data.definition || {};
+    const fields = (def.fields || []).concat((def.sections || []).flatMap((s) => s.fields || []))
+      .filter((f) => f && f.id);
+    if (!fields.length) {
+      fieldsMount.appendChild(el('p', 'koord-lok-hint', 'Formularen har ingen felter.'));
+      return;
+    }
+    const same = Boolean(conn && conn.formId === formId);
+    const savedDays = (same && conn.dayFields && !Array.isArray(conn.dayFields)) ? conn.dayFields : {};
+    const navnInitial = (same && fields.some((f) => f.id === conn.navnFieldId)) ? conn.navnFieldId
+      : (fields.find((f) => /navn/i.test(f.label || '')) || fields[0]).id;
+    const navnPicker = siteCreateDropdownField(fields.map((f) => ({ value: f.id, label: f.label || '(uden titel)' })), navnInitial);
+    fieldsMount.appendChild(siteEditField('Navn-felt', navnPicker));
+
+    fieldsMount.appendChild(el('h3', 'koord-step-heading', 'Felter → dage'));
+    fieldsMount.appendChild(el('p', 'koord-lok-hint',
+      'Hvert afkrydset felt bliver til fravær på dagen ved siden af. Datoen er læst ud af feltets titel.'));
+    const list = el('div', 'koord-fra-map-list');
+    fieldsMount.appendChild(list);
+    const state = { formId, navnPicker, mappings: [], reimport: null };
+
+    function renderMappings() {
+      list.replaceChildren();
+      state.mappings = [];
+      fields.filter((f) => f.id !== navnPicker.value).forEach((f) => {
+        const guess = savedDays[f.id] || koordFraDateFromLabel(f.label);
+        const row = el('label', 'koord-fra-map-row');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'koord-fra-map-check';
+        checkbox.checked = same ? Boolean(savedDays[f.id]) : Boolean(guess);
+        row.appendChild(checkbox);
+        const label = el('span', 'koord-fra-map-label', f.label || '(uden titel)');
+        label.title = f.label || '';
+        row.appendChild(label);
+        const dateField = siteCreateDateField(guess || koordLokRange().start);
+        dateField.addEventListener('change', () => { checkbox.checked = true; });
+        row.appendChild(dateField);
+        list.appendChild(row);
+        state.mappings.push({ fieldId: f.id, checkbox, dateField });
+      });
+      if (!state.mappings.length) list.appendChild(el('p', 'koord-lok-hint', 'Ingen andre felter.'));
+    }
+    navnPicker.addEventListener('change', renderMappings);
+    renderMappings();
+
+    if (same) {
+      const reimportRow = el('label', 'koord-fra-map-row koord-fra-reimport');
+      const reimport = document.createElement('input');
+      reimport.type = 'checkbox';
+      reimport.className = 'koord-fra-map-check';
+      reimportRow.appendChild(reimport);
+      reimportRow.appendChild(el('span', null, 'Hent alle svar ind igen (svar, der allerede er hentet, kommer med to gange)'));
+      fieldsMount.appendChild(reimportRow);
+      state.reimport = reimport;
+    }
+    fieldsMount.appendChild(el('p', 'koord-lok-hint',
+      'Hvert svar bliver hentet ind én gang som en linje, I kan rette i. Nye svar kommer automatisk med.'));
+    current = state;
+  }
+
+  formPicker.addEventListener('change', () => loadForm(formPicker.value));
+
+  if (conn) {
+    const disconnectBtn = koordPillBtn('Fjern', 'site-btn-danger');
+    disconnectBtn.addEventListener('click', () => {
+      koordMpDeleteConfirm('Fjern forbindelsen?', 'Linjer, der er hentet ind, bliver ikke slettet.', async () => {
+        const result = await koordBudgetApi('fravaer_save_connection', { formId: null });
+        if (!result.ok) { siteShowToast(result.message || 'Kunne ikke fjerne forbindelsen.'); return; }
+        close();
+        koordFraTakeLive(result.data.data);
+      });
+    });
+    actions.appendChild(disconnectBtn);
+  }
+
+  const connectBtn = koordPillBtn('Forbind', 'site-btn-success');
+  connectBtn.addEventListener('click', async () => {
+    if (!current) return;
+    const dayFields = {};
+    current.mappings.forEach((mp) => { if (mp.checkbox.checked) dayFields[mp.fieldId] = mp.dateField.value; });
+    const formTitle = (forms.find((f) => f.id === current.formId) || {}).title || '';
+    connectBtn.disabled = true;
+    error.textContent = '';
+    // Pending edits first, so the import merges onto what is saved.
+    await koordFraAutosave.flush();
+    const before = fravaerDraft ? fravaerDraft.rows.length : 0;
+    const result = await koordBudgetApi('fravaer_save_connection', {
+      formId: current.formId,
+      formTitle,
+      navnFieldId: current.navnPicker.value,
+      dayFields,
+      reimport: Boolean(current.reimport && current.reimport.checked),
+    });
+    connectBtn.disabled = false;
+    if (!result.ok) {
+      error.textContent = result.message || 'Kunne ikke forbinde.';
+      return;
+    }
+    close();
+    koordFraTakeLive(result.data.data);
+    const added = fravaerDraft.rows.length - before;
+    siteShowToast(added > 0 ? `Forbundet — ${added} ${added === 1 ? 'linje' : 'linjer'} hentet ind` : 'Forbundet');
+  });
+  actions.appendChild(connectBtn);
+
+  await loadForm(initialFormId);
+}
+
+function renderFravaerCard(container) {
+  koordFraEnsureDraft();
+  const card = el('section', 'card koord-lok-card koord-fra-card');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Fravær'));
+  card.appendChild(head);
+  const body = koordCollapsibleBody(card, head, KOORD_FRA_COLLAPSED_KEY, 'Fravær');
+
+  const topRow = el('div', 'koord-lok-top');
+  topRow.appendChild(el('p', 'koord-lok-hint',
+    'Samme dage som Lokalebooking. Skriv tidsrummet, personen er væk (fx 14:00 - 16:00, fra 15, til 13 eller hele dagen) — Øveplan kan hente det ind under Fraværende revyster.'));
+  const connection = el('div', 'koord-fra-connection');
+  connection.id = 'koord-fra-connection';
+  topRow.appendChild(connection);
+  body.appendChild(topRow);
+
+  const grid = el('div');
+  grid.id = 'koord-fra-grid';
+  body.appendChild(grid);
+
+  const saveBar = el('div', 'koord-mp-save-bar koord-lok-save-bar');
+  const saveGroup = el('div', 'koord-mp-save-group');
+  const status = el('span', 'koord-mp-save-status');
+  status.id = 'koord-fra-save-status';
+  saveGroup.appendChild(status);
+  saveBar.appendChild(saveGroup);
+  body.appendChild(saveBar);
+  container.appendChild(card);
+
+  renderFraGrid();
+  koordFraPaintConnection();
+  koordFraPaintSaveStatus();
+  koordFraRefresh();
 }
 
 // ── Page render ──────────────────────────────────────────────

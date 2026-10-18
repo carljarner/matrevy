@@ -947,3 +947,108 @@
   font-size: 0.82rem;
   gap: 0.35rem;
 }
+
+/* --- Lokaler & Fravær tab: Fravær (people × rehearsal days) ---
+   Reuses Lokalebooking's table classes; only the extras live here. */
+.koord-fra-name-unknown {
+  color: var(--danger);
+}
+
+/* "F" = the line was imported from the connected form. */
+.koord-fra-source {
+  flex: none;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
+  cursor: default;
+}
+
+.koord-fra-connection {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.koord-fra-connection-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Connect modal: delete left, Forbind right (centred when alone). */
+.koord-fra-connect-modal {
+  width: min(560px, 94vw);
+}
+
+.koord-fra-connect-modal .login-actions {
+  justify-content: space-between;
+}
+
+.koord-fra-connect-modal .login-actions:has(> :only-child) {
+  justify-content: center;
+}
+
+.koord-fra-connect-current {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.koord-fra-map-list {
+  max-height: 40vh;
+  overflow-y: auto;
+  margin-bottom: 0.75rem;
+}
+
+.koord-fra-map-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.koord-fra-map-check {
+  flex: none;
+  accent-color: var(--accent-warm-text);
+}
+
+.koord-fra-map-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.koord-fra-map-row .site-field-btn {
+  flex: none;
+  width: auto;
+  min-width: 0;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.82rem;
+}
+
+.koord-fra-reimport {
+  border-bottom: none;
+  color: var(--text-muted);
+}
+
+/* Fravær cells hold a time span ("14:00 - 16:00") — wider than a booking. */
+.koord-fra-card .koord-lok-th-day {
+  width: 7rem;
+  min-width: 7rem;
+  max-width: 7rem;
+}

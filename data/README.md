@@ -20,6 +20,7 @@ Schemas for the site's public data files.
 | `program.json` | Medvirkende/Ordliste/QR-codes content for the printed programme booklet, edited on the Manus page's Program tab and rendered into three layouts, `archive/<folder>/Program.pdf`, `ProgramHaefte.pdf`, and `ProgramHaefteHorisontal.pdf` |
 | `masterplan.json` | Koordinator page's "Masterplan" checklist — recurring production to-dos across 5 fixed phase-tabs, replacing an externally-maintained spreadsheet |
 | `lokaler.json` | Koordinator page's "Lokaler & Fravær" tab — room bookings per rehearsal day (Lokalebooking) plus one-off bookings, replacing the yearly Lokalebooking spreadsheet |
+| `fravaer.json` | Koordinator page's "Lokaler & Fravær" tab — who is absent when, per rehearsal day, partly imported from a Formularer form; Øveplan's Fravær button reads it |
 | `gantt.json` | Gantt chart of the revy period (September–November) shown below the calendar on Kalender |
 | `revyugen.json` | Hour-by-hour week schedule of the revy's final nine days ("Revyugen"), shown below the Gantt chart on Kalender |
 
@@ -362,6 +363,24 @@ comments.
 - `bookings` is free text keyed by room `id` then ISO date — not by calendar event, so rooms carry over between years and moving an event never orphans a cell. Bookings for dates no longer shown stay in the file, unrendered. Empty strings are dropped on save; an empty map may come back as `[]` from PHP (the client treats it as `{}`).
 - `other` is the free-form "Øvrige bookinger" list under the grid.
 - The signed booking-form PDFs are **not** here: they live in the private `LOKALER_DATA_DIR` (`files.json` + `files/<id>.pdf`), via the admin `lokaler_*` actions.
+
+## Schema: fravaer.json
+
+```json
+{
+  "rows": [{ "id": "f6c42cb795a39", "name": "Anna Andersen",
+             "days": { "2026-10-24": "14:00 - 16:00", "2026-11-07": "hele dagen" },
+             "source": { "formId": "19a3f…", "responseId": "r1" } }],
+  "connection": { "formId": "19a3f…", "formTitle": "Fravær 2026", "navnFieldId": "f…",
+                  "dayFields": { "f…": "2026-10-24" }, "importedIds": ["r1"] }
+}
+```
+
+- Backs the **Fravær** card on Koordinator's Lokaler & Fravær tab (`renderFravaerCard`), **admin** `fravaer` resource, an auto-saved draft merged on save like `lokaler.json`. Embedded as `FRAVAER_DATA` for Øveplan's Fravær button.
+- `rows` are people (order = display order). The columns are Lokalebooking's (never stored); `days` is free text keyed by ISO date, which Øveplan parses into a time span. `name` should match a `cast.json` name for Øveplan to use it. An empty map may come back as `[]` from PHP.
+- `source` marks a row imported from the connected form. Rows are imported once per answer (`connection.importedIds`) and never touched again, so hand edits and deletions stick.
+- `connection` (or `null`) is written only by the server (`fravaer_save_connection`, and `forms_submit`'s import); a `fravaer` save keeps whatever is live. `dayFields` maps a form field id to the date its answer belongs to.
+- Created by the first save or connection — no manual setup on the server.
 
 ## Schema: gantt.json
 

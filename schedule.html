@@ -53,7 +53,12 @@
       <section class="sched-panel constr-panel">
         <h2>Dagens ønsker</h2>
 
-        <div class="field-label">Fraværende revyster</div>
+        <div class="field-label">
+          <span class="sched-rooms-label-row">
+            <span>Fraværende revyster</span>
+            <button type="button" class="btn-secondary sched-rooms-fetch-btn" id="btn-fravaer">Fravær</button>
+          </span>
+        </div>
         <div id="absent-list" class="absent-list"></div>
 
         <button class="btn-secondary" id="btn-add-absent">+ Tilføj fravær</button>
@@ -161,6 +166,7 @@
   <script src="js/config-data.js"></script>
   <script src="js/calendar-data.js"></script>
   <script src="js/lokaler-data.js"></script>
+  <script src="js/fravaer-data.js"></script>
   <script src="js/schedule.js"></script>
 </body>
 </html>

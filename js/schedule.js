@@ -451,6 +451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('btn-build').addEventListener('click', buildGrid);
   document.getElementById('btn-lokalebooking').addEventListener('click', openLokalebookingModal);
+  document.getElementById('btn-fravaer').addEventListener('click', openFravaerModal);
   document.getElementById('btn-export').addEventListener('click', () => window.print());
   document.addEventListener('keydown', schedHandleUndoKey);
   document.getElementById('btn-clear-schedule').addEventListener('click', clearSchedule);
@@ -1240,11 +1241,15 @@ function schedEl(tag, className, text) {
   return node;
 }
 
-function openLokalebookingModal() {
+// A modal of day columns (Lokalebooking, Fravær): `itemsFor(date)` gives
+// that day's [{label, note, warn}] (warn = shown in red, not fetched),
+// `onFetch(items)` runs on the day's "Hent", which is disabled when no
+// item is usable. Starts scrolled to today (or the next day).
+function schedOpenDayStripModal({ title, days, itemsFor, emptyItemText, onFetch }) {
   const overlay = schedEl('div', 'login-overlay');
   const modal = schedEl('div', 'login-modal site-modal sched-lok-modal');
   modal.setAttribute('role', 'dialog');
-  modal.setAttribute('aria-label', 'Lokalebooking');
+  modal.setAttribute('aria-label', title);
 
   function close() {
     document.removeEventListener('keydown', onKeydown);
@@ -1264,10 +1269,8 @@ function openLokalebookingModal() {
   closeX.setAttribute('aria-label', 'Luk');
   closeX.addEventListener('click', close);
   modal.appendChild(closeX);
-  modal.appendChild(schedEl('h2', null, 'Lokalebooking'));
+  modal.appendChild(schedEl('h2', null, title));
 
-  const doc = schedLokalerDoc();
-  const days = schedLokalerDays(doc.range);
   if (!days.length) {
     modal.appendChild(schedEl('p', 'sched-lok-empty', 'Ingen øvedage i kalenderen i den valgte periode.'));
   }
@@ -1287,25 +1290,24 @@ function openLokalebookingModal() {
       `${SCHED_WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()}/${d.getMonth() + 1}`));
     col.appendChild(head);
 
-    const booked = schedBookedRooms(doc, day.date);
+    const items = itemsFor(day.date);
+    const usable = items.filter((item) => !item.warn);
     const list = schedEl('ul', 'sched-lok-rooms');
-    booked.forEach((room) => {
-      const li = schedEl('li', 'sched-lok-room', room.name);
-      if (room.note) li.appendChild(schedEl('div', 'sched-lok-note', room.note));
+    items.forEach((item) => {
+      const li = schedEl('li', 'sched-lok-room' + (item.warn ? ' sched-lok-warn' : ''), item.label);
+      if (item.note) li.appendChild(schedEl('div', 'sched-lok-note', item.note));
+      if (item.warn) li.appendChild(schedEl('div', 'sched-lok-note sched-lok-warn-note', item.warn));
       list.appendChild(li);
     });
-    if (!booked.length) list.appendChild(schedEl('li', 'sched-lok-none', 'Ingen lokaler booket'));
+    if (!items.length) list.appendChild(schedEl('li', 'sched-lok-none', emptyItemText));
     col.appendChild(list);
 
     const fetchBtn = schedEl('button', 'btn-secondary sched-lok-fetch', 'Hent');
     fetchBtn.type = 'button';
-    fetchBtn.disabled = !booked.length;
+    fetchBtn.disabled = !usable.length;
     fetchBtn.addEventListener('click', () => {
-      const field = document.getElementById('input-rooms');
-      field.value = booked.map((r) => r.name).join('\n');
-      saveState();
       close();
-      field.focus();
+      onFetch(usable);
     });
     col.appendChild(fetchBtn);
     strip.appendChild(col);
@@ -1318,6 +1320,107 @@ function openLokalebookingModal() {
   // of the half-year.
   if (firstUpcoming) strip.scrollLeft = firstUpcoming.offsetLeft - strip.offsetLeft;
   else strip.scrollLeft = strip.scrollWidth;
+}
+
+function openLokalebookingModal() {
+  const doc = schedLokalerDoc();
+  schedOpenDayStripModal({
+    title: 'Lokalebooking',
+    days: schedLokalerDays(doc.range),
+    itemsFor: (date) => schedBookedRooms(doc, date).map((room) => ({ label: room.name, note: room.note })),
+    emptyItemText: 'Ingen lokaler booket',
+    onFetch(items) {
+      const field = document.getElementById('input-rooms');
+      field.value = items.map((item) => item.label).join('\n');
+      saveState();
+      field.focus();
+    },
+  });
+}
+
+// ── Fravær → Fraværende revyster ──────────────────────────
+// Koordinator's Fravær sheet (data/fravaer.json: people × dates, free text
+// like "14:00 - 16:00", mostly imported from the Fravær form). Same day
+// columns as Lokalebooking. "Hent" replaces state.absentees with that
+// day's absences (undoable with Ctrl+Z); a name not on the cast roster or
+// a time that can't be read is shown in red and left out.
+function schedFravaerDoc() {
+  const doc = schedLoadOverride('fravaer') || (typeof FRAVAER_DATA !== 'undefined' ? FRAVAER_DATA : null) || {};
+  return { rows: Array.isArray(doc.rows) ? doc.rows : [] };
+}
+
+// "14", "14:30", "14.30", "1430", "930" → minutes since midnight, or null.
+function schedParseClock(text) {
+  const m = String(text).trim().match(/^(\d{1,2})(?:[:.](\d{2})|(\d{2}))?$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2] || m[3] || 0);
+  if (h > 24 || min > 59 || (h === 24 && min > 0)) return null;
+  return h * 60 + min;
+}
+
+// One sheet cell → {start, end} in minutes, or null when it can't be read.
+// Two times = that interval; "fra/efter 15" = from then on; "til/indtil
+// 13" = until then; "x"/"hele dagen" = the whole rehearsal day.
+function schedParseAbsenceText(text) {
+  const t = String(text || '').trim().toLowerCase().replace(/\s*kl\.?\s*/g, ' ').trim();
+  if (!t) return null;
+  const dayStart = timeToMinutes(document.getElementById('input-start').value || '');
+  const dayEnd = timeToMinutes(document.getElementById('input-end').value || '');
+  const from = Number.isFinite(dayStart) ? dayStart : 0;
+  const to = Number.isFinite(dayEnd) && dayEnd > from ? dayEnd : 24 * 60;
+  if (/^(x|hele( dagen)?|heldags|hele øvedagen)$/.test(t)) return { start: from, end: to };
+  const clock = '(\\d{1,2}(?:[:.]\\d{2}|\\d{2})?)';
+  let m = t.match(new RegExp(`^(?:fra\\s*)?${clock}\\s*(?:-|–|—|til)\\s*${clock}$`));
+  if (m) {
+    const start = schedParseClock(m[1]);
+    const end = schedParseClock(m[2]);
+    return (start !== null && end !== null && start < end) ? { start, end } : null;
+  }
+  m = t.match(new RegExp(`^(?:fra|efter)\\s*${clock}(?:\\s*-)?$`)) || t.match(new RegExp(`^${clock}\\s*-$`));
+  if (m) {
+    const start = schedParseClock(m[1]);
+    return (start !== null && start < 24 * 60) ? { start, end: Math.max(to, start + 1) } : null;
+  }
+  m = t.match(new RegExp(`^(?:til|indtil|før)\\s*${clock}$`)) || t.match(new RegExp(`^-\\s*${clock}$`));
+  if (m) {
+    const end = schedParseClock(m[1]);
+    return (end !== null && end > 0) ? { start: Math.min(from, end - 1), end } : null;
+  }
+  return null;
+}
+
+function openFravaerModal() {
+  const doc = schedFravaerDoc();
+  const castByKey = new Map((state.allCast || []).map((c) => [c.name.trim().toLowerCase(), c.name]));
+  schedOpenDayStripModal({
+    title: 'Fravær',
+    days: schedLokalerDays(schedLokalerDoc().range),
+    itemsFor(date) {
+      const items = [];
+      doc.rows.forEach((row) => {
+        const days = (row.days && !Array.isArray(row.days)) ? row.days : {};
+        const text = typeof days[date] === 'string' ? days[date].trim() : '';
+        const label = (row.name || '').trim();
+        if (!text || !label) return;
+        const name = castByKey.get(label.toLowerCase());
+        const range = schedParseAbsenceText(text);
+        let warn = '';
+        if (!name) warn = 'Ikke på rollelisten';
+        else if (!range) warn = 'Tiden kunne ikke læses';
+        items.push({ label, note: text, warn, name, range });
+      });
+      return items.sort((a, b) => a.label.localeCompare(b.label, 'da'));
+    },
+    emptyItemText: 'Intet fravær',
+    onFetch(items) {
+      state.absentees = items.map((item) => ({ name: item.name, start: item.range.start, end: item.range.end }));
+      closeAbsentForm();
+      renderAbsentList();
+      renderGrid();
+      saveState();
+    },
+  });
 }
 
 // ── Scene sidebar ─────────────────────────────────────────

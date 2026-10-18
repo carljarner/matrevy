@@ -951,6 +951,10 @@
   color: var(--text-muted);
 }
 
+/* Fravær: a name not on the roster / an unreadable time — shown, not fetched. */
+.sched-lok-warn { color: var(--text-muted); }
+.sched-lok-warn-note { color: var(--danger); }
+
 .sched-lok-none {
   font-size: 0.8rem;
   color: var(--text-muted);

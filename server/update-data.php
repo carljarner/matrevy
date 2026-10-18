@@ -388,6 +388,20 @@ if (isset($LOKALER_ACTIONS[$action])) {
   handle_lokaler($action, $body);
 }
 
+// ── Fravær actions (Koordinator's absence sheet) ──
+// The sheet itself is the public `fravaer` resource (data/fravaer.json);
+// this only connects/disconnects the Formularer form its lines are
+// imported from. Hoisted functions only (early dispatch).
+$FRAVAER_ACTIONS = [
+  'fravaer_save_connection' => 'admin', // connect (imports right away) or {formId:null} to disconnect
+];
+if (isset($FRAVAER_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FRAVAER_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  fravaer_save_connection($body);
+}
+
 // ── Teknikken actions (the tech crew's Drive-like file store) ──
 // Videos, slides and images in a nested folder tree, in the private
 // TEKNIK_DATA_DIR. One store for the whole site, not per revy, and never
@@ -3063,6 +3077,8 @@ function forms_submit($body) {
     $json['responses'][] = ['id' => $id, 'submittedAt' => date('c'), 'answers' => $clean];
     return $json;
   });
+  // Koordinator's Fravær sheet imports new answers of its connected form.
+  fravaer_maybe_import($formId);
   respond(200, ['ok' => true, 'id' => $id]);
 }
 
@@ -7770,6 +7786,7 @@ function resource_read($body) {
   $files = [
     'calendar' => 'data/calendar.json', 'posts' => 'data/posts.json', 'wiki' => 'data/wiki.json',
     'masterplan' => 'data/masterplan.json', 'lokaler' => 'data/lokaler.json',
+    'fravaer' => 'data/fravaer.json',
   ];
   $resource = $body['resource'] ?? '';
   if (!is_string($resource) || !isset($files[$resource])) respond(400, ['error' => 'unknown_resource']);
@@ -8033,6 +8050,219 @@ function save_lokaler($payload) {
   respond(200, ['ok' => true, 'sha' => $sha]);
 }
 
+// ── Fravær (Koordinator's absence sheet, data/fravaer.json) ──
+//   {rows: [{id, name, days: {YYYY-MM-DD: text}, source?: {formId, responseId}}],
+//    connection: null | {formId, formTitle, navnFieldId,
+//                         dayFields: {fieldId: YYYY-MM-DD}, importedIds: [responseId]}}
+// Rows are people, cells free text ("14:00 - 16:00") keyed by date, like
+// Lokalebooking's bookings; the day columns come from Kalender client-side.
+// Public (Øveplan embeds it as FRAVAER_DATA). A connected form's answers
+// are imported once each (importedIds), never updated afterwards, so the
+// koordinatorer's edits and deletions stick. `connection` is server-owned:
+// save_fravaer keeps the live one whatever the client sends.
+
+function fravaer_default_doc() {
+  return ['rows' => [], 'connection' => null];
+}
+
+function fravaer_row_id() {
+  return 'f' . bin2hex(random_bytes(6));
+}
+
+// Read-modify-write of fravaer.json that never respond()s, so it is safe
+// inside forms_submit (a failed import must not fail the submit). Creates
+// the file if missing. $mutate returns the new doc, or null for no change.
+// Returns ['ok' => bool, 'doc' => …, 'sha' => …].
+function fravaer_write($mutate, $message) {
+  for ($attempt = 0; $attempt < 3; $attempt++) {
+    [$status, $current] = github_api('GET', 'contents/data/fravaer.json');
+    if ($status === 404) {
+      $doc = fravaer_default_doc();
+      $sha = null;
+    } elseif ($status === 200) {
+      $doc = json_decode(base64_decode($current['content']), true);
+      if (!is_array($doc)) return ['ok' => false];
+      $sha = $current['sha'];
+    } else {
+      return ['ok' => false];
+    }
+    $next = $mutate($doc);
+    if ($next === null) return ['ok' => true, 'doc' => $doc, 'sha' => $sha];
+    $put = [
+      'message' => $message,
+      'content' => base64_encode(json_encode($next, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n"),
+    ];
+    if ($sha !== null) $put['sha'] = $sha;
+    [$putStatus, $putResult] = github_api('PUT', 'contents/data/fravaer.json', $put);
+    if ($putStatus === 409) continue; // written in between — re-read and redo
+    if ($putStatus < 200 || $putStatus >= 300) return ['ok' => false];
+    return ['ok' => true, 'doc' => $next, 'sha' => $putResult['content']['sha'] ?? null];
+  }
+  return ['ok' => false];
+}
+
+// Appends a row per connected-form answer not imported before. Returns the
+// new doc, or null when there is nothing new.
+function fravaer_import_responses($doc) {
+  $conn = $doc['connection'] ?? null;
+  if (!is_array($conn) || !forms_valid_id($conn['formId'] ?? '')) return null;
+  $formId = $conn['formId'];
+  $responsesDoc = forms_load(forms_form_dir($formId) . '/responses.json', ['responses' => []]);
+  $responses = is_array($responsesDoc['responses'] ?? null) ? $responsesDoc['responses'] : [];
+  $importedIds = is_array($conn['importedIds'] ?? null) ? array_values($conn['importedIds']) : [];
+  $seen = [];
+  foreach ($importedIds as $rid) $seen['r' . $rid] = true;
+  // An object when set by fravaer_save_connection in this request, an
+  // array once read back from disk.
+  $dayFields = $conn['dayFields'] ?? [];
+  if (is_object($dayFields)) $dayFields = (array) $dayFields;
+  if (!is_array($dayFields)) $dayFields = [];
+  $navnFieldId = (string) ($conn['navnFieldId'] ?? '');
+  if (!is_array($doc['rows'] ?? null)) $doc['rows'] = [];
+
+  $changed = false;
+  foreach ($responses as $resp) {
+    $rid = $resp['id'] ?? null;
+    if (!is_string($rid) || $rid === '' || isset($seen['r' . $rid])) continue;
+    $seen['r' . $rid] = true;
+    $importedIds[] = $rid;
+    $changed = true;
+    $answers = is_array($resp['answers'] ?? null) ? $resp['answers'] : [];
+    $name = mb_substr(trim(faelles_forms_answer_to_text($answers[$navnFieldId] ?? null)), 0, 100);
+    if ($name === '') continue; // nothing to show, but don't look at it again
+    $days = [];
+    foreach ($dayFields as $fieldId => $date) {
+      if (!is_string($date) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $date)) continue;
+      $text = mb_substr(faelles_forms_answer_to_text($answers[(string) $fieldId] ?? null), 0, 200);
+      if ($text === '') continue;
+      // Two fields mapped to the same day: keep both answers.
+      $days[$date] = isset($days[$date]) ? mb_substr($days[$date] . ', ' . $text, 0, 200) : $text;
+    }
+    $doc['rows'][] = [
+      'id' => fravaer_row_id(),
+      'name' => $name,
+      'days' => (object) $days,
+      'source' => ['formId' => $formId, 'responseId' => $rid],
+    ];
+  }
+  if (!$changed) return null;
+  $conn['dayFields'] = (object) $dayFields;
+  $conn['importedIds'] = $importedIds;
+  $doc['connection'] = $conn;
+  return $doc;
+}
+
+// Called by forms_submit after storing an answer: imports it when $formId
+// is the form the Fravær sheet is connected to. Cheap read otherwise.
+function fravaer_maybe_import($formId) {
+  [$status, $current] = github_api('GET', 'contents/data/fravaer.json');
+  if ($status !== 200) return;
+  $doc = json_decode(base64_decode($current['content']), true);
+  if (!is_array($doc) || !is_array($doc['connection'] ?? null) || ($doc['connection']['formId'] ?? null) !== $formId) return;
+  fravaer_write('fravaer_import_responses', 'Importér fravær fra formular');
+}
+
+// Admin: connect a form (and import its answers right away) or, with
+// formId: null, disconnect (imported rows stay). Reconnecting to the same
+// form keeps the list of imported answers, so nothing comes in twice —
+// unless `reimport: true`, which imports every answer again.
+function fravaer_save_connection($body) {
+  $formId = array_key_exists('formId', $body) ? $body['formId'] : null;
+  if ($formId === null) {
+    $result = fravaer_write(function ($doc) {
+      $doc['connection'] = null;
+      return $doc;
+    }, 'Afbryd fravær-formular via Koordinator');
+  } else {
+    $navnFieldId = $body['navnFieldId'] ?? '';
+    $dayFieldsIn = $body['dayFields'] ?? [];
+    $formTitle = $body['formTitle'] ?? '';
+    $reimport = ($body['reimport'] ?? false) === true;
+    if (!forms_valid_id($formId) || !is_string($navnFieldId) || $navnFieldId === '' || mb_strlen($navnFieldId) > 80
+        || !is_array($dayFieldsIn) || count($dayFieldsIn) > 200 || !is_string($formTitle)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $dayFields = [];
+    foreach ($dayFieldsIn as $fieldId => $date) {
+      $fieldId = (string) $fieldId;
+      if ($fieldId === '' || mb_strlen($fieldId) > 80 || $fieldId === $navnFieldId
+          || !is_string($date) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $date)) {
+        respond(400, ['error' => 'invalid_shape']);
+      }
+      $dayFields[$fieldId] = $date;
+    }
+    if (!is_file(forms_form_dir($formId) . '/definition.json')) respond(404, ['error' => 'not_found']);
+    $result = fravaer_write(function ($doc) use ($formId, $navnFieldId, $dayFields, $formTitle, $reimport) {
+      $old = $doc['connection'] ?? null;
+      $keep = !$reimport && is_array($old) && ($old['formId'] ?? null) === $formId && is_array($old['importedIds'] ?? null);
+      $doc['connection'] = [
+        'formId' => $formId,
+        'formTitle' => mb_substr(trim($formTitle), 0, 200),
+        'navnFieldId' => $navnFieldId,
+        'dayFields' => (object) $dayFields,
+        'importedIds' => $keep ? array_values($old['importedIds']) : [],
+      ];
+      return fravaer_import_responses($doc) ?? $doc;
+    }, 'Forbind fravær-formular via Koordinator');
+  }
+  if (!$result['ok']) respond(502, ['error' => 'github_write_failed', 'file' => 'data/fravaer.json']);
+  respond(200, ['ok' => true, 'data' => $result['doc'], 'sha' => $result['sha']]);
+}
+
+// Admin full save of the sheet's rows (Koordinator's auto-saved draft,
+// merged client-side; optional baseSha → 409 stale). `connection` is kept.
+function save_fravaer($payload) {
+  $rows = $payload['rows'] ?? null;
+  if (!is_array($rows) || count($rows) > 500) respond(400, ['error' => 'invalid_fravaer_shape']);
+  $ids = [];
+  $cleanRows = [];
+  foreach ($rows as $r) {
+    if (!is_array($r) || !isset($r['id'], $r['name'])
+        || !is_string($r['id']) || !preg_match('#^[A-Za-z0-9_-]{1,60}$#', $r['id'])
+        || isset($ids[$r['id']])
+        || !is_string($r['name']) || mb_strlen($r['name']) > 100) {
+      respond(400, ['error' => 'invalid_fravaer_shape']);
+    }
+    $ids[$r['id']] = true;
+    $days = $r['days'] ?? [];
+    if (!is_array($days) || count($days) > 400) respond(400, ['error' => 'invalid_fravaer_shape']);
+    $cells = [];
+    foreach ($days as $date => $value) {
+      if (!is_string($date) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $date)
+          || !is_string($value) || mb_strlen($value) > 200) {
+        respond(400, ['error' => 'invalid_fravaer_shape']);
+      }
+      if (trim($value) !== '') $cells[$date] = $value;
+    }
+    $row = ['id' => $r['id'], 'name' => $r['name'], 'days' => (object) $cells];
+    $source = $r['source'] ?? null;
+    if ($source !== null) {
+      if (!is_array($source) || !forms_valid_id($source['formId'] ?? '')
+          || !is_string($source['responseId'] ?? null) || !preg_match('#^[A-Za-z0-9_-]{1,80}$#', $source['responseId'])) {
+        respond(400, ['error' => 'invalid_fravaer_shape']);
+      }
+      $row['source'] = ['formId' => $source['formId'], 'responseId' => $source['responseId']];
+    }
+    $cleanRows[] = $row;
+  }
+
+  // update_file() never creates a file — the first save creates it.
+  [$getStatus] = github_api('GET', 'contents/data/fravaer.json');
+  if ($getStatus === 404) {
+    github_api('PUT', 'contents/data/fravaer.json', [
+      'message' => 'Opret fravaer.json via Koordinator',
+      'content' => base64_encode(json_encode(fravaer_default_doc(), JSON_PRETTY_PRINT) . "\n"),
+    ]);
+  }
+
+  $sha = update_file('data/fravaer.json', function ($json) use ($cleanRows) {
+    $json['rows'] = $cleanRows;
+    if (!array_key_exists('connection', $json)) $json['connection'] = null;
+    return $json;
+  }, 'Opdater fravaer.json via Koordinator', payload_base_sha($payload));
+  respond(200, ['ok' => true, 'sha' => $sha]);
+}
+
 // Admin-only Gantt chart of the revy period, shown below Kalender's own
 // calendar (js/calendar.js's renderGantt). One chart total — `year` picks
 // which September–November window is drawn; each row is an admin-named
@@ -8182,6 +8412,7 @@ $RESOURCES = [
   'program'       => ['level' => 'boss',  'save' => 'save_program'],
   'masterplan'    => ['level' => 'admin', 'save' => 'save_masterplan'],
   'lokaler'       => ['level' => 'admin', 'save' => 'save_lokaler'],
+  'fravaer'       => ['level' => 'admin', 'save' => 'save_fravaer'],
   'gantt'         => ['level' => 'admin', 'save' => 'save_gantt'],
   'revyugen'      => ['level' => 'admin', 'save' => 'save_revyugen'],
   'production'    => ['level' => 'admin', 'save' => 'save_production'],
