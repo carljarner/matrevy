@@ -11,7 +11,7 @@
    and edits their braend/braendNote fields, so the two can't drift.
    Hvem, hvornår?'s day columns are Kalender's øvedage/forestillinger in
    July–December of the revy's year plus days added here; a cell is free
-   text, and "1" means "not here".
+   text, and "x" means "not here".
 
    One document per revy (rekvisit_* actions, private REKVISIT_DATA_DIR).
    A revy picker shows every Arkiv year; below boss only the current
@@ -155,23 +155,29 @@ const REKVISIT_STATUSES = {
 const REKVISIT_SHEETS = {
   rekvisitter: {
     rowSheet: 'rekvisitter', locked: 'rekvisit', custom: true, rows: true,
-    note: 'Rekvisit, Sketch/Sang, Instruktør og Kommentar udfyldes af instruktørerne — resten af rekvisitten.',
+    note: 'Rekvisit, Sketch/Sang, Instruktør og Kommentar udfyldes af instruktørerne, resten af rekvisitten.',
     hintRequired: ['rekvisit', 'scene', 'instruktoer'],
+    // A header row above the titles shows who fills in what; custom
+    // columns belong to the last group.
+    groups: [
+      { key: 'instr', label: 'Instruktør' },
+      { key: 'rekv', label: 'Rekvisit' },
+    ],
+    // braend lives on the Brændimprenering tab, not here.
     columns: [
-      { key: 'rekvisit', label: 'Rekvisit', width: 160, hint: 'Det, der skal laves' },
-      { key: 'scene', label: 'Sketch/Sang', width: 160, hint: 'Til hvilken scene' },
-      { key: 'instruktoer', label: 'Instruktør', width: 110, hint: 'Dit navn' },
-      { key: 'kommentar', label: 'Kommentar', width: 280, hint: 'Hvordan skal den se ud?' },
-      { key: 'type', label: 'Type (pap/stof/hønsenet/træ)', width: 180 },
-      { key: 'status', label: 'Status', width: 100, status: true },
-      { key: 'ansvarlig', label: 'Ansvarlig', width: 110 },
-      { key: 'ekstra', label: 'Ekstra', width: 200 },
-      { key: 'braend', label: 'Brændimprægneret', width: 120, status: true },
+      { key: 'rekvisit', label: 'Rekvisit', width: 160, hint: 'Det, der skal laves', group: 'instr' },
+      { key: 'scene', label: 'Sketch/Sang', width: 160, hint: 'Til hvilken scene', group: 'instr' },
+      { key: 'instruktoer', label: 'Instruktør', width: 110, hint: 'Dit navn', group: 'instr' },
+      { key: 'kommentar', label: 'Kommentar', width: 280, hint: 'Hvordan skal den se ud?', group: 'instr' },
+      { key: 'type', label: 'Type (pap/stof/hønsenet/træ)', width: 180, group: 'rekv' },
+      { key: 'status', label: 'Status', width: 100, status: true, group: 'rekv' },
+      { key: 'ansvarlig', label: 'Ansvarlig', width: 110, group: 'rekv' },
+      { key: 'ekstra', label: 'Ekstra', width: 200, group: 'rekv' },
     ],
   },
   hvem: {
     rowSheet: 'hvem', locked: 'navn', custom: false, rows: true, days: true,
-    note: 'Skriv 1, hvis og kun hvis du ikke er her — ellers fx "Går 16" eller "Kommer 13".',
+    note: 'Skriv x, hvis og kun hvis du ikke er her, ellers tidsinterval du er her fx "10 - 16".',
     hintRequired: ['navn'],
     columns: [
       { key: 'navn', label: 'Navn', width: 200, hint: 'Dit navn' },
@@ -309,8 +315,15 @@ function rekvisitRoot() {
   return document.getElementById('rekvisit-root');
 }
 
+// "Tidligere år kan kun redigeres af bosser" — only on an older year.
+function rekvisitUpdateEditNote() {
+  const note = document.getElementById('rekvisit-edit-note');
+  if (note) note.hidden = rekvisitFolder === rekvisitCurrentProductionFolder();
+}
+
 async function rekvisitLoad() {
   const root = rekvisitRoot();
+  rekvisitUpdateEditNote();
   if (!rekvisitFolder) {
     const card = el('section', 'card');
     card.appendChild(el('p', 'rekvisit-muted', 'Der er ingen revyer endnu.'));
@@ -421,7 +434,8 @@ function rekvisitSheetColumns(tab = rekvisitActiveTab) {
   const hidden = new Set(doc.hiddenColumns);
   const cols = def.columns.filter((c) => !hidden.has(c.key));
   if (def.custom) {
-    const custom = doc.customColumns.map((c) => ({ key: c.key, label: c.label, width: REKVISIT_CUSTOM_COL_WIDTH, custom: true }));
+    const group = def.groups ? def.groups[def.groups.length - 1].key : undefined;
+    const custom = doc.customColumns.map((c) => ({ key: c.key, label: c.label, width: REKVISIT_CUSTOM_COL_WIDTH, custom: true, group }));
     const right = cols.findIndex((c) => c.stayRight);
     cols.splice(right === -1 ? cols.length : right, 0, ...custom);
   }
@@ -521,7 +535,8 @@ function rekvisitDayColumns() {
     });
 }
 
-// "1" (or "x") = not here at all; anything else = part of the day.
+// "x" = not here at all ("1" too — the 2025 sheet used it); anything else
+// = part of the day.
 function rekvisitDayAbsent(text) {
   return /^\s*[1xX]\s*$/.test(text || '');
 }
@@ -720,10 +735,12 @@ function rekvisitBuildSheetTable(canEdit) {
   rekvisitUpdateSheetWidth(table, withHandle, withActions);
 
   const thead = el('thead');
+  if (def.groups) thead.appendChild(rekvisitBuildGroupRow(columns, withHandle, withActions));
   const headRow = el('tr');
-  if (withHandle) headRow.appendChild(el('th', 'rekvisit-col-handle'));
+  if (withHandle) headRow.appendChild(rekvisitStickyCell(el('th', 'rekvisit-col-handle'), 0));
   for (const col of columns) {
     const th = el('th', rekvisitCellClass(col, 'rekvisit-col-resizable'));
+    rekvisitMaybeSticky(th, col, columns, withHandle);
     if (col.day) {
       th.appendChild(rekvisitDayHead(col, canEdit));
     } else if (canEdit) {
@@ -773,9 +790,10 @@ function rekvisitBuildSheetTable(canEdit) {
   if (footer) {
     const tfoot = el('tfoot');
     const tr = el('tr', 'rekvisit-footer-row');
-    if (withHandle) tr.appendChild(el('td'));
+    if (withHandle) tr.appendChild(rekvisitStickyCell(el('td'), 0));
     for (const col of columns) {
       const td = el('td', rekvisitCellClass(col), footer[col.key] || '');
+      rekvisitMaybeSticky(td, col, columns, withHandle);
       td.dataset.key = col.key;
       tr.appendChild(td);
     }
@@ -787,9 +805,42 @@ function rekvisitBuildSheetTable(canEdit) {
   return table;
 }
 
+// The first column (and the drag handle before it) stays put while the
+// sheet scrolls sideways, like Fællesspisning's Navn.
+function rekvisitStickyCell(cell, left) {
+  cell.classList.add('rekvisit-col-sticky');
+  cell.style.left = `${left}px`;
+  return cell;
+}
+
+function rekvisitMaybeSticky(cell, col, columns, withHandle) {
+  if (col === columns[0]) rekvisitStickyCell(cell, withHandle ? REKVISIT_HANDLE_COL_WIDTH : 0);
+}
+
+// One cell per run of same-group columns; the handle/actions columns join
+// the first/last run so the band is unbroken.
+function rekvisitBuildGroupRow(columns, withHandle, withActions) {
+  const def = rekvisitDef();
+  const tr = el('tr', 'rekvisit-group-row');
+  const runs = [];
+  for (const col of columns) {
+    const last = runs[runs.length - 1];
+    if (last && last.key === col.group) last.span++;
+    else runs.push({ key: col.group, span: 1 });
+  }
+  runs.forEach((run, i) => {
+    const group = def.groups.find((g) => g.key === run.key);
+    const th = el('th', `rekvisit-group rekvisit-group-${run.key}`, group ? group.label : '');
+    th.colSpan = run.span + (i === 0 && withHandle ? 1 : 0) + (i === runs.length - 1 && withActions ? 1 : 0);
+    tr.appendChild(th);
+  });
+  return tr;
+}
+
 function rekvisitCellClass(col, extra) {
   const classes = extra ? [extra] : [];
   if (col.status) classes.push('rekvisit-col-status');
+  if (col.group) classes.push(`rekvisit-in-group-${col.group}`);
   if (col.amount) classes.push('rekvisit-col-amount');
   if (col.day) classes.push('rekvisit-col-day');
   return classes.join(' ') || null;
@@ -894,7 +945,7 @@ function rekvisitRenderRow(row, columns, canEdit, rest) {
   const tr = el('tr', 'rekvisit-row');
   tr._row = row;
   if (def.rows && canEdit) {
-    const handleTd = el('td', 'rekvisit-col-handle');
+    const handleTd = rekvisitStickyCell(el('td', 'rekvisit-col-handle'), 0);
     const handle = el('span', 'boss-manage-drag-handle rekvisit-drag-handle', '⠿');
     handle.title = 'Træk for at flytte';
     handleTd.appendChild(handle);
@@ -903,6 +954,7 @@ function rekvisitRenderRow(row, columns, canEdit, rest) {
   }
   for (const col of columns) {
     const td = el('td', rekvisitCellClass(col));
+    rekvisitMaybeSticky(td, col, columns, def.rows && canEdit);
     if (col.status) {
       td.appendChild(rekvisitStatusToggle(row, col.key, tr, canEdit));
     } else if (col.derived) {

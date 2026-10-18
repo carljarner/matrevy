@@ -5065,8 +5065,8 @@ function rekvisit_sheet_defs() {
         'type' => 'text', 'status' => 'status', 'ansvarlig' => 'text', 'ekstra' => 'text',
         'braend' => 'status', 'braendNote' => 'text',
       ],
-      // braendNote only shows on the Brændimprenering tab.
-      'hideable' => ['scene', 'instruktoer', 'kommentar', 'type', 'status', 'ansvarlig', 'ekstra', 'braend'],
+      // braend/braendNote only show on the Brændimprenering tab.
+      'hideable' => ['scene', 'instruktoer', 'kommentar', 'type', 'status', 'ansvarlig', 'ekstra'],
     ],
     'hvem' => [
       'rows' => true, 'locked' => 'navn', 'custom' => false, 'extraKeys' => [],

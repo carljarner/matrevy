@@ -15,6 +15,17 @@
   margin-bottom: 0;
 }
 
+/* Pinned top-left, mirroring the picker on the right. */
+.rekvisit-edit-note {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  margin: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .rekvisit-revy-picker {
   position: absolute;
   top: 50%;
@@ -180,6 +191,43 @@
 .rekvisit-table td {
   overflow: hidden;
 }
+
+/* First column (+ handle) pinned while scrolling sideways, like
+   Fællesspisning's Navn; rekvisit.js sets each cell's `left`. */
+.rekvisit-table .rekvisit-col-sticky {
+  position: sticky;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.rekvisit-table tr.rekvisit-row > td.rekvisit-col-sticky:not(.rekvisit-col-handle) {
+  box-shadow: inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
+}
+
+.rekvisit-table tr.rekvisit-drop-target > td.rekvisit-col-sticky:not(.rekvisit-col-handle) {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
+}
+
+/* Rekvisitter: who fills in which columns — a band above the titles and
+   a matching coloured underline under each title. */
+.rekvisit-table thead tr.rekvisit-group-row th {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+  border-radius: 6px 6px 0 0;
+  box-shadow: none;
+}
+
+.rekvisit-table thead th.rekvisit-group-instr { background: #cddff2; color: #1f4f86; }
+.rekvisit-table thead th.rekvisit-group-rekv { background: #ead199; color: #7a5200; }
+/* A sliver of card between the two bands. */
+.rekvisit-table thead tr.rekvisit-group-row th + th { box-shadow: inset 3px 0 0 0 var(--surface); }
+
+.rekvisit-table thead th.rekvisit-in-group-instr { box-shadow: inset 0 -2px 0 0 #7fa9d8; }
+.rekvisit-table thead th.rekvisit-in-group-rekv { box-shadow: inset 0 -2px 0 0 #d2ac5c; }
 
 .rekvisit-table thead th {
   color: var(--text-muted);
@@ -417,10 +465,18 @@
   padding-right: 0.15rem;
 }
 
-/* "1" = not here at all; other text = part of the day. */
-.rekvisit-table td.rekvisit-day-absent { background: var(--danger-bg); }
-.rekvisit-table td.rekvisit-day-absent .rekvisit-field { color: var(--danger); font-weight: 600; }
-.rekvisit-table td.rekvisit-day-partial { background: var(--accent-warm-fill); }
+/* "x" = not here at all (a clear red block); other text = part of the
+   day (amber). Tints are translucent so they sit on the cream surface. */
+.rekvisit-table td.rekvisit-day-absent {
+  background: rgba(192, 57, 43, 0.22);
+  box-shadow: inset 0 -1px 0 0 rgba(192, 57, 43, 0.35);
+}
+.rekvisit-table td.rekvisit-day-absent .rekvisit-field {
+  color: #8e2a1f;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.rekvisit-table td.rekvisit-day-partial { background: rgba(216, 184, 120, 0.4); }
 
 /* --- Status pills -------------------------------------------------- */
 .rekvisit-table .rekvisit-col-status {
@@ -452,7 +508,7 @@
 
 .rekvisit-pill-warm { background: var(--accent-warm-text); color: #fff; }
 .rekvisit-pill-done { background: var(--success); color: #fff; }
-.rekvisit-pill-dropped { background: var(--danger-bg); border: 1px solid var(--danger); color: var(--danger); }
+.rekvisit-pill-dropped { background: var(--danger); color: #fff; }
 .rekvisit-pill-muted {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -470,6 +526,14 @@
 }
 
 @media (max-width: 719px) {
+  .rekvisit-edit-note {
+    position: static;
+    transform: none;
+    white-space: normal;
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
+
   .rekvisit-revy-picker {
     position: static;
     transform: none;
