@@ -1438,6 +1438,126 @@ a.manus-pdf-title:focus-visible {
   width: min(560px, 94vw);
 }
 
+/* Rollefordeling's "Cast list" (renderCastListSection/openCastListModal in
+   manus.js): a small section at the bottom of the last act column, and a
+   modal listing every name once with its scene count, "Ligner …" hint,
+   Pladsholder checkbox and Omdøb/Fjern. */
+.manus-castlist-section {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.manus-castlist-section .manus-kanban-col-header {
+  width: 100%;
+}
+
+.manus-castlist-intro {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.manus-castlist-modal {
+  width: min(620px, 94vw);
+}
+
+.manus-castlist-summary,
+.manus-castlist-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.manus-castlist-note {
+  margin: 0.6rem 0 0;
+}
+
+.manus-castlist-list {
+  display: flex;
+  flex-direction: column;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.manus-castlist-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.manus-castlist-row:last-child {
+  border-bottom: none;
+}
+
+.manus-castlist-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.5rem;
+  min-width: 0;
+}
+
+.manus-castlist-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.manus-castlist-placeholder .manus-castlist-name {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.manus-castlist-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.manus-castlist-unused,
+.manus-castlist-similar {
+  font-size: 0.8rem;
+  color: var(--accent-warm-text);
+  font-weight: 600;
+}
+
+.manus-castlist-check {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.manus-castlist-check input {
+  accent-color: var(--accent-warm-text);
+}
+
+.manus-castlist-actions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 719px) {
+  .manus-castlist-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .manus-castlist-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
 /* --- Rollefordeling's editable roles+tags summary (renderRoleTagLine() in
    manus.js) — one role per line: "<code> : <name>" on the left, its type
    tags flowing on the right (space-between), each tag a small pill with its

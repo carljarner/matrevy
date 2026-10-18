@@ -597,7 +597,28 @@ async function loadScenes(allowOverride = false) {
   const scenesData = schedManusHidden ? [] : (override ? override.scenes : SCENES_DATA);
   const castData   = override ? override.cast   : CAST_DATA;
   state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...scenesData]);
-  state.allCast = castData;
+  // Placeholders ("Skuespiller", "Danser 2", …) aren't people: left out of
+  // the roster (Andre revyster, Opmærksomhed, Rekvisitten, Fravær) and
+  // never counted as a clash (schedIsPlaceholderName). A scene's own cast
+  // line still shows them.
+  schedPlaceholderNames = new Set(castData.filter(castIsPlaceholder).map(c => c.name));
+  state.allCast = castData.filter(c => !castIsPlaceholder(c));
+}
+
+// A roster entry like "Skuespiller" or "Danser 2" stands in for a role
+// nobody is cast in yet (Manus's Cast list sets `placeholder` explicitly;
+// otherwise the built-in list decides). Duplicated verbatim from
+// js/manus.js (also in scripts/generate-pdfs.js).
+const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
+function castIsPlaceholder(entry) {
+  if (!entry) return false;
+  if (typeof entry.placeholder === 'boolean') return entry.placeholder;
+  return CAST_PLACEHOLDER_RE.test(String(entry.name || '').trim());
+}
+
+let schedPlaceholderNames = new Set();
+function schedIsPlaceholderName(name) {
+  return schedPlaceholderNames.has(name) || CAST_PLACEHOLDER_RE.test(String(name || '').trim());
 }
 
 // ── Build grid ────────────────────────────────────────────
@@ -984,7 +1005,7 @@ function renderCastListHtml(names, si, cell) {
 }
 
 function getConflicts(si, ri, cell) {
-  const castNames = getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell));
+  const castNames = getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell) && !schedIsPlaceholderName(n));
   if (!castNames.length) return [];
   const conflicts = [];
   state.rooms.forEach((_, otherRi) => {
@@ -1004,7 +1025,7 @@ function castConflictsAtNames(si, castNames, excludeRi = -1) {
   // names from castNames (see highlightDrop) — this function only knows the
   // "other" side's cells, so it exempts crossed-out members there itself.
   if (!castNames.length) return false;
-  const names = new Set(castNames.filter(n => !isPersonAbsentAtSlot(n, si)));
+  const names = new Set(castNames.filter(n => !isPersonAbsentAtSlot(n, si) && !schedIsPlaceholderName(n)));
   for (let ri = 0; ri < state.rooms.length; ri++) {
     if (ri === excludeRi) continue;
     const other = state.grid[si][ri];
@@ -2352,7 +2373,7 @@ function getPickerConflictNames(si, sceneId) {
     filteredCastNames(getSceneById(selId)).forEach(n => occupiedCast.add(n));
   }
 
-  return candidateNames.filter(n => !isPersonAbsentAtSlot(n, si) && occupiedCast.has(n));
+  return candidateNames.filter(n => !isPersonAbsentAtSlot(n, si) && occupiedCast.has(n) && !schedIsPlaceholderName(n));
 }
 
 // Cast members of `sceneId` who are absent during slot `si`'s time window —

@@ -1102,7 +1102,21 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
   fs.writeFileSync(outPath, outBytes);
 }
 
+// ── Placeholder names ───────────────────────────────────────
+// A roster entry like "Skuespiller" or "Danser 2" stands in for a role
+// nobody is cast in yet, so it gets no personal manuscript. Set explicitly
+// per entry from Manus's Cast list (`placeholder: true|false`); without
+// that, the built-in list below decides. Duplicated verbatim in
+// js/manus.js and js/schedule.js (and koordinator.js's roster filter).
+const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
+function castIsPlaceholder(entry) {
+  if (!entry) return false;
+  if (typeof entry.placeholder === 'boolean') return entry.placeholder;
+  return CAST_PLACEHOLDER_RE.test(String(entry.name || '').trim());
+}
+
 // ── Individual manuscripts: one per cast.json roster entry ──────
+// Placeholders (castIsPlaceholder) are skipped.
 // Same merge helper as the master manus.pdf, filtered to only the
 // scenes that actor is cast in (in act order) and with their name centered
 // on the title page. Only written for someone with at least one compiled
@@ -1114,6 +1128,7 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
 async function buildActorManuskripts(actsData, prodMeta, scenePdfPaths, castRoster, currentFolder) {
   const written = new Set();
   for (const person of castRoster) {
+    if (castIsPlaceholder(person)) continue;
     const name = person.name;
     const sceneFilter = (scene) => (scene.cast || []).some((c) => c.name === name);
     if (!manuskriptHasScenes(actsData, scenePdfPaths, sceneFilter)) continue;

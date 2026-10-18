@@ -2856,7 +2856,18 @@ function koordFraCastNames() {
   const override = siteLoadOverride('manus');
   const cast = (override && Array.isArray(override.cast)) ? override.cast
     : (typeof CAST_DATA !== 'undefined' && Array.isArray(CAST_DATA)) ? CAST_DATA : [];
-  return cast.map((c) => c && c.name).filter(Boolean);
+  return cast.filter((c) => c && c.name && !castIsPlaceholder(c)).map((c) => c.name);
+}
+
+// A roster entry like "Skuespiller" or "Danser 2" stands in for a role
+// nobody is cast in yet (Manus's Cast list sets `placeholder` explicitly;
+// otherwise the built-in list decides). Duplicated verbatim from
+// js/manus.js (also in scripts/generate-pdfs.js).
+const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
+function castIsPlaceholder(entry) {
+  if (!entry) return false;
+  if (typeof entry.placeholder === 'boolean') return entry.placeholder;
+  return CAST_PLACEHOLDER_RE.test(String(entry.name || '').trim());
 }
 
 function koordFraTextInput(value, className, onInput) {

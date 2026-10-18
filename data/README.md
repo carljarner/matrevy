@@ -110,10 +110,14 @@ way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus
 ```json
 {
   "cast": [
-    { "name": "Adam", "index": 0 }
+    { "name": "Adam", "index": 0 },
+    { "name": "Danser", "index": 1, "placeholder": true }
   ]
 }
 ```
+
+- Built by Manus from the names in the scenes' roles. Fix typos and remove leftovers from Manus → Rollefordeling → Cast list.
+- `placeholder` (optional): `true` = a stand-in name for an uncast role. It gets no personal manuscript and Øveplan ignores it. Missing = the built-in list decides (Skuespiller, Danser, Sanger, Revyst, Statist, Ninja, Kor, … optionally followed by a number). `false` overrides that list.
 
 ## Schema: calendar.json
 

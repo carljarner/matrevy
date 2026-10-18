@@ -469,10 +469,11 @@ if ($action === 'manuscripts_sync_selection') {
 
 // Manus's merge-before-save read, its save-free PDF trigger, removing one
 // pool record ("Fjern"), setting pool submissions' durations, Stjerneark's per-click save and the Program tab's
-// merge read — boss-level like the `manus`/`manuscripts`
+// merge read, and the Cast list's placeholder flag / unused-name removal
+// (manus_set_cast) — boss-level like the `manus`/`manuscripts`
 // resources. Single-purpose actions rather than full-array saves, so a tab
 // with stale data can't overwrite anything through them.
-if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'program_read', 'resource_read'], true)) {
+if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'manus_set_cast', 'program_read', 'resource_read'], true)) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
@@ -481,6 +482,7 @@ if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status'
   else if ($action === 'manus_regenerate_pdfs') manus_regenerate_pdfs();
   else if ($action === 'manus_pdf_status') manus_pdf_status();
   else if ($action === 'manus_set_stars') manus_set_stars($body);
+  else if ($action === 'manus_set_cast') manus_set_cast($body);
   else if ($action === 'program_read') program_read();
   else if ($action === 'manuscripts_set_durations') manuscripts_set_durations($body);
   else manuscripts_remove($body);
@@ -6681,7 +6683,8 @@ function save_manus($payload) {
     }
   }
   foreach ($castList as $c) {
-    if (!is_array($c) || !isset($c['name'], $c['index'])) {
+    if (!is_array($c) || !isset($c['name'], $c['index'])
+        || (array_key_exists('placeholder', $c) && !is_bool($c['placeholder']))) {
       respond(400, ['error' => 'invalid_cast_shape']);
     }
   }
@@ -7869,6 +7872,64 @@ function manus_set_stars($body) {
     return $json;
   }, 'Opdater stjerneark via Manus');
   respond(200, ['ok' => true, 'missing' => array_values(array_diff(array_keys($byUid), array_keys($found)))]);
+}
+
+// Manus's Cast list (Rollefordeling): one roster entry of data/cast.json at a
+// time, by exact name — either set its `placeholder` flag (true/false; a
+// placeholder like "Skuespiller" gets no personal manuscript and is ignored
+// by Øveplan), or remove it. Removal is refused while any scene in
+// scenes.json still casts the name (409 in_use), so it only ever drops a
+// leftover (a typo since corrected, someone recast). Renaming isn't here:
+// it edits the scenes' roles and rides with Manus's Gem. Returns the new
+// roster so the page can refresh its shadow.
+function manus_set_cast($body) {
+  $name = $body['name'] ?? null;
+  $placeholder = $body['placeholder'] ?? null;
+  $remove = ($body['remove'] ?? false) === true;
+  if (!is_string($name) || $name === '' || strlen($name) > 200
+      || ($remove === ($placeholder !== null)) || ($placeholder !== null && !is_bool($placeholder))) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+
+  if ($remove) {
+    [$status, $current] = github_api('GET', 'contents/data/scenes.json');
+    if ($status !== 200) {
+      respond(502, ['error' => 'github_read_failed', 'file' => 'data/scenes.json']);
+    }
+    $scenes = json_decode(base64_decode($current['content']), true);
+    foreach ((is_array($scenes) ? ($scenes['acts'] ?? []) : []) as $act) {
+      foreach (($act['scenes'] ?? []) as $scene) {
+        foreach (($scene['cast'] ?? []) as $c) {
+          if (is_array($c) && ($c['name'] ?? null) === $name) {
+            respond(409, ['error' => 'in_use']);
+          }
+        }
+      }
+    }
+  }
+
+  $cast = [];
+  update_file('data/cast.json', function ($json) use ($name, $placeholder, $remove, &$cast) {
+    $list = is_array($json['cast'] ?? null) ? $json['cast'] : [];
+    $found = false;
+    $next = [];
+    foreach ($list as $c) {
+      if (is_array($c) && ($c['name'] ?? null) === $name) {
+        $found = true;
+        if ($remove) continue;
+        $c['placeholder'] = $placeholder;
+      }
+      $next[] = $c;
+    }
+    if (!$found) {
+      respond(404, ['error' => 'not_found']);
+    }
+    foreach ($next as $i => $c) $next[$i]['index'] = $i;
+    $json['cast'] = $next;
+    $cast = $next;
+    return $json;
+  }, $remove ? 'Fjern navn fra cast.json via Manus' : 'Opdater pladsholder i cast.json via Manus');
+  respond(200, ['ok' => true, 'cast' => $cast]);
 }
 
 // Admin-only (Koordinator page is admin-gated, same rank as archive/config):
