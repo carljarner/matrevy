@@ -15,7 +15,7 @@ let state = {
   scenes: [],       // schedulable scenes
   allScenes: [],    // all scenes from JSON
   allCast: [],      // full cast roster (CAST_DATA, or a fresher manus override — see loadScenes())
-  title: 'MatRevy - Øveplan', // editable heading shown above the grid
+  title: 'MatRevy Øveplan', // editable heading shown above the grid
 };
 
 // ── Custom scenes ─────────────────────────────────────────
@@ -479,7 +479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }
   });
   titleEl.addEventListener('blur', () => {
-    const val = titleEl.textContent.trim() || 'MatRevy - Øveplan';
+    const val = titleEl.textContent.trim() || 'MatRevy Øveplan';
     titleEl.textContent = val;
     state.title = val;
     saveState();
@@ -508,7 +508,7 @@ function buildSlots(startTime, endTime, segmentMinutes, gapMinutes = 0) {
   // regardless of gap — only the step to the next slot's start grows.
   for (let t = start; t + segmentMinutes - 5 <= end; t += segmentMinutes + gapMinutes) {
     slots.push({
-      label: minutesToTime(t) + ' – ' + minutesToTime(t + segmentMinutes),
+      label: minutesToTime(t) + '-' + minutesToTime(t + segmentMinutes),
       startMinutes: t,
       endMinutes: t + segmentMinutes,
     });
@@ -728,7 +728,7 @@ function applyBuild({ startTime, endTime, segmentMinutes, gapMinutes, roomLines,
   }
 
   const titleEl = document.getElementById('sched-grid-title');
-  if (!titleEl.textContent.trim()) titleEl.textContent = state.title || 'MatRevy - Øveplan';
+  if (!titleEl.textContent.trim()) titleEl.textContent = state.title || 'MatRevy Øveplan';
   document.getElementById('sched-empty-state').style.display = 'none';
   document.getElementById('sched-grid-container').style.display = 'block';
   document.getElementById('scene-sidebar').style.display = 'block';
@@ -806,7 +806,7 @@ function mergeSlots(si) {
   state.slots.splice(si, 2, {
     startMinutes: start,
     endMinutes: end,
-    label: minutesToTime(start) + ' – ' + minutesToTime(end),
+    label: minutesToTime(start) + '-' + minutesToTime(end),
   });
   state.grid.splice(si, 2, mergedRow);
 
@@ -827,8 +827,8 @@ function splitSlot(si, startA, endA, startB, endB) {
   const secondRow = state.rooms.map(() => null);
 
   state.slots.splice(si, 1,
-    { startMinutes: startA, endMinutes: endA, label: minutesToTime(startA) + ' – ' + minutesToTime(endA) },
-    { startMinutes: startB, endMinutes: endB, label: minutesToTime(startB) + ' – ' + minutesToTime(endB) },
+    { startMinutes: startA, endMinutes: endA, label: minutesToTime(startA) + '-' + minutesToTime(endA) },
+    { startMinutes: startB, endMinutes: endB, label: minutesToTime(startB) + '-' + minutesToTime(endB) },
   );
   state.grid.splice(si, 1, firstRow, secondRow);
 
@@ -849,7 +849,7 @@ function buildMergeButton(si) {
     btn.onclick = e => { e.stopPropagation(); mergeSlots(si); };
   } else {
     btn.disabled = true;
-    btn.title = 'Kan ikke sammenlægges – mindst ét lokale har en scene i begge tidsrum';
+    btn.title = 'Kan ikke sammenlægges, da mindst ét lokale har en scene i begge tidsrum';
   }
   return btn;
 }
@@ -1541,7 +1541,7 @@ function renderAbsentList() {
 
     const timeEl = document.createElement('span');
     timeEl.className = 'absent-row-time';
-    timeEl.textContent = minutesToTime(a.start) + '–' + minutesToTime(a.end);
+    timeEl.textContent = minutesToTime(a.start) + '-' + minutesToTime(a.end);
 
     const rmBtn = document.createElement('button');
     rmBtn.className = 'absent-remove-btn';
@@ -1907,7 +1907,7 @@ function openCellEditor(si, ri) {
   // revyster" by default there instead of making the coordinator expand it.
   cellEditorOthersOpen = !!(scene && scene.id === REKVISITTEN_ID);
   document.getElementById('picker-title').textContent =
-    'Rediger' + (scene ? ' – ' + scene.name : '');
+    'Rediger' + (scene ? ' (' + scene.name + ')' : '');
   _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
   renderCellEditorList();
@@ -2064,7 +2064,7 @@ function openScenemodeTextEditor(si, ri) {
   pickerRoom = ri;
   pickerMode = 'edit-scenemode';
   const cell = state.grid[si][ri];
-  document.getElementById('picker-title').textContent = 'Rediger – ' + ((cell && cell.customName) || 'Scenemøde');
+  document.getElementById('picker-title').textContent = 'Rediger (' + ((cell && cell.customName) || 'Scenemøde') + ')';
   _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
   renderScenemodeTextEditor();
@@ -2184,7 +2184,7 @@ function renderSlotTimeEditor() {
       mergeUpBtn.disabled = true;
       mergeUpBtn.title = pickerSlot === 0
         ? 'Der er intet tidsrum før dette.'
-        : 'Kan ikke sammenlægges – mindst ét lokale har en scene i begge tidsrum.';
+        : 'Kan ikke sammenlægges, da mindst ét lokale har en scene i begge tidsrum.';
     }
     actions.appendChild(mergeUpBtn);
 
@@ -2215,7 +2215,7 @@ function renderSlotTimeEditor() {
       mergeDownBtn.disabled = true;
       mergeDownBtn.title = pickerSlot === state.slots.length - 1
         ? 'Der er intet tidsrum efter dette.'
-        : 'Kan ikke sammenlægges – mindst ét lokale har en scene i begge tidsrum.';
+        : 'Kan ikke sammenlægges, da mindst ét lokale har en scene i begge tidsrum.';
     }
     actions.appendChild(mergeDownBtn);
 
@@ -2308,7 +2308,7 @@ function confirmSlotTimeEditor() {
   if (newEnd <= newStart) { alert('Sluttidspunktet skal være efter starttidspunktet.'); return; }
   slot.startMinutes = newStart;
   slot.endMinutes = newEnd;
-  slot.label = minutesToTime(newStart) + ' – ' + minutesToTime(newEnd);
+  slot.label = minutesToTime(newStart) + '-' + minutesToTime(newEnd);
   renderGrid();
   saveState();
   closePicker();
@@ -2749,7 +2749,7 @@ async function restoreStateInner() {
     // been built.
     state.absentees = snap.absentees || [];
     renderAbsentList();
-    state.title = snap.title || 'MatRevy - Øveplan';
+    state.title = snap.title || 'MatRevy Øveplan';
 
     // Restore grid state
     if (snap.rooms && snap.rooms.length && snap.slots && snap.grid) {

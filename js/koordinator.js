@@ -322,7 +322,7 @@ function openKoordYearEditor(existing) {
 
     const year = parseInt(yearInput.value, 10);
     if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-      error.textContent = 'Angiv et gyldigt årstal (1900–2100).';
+      error.textContent = 'Angiv et gyldigt årstal (1900-2100).';
       return;
     }
 
@@ -588,7 +588,7 @@ function openCloseYearModal(closingFolder) {
   modal.classList.add('koord-close-year-modal');
 
   const intro = el('p', 'koord-modal-intro',
-    `Dette nulstiller Manus (scener, rollebesætning, indsendte manuskripter), gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, og lukker den aktive produktionsmappe — revyster kan herefter ikke indsende manuskripter, før en ny revy startes.`);
+    `Dette nulstiller Manus (scener, rollebesætning, indsendte manuskripter), gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, og lukker den aktive produktionsmappe. Revyster kan herefter ikke indsende manuskripter, før en ny revy startes.`);
   form.appendChild(intro);
 
   const nameInput = document.createElement('input');
@@ -641,7 +641,7 @@ function openCloseYearModal(closingFolder) {
       cancelBtn.textContent = 'Luk';
       cancelBtn.disabled = false;
     } catch (e) {
-      error.textContent = e.message || 'Der opstod en fejl. Det er trygt at prøve igen — allerede fuldførte trin gentages uden problemer.';
+      error.textContent = e.message || 'Der opstod en fejl. Det er trygt at prøve igen. Allerede fuldførte trin gentages uden problemer.';
       cancelBtn.disabled = false;
       confirmBtn.disabled = false;
     }
@@ -662,7 +662,7 @@ function openStartNewYearModal(currentFolder) {
   modal.classList.add('koord-close-year-modal');
 
   const intro = el('p', 'koord-modal-intro', currentFolder
-    ? `Der er allerede en aktiv produktionsmappe ("${currentFolder}"). Dette skifter til en ny uden at arkivere eller nulstille den nuværende — brug "Afslut revyen" først, medmindre du er sikker på at det ikke er nødvendigt.`
+    ? `Der er allerede en aktiv produktionsmappe ("${currentFolder}"). Dette skifter til en ny uden at arkivere eller nulstille den nuværende. Brug "Afslut revyen" først, medmindre du er sikker på at det ikke er nødvendigt.`
     : 'Gør en ny mappe til den aktive produktion, så revyster igen kan indsende manuskripter til Manus.');
   form.appendChild(intro);
 
@@ -846,8 +846,8 @@ async function koordSaveMerged(resource, merge) {
 }
 
 function koordMergeToast(what, ctx) {
-  if (ctx.conflicts) siteShowToast(`${what} gemt — en anden havde ændret de samme felter; din version er brugt`);
-  else if (ctx.tookTheirs) siteShowToast(`${what} gemt — med ændringer fra en anden`);
+  if (ctx.conflicts) siteShowToast(`${what} gemt (en anden havde ændret de samme felter, din version er brugt)`);
+  else if (ctx.tookTheirs) siteShowToast(`${what} gemt med ændringer fra en anden`);
 }
 
 // ── Masterplan (a checklist grid replacing an externally-maintained
@@ -885,7 +885,7 @@ const KOORD_MP_TABS = [
 // Cycles unset -> mangler -> igang -> faerdig -> unset on click (red/yellow/
 // green, matching the source spreadsheet's own Status column fills).
 const KOORD_MP_STATUSES = [
-  { value: '', label: '–' },
+  { value: '', label: '-' },
   { value: 'mangler', label: 'Mangler' },
   { value: 'igang', label: 'I gang' },
   { value: 'faerdig', label: 'Færdig' },
@@ -1482,7 +1482,7 @@ function openCreateMasterplanModal() {
     if (!label) { error.textContent = 'Navnet er påkrævet.'; return; }
     const year = parseInt(yearInput.value, 10);
     if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-      error.textContent = 'Angiv et gyldigt årstal (1900–2100).';
+      error.textContent = 'Angiv et gyldigt årstal (1900-2100).';
       return;
     }
 
@@ -2969,7 +2969,7 @@ function renderFraGrid() {
       nameInput.classList.toggle('koord-fra-name-unknown', unknown);
       const parts = [];
       if (name) parts.push(name);
-      if (unknown) parts.push('Ikke på rollelisten — Øveplan kan ikke hente det');
+      if (unknown) parts.push('Ikke på rollelisten, så Øveplan kan ikke hente det');
       if (row.source) parts.push('Hentet fra formularen');
       nameInput.title = parts.join('\n');
     }
@@ -3223,7 +3223,7 @@ async function koordFraOpenConnectModal() {
     close();
     koordFraTakeLive(result.data.data);
     const added = fravaerDraft.rows.length - before;
-    siteShowToast(added > 0 ? `Forbundet — ${added} ${added === 1 ? 'linje' : 'linjer'} hentet ind` : 'Forbundet');
+    siteShowToast(added > 0 ? `Forbundet. ${added} ${added === 1 ? 'linje' : 'linjer'} hentet ind` : 'Forbundet');
   });
   actions.appendChild(connectBtn);
 
@@ -3240,7 +3240,7 @@ function renderFravaerCard(container) {
 
   const topRow = el('div', 'koord-lok-top');
   topRow.appendChild(el('p', 'koord-lok-hint',
-    'Samme dage som Lokalebooking. Skriv tidsrummet, personen er væk (fx 14:00 - 16:00, fra 15, til 13 eller hele dagen) — Øveplan kan hente det ind under Fraværende revyster.'));
+    'Samme dage som Lokalebooking. Skriv tidsrummet, personen er væk (fx 14:00-16:00, fra 15, til 13 eller hele dagen). Øveplan kan hente det ind under Fraværende revyster.'));
   const connection = el('div', 'koord-fra-connection');
   connection.id = 'koord-fra-connection';
   topRow.appendChild(connection);

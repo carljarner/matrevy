@@ -230,7 +230,7 @@ function formsOptionsFromRehearsals(sourceFilter) {
     .sort((a, b) => String(a.date).localeCompare(String(b.date)));
   return events.map((ev) => ({
     value: ev.id,
-    label: `${ev.title} — ${typeof formatDaDateShort === 'function' ? formatDaDateShort(ev.date) : ev.date}`,
+    label: `${ev.title} (${typeof formatDaDateShort === 'function' ? formatDaDateShort(ev.date) : ev.date})`,
   }));
 }
 
@@ -388,7 +388,7 @@ function formsFravaerFields(includeName) {
     fields.push({
       id: formsNewFieldId(), type: 'text', required: false,
       label: `${ev.title}: ${formatDaDate(ev.date)} (${formsFravaerTimeRange(ev)})`,
-      placeholder: 'tt:mm - tt:mm',
+      placeholder: 'tt:mm-tt:mm',
     });
   }
   return fields;
@@ -413,7 +413,7 @@ function formsFravaerRehearsalEvents() {
 // Duplicate of calendar.js's calTimeRange — forms.html doesn't load that file.
 function formsFravaerTimeRange(ev) {
   if (!ev.start) return '';
-  return ev.end ? `${ev.start}–${ev.end}` : ev.start;
+  return ev.end ? `${ev.start}-${ev.end}` : ev.start;
 }
 
 function formsResolveOptions(field) {
@@ -1363,7 +1363,7 @@ async function formsRenderOverviewScreen(root) {
       row.appendChild(statusCell);
 
       row.appendChild(el('td', null, f.deadline
-        ? (typeof formatDaDateMaybeTime === 'function' ? formatDaDateMaybeTime(f.deadline) : f.deadline) : '—'));
+        ? (typeof formatDaDateMaybeTime === 'function' ? formatDaDateMaybeTime(f.deadline) : f.deadline) : '-'));
       row.appendChild(el('td', null, String(f.responseCount)));
 
       // Three row actions: "Se statistik" (bars), "Se svar" (paper) and
@@ -1628,7 +1628,7 @@ function formsRenderFieldDependencyControl(field, draftSections, sectionIdx, fie
       const labels = formsDependencyOptionsForField(controlling)
         .filter((o) => field.dependsOn.values.includes(o.value))
         .map((o) => o.label);
-      summary.textContent = `Vises hvis: ${controlling.label || '(uden titel)'} (${labels.join(', ') || '—'})`;
+      summary.textContent = `Vises hvis: ${controlling.label || '(uden titel)'} (${labels.join(', ') || '-'})`;
     } else {
       summary.textContent = 'Afhængighed peger på et spørgsmål, der ikke længere findes.';
       summary.classList.add('forms-dependency-broken');
@@ -2773,7 +2773,7 @@ function formsColumnsForField(field) {
   if (field.type === 'grid_single' || field.type === 'grid_multi') {
     return (Array.isArray(field.rows) ? field.rows : []).map((row) => ({
       key: `${field.id}::${row.id}`,
-      label: `${field.label} — ${row.label}`,
+      label: `${field.label} (${row.label})`,
       field: null,
       get: (answers) => {
         const cell = answers ? answers[field.id] : undefined;
@@ -2820,7 +2820,7 @@ function formsExportColumnGroups(definition) {
 }
 
 function formsFormatAnswerForDisplay(v) {
-  if (v === undefined || v === null) return '—';
+  if (v === undefined || v === null) return '-';
   if (Array.isArray(v)) return v.join(', ');
   if (v === true) return 'Ja';
   if (v === false) return 'Nej';

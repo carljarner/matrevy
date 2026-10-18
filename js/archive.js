@@ -461,7 +461,7 @@ function openYearEditor(existing) {
 
     const year = parseInt(yearInput.value, 10);
     if (!Number.isInteger(year) || year < 1900 || year > 2100) {
-      error.textContent = 'Angiv et gyldigt årstal (1900–2100).';
+      error.textContent = 'Angiv et gyldigt årstal (1900-2100).';
       return;
     }
 
@@ -528,7 +528,7 @@ function openYearEditor(existing) {
       if (!result.ok) {
         save.disabled = false;
         progress.textContent = '';
-        error.textContent = `${result.message} (${uploaded.length}/${uploadSteps.length} filer blev gemt før fejlen. Prøv igen — allerede uploadede filer bliver ikke uploadet igen.)`;
+        error.textContent = `${result.message} (${uploaded.length}/${uploadSteps.length} filer blev gemt før fejlen. Prøv igen. Allerede uploadede filer bliver ikke uploadet igen.)`;
         return;
       }
       uploaded.push({ kind, path });

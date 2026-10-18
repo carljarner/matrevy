@@ -86,10 +86,10 @@ function formatKr(amount) {
   return n.toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' kr';
 }
 
-// ISO date (YYYY-MM-DD) → dd/mm/yyyy; '—' when missing/invalid.
+// ISO date (YYYY-MM-DD) → dd/mm/yyyy; '-' when missing/invalid.
 function formatDaNumeric(iso) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '-';
 }
 
 // Accepts Danish comma decimals too.
@@ -2365,11 +2365,11 @@ function renderPaidTable(wrap) {
   const tbody = el('tbody');
   visibleRows.forEach((e) => {
     const tr = el('tr', e.deleted ? 'budget-row-deleted' : null);
-    tr.appendChild(el('td', 'budget-td-narrow', e.bilag || '—'));
+    tr.appendChild(el('td', 'budget-td-narrow', e.bilag || '-'));
     tr.appendChild(el('td', 'budget-td-narrow', formatDaNumeric(String(e.date || '').slice(0, 10))));
     tr.appendChild(el('td', 'budget-td-narrow', formatDaNumeric(String(e.approvedAt || '').slice(0, 10))));
     tr.appendChild(el('td', 'budget-td-amount', formatKr(e.amount)));
-    tr.appendChild(el('td', 'budget-td-narrow', e.paidBy || '—'));
+    tr.appendChild(el('td', 'budget-td-narrow', e.paidBy || '-'));
     tr.appendChild(el('td', null, e.comment || ''));
 
     const actionsTd = el('td', 'budget-td-actions');
@@ -2720,11 +2720,11 @@ function openExpenseEditModal(root, exp) {
   modal.classList.add('budget-approve-modal', 'budget-confirm-modal');
   actions.classList.add('budget-expense-edit-actions');
 
-  const summaryParts = [budgetCategoryLabel(exp.category, budgetState.categories.expense), formatKr(exp.amount), exp.paidBy || '—'];
+  const summaryParts = [budgetCategoryLabel(exp.category, budgetState.categories.expense), formatKr(exp.amount), exp.paidBy || '-'];
   if (exp.phone) summaryParts.push(exp.phone);
   form.appendChild(el('p', 'budget-intro', summaryParts.join(' · ')));
   form.appendChild(el('p', 'budget-intro',
-    `Bilag ${exp.bilag || '—'}`
+    `Bilag ${exp.bilag || '-'}`
     + ` · Indsendt ${formatDaNumeric(String(exp.date || '').slice(0, 10))}`
     + ` · Betalt ${formatDaNumeric(String(exp.approvedAt || '').slice(0, 10))}`));
 
@@ -3878,7 +3878,7 @@ function buildStregPricesCard() {
       const tallyTotal = stregCategoryTallyTotal(item.key);
       const perUnitVal = (item.price > 0 && tallyTotal > 0) ? item.price / tallyTotal : null;
       const span = stregPriceUnitCells.get(item);
-      if (span) span.textContent = perUnitVal != null ? formatKr(perUnitVal) : '—';
+      if (span) span.textContent = perUnitVal != null ? formatKr(perUnitVal) : '-';
     });
     if (stregPriceTotalEl) stregPriceTotalEl.textContent = formatKr(total);
   }
@@ -3958,7 +3958,7 @@ function buildStregPricesCard() {
       const buySpan = el('span', 'streg-price-buy-value', formatKr(item.price));
       row.appendChild(buySpan);
 
-      const perUnitSpan = el('span', 'streg-price-per-unit', '—');
+      const perUnitSpan = el('span', 'streg-price-per-unit', '-');
       stregPriceUnitCells.set(item, perUnitSpan);
       row.appendChild(perUnitSpan);
 

@@ -345,17 +345,17 @@ function calPencilIcon() {
 
 function calTimeRange(ev) {
   if (!ev.start) return '';
-  return ev.end ? `${ev.start}–${ev.end}` : ev.start;
+  return ev.end ? `${ev.start}-${ev.end}` : ev.start;
 }
 
 function calDateLabelShort(ev) {
   const end = calEventEndDate(ev);
-  return end === ev.date ? formatDaDateShort(ev.date) : `${formatDaDateShort(ev.date)}–${formatDaDateShort(end)}`;
+  return end === ev.date ? formatDaDateShort(ev.date) : `${formatDaDateShort(ev.date)}-${formatDaDateShort(end)}`;
 }
 
 function calDateLabelLong(ev) {
   const end = calEventEndDate(ev);
-  return end === ev.date ? formatDaDate(ev.date) : `${formatDaDate(ev.date)} – ${formatDaDate(end)}`;
+  return end === ev.date ? formatDaDate(ev.date) : `${formatDaDate(ev.date)} til ${formatDaDate(end)}`;
 }
 
 // ── Read-only detail modal (non-admin chip click) ────────────
@@ -733,7 +733,7 @@ function ganttBarColor(bar, rowIdx) {
 }
 
 function ganttBarRangeLabel(bar) {
-  return bar.start === bar.end ? formatDaDate(bar.start) : `${formatDaDate(bar.start)} – ${formatDaDate(bar.end)}`;
+  return bar.start === bar.end ? formatDaDate(bar.start) : `${formatDaDate(bar.start)} til ${formatDaDate(bar.end)}`;
 }
 
 // Hover tooltip on a Gantt bar or Revyugen block: `text` (a bar's date
@@ -1419,7 +1419,7 @@ function revyugenCategory(key) {
 }
 
 function revyugenRangeLabel(block) {
-  return `${block.start} – ${block.end}`;
+  return `${block.start}-${block.end}`;
 }
 
 // Clips one day's blocks to the visible hours, then lays out overlapping

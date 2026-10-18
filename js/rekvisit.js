@@ -71,7 +71,7 @@ function rekvisitResolvePassword() {
 function rekvisitMapError(status, detail) {
   if (detail === 'read_only') return 'Tidligere år kan kun redigeres af bosser.';
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
-  if (status === 404) return 'Ikke fundet — en anden har måske lige slettet den. Genindlæs siden.';
+  if (status === 404) return 'Ikke fundet. En anden har måske lige slettet den. Genindlæs siden.';
   if (status === 409) return 'Nogen andre har lige ændret arket. Genindlæser…';
   return 'Der opstod en serverfejl. Prøv igen senere.';
 }
@@ -125,18 +125,18 @@ const REKVISIT_REVY_KEY = 'matrevy-rekvisit-revy';
 // rekvisit_status_values() in update-data.php.
 const REKVISIT_STATUSES = {
   'rekvisitter/status': [
-    { value: '', label: '–', cls: 'rekvisit-pill-none' },
+    { value: '', label: '-', cls: 'rekvisit-pill-none' },
     { value: 'igang', label: 'I gang', cls: 'rekvisit-pill-warm' },
     { value: 'faerdig', label: 'Færdig', cls: 'rekvisit-pill-done' },
     { value: 'droppet', label: 'Droppet', cls: 'rekvisit-pill-dropped' },
   ],
   'rekvisitter/braend': [
-    { value: '', label: '–', cls: 'rekvisit-pill-none' },
+    { value: '', label: '-', cls: 'rekvisit-pill-none' },
     { value: 'ja', label: 'Ja', cls: 'rekvisit-pill-done' },
     { value: 'skalikke', label: 'Skal ikke', cls: 'rekvisit-pill-muted' },
   ],
   'indkob/kobt': [
-    { value: '', label: '–', cls: 'rekvisit-pill-none' },
+    { value: '', label: '-', cls: 'rekvisit-pill-none' },
     { value: 'ja', label: 'Ja', cls: 'rekvisit-pill-done' },
   ],
   'regnskab/behandlet': [
@@ -177,7 +177,7 @@ const REKVISIT_SHEETS = {
   },
   hvem: {
     rowSheet: 'hvem', locked: 'navn', custom: false, rows: true, days: true,
-    note: 'Skriv x, hvis og kun hvis du ikke er her, ellers tidsinterval du er her fx "10 - 16".',
+    note: 'Skriv x, hvis og kun hvis du ikke er her, ellers tidsinterval du er her fx "10-16".',
     hintRequired: ['navn'],
     columns: [
       { key: 'navn', label: 'Navn', width: 200, hint: 'Dit navn' },
@@ -464,7 +464,7 @@ function rekvisitRowLabel(row) {
 }
 
 function rekvisitStatusOptions(key) {
-  return REKVISIT_STATUSES[`${rekvisitDef().rowSheet}/${key}`] || [{ value: '', label: '–', cls: 'rekvisit-pill-none' }];
+  return REKVISIT_STATUSES[`${rekvisitDef().rowSheet}/${key}`] || [{ value: '', label: '-', cls: 'rekvisit-pill-none' }];
 }
 
 // ── Hvem, hvornår?: day columns ──────────────────────────────
@@ -575,7 +575,7 @@ function rekvisitOpenAddDayModal() {
 // An extra day is deleted; a Kalender date is only hidden on this sheet.
 function rekvisitRemoveDay(col) {
   const description = col.fromCalendar
-    ? 'Dagen skjules kun her — Kalender ændres ikke. Det, der er skrevet i kolonnen, gemmes.'
+    ? 'Dagen skjules kun her. Kalender ændres ikke. Det, der er skrevet i kolonnen, gemmes.'
     : 'Det, der er skrevet i kolonnen, gemmes, men vises ikke.';
   rekvisitConfirm(`Fjern dagen ${col.label}?`, description, 'Fjern', async () => {
     for (const dayId of col.extraIds) {
@@ -909,7 +909,7 @@ function rekvisitStatusToggle(row, key, tr, canEdit) {
     const meta = options.find((st) => st.value === (row[key] || '')) || options[0];
     btn.className = 'rekvisit-pill ' + meta.cls;
     btn.textContent = meta.label;
-    btn.title = canEdit ? `${meta.label} — klik for at skifte` : meta.label;
+    btn.title = canEdit ? `${meta.label} (klik for at skifte)` : meta.label;
   }
   paint();
   btn.addEventListener('click', () => {
@@ -1178,7 +1178,7 @@ function rekvisitUpdateSheetWidth(table, withHandle, withActions) {
 // touch works too), double-click to go back to the default width.
 function rekvisitColumnResizer(col, colEl, table, withHandle, withActions) {
   const grip = el('div', 'rekvisit-col-resizer');
-  grip.title = 'Træk for at ændre bredden — dobbeltklik for standard';
+  grip.title = 'Træk for at ændre bredden (dobbeltklik for standard)';
   const widths = () => rekvisitTabDoc().columnWidths;
   grip.addEventListener('pointerdown', (e) => {
     e.preventDefault();

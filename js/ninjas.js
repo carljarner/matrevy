@@ -66,7 +66,7 @@ function ninjasResolvePassword() {
 
 function ninjasMapError(status, detail) {
   if (detail === 'no_production') return 'Der er ingen aktiv revy lige nu.';
-  if (detail === 'stale_mics') return 'Mikrofonerne er blevet ændret af en anden — siden er opdateret.';
+  if (detail === 'stale_mics') return 'Mikrofonerne er blevet ændret af en anden. Siden er opdateret.';
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
   return detail ? `Serverfejl: ${detail}` : `Serverfejl (${status}). Prøv igen senere.`;
 }
@@ -609,8 +609,8 @@ function ninjasBuildMicCard(groups) {
   card.appendChild(wrap);
   if (!mics.length) {
     card.appendChild(el('p', 'ninjas-muted', ninjasIsEditing()
-      ? 'Ingen mikrofoner endnu — tilføj en med +.'
-      : 'Ingen mikrofoner endnu — tryk Rediger for at tilføje.'));
+      ? 'Ingen mikrofoner endnu. Tilføj en med +.'
+      : 'Ingen mikrofoner endnu. Tryk Rediger for at tilføje.'));
   }
   return card;
 }
@@ -622,7 +622,7 @@ function ninjasMicHeader(mic) {
   if (!ninjasIsEditing()) return th;
   th.classList.add('ninjas-mic-head-editable');
   th.tabIndex = 0;
-  th.title = 'Klik for at redigere — træk for at flytte';
+  th.title = 'Klik for at redigere, træk for at flytte';
   th.setAttribute('role', 'button');
   th.addEventListener('click', () => ninjasOpenMicModal(mic));
   th.addEventListener('keydown', (e) => {
@@ -710,7 +710,7 @@ function ninjasMicRow(group, row) {
     input.type = 'text';
     input.maxLength = 200;
     input.value = ninjasGetLocal(cellId);
-    input.setAttribute('aria-label', `${mic.name} — ${row.title}`);
+    input.setAttribute('aria-label', `${mic.name}, ${row.title}`);
     const commit = () => ninjasCommitCell(cellId, input.value, () => ninjasPaintMicRow(row, cells));
     input.addEventListener('change', commit);
     // The scene's cast, minus whoever already has a mic in this row.
@@ -903,7 +903,7 @@ function ninjasCueRow(group, row) {
     ta.rows = 1;
     ta.maxLength = 1000;
     ta.value = ninjasGetLocal(cellId);
-    ta.setAttribute('aria-label', `${col.label} — ${row.title}`);
+    ta.setAttribute('aria-label', `${col.label}, ${row.title}`);
     ta.addEventListener('input', () => ninjasAutogrow(ta));
     const commit = () => ninjasCommitCell(cellId, ta.value, null);
     ta.addEventListener('change', commit);

@@ -138,7 +138,7 @@ function bandResolvePassword() {
 function bandMapError(status, detail) {
   if (detail === 'read_only') return 'Kun bosser kan redigere arkivet, ældre revyer og andre instanser.';
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
-  if (status === 404) return 'Ikke fundet — en anden har måske lige slettet den. Genindlæs siden.';
+  if (status === 404) return 'Ikke fundet. En anden har måske lige slettet den. Genindlæs siden.';
   if (status === 409) return 'Nogen andre har lige ændret arket. Genindlæser…';
   if (status === 413 || detail === 'too_large') return `Filen er for stor. Maks. ${BAND_MAX_UPLOAD_MB} MB.`;
   if (detail === 'bad_extension') return 'Kun PDF- og MuseScore-filer (.pdf, .mscz, .mscx) kan uploades.';
@@ -435,7 +435,7 @@ function bandAllValueKeys() {
 
 // The 3-state status cycle from last year's sheet: blank / "(Tjek!)" / "Tjek!".
 const BAND_STATUSES = [
-  { value: '', label: '–', cls: 'band-status-none', title: 'Ikke klar' },
+  { value: '', label: '-', cls: 'band-status-none', title: 'Ikke klar' },
   { value: 'delvis', label: '(Tjek!)', cls: 'band-status-delvis', title: 'Delvist' },
   { value: 'klar', label: 'Tjek!', cls: 'band-status-klar', title: 'Klar' },
 ];
@@ -679,7 +679,7 @@ function bandUpdateSheetWidth(table) {
 // touch works too), double-click to go back to the default width.
 function bandColumnResizer(col, colEl, table) {
   const grip = el('div', 'band-col-resizer');
-  grip.title = 'Træk for at ændre bredden — dobbeltklik for standard';
+  grip.title = 'Træk for at ændre bredden (dobbeltklik for standard)';
   grip.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     grip.setPointerCapture(e.pointerId);
@@ -772,7 +772,7 @@ function bandOpenAddColumnModal() {
   const nameField = siteEditField('Navn', nameInput);
   const typePick = siteCreateDropdownField([
     { value: 'text', label: 'Tekst' },
-    { value: 'status', label: 'Status (– / (Tjek!) / Tjek!)' },
+    { value: 'status', label: 'Status (- / (Tjek!) / Tjek!)' },
   ], 'text');
   const typeField = siteEditField('Type', typePick);
   form.appendChild(nameField);
@@ -1031,7 +1031,7 @@ function bandStatusPill(row, key, tr) {
     const meta = bandStatusMeta(row[key] || '');
     btn.className = 'band-status ' + meta.cls;
     btn.textContent = meta.label;
-    btn.title = bandCanEdit() ? `${meta.title} — klik for at skifte` : meta.title;
+    btn.title = bandCanEdit() ? `${meta.title} (klik for at skifte)` : meta.title;
   }
   paint();
   btn.disabled = !bandCanEdit();
@@ -1124,7 +1124,7 @@ function bandDeleteRow(row, tr) {
   const isSection = row.type === 'section';
   const name = isSection ? ((row.title || '').trim() || 'denne sektion') : bandSongLabel(row);
   let description = 'Dette kan ikke fortrydes.';
-  if (isSection) description = 'Kun overskriften slettes — sangene under den bliver liggende.';
+  if (isSection) description = 'Kun overskriften slettes. Sangene under den bliver liggende.';
   else if (fileCount) description = `Mappen med ${fileCount} fil${fileCount === 1 ? '' : 'er'} slettes også. Dette kan ikke fortrydes.`;
   bandConfirm(`Slet "${name}"?`, description, 'Slet', async () => {
     const result = await bandApi('band_delete_row', { rowId: row.id });
@@ -1603,7 +1603,7 @@ function bandOpenUploadModal(row, files) {
   if (row._uploading) { siteShowToast('Vent til den igangværende upload er færdig.'); return; }
   const valid = files.filter((file) => {
     if (!BAND_ALLOWED_EXTS.includes(bandFileExt(file.name))) {
-      siteShowToast(`"${file.name}" blev sprunget over — kun .pdf, .mscz og .mscx.`);
+      siteShowToast(`"${file.name}" blev sprunget over (kun .pdf, .mscz og .mscx).`);
       return false;
     }
     if (file.size > BAND_MAX_UPLOAD_MB * 1024 * 1024) {
@@ -2061,7 +2061,7 @@ async function bandInit(root) {
   bandRenderPicker(root);
   if (!bandFolder) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'band-muted', 'Der er ingen revyer endnu — opret en med "+ Opret ny" i menuen.'));
+    card.appendChild(el('p', 'band-muted', 'Der er ingen revyer endnu. Opret en med "+ Opret ny" i menuen.'));
     root.replaceChildren(card);
     return;
   }

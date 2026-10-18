@@ -70,7 +70,7 @@ function kostumeResolvePassword() {
 function kostumeMapError(status, detail) {
   if (detail === 'no_production') return 'Der er ingen aktiv revy lige nu.';
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
-  if (status === 404) return 'Ikke fundet — en anden har måske lige slettet den. Genindlæs siden.';
+  if (status === 404) return 'Ikke fundet. En anden har måske lige slettet den. Genindlæs siden.';
   if (status === 409) return 'Nogen andre har lige ændret arket. Genindlæser…';
   return 'Der opstod en serverfejl. Prøv igen senere.';
 }
@@ -169,7 +169,7 @@ async function kostumeLoad() {
   if (!result.ok) {
     const card = el('section', 'card');
     const message = result.detail === 'no_production'
-      ? 'Der er ingen aktiv revy lige nu — arket kommer, når en ny revy er startet.'
+      ? 'Der er ingen aktiv revy lige nu. Arket kommer, når en ny revy er startet.'
       : (result.message || 'Kunne ikke indlæse arket.');
     card.appendChild(el('p', result.detail === 'no_production' ? 'kostume-muted' : 'kostume-error', message));
     root.replaceChildren(card);
@@ -290,7 +290,7 @@ function kostumeStatusToggle(row, key, tr) {
     const meta = KOSTUME_STATUSES.find((st) => st.value === (row[key] || '')) || KOSTUME_STATUSES[0];
     btn.className = 'kostume-status ' + meta.cls;
     btn.textContent = meta.label;
-    btn.title = `${meta.label} — klik for at skifte`;
+    btn.title = `${meta.label} (klik for at skifte)`;
   }
   paint();
   btn.addEventListener('click', () => {
@@ -532,7 +532,7 @@ function kostumeUpdateSheetWidth(table) {
 // touch works too), double-click to go back to the default width.
 function kostumeColumnResizer(col, colEl, table) {
   const grip = el('div', 'kostume-col-resizer');
-  grip.title = 'Træk for at ændre bredden — dobbeltklik for standard';
+  grip.title = 'Træk for at ændre bredden (dobbeltklik for standard)';
   grip.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     grip.setPointerCapture(e.pointerId);

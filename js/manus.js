@@ -965,7 +965,7 @@ function manusPrintPointBoxplot(type, rows) {
 
   const title = document.createElement('h2');
   title.className = 'manus-print-title';
-  title.textContent = `Point – ${MANUS_TYPE_COLUMN_LABEL[type]}`;
+  title.textContent = `Point (${MANUS_TYPE_COLUMN_LABEL[type]})`;
   sheet.appendChild(title);
 
   const plot = buildPointsBoxplot(rows);
@@ -1351,7 +1351,7 @@ function buildPointsResultsTable(rows) {
     tr.appendChild(tdName);
 
     const tdAvg = document.createElement('td');
-    tdAvg.textContent = row.avg === null ? '–' : formatPointsAvg(row.avg);
+    tdAvg.textContent = row.avg === null ? '-' : formatPointsAvg(row.avg);
     tr.appendChild(tdAvg);
 
     const tdCount = document.createElement('td');
@@ -1457,7 +1457,7 @@ function buildPointsBoxplot(rows) {
     if (row.points.length === 0) {
       const none = document.createElement('span');
       none.className = 'manus-points-box-none';
-      none.textContent = '–';
+      none.textContent = '-';
       track.appendChild(none);
     } else {
       const sorted = row.points.slice().sort((a, b) => a - b);
@@ -1905,7 +1905,7 @@ function openAktTagModal(type) {
         // Themes are shared with the other type, so existing ones are kept
         // (their tags on the other type too) — only missing standard ones
         // are added back.
-        `Fjerner alle valg og stile for ${MANUS_TYPE_COLUMN_LABEL[type].toLowerCase()}. Temaerne deles med ${MANUS_TYPE_COLUMN_LABEL[MANUS_TYPES.find(t => t !== type)].toLowerCase()} og beholdes – manglende standardtemaer tilføjes igen.`,
+        `Fjerner alle valg og stile for ${MANUS_TYPE_COLUMN_LABEL[type].toLowerCase()}. Temaerne deles med ${MANUS_TYPE_COLUMN_LABEL[MANUS_TYPES.find(t => t !== type)].toLowerCase()} og beholdes, og manglende standardtemaer tilføjes igen.`,
         'Nulstil',
         () => {
           store[type] = manusAktSeedBucket(type);
@@ -1986,7 +1986,7 @@ function openAktTagModal(type) {
         label.name = input.value;
         persist();
         for (const chip of form.querySelectorAll('[data-akt-label]')) {
-          if (chip.dataset.aktLabel === label.id) chip.textContent = label.name || '–';
+          if (chip.dataset.aktLabel === label.id) chip.textContent = label.name || '-';
         }
       });
       row.appendChild(input);
@@ -2226,7 +2226,7 @@ function openAktTagModal(type) {
       chip.className = 'manus-akt-chip';
       chip.classList.toggle('manus-akt-chip-active', active);
       chip.dataset.aktLabel = l.id;
-      chip.textContent = l.name || '–';
+      chip.textContent = l.name || '-';
       chip.addEventListener('click', () => {
         if (isStyle) {
           tags.style = active ? null : l.id;
@@ -2294,7 +2294,7 @@ async function manusPrintAktCards(type) {
 
   const title = document.createElement('h2');
   title.className = 'manus-print-title';
-  title.textContent = `Aktfordeling – ${MANUS_TYPE_COLUMN_LABEL[type]}`;
+  title.textContent = `Aktfordeling (${MANUS_TYPE_COLUMN_LABEL[type]})`;
   sheet.appendChild(title);
 
   const legend = document.createElement('div');
@@ -2312,7 +2312,7 @@ async function manusPrintAktCards(type) {
       entry.appendChild(isStyle
         ? manusBuildAktShapeSvg(l.shape, [], { emptyFill })
         : manusBuildAktShapeSvg('rect', [l.color], { full: true }));
-      entry.appendChild(document.createTextNode(l.name || '–'));
+      entry.appendChild(document.createTextNode(l.name || '-'));
       row.appendChild(entry);
     }
     legend.appendChild(row);
@@ -3537,7 +3537,7 @@ function manusCreateDurationInput(row) {
   durationInput.type = 'text';
   durationInput.inputMode = 'decimal';
   durationInput.className = 'manus-select-duration';
-  durationInput.placeholder = '–';
+  durationInput.placeholder = '-';
   durationInput.value = row.duration != null ? row.duration : '';
   durationInput.addEventListener('click', (e) => e.stopPropagation());
   durationInput.addEventListener('input', () => {
@@ -5009,7 +5009,7 @@ function openCastListModal() {
       if (/[\[\]]/.test(to)) { siteShowToast('Navnet må ikke indeholde [ eller ].'); return; }
       manusRenameCastName(item.name, to);
       edit.close();
-      siteShowToast(`${item.name} omdøbt til ${to} — husk at trykke Gem`);
+      siteShowToast(`${item.name} omdøbt til ${to}. Husk at trykke Gem`);
       paint();
     };
     okBtn.addEventListener('click', apply);
@@ -5025,7 +5025,7 @@ function openCastListModal() {
     const others = items.length - people;
     summary.textContent = items.length
       ? `${people} ${people === 1 ? 'revyst' : 'revyster'}${others ? `, ${others} ${others === 1 ? 'navn' : 'navne'} der ikke tælles med` : ''}.`
-      : 'Ingen navne endnu — skriv dem i scenernes roller.';
+      : 'Ingen navne endnu. Skriv dem i scenernes roller.';
     list.textContent = '';
     if (!items.length) return;
 
@@ -5616,7 +5616,7 @@ async function manusSaveStars() {
   setManusSavedOverride({ scenes: flat, cast: getEffectiveCastData() });
   // A scene missing on the server was removed by someone else since this
   // page loaded; its stars wait for the next Gem, which merges that.
-  if (missing.size) return { ok: false, message: 'Nogle scener findes ikke på serveren længere — tryk Gem' };
+  if (missing.size) return { ok: false, message: 'Nogle scener findes ikke på serveren længere. Tryk Gem' };
   return { ok: true };
 }
 
@@ -5726,7 +5726,7 @@ async function programSaveNow() {
     siteSaveOverride('program', merged);
     const open = PROGRAM_SECTIONS.filter(sec => conflicts[sec.key]);
     if (open.length) {
-      return { ok: false, message: `${open.map(sec => sec.label).join(' og ')} er ændret af en anden — vælg version nedenfor` };
+      return { ok: false, message: `${open.map(sec => sec.label).join(' og ')} er ændret af en anden. Vælg version nedenfor` };
     }
     return { ok: true };
   }
@@ -6530,8 +6530,8 @@ async function manusSaveMainInner() {
   manusResourceSaveInFlight = false;
   renderAll();
 
-  if (merge.bothMoved) siteShowToast('Manus gemt — en anden havde også flyttet scener; din rækkefølge er brugt');
-  else if (merge.tookTheirs) siteShowToast('Manus gemt — med ændringer fra en anden');
+  if (merge.bothMoved) siteShowToast('Manus gemt (en anden havde også flyttet scener, din rækkefølge er brugt)');
+  else if (merge.tookTheirs) siteShowToast('Manus gemt med ændringer fra en anden');
   else siteShowToast('Manus gemt');
   renderMainViewActions();
 }
@@ -6599,7 +6599,7 @@ function manusPdfStatusText() {
   // Checked before manusPdfLastGeneratedAt so a timed-out poll always reads
   // as "we couldn't confirm this" rather than silently falling back to
   // whatever (now stale) timestamp was last known.
-  if (manusPdfPollTimedOut) return 'Kunne ikke bekræfte om PDF’erne er opdateret endnu — tjek "Tjek om klar" på Koordinator-siden om lidt';
+  if (manusPdfPollTimedOut) return 'Kunne ikke bekræfte om PDF’erne er opdateret endnu. Tjek "Tjek om klar" på Koordinator-siden om lidt';
   if (manusPdfLastGeneratedAt) return manusFormatGeneratedAt(manusPdfLastGeneratedAt);
   if (manusPdfConfirmedAbsent) return 'Endnu ikke genereret';
   // checkFailed (or the check simply hasn't resolved yet) says nothing
@@ -6742,7 +6742,7 @@ function manusPollPdfCompletion(requestedAt, beforeDate, url) {
       if (!pickedUp && !olderRunning && Date.now() - startedAt > MANUS_PDF_PICKUP_TIMEOUT_MS) {
         stop();
         const el = manusMainViewErrorEl();
-        if (el) el.textContent = "PDF-generatoren startede ikke. Prøv igen om lidt — ellers kører serverens worker ikke.";
+        if (el) el.textContent = "PDF-generatoren startede ikke. Prøv igen om lidt. Ellers kører serverens worker ikke.";
         return;
       }
     } else {
@@ -6774,9 +6774,9 @@ function manusPdfErrorHint(e) {
       ? `Tegnet "${e.char}" kan ikke bruges direkte i LaTeX. Græske bogstaver skrives i matematik, fx $\\Lambda$ eller $\\lambda$.`
       : `Tegnet "${e.char}" kan ikke bruges direkte i LaTeX. Erstat det med en LaTeX-kommando, eller fjern det.`;
   }
-  if (/^Undefined control sequence/.test(msg)) return 'Ukendt kommando — tjek stavningen af kommandoen (det, der starter med \\) i linjen.';
-  if (/Missing \$ inserted/.test(msg)) return 'Matematik uden for $…$ — fx ^, _ eller en matematikkommando, der skal stå mellem $-tegn.';
-  if (/Missing \} inserted|Runaway argument|File ended while scanning|Paragraph ended before/.test(msg)) return 'En { eller } mangler — tjek at alle krøllede parenteser er lukket.';
+  if (/^Undefined control sequence/.test(msg)) return 'Ukendt kommando. Tjek stavningen af kommandoen (det, der starter med \\) i linjen.';
+  if (/Missing \$ inserted/.test(msg)) return 'Matematik uden for $…$ (fx ^, _ eller en matematikkommando, der skal stå mellem $-tegn).';
+  if (/Missing \} inserted|Runaway argument|File ended while scanning|Paragraph ended before/.test(msg)) return 'En { eller } mangler. Tjek at alle krøllede parenteser er lukket.';
   if (/Extra \}|Too many \}'s/.test(msg)) return 'Der er en } for meget.';
   if (/Environment .* undefined/.test(msg)) return 'Ukendt miljø i \\begin{…}.';
   if (/\\begin\{.*\} on input line \d+ ended by/.test(msg)) return 'En \\begin{…} og \\end{…} passer ikke sammen.';
@@ -6800,9 +6800,9 @@ function manusPdfErrorWhere(e) {
 
   if (e.sceneId || e.sceneName) {
     const scene = [e.actLabel, e.sceneId].filter(Boolean).join(' · ');
-    return `${scene}${scene ? ' ' : ''}"${e.sceneName}"${part ? ' — ' + part : ''}`;
+    return `${scene}${scene ? ' ' : ''}"${e.sceneName}"${part ? ' (' + part + ')' : ''}`;
   }
-  if (e.document === 'program' && part) return `Program — ${part}`;
+  if (e.document === 'program' && part) return `Program (${part})`;
   return e.documentLabel || 'PDF-generering';
 }
 
@@ -6944,7 +6944,7 @@ function manusOpenPdfErrorModal(status) {
     if (e.atEnd) {
       const atEnd = document.createElement('p');
       atEnd.className = 'manus-pdf-error-meta';
-      atEnd.textContent = 'LaTeX opdagede fejlen først ved slutningen af manus — den kan sidde tidligere.';
+      atEnd.textContent = 'LaTeX opdagede fejlen først ved slutningen af manus, så den kan sidde tidligere.';
       block.appendChild(atEnd);
     }
 
@@ -7076,7 +7076,7 @@ function renderMainViewActions() {
     const failed = document.createElement('button');
     failed.type = 'button';
     failed.className = 'manus-pdf-status manus-pdf-status-failed';
-    failed.textContent = 'Seneste generering fejlede — vis detaljer';
+    failed.textContent = 'Seneste generering fejlede. Vis detaljer';
     const failure = manusPdfLastFailure;
     failed.addEventListener('click', () => manusOpenPdfErrorModal(failure));
     left.appendChild(failed);

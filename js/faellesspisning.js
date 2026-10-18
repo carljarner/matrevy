@@ -725,7 +725,7 @@ function faellesBuildSummaryBody(columns, showAddDate) {
     const attendees = faellesState.rows.filter((r) => faellesIsDayChecked(r, col));
     const withPrefsRows = attendees.filter((r) => (r.answers.madforbehold || '').trim() !== '');
     const cell = el('td', 'faelles-summary-prefs');
-    const btn = el('button', 'faelles-prefs-btn', attendees.length ? `ⓘ ${withPrefsRows.length}` : '–');
+    const btn = el('button', 'faelles-prefs-btn', attendees.length ? `ⓘ ${withPrefsRows.length}` : '-');
     btn.type = 'button';
     btn.title = 'Se madforbehold for denne dag';
     btn.disabled = attendees.length === 0;
@@ -744,7 +744,7 @@ function faellesBuildSummaryBody(columns, showAddDate) {
 // only shows a small "ⓘ N" affordance, not the text directly, per the
 // site's preference for keeping the grid itself compact.
 function faellesOpenPreferencesModal(col, attendees) {
-  const { modal, form, actions, close } = siteOpenModalWithClose(`Madforbehold – ${col.label}`);
+  const { modal, form, actions, close } = siteOpenModalWithClose(`Madforbehold (${col.label})`);
   modal.classList.add('faelles-prefs-modal');
 
   if (attendees.length === 0) {

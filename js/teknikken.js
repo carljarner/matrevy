@@ -119,10 +119,10 @@ function teknikResolvePassword() {
 
 function teknikMapError(status, detail) {
   if (detail === 'quota_exceeded') {
-    return `Der er ikke plads nok — Teknikken må højst fylde ${teknikFormatBytes(teknikQuotaBytes)} i alt. Slet nogle filer først.`;
+    return `Der er ikke plads nok. Teknikken må højst fylde ${teknikFormatBytes(teknikQuotaBytes)} i alt. Slet nogle filer først.`;
   }
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
-  if (status === 404) return 'Ikke fundet — en anden har måske lige slettet den. Genindlæs siden.';
+  if (status === 404) return 'Ikke fundet. En anden har måske lige slettet den. Genindlæs siden.';
   if (status === 507 || detail === 'disk_full') return 'Serveren er ved at løbe tør for plads. Sig det til Carl.';
   return 'Der opstod en serverfejl. Prøv igen senere.';
 }
@@ -823,11 +823,11 @@ function teknikWireEnterChain(inputs, submit) {
 function teknikOpenUploadModal(files, folderId) {
   const valid = files.filter((file) => {
     if (teknikIsVideo(file)) {
-      siteShowToast(`"${file.name}" er en video — brug "Upload videoer".`);
+      siteShowToast(`"${file.name}" er en video. Brug "Upload videoer".`);
       return false;
     }
     if (file.size) return true;
-    siteShowToast(`"${file.name}" blev sprunget over — tom fil eller en mappe.`);
+    siteShowToast(`"${file.name}" blev sprunget over (tom fil eller en mappe).`);
     return false;
   });
   if (!valid.length) return;
