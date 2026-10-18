@@ -1108,7 +1108,7 @@ async function buildManuskriptPdf(actsData, prodMeta, scenePdfPaths, outPath, op
 // per entry from Manus's Cast list (`placeholder: true|false`); without
 // that, the built-in list below decides. Duplicated verbatim in
 // js/manus.js and js/schedule.js (and koordinator.js's roster filter).
-const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
+const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|statister|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
 function castIsPlaceholder(entry) {
   if (!entry) return false;
   if (typeof entry.placeholder === 'boolean') return entry.placeholder;

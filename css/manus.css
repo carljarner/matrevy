@@ -1439,31 +1439,25 @@ a.manus-pdf-title:focus-visible {
 }
 
 /* Rollefordeling's "Cast list" (renderCastListSection/openCastListModal in
-   manus.js): a small section at the bottom of the last act column, and a
-   modal listing every name once with its scene count, "Ligner …" hint,
-   Pladsholder checkbox and Omdøb/Fjern. */
+   manus.js): a header with a Rediger button at the bottom of the last act
+   column, and a modal listing every name once — name + scene count +
+   "Ligner …" hint | Revyst checkbox | Omdøb. */
 .manus-castlist-section {
   margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.4rem;
 }
 
 .manus-castlist-section .manus-kanban-col-header {
-  width: 100%;
-}
-
-.manus-castlist-intro {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  align-items: center;
 }
 
 .manus-castlist-modal {
-  width: min(620px, 94vw);
+  width: min(760px, 94vw);
+}
+
+.manus-castlist-intro {
+  margin: 0 0 0.6rem;
 }
 
 .manus-castlist-summary,
@@ -1488,7 +1482,7 @@ a.manus-pdf-title:focus-visible {
 
 .manus-castlist-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) 4.5rem 5.5rem;
   align-items: center;
   gap: 0.75rem;
   padding: 0.4rem 0.6rem;
@@ -1497,6 +1491,20 @@ a.manus-pdf-title:focus-visible {
 
 .manus-castlist-row:last-child {
   border-bottom: none;
+}
+
+.manus-castlist-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.manus-castlist-head > :nth-child(2) {
+  text-align: center;
 }
 
 .manus-castlist-info {
@@ -1523,7 +1531,6 @@ a.manus-pdf-title:focus-visible {
   color: var(--text-muted);
 }
 
-.manus-castlist-unused,
 .manus-castlist-similar {
   font-size: 0.8rem;
   color: var(--accent-warm-text);
@@ -1532,30 +1539,19 @@ a.manus-pdf-title:focus-visible {
 
 .manus-castlist-check {
   display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.85rem;
-  cursor: pointer;
+  justify-content: center;
 }
 
 .manus-castlist-check input {
+  width: 1rem;
+  height: 1rem;
   accent-color: var(--accent-warm-text);
+  cursor: pointer;
 }
 
 .manus-castlist-actions {
   display: flex;
-  gap: 0.35rem;
   justify-content: flex-end;
-}
-
-@media (max-width: 719px) {
-  .manus-castlist-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .manus-castlist-actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-  }
 }
 
 /* --- Rollefordeling's editable roles+tags summary (renderRoleTagLine() in

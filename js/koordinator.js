@@ -2863,7 +2863,7 @@ function koordFraCastNames() {
 // nobody is cast in yet (Manus's Cast list sets `placeholder` explicitly;
 // otherwise the built-in list decides). Duplicated verbatim from
 // js/manus.js (also in scripts/generate-pdfs.js).
-const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
+const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|statister|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
 function castIsPlaceholder(entry) {
   if (!entry) return false;
   if (typeof entry.placeholder === 'boolean') return entry.placeholder;

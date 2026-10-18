@@ -116,8 +116,8 @@ way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus
 }
 ```
 
-- Built by Manus from the names in the scenes' roles. Fix typos and remove leftovers from Manus → Rollefordeling → Cast list.
-- `placeholder` (optional): `true` = a stand-in name for an uncast role. It gets no personal manuscript and Øveplan ignores it. Missing = the built-in list decides (Skuespiller, Danser, Sanger, Revyst, Statist, Ninja, Kor, … optionally followed by a number). `false` overrides that list.
+- Rebuilt by Manus on every save from the names in the scenes' roles (`\role{code}[Name]`); a name no scene uses drops out. Check and rename names from Manus → Rollefordeling → Cast list → Rediger.
+- `placeholder` (optional): `true` = not a real person (the Cast list's "Revyst" unticked, e.g. "Skuespiller"). It gets no personal manuscript and Øveplan ignores it. When missing, a built-in list decides (Skuespiller, Danser, Sanger, Rapper, Revyst, Statist(er), Ninja, Kor, …, optionally followed by a number); `false` overrides it.
 
 ## Schema: calendar.json
 

@@ -4773,20 +4773,21 @@ function renderRollefordelingTab() {
 
 // ── Rollefordeling: Cast list ───────────────────────────────────
 // data/cast.json (the roster Øveplan, Fravær and the personal manuscripts
-// use) is built from the names typed in each scene's \role{}[<name>], so a
-// typo becomes a person of its own. The Cast list shows every name once,
-// alphabetically, with the scenes it's in and a "Ligner …" hint for
-// near-duplicates, and lets a boss rename a name everywhere (draft edit,
-// saved with Gem), remove a name no scene uses (manus_set_cast, live), and
-// mark placeholders (manus_set_cast, live; draft._castFlags for a name
-// that isn't saved yet).
+// use) is exactly the names in the scenes' \role{code}[<name>] lines —
+// manusMergeCastRoster rebuilds it on every Gem. The Cast list (the
+// "Rediger" button in its own header at the bottom of the last act column)
+// shows each of those names once, alphabetically, with its scenes and a
+// "Ligner …" hint for near-duplicates. A boss can rename a name everywhere
+// (draft edit, saved with Gem) and untick "Revyst" for a stand-in name like
+// "Skuespiller" (manus_set_cast, live; draft._castFlags for a name that
+// isn't saved yet).
 
 // A roster entry like "Skuespiller" or "Danser 2" stands in for a role
-// nobody is cast in yet: no personal manuscript, ignored by Øveplan. An
-// explicit `placeholder` wins; otherwise the built-in list decides.
-// Duplicated verbatim in scripts/generate-pdfs.js and js/schedule.js (and
-// koordinator.js's roster filter).
-const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
+// nobody is cast in yet ("Revyst" unticked): no personal manuscript,
+// ignored by Øveplan. An explicit `placeholder` wins; otherwise the
+// built-in list decides. Duplicated verbatim in scripts/generate-pdfs.js and
+// js/schedule.js (and koordinator.js's roster filter).
+const CAST_PLACEHOLDER_RE = /^(skuespiller|danser|sanger|rapper|revyst|statist|statister|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/i;
 function castIsPlaceholder(entry) {
   if (!entry) return false;
   if (typeof entry.placeholder === 'boolean') return entry.placeholder;
@@ -4803,19 +4804,15 @@ function renderCastListSection() {
   label.className = 'manus-akt-label';
   label.textContent = 'Cast list';
   header.appendChild(label);
-  section.appendChild(header);
-
-  const text = document.createElement('p');
-  text.className = 'manus-castlist-intro';
-  text.textContent = 'Alle navne fra rollerne samlet ét sted — tjek for stavefejl, og markér pladsholdere (fx Skuespiller), så de ikke får eget manus.';
-  section.appendChild(text);
 
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn-small';
-  btn.textContent = 'Vis cast list';
+  btn.textContent = 'Rediger';
   btn.addEventListener('click', openCastListModal);
-  section.appendChild(btn);
+  header.appendChild(btn);
+
+  section.appendChild(header);
   return section;
 }
 
@@ -4858,36 +4855,30 @@ function manusCastNamesLookAlike(a, b) {
 }
 
 function manusCastListEntries() {
-  const roster = getEffectiveCastData() || [];
+  const roster = new Map((getEffectiveCastData() || []).filter(c => c && c.name).map(c => [c.name, c]));
+  const flags = manusDraft._castFlags || {};
   const byName = new Map();
-  for (const c of roster) {
-    if (!c || !c.name) continue;
-    byName.set(c.name, { name: c.name, scenes: [], inRoster: true, entry: c });
-  }
   for (const row of manusCastListRows()) {
     const title = manusRowTitle(row);
     for (const c of row.cast || []) {
       const name = (c.name || '').trim();
       if (!name) continue;
-      if (!byName.has(name)) byName.set(name, { name, scenes: [], inRoster: false, entry: { name } });
+      if (!byName.has(name)) byName.set(name, { name, scenes: [] });
       const item = byName.get(name);
       if (!item.scenes.includes(title)) item.scenes.push(title);
     }
   }
-  const flags = manusDraft._castFlags || {};
   const items = [...byName.values()].map(item => {
-    const entry = !item.inRoster && typeof flags[item.name] === 'boolean'
-      ? { ...item.entry, placeholder: flags[item.name] }
-      : item.entry;
-    // Renamed in this draft but not saved yet: still on the roster (and in
-    // scenes.json) until Gem renames it there.
-    const renamedTo = (manusDraft._castRenames || {})[item.name] || null;
-    return { ...item, placeholder: castIsPlaceholder(entry), renamedTo };
+    const saved = roster.get(item.name);
+    const entry = saved && typeof saved.placeholder === 'boolean' ? saved
+      : typeof flags[item.name] === 'boolean' ? { name: item.name, placeholder: flags[item.name] }
+      : saved || { name: item.name };
+    return { ...item, inRoster: !!saved, placeholder: castIsPlaceholder(entry) };
   });
   items.sort((a, b) => a.name.localeCompare(b.name, 'da', { sensitivity: 'base' }));
   for (const item of items) {
-    item.similar = item.placeholder || item.renamedTo ? [] : items
-      .filter(o => o !== item && !o.placeholder && !o.renamedTo && manusCastNamesLookAlike(item.name, o.name))
+    item.similar = item.placeholder ? [] : items
+      .filter(o => o !== item && !o.placeholder && manusCastNamesLookAlike(item.name, o.name))
       .map(o => o.name);
   }
   return items;
@@ -4911,13 +4902,9 @@ function manusRenameCastName(from, to) {
   manusUpdateSaveStatus();
 }
 
-function manusApplyCastResult(cast) {
-  setManusSavedOverride({ scenes: getEffectiveScenesData(), cast });
-}
-
 function openCastListModal() {
-  // The Omdøb/Fjern dialog stacked on top, if open: Escape (and ✕) closes
-  // just that one, like openRoleSceneModal's confirm.
+  // The Omdøb dialog stacked on top, if open: Escape (and ✕) closes just
+  // that one, like openRoleSceneModal's confirm.
   let subClose = null;
   const { modal, form } = siteOpenModalWithClose('Cast list', {
     beforeClose() {
@@ -4927,6 +4914,11 @@ function openCastListModal() {
     onClose() { renderAll(); },
   });
   modal.classList.add('manus-castlist-modal');
+
+  const intro = document.createElement('p');
+  intro.className = 'manus-castlist-intro';
+  intro.textContent = 'Alle navne fra rollerne (\\role{kode}[Navn]) samlet ét sted. Tjek for stavefejl, og slå Revyst fra for navne, der ikke er en rigtig person (fx Skuespiller) — de får ikke eget manus og tælles ikke med i Øveplan.';
+  form.appendChild(intro);
 
   const summary = document.createElement('p');
   summary.className = 'manus-castlist-summary';
@@ -4938,28 +4930,29 @@ function openCastListModal() {
 
   const note = document.createElement('p');
   note.className = 'manus-castlist-note';
-  note.textContent = 'Pladsholdere og Fjern gemmes med det samme. Omdøb retter navnet i alle scenernes roller og gemmes med Gem.';
+  note.textContent = 'Revyst gemmes med det samme. Omdøb retter navnet i alle scenernes roller og gemmes med Gem.';
   form.appendChild(note);
 
   let busy = false;
 
-  async function setPlaceholder(item, value, checkbox) {
+  async function setRevyst(item, isRevyst, checkbox) {
+    const placeholder = !isRevyst;
     if (!item.inRoster) {
-      manusDraft._castFlags = { ...(manusDraft._castFlags || {}), [item.name]: value };
+      manusDraft._castFlags = { ...(manusDraft._castFlags || {}), [item.name]: placeholder };
       paint();
       return;
     }
     busy = true;
     checkbox.disabled = true;
-    const result = await manusApi('manus_set_cast', { name: item.name, placeholder: value });
+    const result = await manusApi('manus_set_cast', { name: item.name, placeholder });
     busy = false;
     if (!result.ok) {
       if (result.message) siteShowToast(result.message);
       paint();
       return;
     }
-    manusApplyCastResult(result.data.cast);
-    siteShowToast(value ? `${item.name} er nu pladsholder` : `${item.name} er ikke længere pladsholder`);
+    setManusSavedOverride({ scenes: getEffectiveScenesData(), cast: result.data.cast });
+    siteShowToast(isRevyst ? `${item.name} tælles med som revyst` : `${item.name} tælles ikke med som revyst`);
     paint();
   }
 
@@ -5000,45 +4993,25 @@ function openCastListModal() {
     input.select();
   }
 
-  function openRemove(item) {
-    const confirm = siteOpenEditModal('Fjern navn?', { onClose() { subClose = null; } });
-    subClose = confirm.close;
-    const info = document.createElement('p');
-    info.textContent = `${item.name} bruges ikke i nogen scene og fjernes fra cast-listen.`;
-    confirm.form.appendChild(info);
-    const cancelBtn = document.createElement('button');
-    cancelBtn.type = 'button';
-    cancelBtn.className = 'site-btn-warm';
-    cancelBtn.textContent = 'Annuller';
-    cancelBtn.addEventListener('click', () => confirm.close());
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'site-btn-danger';
-    removeBtn.textContent = 'Fjern';
-    removeBtn.addEventListener('click', async () => {
-      removeBtn.disabled = true;
-      busy = true;
-      const result = await manusApi('manus_set_cast', { name: item.name, remove: true });
-      busy = false;
-      confirm.close();
-      if (!result.ok) {
-        if (result.message) siteShowToast(result.message);
-        return;
-      }
-      manusApplyCastResult(result.data.cast);
-      siteShowToast(`${item.name} er fjernet`);
-      paint();
-    });
-    confirm.actions.append(cancelBtn, removeBtn);
-  }
-
   function paint() {
     const items = manusCastListEntries();
     const people = items.filter(i => !i.placeholder).length;
+    const others = items.length - people;
     summary.textContent = items.length
-      ? `${people} ${people === 1 ? 'person' : 'personer'}, ${items.length - people} ${items.length - people === 1 ? 'pladsholder' : 'pladsholdere'}.`
+      ? `${people} ${people === 1 ? 'revyst' : 'revyster'}${others ? `, ${others} ${others === 1 ? 'navn' : 'navne'} der ikke tælles med` : ''}.`
       : 'Ingen navne endnu — skriv dem i scenernes roller.';
     list.textContent = '';
+    if (!items.length) return;
+
+    const head = document.createElement('div');
+    head.className = 'manus-castlist-row manus-castlist-head';
+    for (const text of ['Navn', 'Revyst', '']) {
+      const cell = document.createElement('span');
+      cell.textContent = text;
+      head.appendChild(cell);
+    }
+    list.appendChild(head);
+
     for (const item of items) {
       const row = document.createElement('div');
       row.className = 'manus-castlist-row';
@@ -5052,11 +5025,8 @@ function openCastListModal() {
       info.appendChild(name);
       const meta = document.createElement('span');
       meta.className = 'manus-castlist-meta';
-      const count = item.scenes.length;
-      meta.textContent = count === 1 ? '1 scene' : `${count} scener`;
-      if (count) meta.title = item.scenes.join('\n');
-      else if (item.renamedTo) meta.textContent = `omdøbes til ${item.renamedTo} ved Gem`;
-      else meta.classList.add('manus-castlist-unused');
+      meta.textContent = item.scenes.length === 1 ? '1 scene' : `${item.scenes.length} scener`;
+      meta.title = item.scenes.join('\n');
       info.appendChild(meta);
       if (!item.inRoster) {
         const unsaved = document.createElement('span');
@@ -5072,35 +5042,27 @@ function openCastListModal() {
       }
       row.appendChild(info);
 
-      const phLabel = document.createElement('label');
-      phLabel.className = 'manus-castlist-check';
+      const checkCell = document.createElement('span');
+      checkCell.className = 'manus-castlist-check';
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
-      checkbox.checked = item.placeholder;
+      checkbox.checked = !item.placeholder;
+      checkbox.setAttribute('aria-label', `${item.name} er revyst`);
       checkbox.addEventListener('change', () => {
         if (busy) { checkbox.checked = !checkbox.checked; return; }
-        setPlaceholder(item, checkbox.checked, checkbox);
+        setRevyst(item, checkbox.checked, checkbox);
       });
-      phLabel.append(checkbox, document.createTextNode('Pladsholder'));
-      row.appendChild(phLabel);
+      checkCell.appendChild(checkbox);
+      row.appendChild(checkCell);
 
       const actions = document.createElement('div');
       actions.className = 'manus-castlist-actions';
-      if (count) {
-        const renameBtn = document.createElement('button');
-        renameBtn.type = 'button';
-        renameBtn.className = 'btn-small';
-        renameBtn.textContent = 'Omdøb';
-        renameBtn.addEventListener('click', () => openRename(item));
-        actions.appendChild(renameBtn);
-      } else if (item.inRoster && !item.renamedTo) {
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'btn-small-danger';
-        removeBtn.textContent = 'Fjern';
-        removeBtn.addEventListener('click', () => { if (!busy) openRemove(item); });
-        actions.appendChild(removeBtn);
-      }
+      const renameBtn = document.createElement('button');
+      renameBtn.type = 'button';
+      renameBtn.className = 'btn-small';
+      renameBtn.textContent = 'Omdøb';
+      renameBtn.addEventListener('click', () => openRename(item));
+      actions.appendChild(renameBtn);
       row.appendChild(actions);
       list.appendChild(row);
     }
@@ -6299,41 +6261,36 @@ function manusMergeActs(baseActs, mineActs, theirsActs, choices = {}) {
   return { acts, conflicts, tookTheirs, bothMoved: mineMoved && theirsMoved };
 }
 
-// cast.json is grown by Manus: the live roster (whole entries, so a Cast
-// list `placeholder` flag survives) plus any name the merged scenes use that
-// it doesn't have yet. Shrinking only happens through the Cast list: a
-// rename (draft._castRenames, old → new, applied to the scenes' roles)
-// renames the roster entry in place once no merged scene uses the old name
-// any more — dropped instead if the new name is already on the roster —
-// and Fjern removes an unused name via manus_set_cast. `flags`
-// (draft._castFlags) are placeholder choices made for names not yet saved.
+// cast.json is exactly the names the merged scenes cast (\role{}[<name>]),
+// in roster order with new names at the end. Entries are kept whole, so a
+// Cast list `placeholder` flag survives; a name no scene uses any more
+// drops out. A Cast list rename (draft._castRenames, old → new) hands the
+// old entry's place and flag to the new name, unless the new name already
+// has its own entry. `flags` (draft._castFlags) are Revyst choices made for
+// names not yet saved.
 function manusMergeCastRoster(theirsCast, scenesActs, renames = {}, flags = {}) {
   const used = new Set();
   for (const act of scenesActs) for (const scene of act.scenes) for (const c of scene.cast || []) if (c.name) used.add(c.name);
   const entries = theirsCast.slice()
     .sort((a, b) => (a.index || 0) - (b.index || 0))
     .map(c => ({ ...c }));
-  const names = () => new Set(entries.map(c => c.name));
   for (const [from, to] of Object.entries(renames)) {
-    if (!to || used.has(from)) continue;
-    const at = entries.findIndex(c => c.name === from);
-    if (at === -1) continue;
-    if (names().has(to)) entries.splice(at, 1);
-    else entries[at].name = to;
+    if (!to || used.has(from) || entries.some(c => c.name === to)) continue;
+    const entry = entries.find(c => c.name === from);
+    if (entry) entry.name = to;
   }
   const seen = new Set();
   const out = [];
-  const add = (entry) => {
-    if (!entry.name || seen.has(entry.name)) return;
-    seen.add(entry.name);
-    out.push(entry);
-  };
-  for (const c of entries) add(c);
+  for (const c of entries) {
+    if (!used.has(c.name) || seen.has(c.name)) continue;
+    seen.add(c.name);
+    out.push(c);
+  }
   for (const name of used) {
     if (seen.has(name)) continue;
     const entry = { name };
     if (typeof flags[name] === 'boolean') entry.placeholder = flags[name];
-    add(entry);
+    out.push(entry);
   }
   return out.map((c, index) => ({ ...c, index }));
 }

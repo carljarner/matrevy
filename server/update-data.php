@@ -469,8 +469,7 @@ if ($action === 'manuscripts_sync_selection') {
 
 // Manus's merge-before-save read, its save-free PDF trigger, removing one
 // pool record ("Fjern"), setting pool submissions' durations, Stjerneark's per-click save and the Program tab's
-// merge read, and the Cast list's placeholder flag / unused-name removal
-// (manus_set_cast) — boss-level like the `manus`/`manuscripts`
+// merge read, and the Cast list's Revyst flag (manus_set_cast) — boss-level like the `manus`/`manuscripts`
 // resources. Single-purpose actions rather than full-array saves, so a tab
 // with stale data can't overwrite anything through them.
 if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'manus_set_cast', 'program_read', 'resource_read'], true)) {
@@ -7874,61 +7873,35 @@ function manus_set_stars($body) {
   respond(200, ['ok' => true, 'missing' => array_values(array_diff(array_keys($byUid), array_keys($found)))]);
 }
 
-// Manus's Cast list (Rollefordeling): one roster entry of data/cast.json at a
-// time, by exact name — either set its `placeholder` flag (true/false; a
-// placeholder like "Skuespiller" gets no personal manuscript and is ignored
-// by Øveplan), or remove it. Removal is refused while any scene in
-// scenes.json still casts the name (409 in_use), so it only ever drops a
-// leftover (a typo since corrected, someone recast). Renaming isn't here:
-// it edits the scenes' roles and rides with Manus's Gem. Returns the new
-// roster so the page can refresh its shadow.
+// Manus's Cast list (Rollefordeling): sets one data/cast.json entry's
+// `placeholder` flag by exact name ("Revyst" unticked = true — a stand-in
+// like "Skuespiller" that gets no personal manuscript and is ignored by
+// Øveplan). Renames ride with Manus's Gem, and names no scene uses drop out
+// on every Gem, so nothing else is edited here. Returns the new roster so
+// the page can refresh its shadow.
 function manus_set_cast($body) {
   $name = $body['name'] ?? null;
   $placeholder = $body['placeholder'] ?? null;
-  $remove = ($body['remove'] ?? false) === true;
-  if (!is_string($name) || $name === '' || strlen($name) > 200
-      || ($remove === ($placeholder !== null)) || ($placeholder !== null && !is_bool($placeholder))) {
+  if (!is_string($name) || $name === '' || strlen($name) > 200 || !is_bool($placeholder)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-
-  if ($remove) {
-    [$status, $current] = github_api('GET', 'contents/data/scenes.json');
-    if ($status !== 200) {
-      respond(502, ['error' => 'github_read_failed', 'file' => 'data/scenes.json']);
-    }
-    $scenes = json_decode(base64_decode($current['content']), true);
-    foreach ((is_array($scenes) ? ($scenes['acts'] ?? []) : []) as $act) {
-      foreach (($act['scenes'] ?? []) as $scene) {
-        foreach (($scene['cast'] ?? []) as $c) {
-          if (is_array($c) && ($c['name'] ?? null) === $name) {
-            respond(409, ['error' => 'in_use']);
-          }
-        }
-      }
-    }
-  }
-
   $cast = [];
-  update_file('data/cast.json', function ($json) use ($name, $placeholder, $remove, &$cast) {
+  update_file('data/cast.json', function ($json) use ($name, $placeholder, &$cast) {
     $list = is_array($json['cast'] ?? null) ? $json['cast'] : [];
     $found = false;
-    $next = [];
-    foreach ($list as $c) {
+    foreach ($list as $i => $c) {
       if (is_array($c) && ($c['name'] ?? null) === $name) {
+        $list[$i]['placeholder'] = $placeholder;
         $found = true;
-        if ($remove) continue;
-        $c['placeholder'] = $placeholder;
       }
-      $next[] = $c;
     }
     if (!$found) {
       respond(404, ['error' => 'not_found']);
     }
-    foreach ($next as $i => $c) $next[$i]['index'] = $i;
-    $json['cast'] = $next;
-    $cast = $next;
+    $json['cast'] = $list;
+    $cast = $list;
     return $json;
-  }, $remove ? 'Fjern navn fra cast.json via Manus' : 'Opdater pladsholder i cast.json via Manus');
+  }, 'Opdater revyst-markering i cast.json via Manus');
   respond(200, ['ok' => true, 'cast' => $cast]);
 }
 
