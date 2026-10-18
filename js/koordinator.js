@@ -3239,8 +3239,11 @@ function renderFravaerCard(container) {
   const body = koordCollapsibleBody(card, head, KOORD_FRA_COLLAPSED_KEY, 'Fravær');
 
   const topRow = el('div', 'koord-lok-top');
-  topRow.appendChild(el('p', 'koord-lok-hint',
-    'Samme dage som Lokalebooking. Skriv tidsrummet, personen er væk (fx 14:00-16:00, fra 15, til 13 eller hele dagen). Øveplan kan hente det ind under Fraværende revyster.'));
+  const hint = el('p', 'koord-lok-hint',
+    'Samme dage som Lokalebooking. Skriv tidsrummet, personen er væk (fx 14:00-16:00, fra 15, til 13 eller hele dagen).');
+  hint.appendChild(document.createElement('br'));
+  hint.appendChild(document.createTextNode('Øveplan kan hente det ind under Fraværende revyster.'));
+  topRow.appendChild(hint);
   const connection = el('div', 'koord-fra-connection');
   connection.id = 'koord-fra-connection';
   topRow.appendChild(connection);
