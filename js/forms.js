@@ -555,6 +555,23 @@ function formsGridLabelColumnWidth(rows) {
   return Math.ceil(max) + 24; // + the cell's own left/right padding
 }
 
+// Lets a native radio be cleared by clicking it again (a plain radio
+// group can't be emptied once something is picked). `wasChecked` is read
+// on pointerdown, before the click lands, so a click that just selected
+// the radio never counts as a second click. Keyboard selection is left
+// to the browser. Dispatches a bubbling change so the delegated
+// dependency listener in the fill-in view sees the cleared answer.
+function formsMakeRadioClearable(radio, hitArea) {
+  let wasChecked = false;
+  hitArea.addEventListener('pointerdown', () => { wasChecked = radio.checked; });
+  radio.addEventListener('click', () => {
+    if (!wasChecked) return;
+    wasChecked = false;
+    radio.checked = false;
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
 // Horizontal row of native radio circles, one per option — shared by
 // "Vælg én" (select) and Skala, whose only real difference is where the
 // option list comes from (live-resolved options vs. a synthesized numeric
@@ -574,6 +591,7 @@ function formsRenderRadioRow(options, name, variant) {
     radio.value = opt.value;
     optEl.appendChild(radio);
     optEl.appendChild(el('span', 'forms-radio-caption', opt.label));
+    formsMakeRadioClearable(radio, optEl);
     wrap.appendChild(optEl);
     radios.push(radio);
   }
@@ -632,12 +650,6 @@ function formsRenderAnswerInput(field) {
     const options = [];
     for (let n = min; n <= max; n++) options.push({ value: String(n), label: String(n) });
     const wrap = el('div');
-    // Read by forms.css to cap how far the circles/captions are allowed
-    // to spread on a wide form — without this a short range (e.g. 0-5)
-    // stretched with justify-content:space-between across a wide card
-    // reads as oddly spaced-out, since the row otherwise always fills
-    // 100% of the available width regardless of how few circles it has.
-    wrap.style.setProperty('--forms-scale-count', String(options.length));
     if (field.scaleMinLabel || field.scaleMaxLabel) {
       const capRow = el('div', 'forms-scale-captions');
       capRow.appendChild(el('span', null, field.scaleMinLabel || ''));
@@ -690,6 +702,7 @@ function formsRenderAnswerInput(field) {
         input.type = field.type === 'grid_single' ? 'radio' : 'checkbox';
         if (field.type === 'grid_single') input.name = 'grid_' + field.id + '_' + r.id;
         input.value = c.value;
+        if (field.type === 'grid_single') formsMakeRadioClearable(input, td);
         td.appendChild(input);
         tr.appendChild(td);
         controls.push(input);

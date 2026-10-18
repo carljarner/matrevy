@@ -1124,8 +1124,7 @@
    (rather than a vertical list) — same warm/amber accent-color treatment
    as .forms-checkbox-row's boxes. One "tab" (2rem) of empty space left/
    right so the row reads as indented under the question, not flush with
-   its left edge — Skala's own row doubles this (see .forms-radio-row-
-   scale below). */
+   its left edge. */
 .forms-radio-row {
   display: flex;
   flex-wrap: wrap;
@@ -1158,23 +1157,14 @@
 }
 
 /* Skala's circles spread edge-to-edge (justify-content:space-between)
-   across their own box rather than clustering at a fixed gap — the
-   first/last circle then land at that box's edges, lining up with
-   .forms-scale-captions below (same max-width, same space-between).
-   That box's width is capped at --forms-scale-count (set inline in
-   forms.js, one per circle) times a comfortable per-circle budget, so
-   a short range (e.g. 0-5) doesn't stretch edge-to-edge across a wide
-   card and read as oddly spaced-out — on a narrow phone the `min()`
-   just falls back to 100%, so spacing still shrinks to fit there.
-   `gap` is only a floor once a wide range's cap already exceeds 100%:
-   nowrap plus overflow-x:auto is the backstop for that case. */
+   across the full answer width, with the first/last circle under
+   .forms-scale-captions' min/max labels (same width, same padding).
+   nowrap plus overflow-x:auto is the backstop for a wide range on a
+   narrow phone. */
 .forms-radio-row-scale {
   flex-wrap: nowrap;
   justify-content: space-between;
   gap: 0.6rem;
-  max-width: min(100%, calc(var(--forms-scale-count, 5) * 3.25rem));
-  margin: 0 auto;
-  padding: 0 4rem;
   overflow-x: auto;
 }
 
@@ -1190,9 +1180,8 @@
   justify-content: space-between;
   font-size: 0.8rem;
   color: var(--text-muted);
-  margin: 0 auto 0.5rem;
-  max-width: min(100%, calc(var(--forms-scale-count, 5) * 3.25rem));
-  padding: 0 4rem; /* two tabs — one more than the general 2rem indent */
+  margin: 0 0 0.5rem;
+  padding: 0 2rem; /* same indent as .forms-radio-row */
 }
 
 /* ── Fill-in form: Gitter (grid_single/grid_multi) ────────────
@@ -1267,20 +1256,16 @@
      other field on the page instead. */
   .forms-builder-card .edit-field-row { flex-direction: column; }
   /* Half the desktop indent for the fill-in view's answer widgets — a
-     full "tab" (or two, for Skala's circles/captions) eats too much of a
+     full "tab" eats too much of a
      phone's width, and .forms-radio-row-scale's own overflow-x:auto is
      still there as a backstop if a wide range needs more room than that
      leaves. */
   .forms-radio-row,
+  .forms-scale-captions,
   .forms-checkbox-list,
   .forms-grid-wrap {
     padding-left: 1rem;
     padding-right: 1rem;
-  }
-  .forms-radio-row-scale,
-  .forms-scale-captions {
-    padding-left: 2rem;
-    padding-right: 2rem;
   }
 
   /* Gitter (grid_single/grid_multi): table-layout:fixed splits narrow
