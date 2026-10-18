@@ -520,6 +520,51 @@
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
+/* --- Status tab: draggable progress bar ---------------------------- */
+.rekvisit-progress {
+  position: relative;
+  height: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  overflow: hidden;
+  cursor: ew-resize;
+  touch-action: pan-y; /* horizontal drags set the value, vertical ones scroll */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.rekvisit-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--accent-warm);
+}
+
+.rekvisit-progress:not(.rekvisit-progress-dragging) .rekvisit-progress-fill {
+  transition: width 0.12s ease;
+}
+
+.rekvisit-progress-done .rekvisit-progress-fill { background: var(--success); }
+
+.rekvisit-progress-label {
+  position: relative;
+  display: block;
+  text-align: center;
+  line-height: 1.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rekvisit-progress-done .rekvisit-progress-label { color: #fff; }
+
+.rekvisit-progress-readonly { cursor: default; }
+
+.rekvisit-progress:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
 /* Add-column / add-day modal: the shared field width. */
 .rekvisit-column-modal {
   width: min(360px, 92vw);

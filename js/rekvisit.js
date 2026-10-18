@@ -2,13 +2,15 @@
    Matematikrevyen – Rekvisitten (rekvisitten.html)
 
    The prop crew's five sheets for one revy, as tabs: Rekvisitter (what
-   each scene needs), Hvem, hvornår? (who is away which day), Indkøbsliste,
-   Brændimprenering and Regnskab. Styled like Kostumetinder/Bandet's sheet:
-   cells commit on blur, rows reorder by their handle, columns can be
-   renamed, resized, removed and added, pills cycle on click.
+   each scene needs), Status (how far along each prop is, and whether it
+   is fire-proofed), Hvem, hvornår? (who is away which day), Indkøbsliste
+   and Regnskab. Styled like Kostumetinder/Bandet's sheet: cells commit on
+   blur, rows reorder by their handle, columns can be renamed, resized,
+   removed and added, pills cycle on click.
 
-   Brændimprenering has no rows of its own: it lists Rekvisitter's rows
-   and edits their braend/braendNote fields, so the two can't drift.
+   Status (key `braend`, its old name) has no rows of its own: it lists
+   Rekvisitter's rows and edits their progress/braend fields, so the two
+   can't drift.
    Hvem, hvornår?'s day columns are Kalender's øvedage/forestillinger in
    July–December of the revy's year plus days added here; a cell is free
    text, and "x" means "not here".
@@ -113,9 +115,9 @@ async function rekvisitApi(action, body, folder = rekvisitFolder) {
 // ── Sheet definitions ────────────────────────────────────────
 const REKVISIT_TABS = [
   { key: 'rekvisitter', label: 'Rekvisitter' },
+  { key: 'braend', label: 'Status' },
   { key: 'hvem', label: 'Hvem, hvornår?' },
   { key: 'indkob', label: 'Indkøbsliste' },
-  { key: 'braend', label: 'Brændimprenering' },
   { key: 'regnskab', label: 'Regnskab' },
 ];
 const REKVISIT_TAB_KEY = 'matrevy-rekvisit-tab';
@@ -124,12 +126,6 @@ const REKVISIT_REVY_KEY = 'matrevy-rekvisit-revy';
 // Pill cycles per `<rowSheet>/<key>`; '' is each one's default. Mirrors
 // rekvisit_status_values() in update-data.php.
 const REKVISIT_STATUSES = {
-  'rekvisitter/status': [
-    { value: '', label: '-', cls: 'rekvisit-pill-none' },
-    { value: 'igang', label: 'I gang', cls: 'rekvisit-pill-warm' },
-    { value: 'faerdig', label: 'Færdig', cls: 'rekvisit-pill-done' },
-    { value: 'droppet', label: 'Droppet', cls: 'rekvisit-pill-dropped' },
-  ],
   'rekvisitter/braend': [
     { value: '', label: '-', cls: 'rekvisit-pill-none' },
     { value: 'ja', label: 'Ja', cls: 'rekvisit-pill-done' },
@@ -146,8 +142,9 @@ const REKVISIT_STATUSES = {
   ],
 };
 
-// Per tab: rowSheet = whose rows it shows (Brændimprenering borrows
-// Rekvisitter's); columns = built-ins (width = default px; status = pill;
+// Per tab: rowSheet = whose rows it shows (Status borrows Rekvisitter's);
+// columns = built-ins (width = default px; status = pill; progress =
+// draggable 0-100% bar;
 // readOnly = shown, not edited; derived = computed; stayRight = custom
 // columns are inserted before it); locked = can't be removed; custom =
 // text columns can be added; rows = rows can be added/removed/moved.
@@ -163,14 +160,13 @@ const REKVISIT_SHEETS = {
       { key: 'instr', label: 'Instruktør' },
       { key: 'rekv', label: 'Rekvisit' },
     ],
-    // braend lives on the Brændimprenering tab, not here.
+    // progress/braend live on the Status tab, not here.
     columns: [
       { key: 'rekvisit', label: 'Rekvisit', width: 160, hint: 'Det, der skal laves', group: 'instr' },
       { key: 'scene', label: 'Sketch/Sang', width: 160, hint: 'Til hvilken scene', group: 'instr' },
       { key: 'instruktoer', label: 'Instruktør', width: 110, hint: 'Dit navn', group: 'instr' },
       { key: 'kommentar', label: 'Kommentar', width: 280, hint: 'Hvordan skal den se ud?', group: 'instr' },
       { key: 'type', label: 'Type (pap/stof/hønsenet/træ)', width: 180, group: 'rekv' },
-      { key: 'status', label: 'Status', width: 100, status: true, group: 'rekv' },
       { key: 'ansvarlig', label: 'Ansvarlig', width: 110, group: 'rekv' },
       { key: 'ekstra', label: 'Ekstra', width: 200, group: 'rekv' },
     ],
@@ -199,8 +195,8 @@ const REKVISIT_SHEETS = {
     columns: [
       { key: 'rekvisit', label: 'Rekvisit', width: 180, readOnly: true },
       { key: 'kommentar', label: 'Kommentar', width: 320, readOnly: true },
+      { key: 'progress', label: 'Status', width: 200, progress: true },
       { key: 'braend', label: 'Brændimprægneret', width: 130, status: true },
-      { key: 'braendNote', label: 'Note', width: 220 },
     ],
   },
   regnskab: {
@@ -772,7 +768,7 @@ function rekvisitBuildSheetTable(canEdit) {
 
   const tbody = el('tbody');
   let rows = rekvisitRowDoc().rows;
-  // Brændimprenering lists only the props that have a name.
+  // Status lists only the props that have a name.
   if (!def.rows) rows = rows.filter((r) => String(r.rekvisit || '').trim() !== '');
   const rest = rekvisitActiveTab === 'regnskab' ? rekvisitRestValues(rows).perRow : null;
   rows.forEach((row) => tbody.appendChild(rekvisitRenderRow(row, columns, canEdit, rest)));
@@ -840,6 +836,7 @@ function rekvisitBuildGroupRow(columns, withHandle, withActions) {
 function rekvisitCellClass(col, extra) {
   const classes = extra ? [extra] : [];
   if (col.status) classes.push('rekvisit-col-status');
+  if (col.progress) classes.push('rekvisit-col-progress');
   if (col.group) classes.push(`rekvisit-in-group-${col.group}`);
   if (col.amount) classes.push('rekvisit-col-amount');
   if (col.day) classes.push('rekvisit-col-day');
@@ -921,6 +918,78 @@ function rekvisitStatusToggle(row, key, tr, canEdit) {
   return btn;
 }
 
+// Drag (or click) along the bar to set 0-100% in steps of 5; arrow keys,
+// Home/End work too. Commits once on release, not on every move.
+const REKVISIT_PROGRESS_STEP = 5;
+
+function rekvisitProgressBar(row, key, tr, canEdit) {
+  const bar = el('div', 'rekvisit-progress');
+  const fill = el('div', 'rekvisit-progress-fill');
+  const label = el('span', 'rekvisit-progress-label');
+  bar.appendChild(fill);
+  bar.appendChild(label);
+  bar.setAttribute('role', 'slider');
+  bar.setAttribute('aria-label', 'Status');
+  bar.setAttribute('aria-valuemin', '0');
+  bar.setAttribute('aria-valuemax', '100');
+  let value = Number(row[key]) || 0;
+  function paint() {
+    fill.style.width = `${value}%`;
+    bar.classList.toggle('rekvisit-progress-done', value >= 100);
+    label.textContent = `${value}%`;
+    bar.setAttribute('aria-valuenow', String(value));
+  }
+  paint();
+  if (!canEdit) {
+    bar.classList.add('rekvisit-progress-readonly');
+    bar.setAttribute('aria-readonly', 'true');
+    return bar;
+  }
+  bar.tabIndex = 0;
+  bar.title = 'Træk for at ændre';
+  const commit = () => {
+    if (value === (Number(row[key]) || 0)) return;
+    row[key] = value;
+    rekvisitCommitRow(row, { [key]: value }, tr);
+  };
+  const fromPointer = (e) => {
+    const rect = bar.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    value = Math.round(ratio * 100 / REKVISIT_PROGRESS_STEP) * REKVISIT_PROGRESS_STEP;
+    paint();
+  };
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    bar.focus();
+    bar.setPointerCapture(e.pointerId);
+    bar.classList.add('rekvisit-progress-dragging');
+    fromPointer(e);
+  });
+  bar.addEventListener('pointermove', (e) => {
+    if (bar.hasPointerCapture(e.pointerId)) fromPointer(e);
+  });
+  const end = (e) => {
+    if (!bar.hasPointerCapture(e.pointerId)) return;
+    bar.releasePointerCapture(e.pointerId);
+    bar.classList.remove('rekvisit-progress-dragging');
+    commit();
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
+  bar.addEventListener('keydown', (e) => {
+    const steps = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 };
+    if (e.key in steps) value = Math.min(100, Math.max(0, value + steps[e.key] * REKVISIT_PROGRESS_STEP));
+    else if (e.key === 'Home') value = 0;
+    else if (e.key === 'End') value = 100;
+    else return;
+    e.preventDefault();
+    paint();
+    commit();
+  });
+  return bar;
+}
+
 // The example hints sit on the topmost row that doesn't yet have the
 // sheet's hintRequired columns filled in (by what's typed right now), so
 // they move down as rows are completed and back up when one is cleared.
@@ -957,6 +1026,8 @@ function rekvisitRenderRow(row, columns, canEdit, rest) {
     rekvisitMaybeSticky(td, col, columns, def.rows && canEdit);
     if (col.status) {
       td.appendChild(rekvisitStatusToggle(row, col.key, tr, canEdit));
+    } else if (col.progress) {
+      td.appendChild(rekvisitProgressBar(row, col.key, tr, canEdit));
     } else if (col.derived) {
       const span = el('span', 'rekvisit-derived', rest ? (rest.get(row) || '') : '');
       span.dataset.key = col.key;

@@ -5046,8 +5046,9 @@ function handle_kostume($action, $body) {
 // A row sheet is {rows, columnLabels, columnWidths, customColumns,
 // hiddenColumns}; hvem adds {extraDays:[{id,date,title}], hiddenDays:[date]}
 // and its rows carry days:{YYYY-MM-DD: text}; regnskab adds {budget}.
-// braend has no rows of its own — it shows Rekvisitter's rows, whose
-// braend/braendNote fields it edits — so it only stores titles/widths.
+// braend (the Status tab) has no rows of its own — it shows Rekvisitter's
+// rows, whose progress/braend fields it edits — so it only stores
+// titles/widths.
 // The folder comes from the body (any revy can be read); the dispatch
 // block limits writes below boss to the current production. A copy of the
 // kostume_* handlers generalised to several sheets. Dispatched early, so
@@ -5069,7 +5070,8 @@ function rekvisit_folder_from_body($body) {
   return $folder;
 }
 
-// Built-in columns per sheet: fields = [key => 'text'|'status'] stored on
+// Built-in columns per sheet: fields = [key => 'text'|'status'|'progress'
+// (an int 0-100)] stored on
 // each row; locked = can't be hidden; custom = text columns can be added;
 // extraKeys = rename/resize-only keys (derived or borrowed columns).
 // Mirrors REKVISIT_SHEETS in rekvisit.js.
@@ -5079,11 +5081,11 @@ function rekvisit_sheet_defs() {
       'rows' => true, 'locked' => 'rekvisit', 'custom' => true, 'extraKeys' => [],
       'fields' => [
         'rekvisit' => 'text', 'scene' => 'text', 'instruktoer' => 'text', 'kommentar' => 'text',
-        'type' => 'text', 'status' => 'status', 'ansvarlig' => 'text', 'ekstra' => 'text',
-        'braend' => 'status', 'braendNote' => 'text',
+        'type' => 'text', 'ansvarlig' => 'text', 'ekstra' => 'text',
+        'progress' => 'progress', 'braend' => 'status',
       ],
-      // braend/braendNote only show on the Brændimprenering tab.
-      'hideable' => ['scene', 'instruktoer', 'kommentar', 'type', 'status', 'ansvarlig', 'ekstra'],
+      // progress/braend only show on the Status tab.
+      'hideable' => ['scene', 'instruktoer', 'kommentar', 'type', 'ansvarlig', 'ekstra'],
     ],
     'hvem' => [
       'rows' => true, 'locked' => 'navn', 'custom' => false, 'extraKeys' => [],
@@ -5096,7 +5098,7 @@ function rekvisit_sheet_defs() {
     ],
     'braend' => [
       'rows' => false, 'locked' => null, 'custom' => false,
-      'extraKeys' => ['rekvisit', 'kommentar', 'braend', 'braendNote'],
+      'extraKeys' => ['rekvisit', 'kommentar', 'progress', 'braend'],
       'fields' => [], 'hideable' => [],
     ],
     'regnskab' => [
@@ -5110,7 +5112,6 @@ function rekvisit_sheet_defs() {
 // Pill values per status column; '' is each one's default.
 function rekvisit_status_values($sheet, $key) {
   $map = [
-    'rekvisitter/status' => ['', 'igang', 'faerdig', 'droppet'],
     'rekvisitter/braend' => ['', 'ja', 'skalikke'],
     'indkob/kobt' => ['', 'ja'],
     'regnskab/behandlet' => ['', 'maaske', 'ja'],
@@ -5158,7 +5159,7 @@ function rekvisit_custom_key_valid($key) {
 
 function rekvisit_blank_row($sheet) {
   $row = [];
-  foreach (rekvisit_sheet_defs()[$sheet]['fields'] as $key => $type) $row[$key] = '';
+  foreach (rekvisit_sheet_defs()[$sheet]['fields'] as $key => $type) $row[$key] = $type === 'progress' ? 0 : '';
   if ($sheet === 'hvem') $row['days'] = (object) [];
   return $row;
 }
@@ -5195,6 +5196,16 @@ function rekvisit_sheet($doc, $folder, $sheet) {
     $out['hiddenDays'] = array_values(array_filter(is_array($out['hiddenDays'] ?? null) ? $out['hiddenDays'] : [], 'rekvisit_valid_date'));
     foreach ($out['rows'] as &$row) {
       $row['days'] = (object) (is_array($row['days'] ?? null) ? $row['days'] : []);
+    }
+    unset($row);
+  }
+  if ($sheet === 'rekvisitter') {
+    // progress replaced the old status pill (Færdig = 100%, I gang = 50%).
+    foreach ($out['rows'] as &$row) {
+      if (!is_int($row['progress'] ?? null)) {
+        $legacy = ['faerdig' => 100, 'igang' => 50];
+        $row['progress'] = $legacy[$row['status'] ?? ''] ?? 0;
+      }
     }
     unset($row);
   }
@@ -5275,8 +5286,11 @@ function rekvisit_upsert_row($folder, $body) {
   foreach (rekvisit_value_keys($sheet, $sheetDoc) as $key) {
     if (!array_key_exists($key, $rowIn)) continue;
     $value = $rowIn[$key];
-    if (($def['fields'][$key] ?? 'text') === 'status') {
+    $type = $def['fields'][$key] ?? 'text';
+    if ($type === 'status') {
       if (!in_array($value, rekvisit_status_values($sheet, $key), true)) respond(400, ['error' => 'invalid_shape']);
+    } elseif ($type === 'progress') {
+      if (!is_int($value) || $value < 0 || $value > 100) respond(400, ['error' => 'invalid_shape']);
     } elseif (!is_string($value) || mb_strlen($value) > 1000) {
       respond(400, ['error' => 'invalid_shape']);
     }
