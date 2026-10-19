@@ -261,6 +261,84 @@
   text-overflow: ellipsis;
 }
 
+/* Boss-dragged widths (faellesApplyColumnWidths): the table stays in auto
+   layout, so a sized column pins every one of its cells to the width and
+   drops the input's 8rem floor; the header/summary labels get a definite
+   width too (.faelles-clip), else their text would hold the column open.
+   Cells are border-box so the stored px is the whole visible column. */
+.faelles-table .faelles-col-field,
+.faelles-table tbody.faelles-summary th {
+  box-sizing: border-box;
+}
+
+.faelles-clip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.faelles-sized-navn .faelles-col-navn,
+.faelles-sized-navn tbody.faelles-summary th {
+  width: var(--faelles-w-navn);
+  min-width: var(--faelles-w-navn);
+  max-width: var(--faelles-w-navn);
+}
+
+.faelles-sized-madforbehold .faelles-col-madforbehold {
+  width: var(--faelles-w-madforbehold);
+  min-width: var(--faelles-w-madforbehold);
+  max-width: var(--faelles-w-madforbehold);
+}
+
+/* .faelles-table.… outranks the 8rem floor declared further down. */
+.faelles-table.faelles-sized-navn .faelles-col-navn input[type="text"],
+.faelles-table.faelles-sized-madforbehold .faelles-col-madforbehold input[type="text"] {
+  min-width: 0;
+}
+
+.faelles-sized-navn .faelles-col-navn .faelles-clip,
+.faelles-sized-navn tbody.faelles-summary th .faelles-clip {
+  width: calc(var(--faelles-w-navn) - 1rem);
+}
+
+.faelles-sized-madforbehold .faelles-col-madforbehold .faelles-clip {
+  width: calc(var(--faelles-w-madforbehold) - 1rem);
+}
+
+/* Drag grip on a header's right edge (copy of band.css's .band-col-resizer).
+   The header cells are already position:sticky, so they anchor it. Each
+   sticky header is its own stacking context, so the next header would paint
+   over a grip that straddled the edge — it sits just inside instead. */
+.faelles-col-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 8px;
+  z-index: 1;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.faelles-col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 20%;
+  bottom: 20%;
+  right: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+@media (hover: hover) {
+  .faelles-col-resizer:hover::after { background: var(--border); }
+}
+
+.faelles-col-resizer.active::after {
+  background: var(--accent-warm);
+}
+
 /* Day columns: a floor wide enough for the worst-case content — a
    two-digit "ⓘ 12" preference count (headcounts never reach three
    digits) — measured directly, so a column never widens (and shifts

@@ -274,7 +274,7 @@ function faellesIsDayChecked(row, col) {
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, notice, updatedAt } once loaded
+let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, notice, columnWidths, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -299,6 +299,7 @@ async function faellesLoad(root) {
     hiddenDays: result.data.hiddenDays || [],
     attendanceMode: result.data.attendanceMode === 'in' ? 'in' : 'out',
     notice: typeof result.data.notice === 'string' ? result.data.notice : '',
+    columnWidths: (result.data.columnWidths && typeof result.data.columnWidths === 'object') ? result.data.columnWidths : {},
     updatedAt: result.data.updatedAt || null,
   };
   faellesRender(root);
@@ -454,11 +455,15 @@ function faellesBuildTable(root) {
   const showAddDate = typeof siteHasLevel === 'function' && siteHasLevel('boss');
 
   const table = el('table', 'faelles-table');
+  faellesApplyColumnWidths(table);
 
   const thead = el('thead');
   const headRow = el('tr');
   for (const f of FAELLES_FIELDS) {
-    headRow.appendChild(el('th', `faelles-col-field faelles-col-${f.id}`, f.label));
+    const th = el('th', `faelles-col-field faelles-col-${f.id}`);
+    th.appendChild(el('div', 'faelles-clip', f.label));
+    if (showAddDate) th.appendChild(faellesColumnResizer(f, th, table));
+    headRow.appendChild(th);
   }
   for (const col of columns) {
     const th = el('th', 'faelles-col-day', col.label);
@@ -536,6 +541,71 @@ function faellesBuildTable(root) {
   return table;
 }
 
+// ── Resizable Navn/Madforbehold columns (boss/admin) ─────────
+// Bandet's grip recipe (bandColumnResizer), but the table keeps its auto
+// layout (the day columns size themselves): a dragged width is set on the
+// table as --faelles-w-<id> plus a .faelles-sized-<id> class, which pins
+// every cell of that column (faellesspisning.css). Shared for everyone,
+// stored on the document; double-click goes back to the default.
+const FAELLES_MIN_COL_WIDTH = 64;
+
+function faellesApplyColumnWidths(table) {
+  for (const f of FAELLES_FIELDS) {
+    const px = faellesState.columnWidths[f.id];
+    const sized = Number.isInteger(px);
+    table.classList.toggle(`faelles-sized-${f.id}`, sized);
+    if (sized) table.style.setProperty(`--faelles-w-${f.id}`, `${px}px`);
+    else table.style.removeProperty(`--faelles-w-${f.id}`);
+  }
+}
+
+function faellesColumnResizer(f, th, table) {
+  const grip = el('div', 'faelles-col-resizer');
+  grip.title = 'Træk for at ændre bredden (dobbeltklik for standard)';
+  grip.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    grip.setPointerCapture(e.pointerId);
+    grip.classList.add('active');
+    faellesHideFieldTooltip();
+    const startX = e.clientX;
+    const startWidth = Math.round(th.getBoundingClientRect().width);
+    const before = faellesState.columnWidths[f.id];
+    const onMove = (ev) => {
+      faellesState.columnWidths[f.id] = Math.min(1000, Math.max(FAELLES_MIN_COL_WIDTH, Math.round(startWidth + ev.clientX - startX)));
+      faellesApplyColumnWidths(table);
+    };
+    const onUp = () => {
+      grip.removeEventListener('pointermove', onMove);
+      grip.removeEventListener('pointerup', onUp);
+      grip.removeEventListener('pointercancel', onUp);
+      grip.classList.remove('active');
+      if (faellesState.columnWidths[f.id] !== before) faellesSaveColumnWidths();
+    };
+    grip.addEventListener('pointermove', onMove);
+    grip.addEventListener('pointerup', onUp);
+    grip.addEventListener('pointercancel', onUp);
+  });
+  grip.addEventListener('dblclick', () => {
+    if (!(f.id in faellesState.columnWidths)) return;
+    delete faellesState.columnWidths[f.id];
+    faellesApplyColumnWidths(table);
+    faellesSaveColumnWidths();
+  });
+  return grip;
+}
+
+let faellesColumnWidthsInFlight = null;
+async function faellesSaveColumnWidths() {
+  if (faellesColumnWidthsInFlight) await faellesColumnWidthsInFlight;
+  faellesSavesPending++;
+  const promise = faellesApi('faelles_save_column_widths', { columnWidths: { ...faellesState.columnWidths } });
+  faellesColumnWidthsInFlight = promise;
+  const result = await promise;
+  faellesColumnWidthsInFlight = null;
+  faellesSavesPending--;
+  if (!result.ok && result.message) siteShowToast(result.message);
+}
+
 function faellesRenderRow(row, columns, showAddDate) {
   const tr = el('tr');
 
@@ -551,17 +621,15 @@ function faellesRenderRow(row, columns, showAddDate) {
       row.answers[f.id] = value;
       faellesCommitRow(row, tr);
     });
-    if (f.id === 'madforbehold') {
-      // Truncated by CSS (.faelles-col-madforbehold) — show the full
-      // text in a tooltip only while actually overflowing, and never
-      // while the field is focused for editing.
-      input.addEventListener('mouseenter', () => {
-        if (document.activeElement === input) return;
-        if (input.scrollWidth > input.clientWidth && input.value) faellesShowFieldTooltip(input, input.value);
-      });
-      input.addEventListener('mouseleave', faellesHideFieldTooltip);
-      input.addEventListener('focus', faellesHideFieldTooltip);
-    }
+    // Truncated by CSS (Madforbehold's max-width, or a boss-dragged width)
+    // — show the full text in a tooltip only while actually overflowing,
+    // and never while the field is focused for editing.
+    input.addEventListener('mouseenter', () => {
+      if (document.activeElement === input) return;
+      if (input.scrollWidth > input.clientWidth && input.value) faellesShowFieldTooltip(input, input.value);
+    });
+    input.addEventListener('mouseleave', faellesHideFieldTooltip);
+    input.addEventListener('focus', faellesHideFieldTooltip);
     td.appendChild(input);
     tr.appendChild(td);
   }
@@ -709,7 +777,9 @@ function faellesBuildSummaryBody(columns, showAddDate) {
   const trailingCols = (showAddDate ? 1 : 0) + 1; // add-date filler + remove-column filler
 
   const countRow = el('tr');
-  countRow.appendChild(el('th', '', 'Samlet antal i dag'));
+  const countLabel = el('th');
+  countLabel.appendChild(el('div', 'faelles-clip', 'Samlet antal i dag'));
+  countRow.appendChild(countLabel);
   countRow.appendChild(el('td')); // spans the Madforbehold column
   for (const col of columns) {
     const count = faellesState.rows.filter((r) => faellesIsDayChecked(r, col)).length;
@@ -719,7 +789,9 @@ function faellesBuildSummaryBody(columns, showAddDate) {
   tbody.appendChild(countRow);
 
   const prefRow = el('tr');
-  prefRow.appendChild(el('th', '', 'Madforbehold'));
+  const prefLabel = el('th');
+  prefLabel.appendChild(el('div', 'faelles-clip', 'Madforbehold'));
+  prefRow.appendChild(prefLabel);
   prefRow.appendChild(el('td'));
   for (const col of columns) {
     const attendees = faellesState.rows.filter((r) => faellesIsDayChecked(r, col));
