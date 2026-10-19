@@ -488,9 +488,14 @@
   white-space: nowrap;
 }
 
-.gantt:not(.gantt-editing) .gantt-label {
-  display: block;
-  align-self: center;
+/* The sticky label stretches to the row's full height (the flex
+   default) so bars and month lines scrolling under it never show above
+   or below it; the title sits centered in its own span for the ellipsis. */
+.gantt-label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gantt-months {
@@ -881,9 +886,14 @@ button.gantt-bar:focus-visible {
 .revyugen {
   --revyugen-hour: 2.75rem;
   --revyugen-time-width: 3.25rem;
+  --revyugen-day-min: 6.5rem;
   display: grid;
-  grid-template-columns: var(--revyugen-time-width) repeat(var(--revyugen-days), minmax(6.5rem, 1fr));
+  grid-template-columns: var(--revyugen-time-width) repeat(var(--revyugen-days), minmax(var(--revyugen-day-min), 1fr));
   grid-template-rows: auto calc(var(--revyugen-hours) * var(--revyugen-hour));
+  /* The grid box itself must be as wide as its columns: a sticky item is
+     held inside its parent's box, so a viewport-wide grid with overflowing
+     tracks let the time column scroll away halfway across. */
+  min-width: calc(var(--revyugen-time-width) + var(--revyugen-days) * var(--revyugen-day-min));
 }
 
 .revyugen-corner,
@@ -1116,7 +1126,7 @@ button.revyugen-block:focus-visible {
      .revyugen-scroll with the time column sticky. */
   .revyugen {
     --revyugen-time-width: 2.75rem;
-    grid-template-columns: var(--revyugen-time-width) repeat(var(--revyugen-days), minmax(5.5rem, 1fr));
+    --revyugen-day-min: 5.5rem;
   }
 
   /* The settings take their own row below the title and Færdig. */

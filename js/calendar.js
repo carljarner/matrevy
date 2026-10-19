@@ -1009,7 +1009,10 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
 
     ganttWireDropHighlight(rowEl, () => { if (ganttDragId) ganttMoveRow(ganttDragId, row.id); });
   } else {
-    label.textContent = row.title;
+    const text = document.createElement('span');
+    text.className = 'gantt-label-text';
+    text.textContent = row.title;
+    label.appendChild(text);
     label.title = row.title;
   }
   rowEl.appendChild(label);
