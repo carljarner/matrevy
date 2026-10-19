@@ -943,14 +943,43 @@ body.site-menu-open {
   box-shadow: var(--modal-shadow);
 }
 
-/* One row along the bottom: "+" (left) — error (center, grows/shrinks to
-   fill whatever's left) — "Gem" (right, kept small rather than the
-   site-wide full-width .site-btn-primary). */
+/* Below the list in edit mode: a centred "+", the error (if any) under
+   it. Saving is the card head's check mark (.boss-icon-btn). */
 .boss-editbar {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
   margin-top: 0.5rem;
+}
+
+/* Bosser's pencil / check-mark toggle in the card head (a copy of
+   koordinator.css's .koord-lok-icon-btn, used by the logins card). */
+.boss-icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.boss-icon-btn:disabled { opacity: 0.5; cursor: default; }
+
+@media (hover: hover) {
+  .boss-icon-btn:hover { color: var(--accent-warm-text); }
+}
+
+.boss-icon-btn:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .boss-manage-add-plus {
@@ -981,17 +1010,12 @@ body.site-menu-open {
 }
 
 .boss-manage-error {
-  flex: 1;
-  min-width: 0;
   font-size: 0.8rem;
   color: var(--danger);
+  text-align: center;
 }
 
-.boss-manage-save-btn {
-  flex: none;
-  padding: 0.3rem 0.75rem;
-  font-size: 0.8rem;
-}
+.boss-manage-error:empty { display: none; }
 
 /* Shared icon-only "remove" button (✕) — used by Formularer's field/section
    delete buttons (js/forms.js). Not Bosser-specific despite the name. */

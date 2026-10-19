@@ -145,11 +145,15 @@ function bandMapError(status, detail) {
   return 'Der opstod en serverfejl. Prøv igen senere.';
 }
 
+let bandPending = 0; // writes in flight (beforeunload / stale banner)
+
 // Returns { ok: true, data } or { ok: false, status, message } —
 // message '' = cancelled password prompt (silent no-op).
 async function bandApi(action, body) {
   const password = bandResolvePassword();
   if (!password) return { ok: false, status: 0, message: '' };
+  const isWrite = !/_read$/.test(action);
+  if (isWrite) bandPending++;
   let res;
   try {
     res = await fetch(SITE_API_ENDPOINT, {
@@ -158,8 +162,10 @@ async function bandApi(action, body) {
       body: JSON.stringify({ action, password, folder: bandFolder, ...(body || {}) }),
     });
   } catch (e) {
+    if (isWrite) bandPending--;
     return { ok: false, status: 0, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
   }
+  if (isWrite) bandPending--;
   // Require a real {ok:true} JSON body — a PHP fatal or WAF page can come
   // back as HTTP 200 + HTML and must not be mistaken for success.
   let data = null;
@@ -2053,6 +2059,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel !== 'function' || !siteHasLevel('revyst')) return;
+  window.addEventListener('beforeunload', (e) => {
+    if (bandPending > 0) { e.preventDefault(); e.returnValue = ''; }
+  });
+  if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(() => bandPending > 0);
   bandInit(root);
 });
 

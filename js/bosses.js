@@ -1,13 +1,14 @@
 /* =========================================================
    Matematikrevyen – "Bosser for ..." info card on Forside
    Renders BOSSES_DATA (embedded from data/bosses.json): a title plus an
-   ordered list of {names, role} rows. Admin-only "Rediger" button next
-   to the title toggles the card into an inline edit mode — same
+   ordered list of {names, role} rows. An admin-only pencil in the card
+   head toggles the card into an inline edit mode — same
    transparent-textfield-in-place pattern as budget.js's own category
    structure editor (buildCategoryEditSection), not a separate overlay:
    the title and each row become editable text, rows are draggable to
-   reorder, a small "+" grows the list, and "Rediger" becomes "Annuller"
-   with a "Gem" button appearing at the bottom. Same siteSaveResource
+   reorder, a centred "+" grows the list, and the pencil becomes a check
+   mark that saves and leaves edit mode (like Koordinator's logins card;
+   a failed save stays in edit mode). Same siteSaveResource
    full-array-replace pattern as calendar.js/archive.js (this resource is
    `admin` level, not `boss`, since it's the site's technical maintainer's
    info card to correct, not a coordinator task).
@@ -22,9 +23,10 @@ let bossesOverride = null;
 // Non-null only while the inline editor is open — {title, roles:[{names,role}]}.
 // Created fresh on entering edit mode, mutated in place by the row/drag
 // handlers below (so they can re-render just the rows without resetting
-// unsaved edits), and dropped on Gem/Annuller.
+// unsaved edits), and dropped once the check mark's save succeeds.
 let bossesEditMode = false;
 let bossesDraft = null;
+let bossesSaving = false;
 // The row currently being dragged — module-level (not a renderBossesEdit
 // closure var) so the list's own fallback drop zone (wired once, see
 // renderBossesEdit) can still read it correctly across edit sessions.
@@ -34,7 +36,100 @@ function getEffectiveBosses() {
   return bossesOverride || BOSSES_DATA;
 }
 
-// The edit bar (add "+" / error / Gem) has no static slot in index.html —
+// ── Pencil / check-mark toggle (copy of koordinator.js's
+// koordLokIcon/koordLokIconBtn, which isn't loaded here) ─────────
+function bossesIcon(size, strokeWidth, paths) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', strokeWidth);
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  paths.forEach((d) => {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  });
+  return svg;
+}
+
+function bossesIconBtn(title, icon) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'boss-icon-btn';
+  btn.title = title;
+  btn.setAttribute('aria-label', title);
+  btn.appendChild(icon);
+  return btn;
+}
+
+// The draft as it would be saved: trimmed, fully blank rows dropped.
+function bossesDraftPayload() {
+  return {
+    title: bossesDraft.title.trim(),
+    roles: bossesDraft.roles
+      .map(r => ({ names: r.names.trim(), role: r.role.trim() }))
+      .filter(r => r.names || r.role),
+  };
+}
+
+function bossesHasUnsaved() {
+  if (!bossesEditMode || !bossesDraft) return false;
+  const data = getEffectiveBosses();
+  return JSON.stringify(bossesDraftPayload()) !== JSON.stringify({ title: data.title, roles: data.roles });
+}
+
+// Check mark: save and leave edit mode. Nothing changed → just leave.
+async function bossesSaveAndClose() {
+  if (bossesSaving) return;
+  const error = document.querySelector('#bosses-editbar .boss-manage-error');
+  const payload = bossesDraftPayload();
+  if (!payload.title) {
+    if (error) error.textContent = 'Udfyld titel.';
+    return;
+  }
+  if (bossesHasUnsaved()) {
+    bossesSaving = true;
+    if (error) error.textContent = '';
+    renderBossesAdminSlot();
+    const result = await siteSaveResource('bosses', payload);
+    bossesSaving = false;
+    if (!result.ok) {
+      renderBossesAdminSlot();
+      if (error && result.message) error.textContent = result.message;
+      return;
+    }
+    bossesOverride = payload;
+    siteShowToast('Gemt');
+  }
+  bossesEditMode = false;
+  bossesDraft = null;
+  renderBosses();
+}
+
+function renderBossesAdminSlot() {
+  const adminSlot = document.getElementById('bosses-admin');
+  if (!adminSlot) return;
+  adminSlot.textContent = '';
+  if (!siteHasLevel('admin')) return;
+  const btn = bossesEditMode
+    ? bossesIconBtn('Gem og afslut redigering', bossesIcon('16', '1.6', ['M3 8.5l3.2 3.2L13 5']))
+    : bossesIconBtn('Rediger', bossesIcon('15', '1.3', ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
+  btn.disabled = bossesSaving;
+  btn.addEventListener('click', () => {
+    if (bossesEditMode) { bossesSaveAndClose(); return; }
+    bossesEditMode = true;
+    renderBosses();
+  });
+  adminSlot.appendChild(btn);
+}
+
+// The edit bar (centred "+" / error) has no static slot in index.html —
 // it's created once, right after the list, and reused across renders.
 function getBossesEditBar() {
   const list = document.getElementById('bosses-list');
@@ -87,20 +182,7 @@ function renderBossesView(data) {
   const bar = document.getElementById('bosses-editbar');
   if (bar) bar.textContent = '';
 
-  const adminSlot = document.getElementById('bosses-admin');
-  if (adminSlot) {
-    adminSlot.textContent = '';
-    if (siteHasLevel('admin')) {
-      const editBtn = document.createElement('button');
-      editBtn.className = 'btn-small';
-      editBtn.textContent = 'Rediger';
-      editBtn.addEventListener('click', () => {
-        bossesEditMode = true;
-        renderBosses();
-      });
-      adminSlot.appendChild(editBtn);
-    }
-  }
+  renderBossesAdminSlot();
 }
 
 // A native drag lets the browser snapshot the dragged element itself as the
@@ -307,54 +389,16 @@ function renderBossesEdit(data) {
     const error = document.createElement('div');
     error.className = 'boss-manage-error';
     bar.appendChild(error);
-
-    const saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.className = 'site-btn-success boss-manage-save-btn';
-    saveBtn.textContent = 'Gem';
-    saveBtn.addEventListener('click', async () => {
-      const title = draft.title.trim();
-      if (!title) {
-        error.textContent = 'Udfyld titel.';
-        return;
-      }
-      // Drop rows the admin added but never filled in — never persist a
-      // fully-blank row.
-      const roleList = draft.roles
-        .map(r => ({ names: r.names.trim(), role: r.role.trim() }))
-        .filter(r => r.names || r.role);
-
-      saveBtn.disabled = true;
-      error.textContent = '';
-      const payload = { title, roles: roleList };
-      const result = await siteSaveResource('bosses', payload);
-      saveBtn.disabled = false;
-      if (result.ok) {
-        bossesOverride = payload;
-        bossesEditMode = false;
-        bossesDraft = null;
-        renderBosses();
-      } else if (result.message) {
-        error.textContent = result.message;
-      }
-    });
-    bar.appendChild(saveBtn);
   }
 
-  const adminSlot = document.getElementById('bosses-admin');
-  if (adminSlot) {
-    adminSlot.textContent = '';
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn-small';
-    cancelBtn.textContent = 'Annuller';
-    cancelBtn.addEventListener('click', () => {
-      bossesEditMode = false;
-      bossesDraft = null;
-      renderBosses();
-    });
-    adminSlot.appendChild(cancelBtn);
-  }
+  renderBossesAdminSlot();
 }
 
 // ── Init ───────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', renderBosses);
+document.addEventListener('DOMContentLoaded', () => {
+  renderBosses();
+  window.addEventListener('beforeunload', (e) => {
+    if (bossesHasUnsaved()) { e.preventDefault(); e.returnValue = ''; }
+  });
+  if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(bossesHasUnsaved);
+});
