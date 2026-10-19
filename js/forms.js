@@ -2672,6 +2672,75 @@ function formsResponseCell(tag, text) {
   return cell;
 }
 
+// ── Pinned ("fastgjorte") response columns ─────
+// Per browser and per form, like other view state: localStorage
+// 'matrevy-forms-sticky-cols' = {<formId>: [colKey, ...]}. 'Sendt' uses the
+// reserved key FORMS_SENDT_COL_KEY; every other key is a formsAnswerColumns key.
+const FORMS_STICKY_COLS_KEY = 'matrevy-forms-sticky-cols';
+const FORMS_SENDT_COL_KEY = '_sendt';
+
+function formsLoadStickyCols(formId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(FORMS_STICKY_COLS_KEY) || '{}');
+    return Array.isArray(all[formId]) ? all[formId].filter((k) => typeof k === 'string') : [];
+  } catch (e) { return []; }
+}
+
+function formsSaveStickyCols(formId, keys) {
+  try {
+    const all = JSON.parse(localStorage.getItem(FORMS_STICKY_COLS_KEY) || '{}');
+    if (keys.length > 0) all[formId] = keys; else delete all[formId];
+    localStorage.setItem(FORMS_STICKY_COLS_KEY, JSON.stringify(all));
+  } catch (e) { /* no storage: pins just don't survive a reload */ }
+}
+
+// A pinned cell is sticky with both `left` and `right`: it stays in its own
+// place, catches on the left edge when scrolled past to the right and on the
+// right edge when it would leave on the right. Several pinned columns stack,
+// so each one's offsets are the summed widths of the pinned columns before
+// (left) and after (right) it. Widths are measured from the header cells,
+// whose text is capped (.forms-response-cell-text), so they stay put.
+function formsApplyStickyColumns(table, pinnedKeys) {
+  const pinned = new Set(pinnedKeys);
+  const headCells = Array.from(table.tHead.rows[0].cells);
+  for (const row of table.rows) {
+    for (const cell of row.cells) {
+      cell.classList.remove('forms-sticky-col', 'forms-sticky-col-pinned');
+      cell.style.left = '';
+      cell.style.right = '';
+    }
+  }
+  const idxs = headCells
+    .map((th, i) => (pinned.has(th.dataset.colKey) ? i : -1))
+    .filter((i) => i >= 0);
+  const widths = idxs.map((i) => headCells[i].getBoundingClientRect().width);
+  const total = widths.reduce((a, b) => a + b, 0);
+  let before = 0;
+  idxs.forEach((colIdx, n) => {
+    const left = before;
+    const right = total - before - widths[n];
+    before += widths[n];
+    headCells[colIdx].classList.add('forms-sticky-col-pinned');
+    for (const row of table.rows) {
+      const cell = row.cells[colIdx];
+      if (!cell) continue;
+      cell.classList.add('forms-sticky-col');
+      cell.style.left = `${left}px`;
+      cell.style.right = `${right}px`;
+    }
+  });
+}
+
+// Clicking a column title: a one-row menu to pin or unpin that column.
+function formsOpenStickyColMenu(th, isPinned, onToggle) {
+  const pop = el('div', 'site-field-pop site-dd-pop');
+  const row = el('button', 'site-list-row', isPinned ? 'Frigør kolonne' : 'Fastgør kolonne');
+  row.type = 'button';
+  row.addEventListener('click', () => { close(); onToggle(); });
+  pop.appendChild(row);
+  const close = siteOpenFieldPopup(th, pop);
+}
+
 // ── Responses screen ("Se svar" row action) + CSV export ─────
 // Appended below the tab bar renderAdminView already rendered (Oversigt
 // stays the active tab — this is a view onto one form from within
@@ -2734,8 +2803,25 @@ async function formsRenderResponsesScreen(root, formId) {
   const thead = el('thead');
   const headRow = el('tr');
   headRow.appendChild(el('th')); // delete-button column, no label
-  headRow.appendChild(formsResponseCell('th', 'Sendt'));
-  columns.forEach((c) => headRow.appendChild(formsResponseCell('th', c.label)));
+  // Every labelled column can be pinned from its title (formsOpenStickyColMenu).
+  let pinnedKeys = formsLoadStickyCols(formId);
+  const addPinnableHead = (key, label) => {
+    const th = formsResponseCell('th', label);
+    th.dataset.colKey = key;
+    th.classList.add('forms-pinnable-head');
+    th.addEventListener('click', () => {
+      formsHideResponseTooltip();
+      const isPinned = pinnedKeys.includes(key);
+      siteToggleFieldPopup(th, () => formsOpenStickyColMenu(th, isPinned, () => {
+        pinnedKeys = isPinned ? pinnedKeys.filter((k) => k !== key) : [...pinnedKeys, key];
+        formsSaveStickyCols(formId, pinnedKeys);
+        formsApplyStickyColumns(table, pinnedKeys);
+      }));
+    });
+    headRow.appendChild(th);
+  };
+  addPinnableHead(FORMS_SENDT_COL_KEY, 'Sendt');
+  columns.forEach((c) => addPinnableHead(c.key, c.label));
   thead.appendChild(headRow);
   table.appendChild(thead);
   const tbody = el('tbody');
@@ -2763,6 +2849,14 @@ async function formsRenderResponsesScreen(root, formId) {
   table.appendChild(tbody);
   wrap.appendChild(table);
   body.appendChild(wrap);
+  formsApplyStickyColumns(table, pinnedKeys);
+  // Column widths can shift with the viewport (min-width:100% table) —
+  // re-measure, and drop the listener once this screen is gone.
+  const onResize = () => {
+    if (!table.isConnected) { window.removeEventListener('resize', onResize); return; }
+    formsApplyStickyColumns(table, pinnedKeys);
+  };
+  window.addEventListener('resize', onResize);
 }
 
 // One flat, ordered field list — top-level fields first, then each

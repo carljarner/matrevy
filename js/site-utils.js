@@ -644,7 +644,7 @@ function siteOpenFieldPopup(anchor, pop) {
   sitePositionFieldPopup(pop, anchor);
 
   function onDocMousedown(e) {
-    if (!pop.contains(e.target) && e.target !== anchor) close();
+    if (!pop.contains(e.target) && !anchor.contains(e.target)) close();
   }
   function onKeydown(e) {
     if (e.key === 'Escape') { e.stopPropagation(); close(); anchor.focus(); }

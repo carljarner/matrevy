@@ -277,7 +277,23 @@
   position: sticky;
   top: 0;
   background: var(--surface);
+  z-index: 2;
+}
+
+/* Pinned columns (forms.js's formsApplyStickyColumns sets left/right
+   inline). Stacking: body cells 1, header 2, a pinned header 3, so the
+   pinned header corner stays on top whichever way the table scrolls. */
+.forms-responses-table .forms-sticky-col {
+  position: sticky;
+  background: var(--surface);
   z-index: 1;
+}
+.forms-responses-table thead th.forms-sticky-col { z-index: 3; }
+.forms-pinnable-head { cursor: pointer; }
+.forms-pinnable-head .forms-response-cell-text { cursor: pointer; }
+.forms-sticky-col-pinned { color: var(--accent-warm-text); }
+@media (hover: hover) {
+  .forms-pinnable-head:hover { color: var(--accent-warm-text); }
 }
 
 /* Oversigt rows are draggable to reorder (see forms.js's formsWireDropHighlight/
