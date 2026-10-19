@@ -499,3 +499,85 @@
     color: var(--text);
   }
 }
+
+/* --- Boss Box (boss/admin, bottom of the page): one row, plain label
+   with a small toggle switch at its end (styled after manus.css's
+   .manus-toggle-*). Off = warm-cream/border, on = --success green. ---- */
+/* A quarter of the page width, flush left; never narrower than its
+   label (full width on a phone). */
+.teknik-boss-box {
+  margin-top: 1.5rem;
+  width: 25%;
+  min-width: min(100%, 17rem);
+  box-sizing: border-box;
+}
+
+.teknik-boss-toggle-col {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.teknik-boss-toggle-label {
+  cursor: pointer;
+}
+
+.teknik-toggle-switch {
+  position: relative;
+  flex: none;
+  display: inline-block;
+  width: 2.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.teknik-toggle-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.teknik-toggle-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.teknik-toggle-slider::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.teknik-toggle-switch input:checked + .teknik-toggle-slider {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.teknik-toggle-switch input:checked + .teknik-toggle-slider::before {
+  transform: translateX(1rem);
+}
+
+.teknik-toggle-switch input:focus-visible + .teknik-toggle-slider {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
+}
+
+.teknik-toggle-switch input:disabled + .teknik-toggle-slider {
+  opacity: 0.6;
+  cursor: default;
+}

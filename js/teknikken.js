@@ -118,9 +118,8 @@ function teknikResolvePassword() {
 }
 
 function teknikMapError(status, detail) {
-  if (detail === 'uploads_closed') {
-    return 'Revyen er afsluttet, så der kan ikke uploades til Teknikken, før en ny revy er startet.';
-  }
+  if (detail === 'uploads_closed') return TEKNIK_CLOSED_TEXT;
+  if (detail === 'uploads_paused') return TEKNIK_PAUSED_TEXT;
   if (detail === 'quota_exceeded') {
     return `Der er ikke plads nok. Teknikken må højst fylde ${teknikFormatBytes(teknikQuotaBytes)} i alt. Slet nogle filer først.`;
   }
@@ -165,8 +164,18 @@ function teknikShowError(message) {
 let teknikState = null; // { folders, files } once loaded
 let teknikQuotaBytes = TEKNIK_DEFAULT_QUOTA_BYTES;
 // False while no revy is active (Koordinator's "Afslut revyen" closes
-// uploads until "Ny Revy"); the server refuses them too (uploads_closed).
+// uploads until "Ny Revy") or a boss has paused them in the Boss Box
+// (config.json's teknikUploadsClosed); the server refuses them too
+// (uploads_closed / uploads_paused).
 let teknikUploadsOpen = true;
+let teknikUploadsPaused = false;
+let teknikRevyActive = true;
+const TEKNIK_CLOSED_TEXT = 'Revyen er afsluttet, så der kan ikke uploades til Teknikken, før en ny revy er startet.';
+const TEKNIK_PAUSED_TEXT = 'Bosserne har lukket for uploads til Teknikken.';
+
+function teknikUploadsClosedMessage() {
+  return teknikRevyActive ? TEKNIK_PAUSED_TEXT : TEKNIK_CLOSED_TEXT;
+}
 const TEKNIK_OPEN_KEY = 'matrevy-teknik-open';
 const teknikOpenFolders = (() => {
   try { return new Set(JSON.parse(localStorage.getItem(TEKNIK_OPEN_KEY) || '[]')); } catch (e) { return new Set(); }
@@ -296,6 +305,8 @@ async function teknikLoad() {
   teknikState = { folders: result.data.folders || [], files: result.data.files || [] };
   if (Number.isInteger(result.data.quotaBytes)) teknikQuotaBytes = result.data.quotaBytes;
   teknikUploadsOpen = result.data.uploadsOpen !== false;
+  teknikUploadsPaused = result.data.uploadsPaused === true;
+  teknikRevyActive = result.data.revyActive !== false;
   // Forget open folders that no longer exist.
   for (const id of [...teknikOpenFolders]) if (!teknikFolderById(id)) teknikOpenFolders.delete(id);
   teknikSaveOpenFolders();
@@ -327,8 +338,7 @@ function teknikRender() {
   head.appendChild(uploadBtns);
   card.appendChild(head);
   if (!teknikUploadsOpen) {
-    card.appendChild(el('p', 'teknik-muted teknik-closed-notice',
-      'Revyen er afsluttet, så der kan ikke uploades til Teknikken, før en ny revy er startet.'));
+    card.appendChild(el('p', 'teknik-muted teknik-closed-notice', teknikUploadsClosedMessage()));
   }
 
   const list = el('div', 'teknik-list');
@@ -351,6 +361,7 @@ function teknikRender() {
 
   // The usage bar and the upload panel survive re-renders of the list.
   root.replaceChildren(teknikUsageEl(), card, teknikUploadPanel());
+  if (siteHasLevel('boss')) root.appendChild(teknikBuildBossBox());
   teknikRenderUsage();
   teknikRenderUploads();
 }
@@ -488,9 +499,51 @@ function teknikRenderUsage() {
   const fill = el('div', 'teknik-usage-fill');
   fill.style.width = pct + '%';
   bar.appendChild(fill);
-  const free = Math.max(0, teknikQuotaBytes - used);
   node.replaceChildren(bar, el('div', 'teknik-usage-text',
-    `${teknikFormatBytes(used)} af ${teknikFormatBytes(teknikQuotaBytes)} brugt · ${teknikFormatBytes(free)} ledigt`));
+    `${teknikFormatBytes(used)} af ${teknikFormatBytes(teknikQuotaBytes)} brugt`));
+}
+
+// ── Boss Box (boss/admin, bottom of the page) ────────────────
+// One row, label then switch, after Manus's Boss Box
+// (renderAdminToggleColumn): on = uploads open. Off pauses uploads for
+// everyone, bosses included (config.json's teknikUploadsClosed).
+function teknikBuildBossBox() {
+  const section = el('section', 'card teknik-boss-box');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Boss Box'));
+  section.appendChild(head);
+
+  const col = el('div', 'teknik-boss-toggle-col');
+  const label = el('label', 'teknik-boss-toggle-label', 'Åben for uploads');
+  label.htmlFor = 'teknik-uploads-toggle';
+  const switchLabel = el('label', 'teknik-toggle-switch');
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.id = 'teknik-uploads-toggle';
+  // Off and locked while no revy is active (save_config refuses too).
+  input.checked = teknikRevyActive && !teknikUploadsPaused;
+  input.disabled = !teknikRevyActive;
+  switchLabel.append(input, el('span', 'teknik-toggle-slider'));
+
+  input.addEventListener('change', async () => {
+    const next = input.checked;
+    input.disabled = true;
+    const res = await siteSaveResource('config', { teknikUploadsClosed: !next });
+    input.disabled = false;
+    if (!res.ok) {
+      input.checked = !next;
+      teknikShowError(res.message);
+      return;
+    }
+    teknikUploadsPaused = !next;
+    teknikUploadsOpen = teknikRevyActive && !teknikUploadsPaused;
+    teknikRender();
+    siteShowToast('Gemt');
+  });
+
+  col.append(label, switchLabel);
+  section.appendChild(col);
+  return section;
 }
 
 // ── Modals ───────────────────────────────────────────────────
@@ -703,7 +756,7 @@ function teknikWireDrop(card) {
     }
     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
     e.preventDefault();
-    if (!teknikUploadsOpen) { teknikShowError(teknikMapError(409, 'uploads_closed')); return; }
+    if (!teknikUploadsOpen) { teknikShowError(teknikUploadsClosedMessage()); return; }
     const dropped = Array.from(e.dataTransfer.files);
     // A lone video goes to the video flow (it needs its project file).
     if (dropped.length === 1 && teknikIsVideo(dropped[0])) teknikOpenVideoUploadModal(folderId, dropped[0]);

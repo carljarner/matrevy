@@ -2609,6 +2609,12 @@ a.manus-pdf-title:focus-visible {
   margin-top: 1.5rem;
 }
 
+.manus-admin-locked-note {
+  margin: 0 0 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
 .manus-admin-toggle-columns {
   display: flex;
   justify-content: space-around;

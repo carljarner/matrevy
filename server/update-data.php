@@ -6264,6 +6264,8 @@ function teknik_read($body) {
     'files' => $doc['files'] ?? [],
     'quotaBytes' => teknik_quota_bytes(),
     'uploadsOpen' => teknik_uploads_open(),
+    'uploadsPaused' => teknik_uploads_paused(),
+    'revyActive' => manus_current_production_folder() !== null,
     'updatedAt' => $doc['updatedAt'] ?? null,
   ]);
 }
@@ -6420,9 +6422,21 @@ function teknik_remove_upload($uploadId) {
 
 // Uploads are closed while no revy is active: Koordinator's "Afslut revyen"
 // empties the store and clears currentProductionFolder, and "Ny Revy"
-// opens it again by setting a new one.
+// opens it again by setting a new one. A boss can also pause them from the
+// page's Boss Box (config.json's teknikUploadsClosed), for everyone.
 function teknik_uploads_open() {
-  return manus_current_production_folder() !== null;
+  return manus_current_production_folder() !== null && !teknik_uploads_paused();
+}
+
+function teknik_uploads_paused() {
+  [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
+  if ($cfgStatus !== 200) return false;
+  return (json_decode(base64_decode($cfg['content']), true)['teknikUploadsClosed'] ?? false) === true;
+}
+
+// The 409 detail for a refused upload: no revy, or paused by a boss.
+function teknik_uploads_closed_error() {
+  return manus_current_production_folder() === null ? 'uploads_closed' : 'uploads_paused';
 }
 
 function teknik_used_bytes($doc) {
@@ -6451,7 +6465,7 @@ function teknik_sweep_uploads() {
 
 // {folderId, name, size}
 function teknik_upload_start($body) {
-  if (!teknik_uploads_open()) respond(409, ['error' => 'uploads_closed']);
+  if (!teknik_uploads_open()) respond(409, ['error' => teknik_uploads_closed_error()]);
   $folderId = teknik_folder_id_from($body['folderId'] ?? null);
   $name = teknik_clean_name($body['name'] ?? '');
   // Who uploaded it: a free-text name (shared passwords, no real identity).
@@ -6539,7 +6553,7 @@ function teknik_upload_finish($body) {
   // Started before the revy was closed: don't let it land in the emptied store.
   if (!teknik_uploads_open()) {
     teknik_remove_upload($uploadId);
-    respond(409, ['error' => 'uploads_closed']);
+    respond(409, ['error' => teknik_uploads_closed_error()]);
   }
   $part = teknik_upload_path($uploadId, 'part');
   clearstatcache(true, $part);
@@ -7892,6 +7906,9 @@ function save_wiki($payload) {
 // Manus's own Boss-indstillinger toggles (js/manus.js's renderAdminSettings).
 // uploadsClosedForRevyst is the legacy single flag both used to share — still
 // accepted and read as a fallback, removed once either per-type key is saved.
+//
+// teknikUploadsClosed: Teknikken's Boss Box toggle, pausing uploads there for
+// everyone (teknik_uploads_open()). Off by default; Koordinator resets it.
 function save_config($payload) {
   $hasFolder = array_key_exists('currentProductionFolder', $payload);
   if ($hasFolder && $GLOBALS['level'] !== 'admin') {
@@ -7926,15 +7943,31 @@ function save_config($payload) {
     if (!is_bool($payload[$key])) respond(400, ['error' => 'invalid_shape']);
     $readyFlags[$key] = $payload[$key];
   }
-  if (!$hasFolder && !$hasPdfFlag && !$hasUploadsClosedFlag && !$typeFlags && !$readyFlags) {
+  $hasTeknikFlag = array_key_exists('teknikUploadsClosed', $payload);
+  $teknikFlag = $payload['teknikUploadsClosed'] ?? false;
+  if ($hasTeknikFlag && !is_bool($teknikFlag)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasUploadsClosedFlag, $uploadsClosedFlag, $typeFlags, $readyFlags) {
+  if (!$hasFolder && !$hasPdfFlag && !$hasUploadsClosedFlag && !$typeFlags && !$readyFlags && !$hasTeknikFlag) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  // While no revy is active (after "Afslut revyen", before "Start ny revy")
+  // every Boss Box toggle stays off: manus hidden, uploads closed.
+  $activeAfter = $hasFolder ? $folder !== '' : manus_current_production_folder() !== null;
+  if (!$activeAfter) {
+    $turnsOn = ($hasPdfFlag && $pdfFlag)
+      || ($hasUploadsClosedFlag && !$uploadsClosedFlag)
+      || in_array(false, $typeFlags, true)
+      || ($hasTeknikFlag && !$teknikFlag);
+    if ($turnsOn) respond(409, ['error' => 'no_production']);
+  }
+  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasUploadsClosedFlag, $uploadsClosedFlag, $typeFlags, $readyFlags, $hasTeknikFlag, $teknikFlag) {
     if ($hasFolder) $json['currentProductionFolder'] = $folder;
     if ($hasPdfFlag) $json['pdfLinksVisibleToRevyst'] = $pdfFlag;
     if ($hasUploadsClosedFlag) $json['uploadsClosedForRevyst'] = $uploadsClosedFlag;
     foreach ($typeFlags as $key => $flag) $json[$key] = $flag;
     foreach ($readyFlags as $key => $flag) $json[$key] = $flag;
+    if ($hasTeknikFlag) $json['teknikUploadsClosed'] = $teknikFlag;
     // The per-type keys supersede the legacy single flag — drop it once
     // either is written so it can't linger as a stale fallback.
     if ($typeFlags) unset($json['uploadsClosedForRevyst']);

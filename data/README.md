@@ -288,14 +288,16 @@ comments.
   "currentProductionFolder": "MatRevy_2026",
   "pdfLinksVisibleToRevyst": false,
   "sketchUploadsClosedForRevyst": false,
-  "songUploadsClosedForRevyst": false
+  "songUploadsClosedForRevyst": false,
+  "teknikUploadsClosed": false
 }
 ```
 
 - `currentProductionFolder` — the active production's `archive/<folder>`: where new submissions land and where `generate-pdfs.js` writes. `""` means no active production, which blocks `manuscripts_create`. Set by Koordinator's "Afslut revyen" (→ `""`) and "Start ny revy" (→ the new folder). Read client-side as `CONFIG_DATA`.
 - `pdfLinksVisibleToRevyst` — shows Manus's PDF quick links to revyster too.
 - `sketchUploadsClosedForRevyst`/`songUploadsClosedForRevyst` — close the upload pool per type for revyster.
-- Admin-only `config` resource. Koordinator resets all three toggles to `false` when it closes or starts a production.
+- `teknikUploadsClosed` — Teknikken's Boss Box toggle: pauses uploads there for everyone.
+- Admin-only `config` resource. Koordinator's "Afslut revyen" turns every toggle off (manus hidden, all three upload flags `true`), and while `currentProductionFolder` is `""` the server refuses to turn any back on (`409 no_production`). "Start ny revy" sets the upload flags back to `false`.
 
 ## Schema: program.json
 

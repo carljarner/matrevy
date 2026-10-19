@@ -153,6 +153,12 @@ async function siteSaveResource(resource, payload) {
     return { ok: false, message: 'Forkert eller utilstrækkelig adgangskode. Log ind med tilstrækkelig adgang og prøv igen.' };
   }
   if (res.status === 409) {
+    let detail = '';
+    try { detail = (await res.clone().json()).error || ''; } catch (e) { /* not JSON */ }
+    // config: a Boss Box toggle can't be turned on while no revy is active.
+    if (detail === 'no_production') {
+      return { ok: false, message: 'Der er ingen aktiv revy. Start en ny revy i Koordinator først.' };
+    }
     // conflict: lets a caller that merges (Manus) re-read and retry.
     return { ok: false, conflict: true, message: 'En anden har lige gemt ændringer. Genindlæs siden og prøv igen.' };
   }

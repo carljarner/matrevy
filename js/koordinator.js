@@ -491,15 +491,16 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
   if (!manuscriptsRes.ok) throw new Error(manuscriptsRes.message || 'Kunne ikke nulstille indsendte manuskripter.');
 
   onProgress('Lukker den aktive produktionsmappe...');
-  // Resets "Vis PDF'er for revyster" back to hidden and "Luk for uploads"
-  // back to open in the same write, so the next production cycle starts
-  // private-but-open again — see manus.js's own renderAdminSettings. An
+  // Turns every Boss Box toggle off in the same write: manus hidden, Manus's
+  // per-type uploads and Teknikken's uploads closed. save_config() refuses to
+  // turn any of them on again until "Start ny revy", which opens the uploads
+  // (manus stays hidden) — see manus.js's renderAdminSettings. An
   // empty currentProductionFolder is a valid, deliberate state — see
   // save_config()'s own comment server-side and
   // manus_current_production_folder(), which treats '' as "no active
   // production" and rejects manuscripts_create with no_production_folder.
   // The guide's two "Klar til arkivering" toggles start over for next year.
-  const closedConfig = { currentProductionFolder: '', pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false, archiveReadyTeknik: false, archiveReadyManus: false };
+  const closedConfig = { currentProductionFolder: '', pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: true, songUploadsClosedForRevyst: true, archiveReadyTeknik: false, archiveReadyManus: false, teknikUploadsClosed: true };
   const configRes = await siteSaveResource('config', closedConfig);
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke lukke produktionsmappen.');
   koordSaveConfigOverride(closedConfig);
@@ -558,7 +559,7 @@ async function koordStartNewYear(newFolder, productionName, productionYear, onPr
   }
 
   onProgress('Skifter til den nye produktionsmappe...');
-  const newConfig = { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false, archiveReadyTeknik: false, archiveReadyManus: false };
+  const newConfig = { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false, archiveReadyTeknik: false, archiveReadyManus: false, teknikUploadsClosed: false };
   const configRes = await siteSaveResource('config', newConfig);
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
   koordSaveConfigOverride(newConfig);

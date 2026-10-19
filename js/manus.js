@@ -7555,8 +7555,9 @@ function renderPoolLayoutVisibility() {
 // can read as a positive "revyster kan uploade" rather than a double-negative
 // "luk ikke for uploads".
 // `confirm(next)` (optional) asks first: a Promise of true/false, where
-// false puts the switch back without saving.
-function renderAdminToggleColumn(container, { id, label: labelText, checked, confirm, onChange, savedText }) {
+// false puts the switch back without saving. `locked` shows it off and
+// disabled (no active revy, see renderAdminSettings).
+function renderAdminToggleColumn(container, { id, label: labelText, checked, confirm, onChange, savedText, locked }) {
   const col = document.createElement('div');
   col.className = 'manus-admin-toggle-col';
 
@@ -7570,7 +7571,8 @@ function renderAdminToggleColumn(container, { id, label: labelText, checked, con
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.id = id;
-  input.checked = checked;
+  input.checked = locked ? false : checked;
+  input.disabled = !!locked;
   const slider = document.createElement('span');
   slider.className = 'manus-toggle-slider';
   switchLabel.appendChild(input);
@@ -7614,6 +7616,16 @@ function renderAdminSettings() {
   head.appendChild(h2);
   section.appendChild(head);
 
+  // After Koordinator's "Afslut revyen" every toggle is off and stays
+  // locked until "Start ny revy" (save_config refuses with no_production).
+  const locked = !getEffectiveConfig().currentProductionFolder;
+  if (locked) {
+    const note = document.createElement('p');
+    note.className = 'manus-admin-locked-note';
+    note.textContent = 'Revyen er afsluttet. Start en ny revy i Koordinator for at åbne igen.';
+    section.appendChild(note);
+  }
+
   const columns = document.createElement('div');
   columns.className = 'manus-admin-toggle-columns';
 
@@ -7630,6 +7642,7 @@ function renderAdminSettings() {
       id: `manus-uploads-open-toggle-${type}`,
       label,
       checked: !manusUploadsClosed(type),
+      locked,
       onChange: async (next) => {
         const flags = {
           sketchUploadsClosedForRevyst: manusUploadsClosed('sketch'),
@@ -7652,6 +7665,7 @@ function renderAdminSettings() {
     id: 'manus-pdf-toggle',
     label: 'Revyster kan se manus',
     checked: !!getEffectiveConfig().pdfLinksVisibleToRevyst,
+    locked,
     confirm: manusConfirmPublish,
     onChange: async (next) => {
       const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
