@@ -480,3 +480,22 @@
     display: none;
   }
 }
+
+/* Shown under the card head while uploads are closed (no active revy). */
+.teknik-closed-notice {
+  margin: 0.5rem 0 0;
+  text-align: center;
+}
+
+.teknik-upload-btns .btn-small:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .teknik-upload-btns .btn-small:disabled:hover {
+    background: var(--input-bg);
+    border-color: var(--border);
+    color: var(--text);
+  }
+}

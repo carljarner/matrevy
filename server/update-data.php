@@ -404,6 +404,22 @@ if (isset($FRAVAER_ACTIONS[$action])) {
   fravaer_save_connection($body);
 }
 
+// ── Koordinator's account logins (Google, YouTube, Spotify) ──
+// E-mail, password and phone per account, shown on Arkivering's right
+// column. Secret, so it lives in the private KOORD_DATA_DIR and only an
+// admin can read or write it. Hoisted functions only (early dispatch).
+$KOORD_ACTIONS = [
+  'koord_logins_read' => 'admin', // {title, accounts: [{id, title, email, password, phone}]}
+  'koord_logins_save' => 'admin', // full replace of the list
+];
+if (isset($KOORD_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$KOORD_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  if ($action === 'koord_logins_read') koord_logins_read();
+  koord_logins_save($body);
+}
+
 // ── Teknikken actions (the tech crew's Drive-like file store) ──
 // Videos, slides and images in a nested folder tree, in the private
 // TEKNIK_DATA_DIR. One store for the whole site, not per revy, and never
@@ -6014,6 +6030,97 @@ function lokaler_file($body) {
   exit;
 }
 
+// ── Koordinator logins (KOORD_DATA_DIR/logins.json) ──
+// {title, accounts: [{id, title, email, password, phone}], updatedAt}:
+// the card's own heading plus the accounts in the page's order. Nothing
+// saved yet reads as "Google, YouTube & Spotify" with those three accounts
+// and deterministic ids (koord_logins_default()).
+
+function koord_dir() {
+  if (!defined('KOORD_DATA_DIR') || !is_string(KOORD_DATA_DIR) || KOORD_DATA_DIR === '') {
+    respond(500, ['error' => 'koord_not_configured']);
+  }
+  return rtrim(KOORD_DATA_DIR, '/');
+}
+
+function koord_login_fields() {
+  return ['title', 'email', 'password', 'phone'];
+}
+
+function koord_logins_default_title() {
+  return 'Google, YouTube & Spotify';
+}
+
+function koord_logins_default() {
+  $out = [];
+  foreach (['google' => 'Google', 'youtube' => 'YouTube', 'spotify' => 'Spotify'] as $id => $title) {
+    $out[] = ['id' => $id, 'title' => $title, 'email' => '', 'password' => '', 'phone' => ''];
+  }
+  return $out;
+}
+
+function koord_logins_read() {
+  $path = koord_dir() . '/logins.json';
+  $doc = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+  $accounts = (is_array($doc) && is_array($doc['accounts'] ?? null) && array_is_list($doc['accounts']))
+    ? $doc['accounts']
+    : koord_logins_default();
+  $title = (is_array($doc) && is_string($doc['title'] ?? null) && $doc['title'] !== '')
+    ? $doc['title']
+    : koord_logins_default_title();
+  respond(200, [
+    'ok' => true,
+    'title' => $title,
+    'accounts' => $accounts,
+    'updatedAt' => is_array($doc) ? ($doc['updatedAt'] ?? null) : null,
+  ]);
+}
+
+// Full replace: the heading (empty = the default) and at most 30 accounts,
+// unique ids, every field a one-line string of at most 200 characters.
+function koord_logins_save($body) {
+  $title = $body['title'] ?? '';
+  if (!is_string($title) || mb_strlen($title) > 100 || preg_match('/[\x00-\x1f\x7f]/', $title)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $title = trim($title) === '' ? koord_logins_default_title() : trim($title);
+  $accounts = $body['accounts'] ?? null;
+  if (!is_array($accounts) || !array_is_list($accounts) || count($accounts) > 30) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $clean = [];
+  $seen = [];
+  foreach ($accounts as $account) {
+    $id = is_array($account) ? ($account['id'] ?? null) : null;
+    if (!is_string($id) || !preg_match('/^[a-z0-9]{1,40}$/', $id) || isset($seen[$id])) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $seen[$id] = true;
+    $entry = ['id' => $id];
+    foreach (koord_login_fields() as $field) {
+      $value = $account[$field] ?? '';
+      if (!is_string($value) || mb_strlen($value) > 200 || preg_match('/[\x00-\x1f\x7f]/', $value)) {
+        respond(400, ['error' => 'invalid_shape']);
+      }
+      $entry[$field] = $value;
+    }
+    $clean[] = $entry;
+  }
+  $dir = koord_dir();
+  if (!is_dir($dir) && !@mkdir($dir, 0770, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'koord_storage_unavailable']);
+  }
+  $doc = ['title' => $title, 'accounts' => $clean, 'updatedAt' => date('c')];
+  $path = $dir . '/logins.json';
+  $tmp = $path . '.tmp';
+  $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+  if (@file_put_contents($tmp, $json, LOCK_EX) === false || !@rename($tmp, $path)) {
+    respond(500, ['error' => 'koord_storage_unavailable']);
+  }
+  @chmod($path, 0660);
+  respond(200, ['ok' => true, 'title' => $title, 'accounts' => $clean, 'updatedAt' => $doc['updatedAt']]);
+}
+
 function handle_lokaler($action, $body) {
   switch ($action) {
     case 'lokaler_files_read':  return lokaler_files_read($body);
@@ -6156,6 +6263,7 @@ function teknik_read($body) {
     'folders' => $doc['folders'] ?? [],
     'files' => $doc['files'] ?? [],
     'quotaBytes' => teknik_quota_bytes(),
+    'uploadsOpen' => teknik_uploads_open(),
     'updatedAt' => $doc['updatedAt'] ?? null,
   ]);
 }
@@ -6310,6 +6418,13 @@ function teknik_remove_upload($uploadId) {
   @unlink(teknik_upload_path($uploadId, 'json'));
 }
 
+// Uploads are closed while no revy is active: Koordinator's "Afslut revyen"
+// empties the store and clears currentProductionFolder, and "Ny Revy"
+// opens it again by setting a new one.
+function teknik_uploads_open() {
+  return manus_current_production_folder() !== null;
+}
+
 function teknik_used_bytes($doc) {
   $total = 0;
   foreach ($doc['files'] ?? [] as $file) $total += (int) ($file['size'] ?? 0);
@@ -6336,6 +6451,7 @@ function teknik_sweep_uploads() {
 
 // {folderId, name, size}
 function teknik_upload_start($body) {
+  if (!teknik_uploads_open()) respond(409, ['error' => 'uploads_closed']);
   $folderId = teknik_folder_id_from($body['folderId'] ?? null);
   $name = teknik_clean_name($body['name'] ?? '');
   // Who uploaded it: a free-text name (shared passwords, no real identity).
@@ -6420,6 +6536,11 @@ function teknik_upload_chunk($body) {
 function teknik_upload_finish($body) {
   $uploadId = $body['uploadId'] ?? '';
   $meta = teknik_upload_meta($uploadId);
+  // Started before the revy was closed: don't let it land in the emptied store.
+  if (!teknik_uploads_open()) {
+    teknik_remove_upload($uploadId);
+    respond(409, ['error' => 'uploads_closed']);
+  }
   $part = teknik_upload_path($uploadId, 'part');
   clearstatcache(true, $part);
   if (filesize($part) !== $meta['size']) respond(400, ['error' => 'incomplete_upload']);

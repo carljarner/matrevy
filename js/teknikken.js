@@ -118,6 +118,9 @@ function teknikResolvePassword() {
 }
 
 function teknikMapError(status, detail) {
+  if (detail === 'uploads_closed') {
+    return 'Revyen er afsluttet, så der kan ikke uploades til Teknikken, før en ny revy er startet.';
+  }
   if (detail === 'quota_exceeded') {
     return `Der er ikke plads nok. Teknikken må højst fylde ${teknikFormatBytes(teknikQuotaBytes)} i alt. Slet nogle filer først.`;
   }
@@ -161,6 +164,9 @@ function teknikShowError(message) {
 // ── State ────────────────────────────────────────────────────
 let teknikState = null; // { folders, files } once loaded
 let teknikQuotaBytes = TEKNIK_DEFAULT_QUOTA_BYTES;
+// False while no revy is active (Koordinator's "Afslut revyen" closes
+// uploads until "Ny Revy"); the server refuses them too (uploads_closed).
+let teknikUploadsOpen = true;
 const TEKNIK_OPEN_KEY = 'matrevy-teknik-open';
 const teknikOpenFolders = (() => {
   try { return new Set(JSON.parse(localStorage.getItem(TEKNIK_OPEN_KEY) || '[]')); } catch (e) { return new Set(); }
@@ -289,6 +295,7 @@ async function teknikLoad() {
   }
   teknikState = { folders: result.data.folders || [], files: result.data.files || [] };
   if (Number.isInteger(result.data.quotaBytes)) teknikQuotaBytes = result.data.quotaBytes;
+  teknikUploadsOpen = result.data.uploadsOpen !== false;
   // Forget open folders that no longer exist.
   for (const id of [...teknikOpenFolders]) if (!teknikFolderById(id)) teknikOpenFolders.delete(id);
   teknikSaveOpenFolders();
@@ -315,14 +322,21 @@ function teknikRender() {
   const videoBtn = teknikBtn('Upload videoer');
   videoBtn.addEventListener('click', () => teknikOpenVideoUploadModal(null));
   uploadBtns.appendChild(videoBtn);
+  uploadBtn.disabled = !teknikUploadsOpen;
+  videoBtn.disabled = !teknikUploadsOpen;
   head.appendChild(uploadBtns);
   card.appendChild(head);
+  if (!teknikUploadsOpen) {
+    card.appendChild(el('p', 'teknik-muted teknik-closed-notice',
+      'Revyen er afsluttet, så der kan ikke uploades til Teknikken, før en ny revy er startet.'));
+  }
 
   const list = el('div', 'teknik-list');
   teknikBuildLevel(list, null, 0);
   if (!list.childElementCount) {
-    list.appendChild(el('p', 'teknik-muted teknik-empty',
-      'Her er ingen filer endnu. Opret en mappe, eller træk filer hertil.'));
+    list.appendChild(el('p', 'teknik-muted teknik-empty', teknikUploadsOpen
+      ? 'Her er ingen filer endnu. Opret en mappe, eller træk filer hertil.'
+      : 'Her er ingen filer.'));
   }
   card.appendChild(list);
   if (teknikState.files.length) {
@@ -689,6 +703,7 @@ function teknikWireDrop(card) {
     }
     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
     e.preventDefault();
+    if (!teknikUploadsOpen) { teknikShowError(teknikMapError(409, 'uploads_closed')); return; }
     const dropped = Array.from(e.dataTransfer.files);
     // A lone video goes to the video flow (it needs its project file).
     if (dropped.length === 1 && teknikIsVideo(dropped[0])) teknikOpenVideoUploadModal(folderId, dropped[0]);

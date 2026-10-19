@@ -144,10 +144,11 @@ function koordPdfReferenceUrl() {
   return folder ? `archive/${folder}/manus.pdf` : null;
 }
 
-function koordFormatGeneratedAt(date) {
+// "19.10.2026 kl. 12:31" (Copenhagen time).
+function koordFormatDateTime(date) {
   const datePart = date.toLocaleDateString('da-DK', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Copenhagen' });
   const timePart = date.toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Copenhagen' });
-  return `Sidst genereret: ${datePart} kl. ${timePart}`;
+  return `${datePart} kl. ${timePart}`;
 }
 
 // ── Small helpers ────────────────────────────────────────────
@@ -587,84 +588,92 @@ function renderKoordGuide() {
   const config = koordConfig();
   const folder = config.currentProductionFolder || '';
 
-  container.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Teknikken'));
+  container.appendChild(el('p', 'koord-guide-intro',
+    'Følg nedenstående trin efter endt revy for at arkivere og klargøre hjemmesiden til næste år.'));
+
+  container.appendChild(el('h3', 'koord-step-heading', 'Teknikken'));
   container.appendChild(el('p', null,
     'Alle filer i Teknikken bliver slettet, når revyen afsluttes. Hent derfor alt ned med "Download alt" på ' +
     'Teknikken-siden, og gem det et sikkert sted. Upload gerne videoerne til revyens YouTube-kanal, så de ikke går tabt.'));
-  const teknikRow = el('div', 'koord-check-row');
-  const teknikLink = el('a', 'btn-small', 'Gå til Teknikken');
-  teknikLink.href = 'teknikken.html';
-  teknikRow.appendChild(teknikLink);
-  teknikRow.appendChild(koordReadyToggle('archiveReadyTeknik', config));
-  container.appendChild(teknikRow);
+  container.appendChild(koordReadyToggle('archiveReadyTeknik', config));
 
   container.appendChild(el('h3', 'koord-step-heading', 'Manus'));
-  container.appendChild(el('p', null,
-    'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
-    'endelige tekst og rollebesætning og gemmer dem i arkivet. Bekræft herunder, at det er landet, ' +
-    'og markér så Manus som klar til arkivering.'));
-  const checkRow = el('div', 'koord-check-row');
-  const checkBtn = el('button', 'btn-small', 'Tjek om klar');
-  checkBtn.type = 'button';
-  const statusText = el('span', 'koord-status-value', '');
-  checkBtn.addEventListener('click', async () => {
-    checkBtn.disabled = true;
-    statusText.textContent = 'Tjekker...';
-    const { date, confirmedAbsent, checkFailed } = await koordFetchPdfStatus(koordPdfReferenceUrl());
-    if (date) statusText.textContent = koordFormatGeneratedAt(date);
-    else if (confirmedAbsent) statusText.textContent = 'Endnu ikke genereret';
-    else if (checkFailed) statusText.textContent = 'Sidst genereret: ukendt';
-    checkBtn.disabled = false;
-  });
-  checkRow.appendChild(checkBtn);
-  checkRow.appendChild(statusText);
-  container.appendChild(checkRow);
-  const manusReadyRow = el('div', 'koord-check-row');
-  manusReadyRow.appendChild(koordReadyToggle('archiveReadyManus', config));
-  container.appendChild(manusReadyRow);
+  const manusText = el('p', null,
+    'Færdiggør alle rettelser i Manus, gem og klik "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
+    'endelige tekst og rollebesætning og gemmer dem i arkivet.');
+  const manusUpdated = el('span', null, '');
+  const pdfUpdated = el('span', null, '');
+  manusText.appendChild(document.createElement('br'));
+  manusText.appendChild(manusUpdated);
+  manusText.appendChild(document.createElement('br'));
+  manusText.appendChild(pdfUpdated);
+  container.appendChild(manusText);
+  koordFillFileTime(manusUpdated, 'Manus blev sidst opdateret', folder ? 'data/scenes.json' : null, 'Ukendt');
+  koordFillFileTime(pdfUpdated, 'PDF\'er blev sidst genereret', koordPdfReferenceUrl(), 'Endnu ikke genereret');
+  container.appendChild(koordReadyToggle('archiveReadyManus', config));
 
   container.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
   container.appendChild(el('p', null,
     'Gemmer et snapshot af scener og rollebesætning i arkivet, nulstiller Manus (scener, rollebesætning og indsendte ' +
-    'manuskripter), sletter alle filer i Teknikken og lukker den aktive produktionsmappe, så revyster ikke længere kan ' +
-    'indsende manuskripter. Kan først bruges, når Teknikken og Manus er markeret som klar til arkivering.'));
+    'manuskripter), sletter alle filer i Teknikken og lukker den aktive produktionsmappe. Revyster kan derefter ikke ' +
+    'længere indsende manus eller uploade til teknikken. Revyen kan først afsluttes, når Teknikken og Manus er markeret ' +
+    'som klar til arkivering ovenfor.'));
   const ready = config.archiveReadyTeknik === true && config.archiveReadyManus === true;
-  const closeRow = el('div', 'koord-check-row');
-  const closeBtn = el('button', 'btn-small', 'Afslut');
-  closeBtn.type = 'button';
-  closeBtn.disabled = !folder || !ready;
-  closeBtn.addEventListener('click', () => openCloseYearModal(folder));
-  closeRow.appendChild(closeBtn);
-  if (!folder) closeRow.appendChild(el('span', 'koord-status-value', 'Ingen aktiv produktion at afslutte.'));
-  else if (!ready) closeRow.appendChild(el('span', 'koord-status-value', 'Markér Teknikken og Manus som klar til arkivering først.'));
-  container.appendChild(closeRow);
+  container.appendChild(koordGuideButton('Afslut', !folder || !ready, () => openCloseYearModal(folder)));
 
   container.appendChild(el('h3', 'koord-step-heading', 'Start ny revy'));
   container.appendChild(el('p', null,
     'Når revyen er afsluttet: opret den nye revy med navn, årstal og produktionsmappe. Det opretter en arkiv-indgang, ' +
-    'sætter revyens navn på de genererede PDF\'er og åbner igen for, at revyster kan indsende manuskripter til Manus.'));
-  const startBtn = el('button', 'btn-small', 'Start');
-  startBtn.type = 'button';
-  startBtn.addEventListener('click', () => openStartNewYearModal(folder));
-  container.appendChild(startBtn);
+    'sætter revyens navn på de genererede PDF\'er og åbner igen for, at revyster kan indsende manuskripter til Manus ' +
+    'og uploade til Teknikken.'));
+  // Only once the previous revy is closed (no active production folder).
+  container.appendChild(koordGuideButton('Ny Revy', !!folder, () => openStartNewYearModal(folder)));
 }
 
-// "Ikke klar" / "Klar til arkivering" button for one config flag. Marking it
-// ready asks first; marking it not ready again doesn't.
+// "<label>: <time>" from a file's Last-Modified (siteFileStatus; on the
+// server it only changes when the file is rewritten).
+async function koordFillFileTime(target, label, path, absentText) {
+  if (!path) { target.textContent = `${label}: ${absentText}`; return; }
+  target.textContent = `${label}: ...`;
+  const { date, confirmedAbsent } = await koordFetchPdfStatus(path);
+  target.textContent = `${label}: ${date ? koordFormatDateTime(date) : confirmedAbsent ? absentText : 'Ukendt'}`;
+}
+
+// A big centred single button, styled like the ready toggle's boxes.
+function koordGuideButton(label, disabled, onClick) {
+  const wrap = el('div', 'koord-guide-toggle');
+  const btn = el('button', 'btn-small koord-guide-box', label);
+  btn.type = 'button';
+  btn.disabled = disabled;
+  btn.addEventListener('click', onClick);
+  wrap.appendChild(btn);
+  return wrap;
+}
+
+// Big centred two-box toggle, "Ikke klar" | "Klar til arkivering" (the chosen
+// one red or green), for one config flag. Picking
+// Klar asks first; picking Ikke klar again doesn't.
 function koordReadyToggle(key, config) {
   const on = config[key] === true;
-  const btn = el('button', 'btn-small' + (on ? ' koord-ready-on' : ''), on ? 'Klar til arkivering' : 'Ikke klar');
-  btn.type = 'button';
-  btn.addEventListener('click', async () => {
-    if (!on) { openReadyConfirmModal(key); return; }
-    btn.disabled = true;
+  const wrap = el('div', 'koord-guide-toggle');
+  const offBtn = el('button', 'btn-small koord-guide-box' + (on ? '' : ' active'), 'Ikke klar');
+  const onBtn = el('button', 'btn-small koord-guide-box koord-guide-box-ready' + (on ? ' active' : ''), 'Klar til arkivering');
+  [offBtn, onBtn].forEach((btn) => { btn.type = 'button'; wrap.appendChild(btn); });
+  offBtn.setAttribute('aria-pressed', String(!on));
+  onBtn.setAttribute('aria-pressed', String(on));
+  onBtn.addEventListener('click', () => { if (!on) openReadyConfirmModal(key); });
+  offBtn.addEventListener('click', async () => {
+    if (!on) return;
+    offBtn.disabled = true;
+    onBtn.disabled = true;
     const result = await koordSaveReadyFlag(key, false);
     if (!result.ok) {
-      btn.disabled = false;
+      offBtn.disabled = false;
+      onBtn.disabled = false;
       if (result.message) siteShowToast(result.message);
     }
   });
-  return btn;
+  return wrap;
 }
 
 async function koordSaveReadyFlag(key, value) {
@@ -678,27 +687,23 @@ async function koordSaveReadyFlag(key, value) {
 
 function openReadyConfirmModal(key) {
   const copy = KOORD_READY_CONFIRM[key];
-  const { modal, form, error, actions, close } = siteOpenEditModal(copy.title);
+  const { modal, form, error, actions, close } = siteOpenModalWithClose(copy.title);
   modal.classList.add('koord-arkiv-confirm-modal');
+  modal.classList.add('koord-guide-confirm-modal');
   form.appendChild(el('p', 'koord-arkiv-confirm-text', copy.text));
 
-  const cancelBtn = koordPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-  const confirmBtn = koordPillBtn('Klar til arkivering', 'site-btn-success');
+  const confirmBtn = koordPillBtn('Klar til arkivering', 'site-btn-warm');
   confirmBtn.addEventListener('click', async () => {
     error.textContent = '';
-    cancelBtn.disabled = true;
     confirmBtn.disabled = true;
     const result = await koordSaveReadyFlag(key, true);
     if (result.ok) {
       close();
     } else {
       if (result.message) error.textContent = result.message;
-      cancelBtn.disabled = false;
       confirmBtn.disabled = false;
     }
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
@@ -712,11 +717,12 @@ function openReadyConfirmModal(key) {
 // separate step so closing a revy doesn't force naming the next one in the
 // same breath.
 function openCloseYearModal(closingFolder) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut revyen?');
+  const { modal, form, error, actions } = siteOpenModalWithClose('Afslut revyen?');
   modal.classList.add('koord-close-year-modal');
+  modal.classList.add('koord-guide-confirm-modal');
 
   const intro = el('p', 'koord-modal-intro',
-    `Dette gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, nulstiller Manus (scener, rollebesætning, indsendte manuskripter) og lukker den aktive produktionsmappe. Revyster kan herefter ikke indsende manuskripter, før en ny revy startes.`);
+    `Dette gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, nulstiller Manus (scener, rollebesætning, indsendte manuskripter) og lukker den aktive produktionsmappe. Revyster kan herefter ikke indsende manuskripter eller uploade til Teknikken, før en ny revy startes.`);
   form.appendChild(intro);
   form.appendChild(el('p', 'koord-modal-warning', 'Alle filer i Teknikken slettes permanent. Det kan ikke fortrydes.'));
 
@@ -736,9 +742,6 @@ function openCloseYearModal(closingFolder) {
   const progress = el('div', 'koord-progress');
   form.appendChild(progress);
 
-  const cancelBtn = koordPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
-
   const confirmBtn = koordPillBtn('Afslut revyen', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     error.textContent = '';
@@ -751,7 +754,6 @@ function openCloseYearModal(closingFolder) {
       return;
     }
 
-    cancelBtn.disabled = true;
     confirmBtn.disabled = true;
     try {
       await koordCloseYear(
@@ -763,16 +765,13 @@ function openCloseYearModal(closingFolder) {
       renderKoordManusSection();
       progress.textContent = 'Revyen er afsluttet, og produktionsmappen er lukket.';
       siteShowToast('Revyen er afsluttet');
-      cancelBtn.textContent = 'Luk';
-      cancelBtn.disabled = false;
+      confirmBtn.hidden = true;
     } catch (e) {
       error.textContent = e.message || 'Der opstod en fejl. Det er trygt at prøve igen. Allerede fuldførte trin gentages uden problemer.';
-      cancelBtn.disabled = false;
       confirmBtn.disabled = false;
     }
   });
 
-  actions.appendChild(cancelBtn);
   actions.appendChild(confirmBtn);
 }
 
@@ -3880,6 +3879,15 @@ function renderArkiveringCard(container) {
 
   const rightCol = el('div', 'koord-right-col');
 
+  const manusCard = el('section', 'card');
+  const manusHead = el('div', 'card-head');
+  manusHead.appendChild(el('h2', null, 'Manus'));
+  manusCard.appendChild(manusHead);
+  const manusBody = el('div', 'koord-arkivering-row');
+  manusBody.id = 'koord-manus-body';
+  manusCard.appendChild(manusBody);
+  rightCol.appendChild(manusCard);
+
   const budgetCard = el('section', 'card');
   const budgetHead = el('div', 'card-head');
   budgetHead.appendChild(el('h2', null, 'Budget'));
@@ -3898,14 +3906,9 @@ function renderArkiveringCard(container) {
   arkivCard.appendChild(arkivBody);
   rightCol.appendChild(arkivCard);
 
-  const manusCard = el('section', 'card');
-  const manusHead = el('div', 'card-head');
-  manusHead.appendChild(el('h2', null, 'Manus'));
-  manusCard.appendChild(manusHead);
-  const manusBody = el('div', 'koord-arkivering-row');
-  manusBody.id = 'koord-manus-body';
-  manusCard.appendChild(manusBody);
-  rightCol.appendChild(manusCard);
+  const loginsCard = el('section', 'card');
+  loginsCard.id = 'koord-logins-card';
+  rightCol.appendChild(loginsCard);
 
   layout.appendChild(rightCol);
 
@@ -3914,6 +3917,243 @@ function renderArkiveringCard(container) {
   renderArkivSection();
   renderKoordManusSection();
   koordLoadBudgetYears();
+  koordLoadLogins();
+}
+
+// ── Google, YouTube & Spotify logins ─────────────────────────
+// One collapsible subsection per account (title + e-mail/password/phone),
+// from the private admin-only koord_logins_read/_save actions (never in the
+// public data or the repo). Every subsection starts collapsed on each load.
+// Read-only until the pencil in the card head turns on edit mode: titles
+// (and the card's own heading) become editable, the ⠿ handle drags a subsection to reorder it, "+" adds
+// an account and ✕ removes one, all in a draft
+// that the check mark saves at once (full replace) before leaving edit mode.
+const KOORD_LOGIN_FIELDS = [
+  { key: 'email', label: 'E-mail', type: 'email' },
+  { key: 'password', label: 'Adgangskode', type: 'text' },
+  { key: 'phone', label: 'Telefon', type: 'tel' },
+];
+let koordLogins = null;           // [{id, title, email, password, phone}] once loaded
+let koordLoginsTitle = 'Google, YouTube & Spotify'; // the card's heading (server default too)
+let koordLoginsDraft = null;      // copy being edited, while in edit mode
+let koordLoginsTitleDraft = '';   // the heading being edited
+let koordLoginsState = 'loading'; // 'loading' | 'ready' | 'failed'
+let koordLoginsSaving = false;
+const koordLoginsOpen = new Set(); // ids of expanded subsections (in memory only)
+let koordLoginDragItem = null;     // the draft account being dragged by its handle
+
+async function koordLoadLogins() {
+  koordLoginsState = 'loading';
+  renderKoordLoginsCard();
+  const result = await koordBudgetApi('koord_logins_read', {});
+  if (result.ok) {
+    koordLogins = result.data.accounts;
+    koordLoginsTitle = result.data.title || koordLoginsTitle;
+    koordLoginsState = 'ready';
+  } else {
+    koordLoginsState = 'failed';
+  }
+  renderKoordLoginsCard();
+}
+
+function koordLoginNewId() {
+  return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function koordLoginHasContent(account) {
+  return ['email', 'password', 'phone'].some((key) => (account[key] || '').trim() !== '');
+}
+
+function renderKoordLoginsCard() {
+  const card = document.getElementById('koord-logins-card');
+  if (!card) return;
+  card.textContent = '';
+  const editing = koordLoginsDraft !== null;
+  card.classList.toggle('koord-logins-editing', editing);
+
+  const head = el('div', 'card-head');
+  if (editing) {
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.className = 'koord-login-input koord-logins-card-title';
+    titleInput.value = koordLoginsTitleDraft;
+    titleInput.placeholder = 'Google, YouTube & Spotify';
+    titleInput.maxLength = 100;
+    titleInput.readOnly = koordLoginsSaving;
+    titleInput.setAttribute('aria-label', 'Overskrift');
+    titleInput.addEventListener('input', () => { koordLoginsTitleDraft = titleInput.value; });
+    head.appendChild(titleInput);
+  } else {
+    head.appendChild(el('h2', null, koordLoginsTitle));
+  }
+  const toggle = editing
+    ? koordLokIconBtn('Gem og afslut redigering', koordLokIcon('0 0 16 16', '16', '1.6', ['M3 8.5l3.2 3.2L13 5']))
+    : koordLokIconBtn('Rediger', koordLokIcon('0 0 16 16', '15', '1.3', ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
+  toggle.disabled = koordLoginsState !== 'ready' || koordLoginsSaving;
+  toggle.addEventListener('click', () => {
+    if (editing) { koordSaveLogins(); return; }
+    koordLoginsDraft = koordLogins.map((account) => Object.assign({}, account));
+    koordLoginsTitleDraft = koordLoginsTitle;
+    renderKoordLoginsCard();
+  });
+  head.appendChild(toggle);
+  card.appendChild(head);
+
+  if (koordLoginsState !== 'ready') {
+    card.appendChild(el('p', 'koord-status-value', koordLoginsState === 'loading'
+      ? 'Indlæser…'
+      : 'Kunne ikke hente login-oplysningerne.'));
+    return;
+  }
+
+  const accounts = editing ? koordLoginsDraft : koordLogins;
+  if (!accounts.length && !editing) {
+    card.appendChild(el('p', 'koord-status-value', 'Ingen logins endnu.'));
+  }
+  accounts.forEach((account) => card.appendChild(koordBuildLoginSection(account, editing)));
+
+  if (editing) {
+    const addRow = el('div', 'koord-login-add');
+    const addBtn = el('button', 'boss-manage-add-plus', '+');
+    addBtn.type = 'button';
+    addBtn.title = 'Tilføj login';
+    addBtn.setAttribute('aria-label', 'Tilføj login');
+    addBtn.disabled = koordLoginsSaving;
+    addBtn.addEventListener('click', () => {
+      const account = { id: koordLoginNewId(), title: '', email: '', password: '', phone: '' };
+      koordLoginsDraft.push(account);
+      koordLoginsOpen.add(account.id);
+      renderKoordLoginsCard();
+      const input = card.querySelector(`[data-login-id="${account.id}"] .koord-login-title-input`);
+      if (input) input.focus();
+    });
+    addRow.appendChild(addBtn);
+    // Drop tail: dropping here moves the dragged account to the end.
+    koordWireDropHighlight(addRow, () => {
+      if (koordLoginDragItem) koordMoveDraftItem(koordLoginsDraft, koordLoginDragItem, null, renderKoordLoginsCard);
+    });
+    card.appendChild(addRow);
+  }
+}
+
+function koordBuildLoginSection(account, editing) {
+  const isOpen = koordLoginsOpen.has(account.id);
+  const section = el('div', 'koord-login-section');
+  section.dataset.loginId = account.id;
+  const locked = koordLoginsSaving;
+
+  const head = el('div', 'koord-login-head');
+  if (editing && !locked) {
+    // Only the handle is draggable, so the inputs keep normal text selection.
+    const handle = el('span', 'boss-manage-drag-handle koord-login-handle', '⠿');
+    handle.title = 'Træk for at flytte';
+    handle.draggable = true;
+    handle.addEventListener('dragstart', (e) => {
+      koordLoginDragItem = account;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', account.id);
+      const ghost = koordMpGetDragImageEl();
+      ghost.replaceChildren(el('div', 'koord-mp-drag-image-line', (account.title || '').trim() || 'Uden navn'));
+      e.dataTransfer.setDragImage(ghost, 12, 16);
+    });
+    handle.addEventListener('dragend', () => { koordLoginDragItem = null; });
+    head.appendChild(handle);
+    koordWireDropHighlight(section, () => {
+      if (koordLoginDragItem && koordLoginDragItem !== account) {
+        koordMoveDraftItem(koordLoginsDraft, koordLoginDragItem, account, renderKoordLoginsCard);
+      }
+    });
+  }
+  const chevron = el('button', 'koord-login-toggle');
+  chevron.type = 'button';
+  chevron.setAttribute('aria-expanded', String(isOpen));
+  chevron.appendChild(el('span', 'koord-login-chevron', isOpen ? '▾' : '▸'));
+  if (!editing) chevron.appendChild(el('span', 'koord-login-title', account.title || 'Uden navn'));
+  chevron.setAttribute('aria-label', isOpen ? 'Fold sammen' : 'Fold ud');
+  chevron.addEventListener('click', () => {
+    if (isOpen) koordLoginsOpen.delete(account.id); else koordLoginsOpen.add(account.id);
+    renderKoordLoginsCard();
+  });
+  head.appendChild(chevron);
+
+  if (editing) {
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.className = 'koord-login-input koord-login-title-input';
+    titleInput.value = account.title || '';
+    titleInput.placeholder = 'Navn, fx Instagram';
+    titleInput.maxLength = 200;
+    titleInput.readOnly = locked;
+    titleInput.addEventListener('input', () => { account.title = titleInput.value; });
+    head.appendChild(titleInput);
+
+    const remove = koordLokIconBtn('Fjern', koordLokIcon('0 0 16 16', '13', '1.6', ['M4 4l8 8', 'M12 4l-8 8']));
+    remove.disabled = locked;
+    remove.addEventListener('click', () => {
+      const drop = () => {
+        koordLoginsDraft = koordLoginsDraft.filter((a) => a !== account);
+        renderKoordLoginsCard();
+      };
+      if (koordLoginHasContent(account)) openRemoveLoginConfirm(account, drop);
+      else drop();
+    });
+    head.appendChild(remove);
+  }
+  section.appendChild(head);
+
+  if (isOpen) {
+    const list = el('div', 'koord-login-fields');
+    KOORD_LOGIN_FIELDS.forEach((field) => {
+      const row = el('label', 'koord-login-row');
+      row.appendChild(el('span', 'koord-login-label', field.label));
+      const input = document.createElement('input');
+      input.type = field.type;
+      input.className = 'koord-login-input';
+      input.value = account[field.key] || '';
+      input.readOnly = !editing || locked;
+      input.maxLength = 200;
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      if (!editing) input.placeholder = '-';
+      input.addEventListener('input', () => { account[field.key] = input.value; });
+      row.appendChild(input);
+      list.appendChild(row);
+    });
+    section.appendChild(list);
+  }
+  return section;
+}
+
+function openRemoveLoginConfirm(account, onConfirm) {
+  const { modal, form, actions, close } = siteOpenModalWithClose(`Fjern "${account.title || 'Uden navn'}"?`);
+  modal.classList.add('koord-arkiv-confirm-modal', 'koord-guide-confirm-modal');
+  form.appendChild(el('p', 'koord-arkiv-confirm-text', 'Login-oplysningerne fjernes, når du gemmer med fluebenet.'));
+  const confirmBtn = koordPillBtn('Fjern', 'site-btn-danger');
+  confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
+  actions.appendChild(confirmBtn);
+}
+
+async function koordSaveLogins() {
+  const accounts = koordLoginsDraft.map((account) => ({
+    id: account.id,
+    title: (account.title || '').trim(),
+    email: (account.email || '').trim(),
+    password: (account.password || '').trim(),
+    phone: (account.phone || '').trim(),
+  }));
+  koordLoginsSaving = true;
+  renderKoordLoginsCard();
+  const result = await koordBudgetApi('koord_logins_save', { title: koordLoginsTitleDraft.trim(), accounts });
+  koordLoginsSaving = false;
+  if (result.ok) {
+    koordLogins = result.data.accounts;
+    koordLoginsTitle = result.data.title;
+    koordLoginsDraft = null;
+    siteShowToast('Gemt');
+  } else if (result.message) {
+    siteShowToast(result.message);
+  }
+  renderKoordLoginsCard();
 }
 
 // Right-column "Manus" card: just the active-production-folder status, no

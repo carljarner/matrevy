@@ -104,3 +104,8 @@ define('REKVISIT_DATA_DIR', '/absolute/path/to/matrevy-rekvisit-data');
 // with room to spare (uploads are refused below 2 GB free). Layout:
 // teknikken.json + files/<fileId> + uploads/, created on first write.
 define('TEKNIK_DATA_DIR', '/absolute/path/to/matrevy-teknikken-data');
+
+// Absolute path on the server for Koordinator's account logins (Google,
+// YouTube, Spotify: e-mail, password, phone). Secret: never a web-served
+// folder, admin-only actions. Layout: logins.json, created on first save.
+define('KOORD_DATA_DIR', '/absolute/path/to/matrevy-koordinator-data');

@@ -3,14 +3,6 @@
    Page-scoped styling for the admin cross-cutting tools page.
    ========================================================= */
 
-.koord-check-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-
 .koord-status-value {
   font-size: 0.9rem;
   color: var(--text-muted);
@@ -1190,15 +1182,64 @@
   max-width: 7rem;
 }
 
-/* Arkivering guide: a section marked "Klar til arkivering" (config.json's
-   archiveReadyTeknik/archiveReadyManus). Same green as .site-btn-success. */
-.btn-small.koord-ready-on {
+/* Arkivering guide: the big centred "Ikke klar" | "Klar til arkivering"
+   toggle and the Afslut/Ny Revy buttons in the same look (a copy of
+   manus.css's .manus-type-toggle/.manus-type-box; a chosen "Ikke klar" is
+   red, a chosen "Klar til arkivering" green). */
+.koord-guide-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 0.6rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.koord-guide-box {
+  min-width: 10rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* The chosen side: "Ikke klar" red, "Klar til arkivering" green (solid
+   fills like .site-btn-danger/.site-btn-success), also while hovered. */
+.koord-guide-box.active {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+  cursor: default;
+}
+
+.koord-guide-box.koord-guide-box-ready.active {
   background: var(--success);
   border-color: var(--success);
-  color: #fff;
+}
+
+@media (hover: hover) {
+  .koord-guide-box.active:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+  }
+  .koord-guide-box.koord-guide-box-ready.active:hover {
+    background: var(--success);
+    border-color: var(--success);
+  }
+}
+
+.koord-guide-box:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 @media (hover: hover) {
-  .btn-small.koord-ready-on:hover { background: #146a2c; border-color: #146a2c; }
+  .koord-guide-box:disabled:hover {
+    background: var(--input-bg);
+    border-color: var(--border);
+  }
+}
+
+@media (max-width: 719px) {
+  .koord-guide-box { min-width: 0; flex: 1; }
 }
 
 /* Afslut-modal's warning that Teknikken's files are deleted for good. */
@@ -1209,8 +1250,167 @@
   margin-bottom: 1rem;
 }
 
-/* Afslut stays visibly locked until both sections are ready. */
-.koord-check-row .btn-small:disabled {
-  opacity: 0.5;
-  cursor: default;
+
+
+/* Arkivering guide's two "are you sure" modals (Klar til arkivering,
+   Afslut revyen?): a bit narrower than the 480px they'd otherwise get. */
+.login-modal.koord-guide-confirm-modal {
+  width: min(400px, 92vw);
+  min-width: 0;
+  max-width: none;
+}
+
+/* --- Arkivering's "Google, YouTube & Spotify" card: label | value rows.
+   Read-only fields look like plain text; in edit mode (pencil → check
+   mark) they get the site's inline field-editing style. */
+/* One collapsible subsection per account, divided like the guide's steps. */
+.koord-login-section {
+  border-top: 1px solid var(--border);
+  padding: 0.5rem 0;
+}
+
+.card-head + .koord-login-section {
+  margin-top: 0.5rem;
+  border-top: none;
+}
+
+/* Drag-to-reorder in edit mode: the drop line sits above the subsection
+   (or above the "+" row, the drop tail, for the end). */
+.koord-login-section.koord-mp-drop-target,
+.koord-login-add.koord-mp-drop-target {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
+}
+
+.koord-login-handle {
+  flex: none;
+  cursor: grab;
+}
+
+.koord-login-section:last-of-type {
+  padding-bottom: 0;
+}
+
+.koord-login-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.9rem;
+}
+
+.koord-login-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* In edit mode the title is an input beside it, so only the chevron. */
+.koord-logins-editing .koord-login-toggle {
+  flex: none;
+}
+
+.koord-login-chevron {
+  width: 0.8rem;
+  color: var(--text-muted);
+}
+
+.koord-login-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .koord-login-toggle:hover .koord-login-chevron { color: var(--accent-warm-text); }
+}
+
+.koord-login-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* The card's heading in edit mode, sized like the card-head h2. */
+.koord-login-input.koord-logins-card-title {
+  flex: 1;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.koord-login-input.koord-login-title-input {
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.koord-login-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.25rem 0 0 1.2rem;
+}
+
+.koord-login-add {
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.koord-login-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.koord-login-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.koord-login-input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+}
+
+.koord-login-input:read-only {
+  cursor: text;
+}
+
+.koord-login-input:focus {
+  outline: none;
+}
+
+.koord-logins-editing .koord-login-input {
+  border-color: var(--border);
+}
+
+.koord-logins-editing .koord-login-input:focus {
+  border-color: var(--accent-warm);
+  background: var(--input-bg);
+}
+
+/* Arkivering guide's one-line intro under the card title, above the first
+   step's divider. */
+.koord-guide-intro {
+  margin: 0.4rem 0 0;
 }
