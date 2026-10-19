@@ -954,17 +954,154 @@
   color: var(--danger);
 }
 
-/* "F" = the line was imported from the connected form. */
-.koord-fra-source {
+/* Third header line: the rehearsal's time from Kalender. */
+.koord-fra-th-time {
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  padding: 0 0.4rem;
+}
+
+/* ▾ beside a form row's name: opens the connect-to-cast menu. */
+.koord-fra-link-btn {
   flex: none;
-  font-size: 0.65rem;
-  font-weight: 600;
+  font: inherit;
+  font-size: 0.75rem;
   line-height: 1;
-  padding: 0.15rem 0.3rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--border);
   border-radius: 4px;
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
-  cursor: default;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .koord-fra-link-btn:hover {
+    border-color: var(--accent-warm);
+  }
+}
+
+.koord-fra-link-btn.koord-fra-name-unknown {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* "Læg linjerne sammen?": centered title, Annuller/Læg sammen in the
+   bottom corners, one line per overwritten day. */
+.koord-fra-combine-modal h2 {
+  text-align: center;
+}
+
+.koord-fra-combine-modal .login-actions {
+  justify-content: space-between;
+}
+
+.koord-fra-combine-name {
+  font-size: 0.9rem;
+  margin: 0.6rem 0 0.2rem;
+}
+
+.koord-fra-combine-list {
+  list-style: none;
+  margin: 0.3rem 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.koord-fra-combine-list li {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.koord-fra-combine-day {
+  font-weight: 600;
+}
+
+.koord-fra-combine-lost {
+  color: var(--danger);
+  text-decoration: line-through;
+  overflow-wrap: anywhere;
+}
+
+.koord-fra-combine-arrow {
+  color: var(--text-muted);
+}
+
+.koord-fra-combine-kept {
+  color: var(--success);
+  overflow-wrap: anywhere;
+}
+
+.koord-fra-suggest-pop {
+  max-height: 14rem;
+  overflow-y: auto;
+  min-width: 9rem;
+}
+
+.koord-fra-link-pop {
+  max-height: 60vh;
+  overflow-y: auto;
+  min-width: 12rem;
+  width: max-content;
+  max-width: 92vw;
+}
+
+.koord-fra-link-heading {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  padding: 0.35rem 0.6rem 0.15rem;
+}
+
+/* One line per submission, never wrapped: the popup grows to fit. */
+.koord-fra-link-leaves {
+  padding: 0 0.3rem 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.2rem;
+}
+
+.koord-fra-link-leaf {
+  font-size: 0.85rem; /* like the .site-list-row cast names below */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 1.7rem;
+  white-space: nowrap;
+}
+
+.koord-fra-link-leaf-remove {
+  flex: none;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.2rem 0.3rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .koord-fra-link-leaf-remove:hover {
+    color: var(--danger);
+    background: var(--danger-bg);
+  }
+}
+
+.koord-fra-link-leaf-remove:focus-visible {
+  color: var(--danger);
 }
 
 .koord-fra-connection {

@@ -8115,15 +8115,21 @@ function save_lokaler($payload) {
 }
 
 // ── Fravær (Koordinator's absence sheet, data/fravaer.json) ──
-//   {rows: [{id, name, days: {YYYY-MM-DD: text}, source?: {formId, responseId}}],
+//   {rows: [{id, name, days: {YYYY-MM-DD: text},
+//            sources?: [{formId, responseId, name}],
+//            parts?: [row, row]}],   // a combined row's two originals
 //    connection: null | {formId, formTitle, navnFieldId,
 //                         dayFields: {fieldId: YYYY-MM-DD}, importedIds: [responseId]}}
 // Rows are people, cells free text ("14:00 - 16:00") keyed by date, like
 // Lokalebooking's bookings; the day columns come from Kalender client-side.
-// Public (Øveplan embeds it as FRAVAER_DATA). A connected form's answers
-// are imported once each (importedIds), never updated afterwards, so the
-// koordinatorer's edits and deletions stick. `connection` is server-owned:
-// save_fravaer keeps the live one whatever the client sends.
+// Public (Øveplan embeds it as FRAVAER_DATA, matching `name` to the cast).
+// A connected form's answers are imported once each (importedIds): the
+// typed name (kept as sources[].name) is matched to the cast roster, and a
+// person's later answers merge into their existing row, never touching it
+// otherwise, so the koordinatorer's edits and deletions stick. Older rows
+// carry a single `source` {formId, responseId} instead (read as one
+// source). `connection` is server-owned: save_fravaer keeps the live one
+// whatever the client sends.
 
 function fravaer_default_doc() {
   return ['rows' => [], 'connection' => null];
@@ -8165,8 +8171,113 @@ function fravaer_write($mutate, $message) {
   return ['ok' => false];
 }
 
-// Appends a row per connected-form answer not imported before. Returns the
-// new doc, or null when there is nothing new.
+// The cast roster's real people (data/cast.json minus stand-ins like
+// "Skuespiller 2"), the names Øveplan matches Fravær rows against.
+function fravaer_cast_names() {
+  [$status, $current] = github_api('GET', 'contents/data/cast.json');
+  if ($status !== 200) return [];
+  $json = json_decode(base64_decode($current['content']), true);
+  $names = [];
+  foreach ((is_array($json['cast'] ?? null) ? $json['cast'] : []) as $c) {
+    if (!is_array($c) || !is_string($c['name'] ?? null) || trim($c['name']) === '') continue;
+    // Port of castIsPlaceholder() (js/koordinator.js, js/manus.js, …).
+    $placeholder = is_bool($c['placeholder'] ?? null) ? $c['placeholder']
+      : (bool) preg_match('/^(skuespiller|danser|sanger|rapper|revyst|statist|statister|ninja|kor|korsanger|tba|nn|\?+)(\s*\d+)?$/iu', trim($c['name']));
+    if (!$placeholder) $names[] = $c['name'];
+  }
+  return $names;
+}
+
+// "Carl Jarner" → ['carl', 'jarner']: lowercase, common accents dropped
+// (æ/ø/å kept), dots/commas as spaces. Port of koordFraNameTokens().
+function fravaer_name_tokens($name) {
+  $s = mb_strtolower(trim((string) $name));
+  $s = strtr($s, [
+    'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'ä' => 'a',
+    'í' => 'i', 'ì' => 'i', 'î' => 'i', 'ï' => 'i', 'ó' => 'o', 'ò' => 'o', 'ô' => 'o', 'ö' => 'o',
+    'ú' => 'u', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ñ' => 'n', 'ç' => 'c',
+  ]);
+  $s = preg_replace('/[.,]/u', ' ', $s);
+  return preg_split('/\s+/u', trim($s), -1, PREG_SPLIT_NO_EMPTY);
+}
+
+// The cast name a typed form name surely belongs to, or null. The roster
+// holds first names, sometimes with a last-name initial ("Carl J"): an
+// exact match of first and last name wins, else every cast name with the same first name whose
+// later parts fit the typed later parts ("J" = a later word starting with
+// J) is a candidate, and only a single candidate counts. Any doubt → null.
+// Port of koordFraMatchCast().
+function fravaer_match_cast($typed, $castNames) {
+  $t = fravaer_name_tokens($typed);
+  if (!$t) return null;
+  // An exact match only settles it with more than a first name typed
+  // ("Anna" could still be "Anna B").
+  $key = implode(' ', $t);
+  if (count($t) > 1) {
+    foreach ($castNames as $name) {
+      if (implode(' ', fravaer_name_tokens($name)) === $key) return $name;
+    }
+  }
+  $rest = array_slice($t, 1);
+  $candidates = [];
+  foreach ($castNames as $name) {
+    $c = fravaer_name_tokens($name);
+    if (!$c || $c[0] !== $t[0]) continue;
+    $fits = true;
+    foreach (array_slice($c, 1) as $part) {
+      if (!$rest) continue; // only a first name typed: anything fits
+      $ok = false;
+      foreach ($rest as $word) {
+        if (mb_strlen($part) === 1 ? mb_substr($word, 0, 1) === $part : $word === $part) { $ok = true; break; }
+      }
+      if (!$ok) { $fits = false; break; }
+    }
+    if ($fits) $candidates[] = $name;
+  }
+  return count($candidates) === 1 ? $candidates[0] : null;
+}
+
+// A form answer's time as the sheet writes it: a range ("10-18", "kl.
+// 9.30 til 1600") → "10:00 - 18:00", "fra/efter/til/indtil 15" → "fra
+// 15:00". Anything else (plain text, a range ending before it starts) is
+// returned unchanged. Øveplan's schedParseAbsenceText() reads both forms.
+function fravaer_format_time($text) {
+  $t = trim((string) $text);
+  $clock = '(?:kl\.?\s*)?(\d{1,2})(?:[:.]?(\d{2}))?';
+  $fmt = function ($h, $m) {
+    $h = (int) $h;
+    $m = (int) ($m === null || $m === '' ? 0 : $m);
+    if ($h > 24 || $m > 59 || ($h === 24 && $m > 0)) return null;
+    return [sprintf('%02d:%02d', $h, $m), $h * 60 + $m];
+  };
+  if (preg_match('/^(?:fra\s+)?' . $clock . '\s*(?:-|–|—|til)\s*' . $clock . '$/iu', $t, $m)) {
+    $from = $fmt($m[1], $m[2] ?? null);
+    $to = $fmt($m[3], $m[4] ?? null);
+    if ($from && $to && $from[1] < $to[1]) return $from[0] . ' - ' . $to[0];
+    return $text;
+  }
+  if (preg_match('/^(fra|efter|til|indtil)\s+' . $clock . '$/iu', $t, $m)) {
+    $at = $fmt($m[2], $m[3] ?? null);
+    if ($at) return mb_strtolower($m[1]) . ' ' . $at[0];
+  }
+  return $text;
+}
+
+// A row's form answers: `sources`, or a legacy single `source` (whose
+// typed name was the row's name).
+function fravaer_row_sources($row) {
+  if (is_array($row['sources'] ?? null)) return array_values($row['sources']);
+  if (is_array($row['source'] ?? null)) {
+    return [array_merge($row['source'], ['name' => (string) ($row['name'] ?? '')])];
+  }
+  return [];
+}
+
+// Imports every connected-form answer not imported before. One row per
+// person: the typed name is matched to the cast roster (fravaer_match_cast)
+// and an answer for someone who already has a row is merged into it (a
+// filled-in day overwrites — the latest answer wins — an empty one keeps
+// the old value). Returns the new doc, or null when there is nothing new.
 function fravaer_import_responses($doc) {
   $conn = $doc['connection'] ?? null;
   if (!is_array($conn) || !forms_valid_id($conn['formId'] ?? '')) return null;
@@ -8183,6 +8294,7 @@ function fravaer_import_responses($doc) {
   if (!is_array($dayFields)) $dayFields = [];
   $navnFieldId = (string) ($conn['navnFieldId'] ?? '');
   if (!is_array($doc['rows'] ?? null)) $doc['rows'] = [];
+  $castNames = null; // read on the first new answer
 
   $changed = false;
   foreach ($responses as $resp) {
@@ -8197,17 +8309,60 @@ function fravaer_import_responses($doc) {
     $days = [];
     foreach ($dayFields as $fieldId => $date) {
       if (!is_string($date) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $date)) continue;
-      $text = mb_substr(faelles_forms_answer_to_text($answers[(string) $fieldId] ?? null), 0, 200);
+      $text = mb_substr(fravaer_format_time(faelles_forms_answer_to_text($answers[(string) $fieldId] ?? null)), 0, 200);
       if ($text === '') continue;
       // Two fields mapped to the same day: keep both answers.
       $days[$date] = isset($days[$date]) ? mb_substr($days[$date] . ', ' . $text, 0, 200) : $text;
     }
-    $doc['rows'][] = [
-      'id' => fravaer_row_id(),
-      'name' => $name,
-      'days' => (object) $days,
-      'source' => ['formId' => $formId, 'responseId' => $rid],
-    ];
+    if ($castNames === null) $castNames = fravaer_cast_names();
+    $match = fravaer_match_cast($name, $castNames);
+    $target = mb_strtolower($match ?? $name);
+    $typedKey = mb_strtolower($name);
+    $source = ['formId' => $formId, 'responseId' => $rid, 'name' => $name];
+    $found = null;
+    foreach ($doc['rows'] as $i => $row) {
+      if (!is_array($row)) continue;
+      if (mb_strtolower(trim((string) ($row['name'] ?? ''))) === $target) { $found = $i; break; }
+      if ($match === null) {
+        foreach (fravaer_row_sources($row) as $s) {
+          if (mb_strtolower(trim((string) ($s['name'] ?? ''))) === $typedKey) { $found = $i; break 2; }
+        }
+      }
+    }
+    if ($found === null) {
+      $doc['rows'][] = [
+        'id' => fravaer_row_id(),
+        'name' => $match ?? $name,
+        'days' => (object) $days,
+        'sources' => [$source],
+      ];
+      continue;
+    }
+    $row = $doc['rows'][$found];
+    $oldDays = $row['days'] ?? [];
+    $merged = is_array($oldDays) ? $oldDays : (array) $oldDays;
+    foreach ($days as $date => $text) $merged[$date] = $text;
+    $sources = fravaer_row_sources($row);
+    $already = false; // a reimport of an answer already in the row
+    foreach ($sources as $s) if (($s['responseId'] ?? null) === $rid) $already = true;
+    unset($row['source']);
+    if (!$already) {
+      // Keep both as they were, so Koordinator can take the answer out
+      // again (koordFraExtract), like the page's own combining.
+      $before = $row;
+      $before['days'] = (object) (is_array($oldDays) ? $oldDays : (array) $oldDays);
+      if ($sources) $before['sources'] = $sources;
+      $row['parts'] = [$before, [
+        'id' => fravaer_row_id(),
+        'name' => $name,
+        'days' => (object) $days,
+        'sources' => [$source],
+      ]];
+      $sources[] = $source;
+    }
+    $row['days'] = (object) $merged;
+    $row['sources'] = array_slice($sources, -50);
+    $doc['rows'][$found] = $row;
   }
   if (!$changed) return null;
   $conn['dayFields'] = (object) $dayFields;
@@ -8273,6 +8428,55 @@ function fravaer_save_connection($body) {
   respond(200, ['ok' => true, 'data' => $result['doc'], 'sha' => $result['sha']]);
 }
 
+// One saved row, cleaned, or null when it's malformed. `parts` (the two
+// rows a combined row was made of, kept so they can be taken apart) are rows themselves,
+// checked the same way; $budget caps how many rows that may add up to.
+function fravaer_clean_row($r, $depth, &$budget) {
+  if (--$budget < 0 || $depth > 60) return null;
+  if (!is_array($r) || !isset($r['id'], $r['name'])
+      || !is_string($r['id']) || !preg_match('#^[A-Za-z0-9_-]{1,60}$#', $r['id'])
+      || !is_string($r['name']) || mb_strlen($r['name']) > 100) {
+    return null;
+  }
+  $days = $r['days'] ?? [];
+  if (!is_array($days) || count($days) > 400) return null;
+  $cells = [];
+  foreach ($days as $date => $value) {
+    if (!is_string($date) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $date)
+        || !is_string($value) || mb_strlen($value) > 200) {
+      return null;
+    }
+    if (trim($value) !== '') $cells[$date] = $value;
+  }
+  $row = ['id' => $r['id'], 'name' => $r['name'], 'days' => (object) $cells];
+  if (($r['sources'] ?? null) !== null && !is_array($r['sources'])) return null;
+  if (($r['source'] ?? null) !== null && !is_array($r['source'])) return null;
+  $sources = fravaer_row_sources($r);
+  if (count($sources) > 50) return null;
+  $cleanSources = [];
+  foreach ($sources as $source) {
+    if (!is_array($source) || !forms_valid_id($source['formId'] ?? '')
+        || !is_string($source['responseId'] ?? null) || !preg_match('#^[A-Za-z0-9_-]{1,80}$#', $source['responseId'])
+        || !is_string($source['name'] ?? '') || mb_strlen($source['name'] ?? '') > 100) {
+      return null;
+    }
+    $cleanSources[] = ['formId' => $source['formId'], 'responseId' => $source['responseId'], 'name' => (string) ($source['name'] ?? '')];
+  }
+  if ($cleanSources) $row['sources'] = $cleanSources;
+  $parts = $r['parts'] ?? null;
+  if ($parts !== null) {
+    if (!is_array($parts) || count($parts) !== 2 || !array_is_list($parts)) return null;
+    $cleanParts = [];
+    foreach ($parts as $part) {
+      $clean = fravaer_clean_row($part, $depth + 1, $budget);
+      if ($clean === null) return null;
+      $cleanParts[] = $clean;
+    }
+    $row['parts'] = $cleanParts;
+  }
+  return $row;
+}
+
 // Admin full save of the sheet's rows (Koordinator's auto-saved draft,
 // merged client-side; optional baseSha → 409 stale). `connection` is kept.
 function save_fravaer($payload) {
@@ -8280,33 +8484,11 @@ function save_fravaer($payload) {
   if (!is_array($rows) || count($rows) > 500) respond(400, ['error' => 'invalid_fravaer_shape']);
   $ids = [];
   $cleanRows = [];
+  $budget = 20000; // rows incl. every nested part
   foreach ($rows as $r) {
-    if (!is_array($r) || !isset($r['id'], $r['name'])
-        || !is_string($r['id']) || !preg_match('#^[A-Za-z0-9_-]{1,60}$#', $r['id'])
-        || isset($ids[$r['id']])
-        || !is_string($r['name']) || mb_strlen($r['name']) > 100) {
-      respond(400, ['error' => 'invalid_fravaer_shape']);
-    }
-    $ids[$r['id']] = true;
-    $days = $r['days'] ?? [];
-    if (!is_array($days) || count($days) > 400) respond(400, ['error' => 'invalid_fravaer_shape']);
-    $cells = [];
-    foreach ($days as $date => $value) {
-      if (!is_string($date) || !preg_match('#^\d{4}-\d{2}-\d{2}$#', $date)
-          || !is_string($value) || mb_strlen($value) > 200) {
-        respond(400, ['error' => 'invalid_fravaer_shape']);
-      }
-      if (trim($value) !== '') $cells[$date] = $value;
-    }
-    $row = ['id' => $r['id'], 'name' => $r['name'], 'days' => (object) $cells];
-    $source = $r['source'] ?? null;
-    if ($source !== null) {
-      if (!is_array($source) || !forms_valid_id($source['formId'] ?? '')
-          || !is_string($source['responseId'] ?? null) || !preg_match('#^[A-Za-z0-9_-]{1,80}$#', $source['responseId'])) {
-        respond(400, ['error' => 'invalid_fravaer_shape']);
-      }
-      $row['source'] = ['formId' => $source['formId'], 'responseId' => $source['responseId']];
-    }
+    $row = fravaer_clean_row($r, 0, $budget);
+    if ($row === null || isset($ids[$row['id']])) respond(400, ['error' => 'invalid_fravaer_shape']);
+    $ids[$row['id']] = true;
     $cleanRows[] = $row;
   }
 

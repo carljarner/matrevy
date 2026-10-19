@@ -1959,10 +1959,15 @@ function koordLokAddDays(iso, n) {
 function koordLokalerDays() {
   const range = koordLokRange();
   const byDate = new Map();
+  const timesByDate = new Map();
   const addTitle = (date, title) => {
-    if (!byDate.has(date)) byDate.set(date, []);
+    if (!byDate.has(date)) { byDate.set(date, []); timesByDate.set(date, []); }
     const titles = byDate.get(date);
     if (title && !titles.includes(title)) titles.push(title);
+  };
+  const addTime = (date, time) => {
+    const times = timesByDate.get(date);
+    if (time && !times.includes(time)) times.push(time);
   };
   let lastShow = '';
   koordLokCalendarEvents().forEach((ev) => {
@@ -1972,13 +1977,14 @@ function koordLokalerDays() {
     for (let i = 0; i < 62 && date <= end; i++, date = koordLokAddDays(date, 1)) {
       if (date < range.start || date > range.end) continue;
       addTitle(date, (ev.title || '').trim());
+      if (ev.start) addTime(date, ev.end ? `${ev.start} - ${ev.end}` : ev.start);
       if (ev.category === 'forestilling' && date > lastShow) lastShow = date;
     }
   });
   if (lastShow) addTitle(koordLokAddDays(lastShow, 1), 'Rengøring');
   return Array.from(byDate.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, titles]) => ({ date, titles }));
+    .map(([date, titles]) => ({ date, titles, times: timesByDate.get(date) }));
 }
 
 function koordLokRoomHasContent(room) {
@@ -2715,14 +2721,23 @@ let koordFraSaveError = null;
 let koordFraDragItem = null;
 let koordFraRefreshed = false;    // re-read once per page load (imports since the embed)
 
+function koordFraNormalizeRow(r) {
+  const { source, ...row } = r;
+  // PHP's json_encode writes an empty map as [] — treat it as {}.
+  row.days = (r.days && !Array.isArray(r.days)) ? { ...r.days } : {};
+  // An older row's single `source`: its typed name was the row's name.
+  if (!Array.isArray(row.sources) && source && typeof source === 'object') {
+    row.sources = [{ ...source, name: r.name || '' }];
+  }
+  if (Array.isArray(row.parts) && row.parts.length === 2) row.parts = row.parts.map(koordFraNormalizeRow);
+  else delete row.parts;
+  return row;
+}
+
 function koordFraNormalizeDoc(doc) {
   doc = doc || {};
   return {
-    rows: (Array.isArray(doc.rows) ? doc.rows : []).map((r) => ({
-      ...r,
-      // PHP's json_encode writes an empty map as [] — treat it as {}.
-      days: (r.days && !Array.isArray(r.days)) ? { ...r.days } : {},
-    })),
+    rows: (Array.isArray(doc.rows) ? doc.rows : []).map(koordFraNormalizeRow),
     connection: (doc.connection && typeof doc.connection === 'object' && !Array.isArray(doc.connection)) ? doc.connection : null,
   };
 }
@@ -2870,6 +2885,398 @@ function castIsPlaceholder(entry) {
   return CAST_PLACEHOLDER_RE.test(String(entry.name || '').trim());
 }
 
+// ── Fravær: form names → cast names ──────────────────────────
+// A form answer's typed name ("Carl Jarner") rarely equals the roster's
+// ("Carl J"), and Øveplan matches on the row's `name`. Connecting a row
+// sets its name to a cast name; `sources[].name` keeps what was typed.
+// The matching is duplicated in server/update-data.php (fravaer_*), which
+// connects new answers on import.
+
+// "Carl Jarner" → ['carl', 'jarner']: lowercase, common accents dropped
+// (æ/ø/å kept), dots/commas as spaces. Port: fravaer_name_tokens().
+const KOORD_FRA_ACCENTS = {
+  é: 'e', è: 'e', ê: 'e', ë: 'e', á: 'a', à: 'a', â: 'a', ä: 'a',
+  í: 'i', ì: 'i', î: 'i', ï: 'i', ó: 'o', ò: 'o', ô: 'o', ö: 'o',
+  ú: 'u', ù: 'u', û: 'u', ü: 'u', ñ: 'n', ç: 'c',
+};
+function koordFraNameTokens(name) {
+  return String(name || '').trim().toLowerCase()
+    .replace(/[éèêëáàâäíìîïóòôöúùûüñç]/g, (ch) => KOORD_FRA_ACCENTS[ch])
+    .replace(/[.,]/g, ' ')
+    .split(/\s+/).filter(Boolean);
+}
+
+// The cast name a typed name surely belongs to, or null. An exact match
+// of first and last name wins; else every cast name with the same first name whose later parts
+// fit the typed later parts ("J" = a later word starting with J) is a
+// candidate, and only a single candidate counts. Any doubt → null.
+// Port: fravaer_match_cast().
+function koordFraMatchCast(typed, castNames) {
+  const t = koordFraNameTokens(typed);
+  if (!t.length) return null;
+  // An exact match only settles it with more than a first name typed
+  // ("Anna" could still be "Anna B").
+  const key = t.join(' ');
+  const exact = t.length > 1 && castNames.find((n) => koordFraNameTokens(n).join(' ') === key);
+  if (exact) return exact;
+  const rest = t.slice(1);
+  const candidates = castNames.filter((n) => {
+    const c = koordFraNameTokens(n);
+    if (!c.length || c[0] !== t[0]) return false;
+    if (!rest.length) return true; // only a first name typed: anything fits
+    return c.slice(1).every((part) => rest.some((word) =>
+      (part.length === 1 ? word[0] === part : word === part)));
+  });
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function koordFraNameKey(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
+// The newest form answer behind a row (response ids start with a hex
+// timestamp, so they sort by time); '' for a row typed by hand.
+function koordFraLatestResponse(row) {
+  return (row.sources || []).reduce((max, s) => (s.responseId > max ? s.responseId : max), '');
+}
+
+// The distinct names typed in the form for this row, oldest first.
+function koordFraTypedNames(row) {
+  const seen = new Set();
+  const out = [];
+  (row.sources || []).forEach((s) => {
+    const name = String(s.name || '').trim();
+    if (name && !seen.has(name.toLowerCase())) { seen.add(name.toLowerCase()); out.push(name); }
+  });
+  return out;
+}
+
+// ── Fravær: combining and splitting rows ─────────────────────
+// One row per person. Rows that end up with the same name are combined:
+// the first one's place and id are kept, sources are joined, and on a day
+// both have filled in, the row with the newest form answer wins (a row
+// typed by hand counts as oldest). The combined row keeps both rows as
+// they were in `parts` ([older, newer] snapshots, which can hold parts of
+// their own), so each submission can be taken out again (koordFraExtract). The server's import
+// (fravaer_import_responses) builds `parts` the same way.
+
+function koordFraDayLabel(date) {
+  const d = parseIsoDate(date);
+  return `${DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+// a and b's days combined, plus the days where one value replaces another.
+function koordFraCombineDays(a, b) {
+  const bNewer = koordFraLatestResponse(b) > koordFraLatestResponse(a);
+  const [older, newer] = bNewer ? [a, b] : [b, a];
+  const days = { ...older.days, ...newer.days };
+  const conflicts = Object.keys(older.days)
+    .filter((date) => date in newer.days && older.days[date].trim() !== newer.days[date].trim())
+    .sort()
+    .map((date) => ({ date, kept: newer.days[date], keptName: newer.name, lost: older.days[date], lostName: older.name }));
+  return { days, conflicts };
+}
+
+function koordFraCombinePair(a, b, name) {
+  const { days } = koordFraCombineDays(a, b);
+  const out = { id: a.id, name, days };
+  const sources = [...(a.sources || []), ...(b.sources || [])];
+  if (sources.length) out.sources = sources.slice(-50);
+  out.parts = [structuredClone(a), structuredClone(b)];
+  return out;
+}
+
+// The rows in `rows` that `row` would be combined with.
+function koordFraSameNameRows(rows, row) {
+  const key = koordFraNameKey(row.name);
+  if (!key) return [];
+  return rows.filter((r) => r !== row && koordFraNameKey(r.name) === key);
+}
+
+// Asks before combining when days overlap. `groups` = [{name, conflicts}].
+function koordFraConfirmCombine(groups, onConfirm, onCancel) {
+  const withConflicts = groups.filter((g) => g.conflicts.length);
+  if (!withConflicts.length) { onConfirm(); return; }
+  const { modal, form, actions, close } = siteOpenEditModal('Læg linjerne sammen?');
+  modal.classList.add('koord-fra-combine-modal');
+  form.appendChild(el('p', 'koord-mp-confirm-text',
+    'Linjerne har skrevet noget på de samme dage. Det nyeste svar bliver stående, og det andet bliver overskrevet. Linjen kan deles op igen bagefter.'));
+  withConflicts.forEach((g) => {
+    if (withConflicts.length > 1) form.appendChild(el('h3', 'koord-fra-combine-name', g.name));
+    const list = el('ul', 'koord-fra-combine-list');
+    g.conflicts.forEach((c) => {
+      const li = el('li');
+      li.appendChild(el('span', 'koord-fra-combine-day', koordFraDayLabel(c.date)));
+      li.appendChild(el('span', 'koord-fra-combine-lost', c.lost));
+      li.appendChild(el('span', 'koord-fra-combine-arrow', '→'));
+      li.appendChild(el('span', 'koord-fra-combine-kept', c.kept));
+      li.title = `"${c.lost}" (${c.lostName}) bliver erstattet af "${c.kept}" (${c.keptName})`;
+      list.appendChild(li);
+    });
+    form.appendChild(list);
+  });
+  let confirmed = false;
+  const cancelBtn = koordPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = koordPillBtn('Læg sammen', 'site-btn-success');
+  confirmBtn.addEventListener('click', () => { confirmed = true; close(); onConfirm(); });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
+  // ✕/Escape/backdrop count as Annuller too.
+  const observer = new MutationObserver(() => {
+    if (modal.isConnected) return;
+    observer.disconnect();
+    if (!confirmed && onCancel) onCancel();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+}
+
+// Combines `row` with the rows of `rows` that have its name (it was
+// `oldName` before). Returns {name, conflicts, apply} for
+// koordFraConfirmCombine, or null when there is nothing to combine.
+function koordFraPlanCombine(rows, row, oldName) {
+  const others = koordFraSameNameRows(rows, row);
+  if (!others.length) return null;
+  const before = { ...structuredClone(row), name: oldName };
+  const group = [...others, row].sort((x, y) => rows.indexOf(x) - rows.indexOf(y));
+  let acc = null;
+  const conflicts = [];
+  group.forEach((r) => {
+    const snap = r === row ? before : r;
+    if (!acc) { acc = structuredClone(snap); return; }
+    conflicts.push(...koordFraCombineDays(acc, snap).conflicts);
+    acc = koordFraCombinePair(acc, snap, row.name);
+  });
+  return {
+    name: row.name,
+    conflicts,
+    apply() {
+      const idx = rows.indexOf(group[0]);
+      group.forEach((r) => { const i = rows.indexOf(r); if (i !== -1) rows.splice(i, 1); });
+      rows.splice(Math.min(idx, rows.length), 0, acc);
+    },
+  };
+}
+
+// `row` was renamed from `oldName` (row.name already holds the new one):
+// combine it with rows of the same name, asking first when days overlap;
+// Annuller puts the old name back.
+function koordFraAfterRename(row, oldName) {
+  const plan = koordFraPlanCombine(fravaerDraft.rows, row, oldName);
+  const done = (toast) => {
+    koordFraUpdateSaveStatus();
+    renderFraGrid();
+    if (toast) siteShowToast(toast);
+  };
+  if (!plan) { done(); return; }
+  koordFraConfirmCombine([plan], () => {
+    plan.apply();
+    done('Linjerne er lagt sammen');
+  }, () => {
+    row.name = oldName;
+    done();
+  });
+}
+
+// The rows a combined row was made of, in order (itself when it isn't one).
+function koordFraLeaves(row) {
+  return row.parts && row.parts.length === 2 ? row.parts.flatMap(koordFraLeaves) : [row];
+}
+
+// One leaf as a line in the ▾ menu: the name typed in the form and when it
+// was sent (a response id starts with the hex unix time).
+function koordFraLeafLabel(leaf) {
+  const source = (leaf.sources || [])[0];
+  if (!source) return `${(leaf.name || '').trim() || 'Uden navn'} (skrevet i hånden)`;
+  const name = String(source.name || leaf.name || '').trim() || 'Uden navn';
+  const seconds = parseInt(String(source.responseId).slice(0, 8), 16);
+  if (!Number.isFinite(seconds)) return name;
+  const d = new Date(seconds * 1000);
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${name} (${d.getDate()}/${d.getMonth() + 1} kl. ${time})`;
+}
+
+// The cells of `node` that differ from what combining its parts gave, so
+// they survive a rebuild: {date: value | null (removed)}.
+function koordFraEdits(node) {
+  const combined = koordFraCombineDays(node.parts[0], node.parts[1]).days;
+  const edits = {};
+  for (const date of new Set([...Object.keys(combined), ...Object.keys(node.days)])) {
+    if ((combined[date] || '') !== (node.days[date] || '')) edits[date] = node.days[date] || null;
+  }
+  return edits;
+}
+
+function koordFraApplyEdits(days, edits) {
+  const out = { ...days };
+  Object.entries(edits).forEach(([date, value]) => {
+    if (value) out[date] = value;
+    else delete out[date];
+  });
+  return out;
+}
+
+// `node` without `leaf`, rebuilt the way it was combined: what the other
+// submissions said, plus every edit made to the combined rows since. Keeps
+// node's id and name. null when node is the leaf itself.
+function koordFraWithoutLeaf(node, leaf) {
+  if (node === leaf) return null;
+  if (!node.parts || node.parts.length !== 2) return node;
+  const [a, b] = node.parts;
+  const ra = koordFraWithoutLeaf(a, leaf);
+  const rb = koordFraWithoutLeaf(b, leaf);
+  if (ra === a && rb === b) return node;
+  const edits = koordFraEdits(node);
+  if (!ra || !rb) {
+    const rest = ra || rb;
+    return { ...rest, id: node.id, name: node.name, days: koordFraApplyEdits(rest.days, edits) };
+  }
+  const out = { ...node, days: koordFraApplyEdits(koordFraCombineDays(ra, rb).days, edits), parts: [ra, rb] };
+  const sources = [...(ra.sources || []), ...(rb.sources || [])];
+  if (sources.length) out.sources = sources.slice(-50);
+  else delete out.sources;
+  return out;
+}
+
+// ✕ on a line of the ▾ menu: takes that submission out of the combined row
+// as its own row (its days as they were sent), right below it.
+function koordFraExtract(row, leaf) {
+  const rows = fravaerDraft.rows;
+  const idx = rows.indexOf(row);
+  if (idx === -1) return;
+  const rest = koordFraWithoutLeaf(row, leaf);
+  const extracted = structuredClone(leaf);
+  if (rows.some((r) => r.id === extracted.id) || extracted.id === rest.id) extracted.id = koordMpNewId('p');
+  rows.splice(idx, 1, rest, extracted);
+  koordFraUpdateSaveStatus();
+  renderFraGrid();
+  siteShowToast(`${(extracted.name || '').trim() || 'Linjen'} er taget ud som sin egen linje`);
+}
+
+// The ▾ menu beside a form row's name: what was typed in the form, then
+// which cast member the row is connected to.
+function koordFraOpenLinkMenu(anchor, row) {
+  const castNames = koordFraCastNames().slice().sort((a, b) => a.localeCompare(b, 'da'));
+  const typed = koordFraTypedNames(row);
+  const suggestion = typed.length
+    ? (() => {
+      const set = new Set(typed.map((n) => koordFraMatchCast(n, castNames)));
+      const [m] = set;
+      return set.size === 1 ? m : null;
+    })()
+    : null;
+  const current = castNames.find((n) => koordFraNameKey(n) === koordFraNameKey(row.name)) || null;
+
+  const pop = el('div', 'site-field-pop site-dd-pop koord-fra-link-pop');
+  let close = null;
+  // One line per submission; a combined row's lines can be taken out again.
+  // Oldest first; a row typed by hand counts as oldest.
+  const leaves = koordFraLeaves(row)
+    .sort((x, y) => koordFraLatestResponse(x).localeCompare(koordFraLatestResponse(y)));
+  pop.appendChild(el('div', 'koord-fra-link-heading', leaves.length > 1 ? 'Formularer lagt sammen' : 'Formular'));
+  const list = el('div', 'koord-fra-link-leaves');
+  leaves.forEach((leaf) => {
+    const line = el('div', 'koord-fra-link-leaf');
+    const label = el('span', 'koord-fra-link-leaf-name', koordFraLeafLabel(leaf));
+    line.appendChild(label);
+    if (leaves.length > 1) {
+      const out = el('button', 'koord-fra-link-leaf-remove', '✕');
+      out.type = 'button';
+      out.title = 'Tag ud som sin egen linje';
+      out.setAttribute('aria-label', `Tag ${koordFraLeafLabel(leaf)} ud som sin egen linje`);
+      out.addEventListener('click', () => { close(); koordFraExtract(row, leaf); });
+      line.appendChild(out);
+    }
+    list.appendChild(line);
+  });
+  pop.appendChild(list);
+  pop.appendChild(el('div', 'koord-fra-link-heading', 'Forbundet til'));
+  function addRow(label, selected, onPick) {
+    const btn = el('button', 'site-list-row', label);
+    btn.type = 'button';
+    if (selected) btn.classList.add('site-list-selected');
+    btn.addEventListener('click', () => { close(); onPick(); });
+    pop.appendChild(btn);
+  }
+  const rename = (name) => {
+    if (name === row.name) return;
+    const oldName = row.name;
+    row.name = name;
+    koordFraAfterRename(row, oldName);
+  };
+  addRow('Ikke forbundet', !current, () => rename(typed[typed.length - 1] || row.name));
+  const pick = (name) => () => rename(name);
+  if (suggestion) addRow(`${suggestion} (forslag)`, current === suggestion, pick(suggestion));
+  castNames.forEach((name) => {
+    if (name !== suggestion) addRow(name, current === name, pick(name));
+  });
+  close = siteOpenFieldPopup(anchor, pop);
+}
+
+// Cast-name suggestions under a Navn field, in the site's popup style
+// (the native <datalist> can't be styled). Filters as you type; arrow keys
+// + Enter pick. A copy of Ninjas' ninjasWireSuggestions().
+function koordFraWireSuggestions(input, getOptions, onPick) {
+  let active = -1;
+  let rows = [];
+  const norm = (v) => koordFraNameTokens(v).join(' ');
+
+  function close() {
+    if (siteFieldPopupAnchor === input) siteCloseFieldPopup();
+    rows = [];
+    active = -1;
+  }
+
+  function paintActive() {
+    rows.forEach((r, i) => r.classList.toggle('site-list-selected', i === active));
+    if (rows[active]) rows[active].scrollIntoView({ block: 'nearest' });
+  }
+
+  function open() {
+    const typed = norm(input.value);
+    const options = getOptions().filter((opt) => {
+      const n = norm(opt);
+      return n !== typed && (typed === '' || n.includes(typed));
+    });
+    if (!options.length) { close(); return; }
+    const pop = el('div', 'site-field-pop site-dd-pop koord-fra-suggest-pop');
+    // Keep focus in the input, so no blur fires first.
+    pop.addEventListener('mousedown', (e) => e.preventDefault());
+    rows = options.map((opt) => {
+      const row = el('button', 'site-list-row', opt);
+      row.type = 'button';
+      row.tabIndex = -1;
+      row.addEventListener('click', () => pick(opt));
+      pop.appendChild(row);
+      return row;
+    });
+    active = -1;
+    siteOpenFieldPopup(input, pop);
+  }
+
+  function pick(opt) {
+    close();
+    input.value = opt;
+    onPick(opt);
+  }
+
+  input.addEventListener('focus', open);
+  input.addEventListener('input', open);
+  input.addEventListener('blur', close);
+  input.addEventListener('keydown', (e) => {
+    if (!rows.length || e.shiftKey) return; // Shift+arrows move in the grid
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = rows.length;
+      active = e.key === 'ArrowDown' ? (active + 1) % n : (active - 1 + n) % n;
+      paintActive();
+    } else if (e.key === 'Enter' && active >= 0) {
+      e.preventDefault();
+      pick(rows[active].textContent);
+    }
+  });
+}
+
 function koordFraTextInput(value, className, onInput) {
   const input = document.createElement('input');
   input.type = 'text';
@@ -2915,15 +3322,6 @@ function renderFraGrid() {
   const castNames = koordFraCastNames();
   const castKeys = new Set(castNames.map((n) => n.trim().toLowerCase()));
 
-  const datalist = el('datalist');
-  datalist.id = 'koord-fra-cast';
-  castNames.forEach((name) => {
-    const option = document.createElement('option');
-    option.value = name;
-    datalist.appendChild(option);
-  });
-  mount.appendChild(datalist);
-
   if (!days.length) {
     mount.appendChild(el('p', 'koord-lok-empty', 'Ingen øvedage i kalenderen i den valgte periode.'));
   }
@@ -2942,6 +3340,9 @@ function renderFraGrid() {
     }
     th.appendChild(el('div', 'koord-lok-th-date',
       `${DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7]} ${d.getDate()}/${d.getMonth() + 1}`));
+    // The rehearsal's time from Kalender, so an absence can be read against it.
+    // One line per event, like the titles above.
+    day.times.forEach((t) => th.appendChild(el('div', 'koord-fra-th-time', `(${t})`)));
     headRow.appendChild(th);
   });
   headRow.appendChild(el('th', 'koord-lok-th-remove'));
@@ -2961,7 +3362,15 @@ function renderFraGrid() {
       paintName();
     });
     nameInput.placeholder = 'Navn';
-    nameInput.setAttribute('list', 'koord-fra-cast');
+    // The name before this edit, so combining can be cancelled.
+    let nameAtFocus = row.name;
+    nameInput.addEventListener('focus', () => { nameAtFocus = row.name; });
+    koordFraWireSuggestions(nameInput, () => castNames, (name) => {
+      row.name = name;
+      paintName();
+      koordFraUpdateSaveStatus();
+      combineIfDuplicate();
+    });
     // A name Øveplan can't match to the cast roster is tinted, with why.
     function paintName() {
       const name = nameInput.value.trim();
@@ -2970,16 +3379,34 @@ function renderFraGrid() {
       const parts = [];
       if (name) parts.push(name);
       if (unknown) parts.push('Ikke på rollelisten, så Øveplan kan ikke hente det');
-      if (row.source) parts.push('Hentet fra formularen');
+      const typed = koordFraTypedNames(row);
+      if (typed.length) parts.push(`Skrevet i formularen: ${typed.join(', ')}`);
       nameInput.title = parts.join('\n');
+      if (linkBtn) linkBtn.classList.toggle('koord-fra-name-unknown', unknown);
+    }
+    // Typing a name that another row has merges the two, once on blur.
+    // Once per edit: a picked suggestion is followed by a change event on
+    // blur (the warning modal takes focus), and the grid re-renders after.
+    let combineAsked = false;
+    function combineIfDuplicate() {
+      if (combineAsked || !koordFraSameNameRows(rows, row).length) return;
+      combineAsked = true;
+      koordFraAfterRename(row, nameAtFocus);
+    }
+    nameInput.addEventListener('change', combineIfDuplicate);
+    let linkBtn = null;
+    if ((row.sources && row.sources.length) || row.parts) {
+      linkBtn = el('button', 'koord-fra-link-btn', '▾');
+      linkBtn.type = 'button';
+      linkBtn.title = 'Forbind til en på rollelisten';
+      linkBtn.setAttribute('aria-label', 'Forbind til en på rollelisten');
+      linkBtn.addEventListener('click', () => {
+        siteToggleFieldPopup(linkBtn, () => koordFraOpenLinkMenu(linkBtn, row));
+      });
     }
     paintName();
     nameWrap.appendChild(nameInput);
-    if (row.source) {
-      const mark = el('span', 'koord-fra-source', 'F');
-      mark.title = 'Hentet fra formularen';
-      nameWrap.appendChild(mark);
-    }
+    if (linkBtn) nameWrap.appendChild(linkBtn);
     nameTd.appendChild(nameWrap);
     tr.appendChild(nameTd);
 
@@ -3007,7 +3434,7 @@ function renderFraGrid() {
       if (!koordFraRowHasContent(row)) { remove(); return; }
       koordMpDeleteConfirm(
         row.name ? `Fjern "${row.name}"?` : 'Fjern denne linje?',
-        row.source ? 'Linjen er hentet fra formularen og kommer ikke igen.' : null,
+        (row.sources && row.sources.length) ? 'Linjen er hentet fra formularen og kommer ikke igen.' : null,
         remove
       );
     }));
@@ -3052,7 +3479,7 @@ function koordFraPaintConnection() {
     conn ? `Forbundet til: ${conn.formTitle || 'formular'}` : 'Ikke forbundet til en formular');
   if (conn && conn.formTitle) text.title = conn.formTitle;
   mount.appendChild(text);
-  const btn = el('button', 'btn-small', conn ? 'Skift forbindelse' : 'Forbind');
+  const btn = el('button', 'btn-small', conn ? 'Skift' : 'Forbind');
   btn.type = 'button';
   btn.addEventListener('click', koordFraOpenConnectModal);
   mount.appendChild(btn);
@@ -3173,12 +3600,12 @@ async function koordFraOpenConnectModal() {
       reimport.type = 'checkbox';
       reimport.className = 'koord-fra-map-check';
       reimportRow.appendChild(reimport);
-      reimportRow.appendChild(el('span', null, 'Hent alle svar ind igen (svar, der allerede er hentet, kommer med to gange)'));
+      reimportRow.appendChild(el('span', null, 'Hent alle svar ind igen (svar fra samme person bliver lagt sammen)'));
       fieldsMount.appendChild(reimportRow);
       state.reimport = reimport;
     }
     fieldsMount.appendChild(el('p', 'koord-lok-hint',
-      'Hvert svar bliver hentet ind én gang som en linje, I kan rette i. Nye svar kommer automatisk med.'));
+      'Hvert svar bliver hentet ind én gang, og navnet forbindes til rollelisten, når det er entydigt. Flere svar fra samme person bliver til én linje, hvor det nyeste svar gælder for hver dag. Nye svar kommer automatisk med.'));
     current = state;
   }
 
