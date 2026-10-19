@@ -7,15 +7,16 @@
    a note. Columns can be renamed, resized, removed and added, rows
    reordered by their handle.
 
-   One sheet per revy, always the current production's — the server
-   resolves the folder itself (kostume_* actions, private
-   KOSTUME_DATA_DIR store, since the sheet carries names). A revy without
-   a sheet yet reads as 10 blank rows with stable ids; the topmost empty
-   row's cells show example hints as placeholders.
+   One sheet per revy (kostume_* actions, private KOSTUME_DATA_DIR
+   store, since the sheet carries names), chosen in the revy picker
+   top-right like Rekvisitten's: Arkiv's years + the current production.
+   Revyster edit only the current production; bosses any year. A revy
+   without a sheet yet reads as 10 blank rows with stable ids; the topmost
+   empty row's cells show example hints as placeholders.
 
    Live writes like Bandet: a text cell commits on blur, a reorder on
    drop — each a row-granular server merge, so several people can edit at
-   once. Fully open at the revyst tier.
+   once.
 
    Rendering rule (as elsewhere): createElement/textContent only, never
    innerHTML.
@@ -68,28 +69,35 @@ function kostumeResolvePassword() {
 }
 
 function kostumeMapError(status, detail) {
-  if (detail === 'no_production') return 'Der er ingen aktiv revy lige nu.';
+  if (detail === 'read_only') return 'Tidligere år kan kun redigeres af bosser.';
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
   if (status === 404) return 'Ikke fundet. En anden har måske lige slettet den. Genindlæs siden.';
   if (status === 409) return 'Nogen andre har lige ændret arket. Genindlæser…';
   return 'Der opstod en serverfejl. Prøv igen senere.';
 }
 
+let kostumePending = 0; // writes in flight (beforeunload / stale banner)
+
 // Returns { ok: true, data } or { ok: false, status, detail, message } —
-// message '' = cancelled password prompt (silent no-op).
-async function kostumeApi(action, body) {
+// message '' = cancelled password prompt (silent no-op). Every call is
+// about the selected revy (`folder`).
+async function kostumeApi(action, body, folder = kostumeFolder) {
   const password = kostumeResolvePassword();
   if (!password) return { ok: false, status: 0, detail: '', message: '' };
+  const isWrite = action !== 'kostume_read';
+  if (isWrite) kostumePending++;
   let res;
   try {
     res = await fetch(SITE_API_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, password, ...(body || {}) }),
+      body: JSON.stringify({ action, password, folder, ...(body || {}) }),
     });
   } catch (e) {
+    if (isWrite) kostumePending--;
     return { ok: false, status: 0, detail: '', message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
   }
+  if (isWrite) kostumePending--;
   // Require a real {ok:true} JSON body — a PHP fatal or WAF page can come
   // back as HTTP 200 + HTML and must not be mistaken for success.
   let data = null;
@@ -128,6 +136,8 @@ const KOSTUME_CUSTOM_KEY_RE = /^c[0-9a-f]{8,40}$/; // mirrors kostume_custom_key
 const KOSTUME_LOCKED_COLUMN = 'jegMangler'; // mirrors kostume_locked_column()
 
 let kostumeState = null; // { rows, columnLabels, columnWidths, customColumns, hiddenColumns }
+let kostumeFolder = '';
+let kostumeLoadSeq = 0;
 let kostumeDragRow = null;
 
 // Visible built-ins plus the custom columns, placed before Status so it
@@ -157,6 +167,71 @@ function kostumeRowLabel(row) {
   return (row.jegMangler || '').trim() || 'Række';
 }
 
+// ── Revy picker + edit rights (copy of rekvisit.js's) ────────
+const KOSTUME_REVY_KEY = 'matrevy-kostume-revy';
+
+function kostumeCurrentProductionFolder() {
+  return (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+}
+
+function kostumeArchiveYears() {
+  const override = (typeof siteLoadOverride === 'function') ? siteLoadOverride('archive') : null;
+  return (override || (typeof ARCHIVE_DATA !== 'undefined' ? ARCHIVE_DATA : [])).filter((y) => y && y.folder);
+}
+
+// Newest year first; the current production is always offered, even
+// before Koordinator has added its Arkiv entry.
+function kostumeRevyOptions() {
+  const options = kostumeArchiveYears().map((y) => ({ value: y.folder, label: y.name || y.folder, year: y.year || 0 }));
+  const current = kostumeCurrentProductionFolder();
+  if (current && !options.some((o) => o.value === current)) {
+    const m = /\d{4}/.exec(current);
+    options.push({ value: current, label: current.replace(/_/g, ' '), year: m ? Number(m[0]) : 9999 });
+  }
+  return options.sort((a, b) => (b.year - a.year) || a.label.localeCompare(b.label, 'da'));
+}
+
+function kostumeInitialFolder(options) {
+  let stored = '';
+  try { stored = localStorage.getItem(KOSTUME_REVY_KEY) || ''; } catch (e) { /* ignore */ }
+  if (stored && options.some((o) => o.value === stored)) return stored;
+  const current = kostumeCurrentProductionFolder();
+  if (current) return current;
+  return options.length ? options[0].value : '';
+}
+
+// Boss/admin edit any year; revysts only the current production. Mirrors
+// the read_only check in update-data.php's dispatch.
+function kostumeCanEdit() {
+  if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) return true;
+  return kostumeFolder !== '' && kostumeFolder === kostumeCurrentProductionFolder();
+}
+
+function kostumeRenderPicker() {
+  const mount = document.getElementById('kostume-revy-picker');
+  if (!mount) return;
+  const options = kostumeRevyOptions();
+  if (!options.length) { mount.replaceChildren(); return; }
+  const picker = siteCreateDropdownField(options.map(({ value, label }) => ({ value, label })), kostumeFolder);
+  picker.classList.add('kostume-revy-select');
+  picker.setAttribute('aria-label', 'Vælg revy');
+  picker.addEventListener('change', () => {
+    if (picker.value === kostumeFolder) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    kostumeFolder = picker.value;
+    try { localStorage.setItem(KOSTUME_REVY_KEY, kostumeFolder); } catch (e) { /* ignore */ }
+    kostumeState = null;
+    kostumeLoad();
+  });
+  mount.replaceChildren(picker);
+}
+
+// "Tidligere år kan kun redigeres af bosser" — only on an older year.
+function kostumeUpdateEditNote() {
+  const note = document.getElementById('kostume-edit-note');
+  if (note) note.hidden = kostumeFolder === kostumeCurrentProductionFolder();
+}
+
 // ── Load + render ────────────────────────────────────────────
 function kostumeRoot() {
   return document.getElementById('kostume-root');
@@ -164,14 +239,21 @@ function kostumeRoot() {
 
 async function kostumeLoad() {
   const root = kostumeRoot();
-  root.replaceChildren(el('p', 'kostume-muted', 'Indlæser…'));
+  kostumeUpdateEditNote();
+  if (!kostumeFolder) {
+    const card = el('section', 'card');
+    card.appendChild(el('p', 'kostume-muted', 'Der er ingen revyer endnu.'));
+    root.replaceChildren(card);
+    return;
+  }
+  const seq = ++kostumeLoadSeq;
+  if (!kostumeState) root.replaceChildren(el('p', 'kostume-muted', 'Indlæser…'));
   const result = await kostumeApi('kostume_read', {});
+  // A slower read for a revy you've since switched away from is dropped.
+  if (seq !== kostumeLoadSeq) return;
   if (!result.ok) {
     const card = el('section', 'card');
-    const message = result.detail === 'no_production'
-      ? 'Der er ingen aktiv revy lige nu. Arket kommer, når en ny revy er startet.'
-      : (result.message || 'Kunne ikke indlæse arket.');
-    card.appendChild(el('p', result.detail === 'no_production' ? 'kostume-muted' : 'kostume-error', message));
+    card.appendChild(el('p', 'kostume-error', result.message || 'Kunne ikke indlæse arket.'));
     root.replaceChildren(card);
     return;
   }
@@ -196,6 +278,10 @@ function kostumeRender() {
   const wrap = el('div', 'kostume-table-wrap');
   wrap.appendChild(kostumeBuildSheetTable());
   card.appendChild(wrap);
+  if (!kostumeCanEdit()) {
+    root.appendChild(card);
+    return;
+  }
   const addRow = kostumeAddPlusBtn('Tilføj række');
   addRow.classList.add('kostume-add-row');
   addRow.addEventListener('click', () => kostumeAddDraftRow(card));
@@ -228,47 +314,63 @@ function kostumeBuildSheetTable() {
     colgroup.appendChild(c);
     if (key) cols[key] = c;
   };
+  // An older year below boss is read-only: no handle/actions columns,
+  // plain titles, no hints.
+  const canEdit = kostumeCanEdit();
   const columns = kostumeSheetColumns();
-  addCol(null, KOSTUME_HANDLE_COL_WIDTH);
+  if (canEdit) addCol(null, KOSTUME_HANDLE_COL_WIDTH);
   for (const col of columns) addCol(col.key, kostumeColumnWidth(col));
-  addCol(null, KOSTUME_ACTIONS_COL_WIDTH);
+  if (canEdit) addCol(null, KOSTUME_ACTIONS_COL_WIDTH);
   table.appendChild(colgroup);
   kostumeUpdateSheetWidth(table);
 
   const thead = el('thead');
   const headRow = el('tr');
-  headRow.appendChild(el('th', 'kostume-col-handle'));
+  if (canEdit) headRow.appendChild(el('th', 'kostume-col-handle'));
   for (const col of columns) {
     const th = el('th', col.status ? 'kostume-col-resizable kostume-col-status' : 'kostume-col-resizable');
-    // Clearing the title and pressing Backspace/Delete once more asks to
-    // remove the column ("Jeg mangler" excepted).
-    const onDeleteEmpty = col.key === KOSTUME_LOCKED_COLUMN ? null : () => kostumeRemoveColumn(col);
-    th.appendChild(kostumeColumnTitleInput(col.key, col.label, onDeleteEmpty));
-    th.appendChild(kostumeColumnResizer(col, cols[col.key], table));
+    if (canEdit) {
+      // Clearing the title and pressing Backspace/Delete once more asks to
+      // remove the column ("Jeg mangler" excepted).
+      const onDeleteEmpty = col.key === KOSTUME_LOCKED_COLUMN ? null : () => kostumeRemoveColumn(col);
+      th.appendChild(kostumeColumnTitleInput(col.key, col.label, onDeleteEmpty));
+      th.appendChild(kostumeColumnResizer(col, cols[col.key], table));
+    } else {
+      th.appendChild(el('div', 'kostume-head-label', kostumeColumnLabel(col.key, col.label)));
+    }
     headRow.appendChild(th);
   }
-  const addTh = el('th', 'kostume-col-actions');
-  const addColBtn = kostumeAddPlusBtn('Tilføj kolonne');
-  addColBtn.addEventListener('click', kostumeOpenAddColumnModal);
-  addTh.appendChild(addColBtn);
-  headRow.appendChild(addTh);
+  if (canEdit) {
+    const addTh = el('th', 'kostume-col-actions');
+    const addColBtn = kostumeAddPlusBtn('Tilføj kolonne');
+    addColBtn.addEventListener('click', kostumeOpenAddColumnModal);
+    addTh.appendChild(addColBtn);
+    headRow.appendChild(addTh);
+  }
   thead.appendChild(headRow);
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  kostumeState.rows.forEach((row) => tbody.appendChild(kostumeRenderRow(row)));
-  tbody.appendChild(kostumeBuildDropTail());
+  kostumeState.rows.forEach((row) => tbody.appendChild(kostumeRenderRow(row, canEdit)));
+  if (canEdit) {
+    tbody.appendChild(kostumeBuildDropTail());
+    kostumeRefreshHints(tbody);
+  }
   table.appendChild(tbody);
-  kostumeRefreshHints(tbody);
   return table;
 }
 
-function kostumeCreateTextInput(row, key, tr) {
+function kostumeCreateTextInput(row, key, tr, canEdit = true) {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'kostume-field';
   input.dataset.key = key;
   input.value = row[key] || '';
+  if (!canEdit) {
+    input.readOnly = true;
+    input.title = input.value; // the full text of a cut-off cell
+    return input;
+  }
   // Typing into the hinted row moves the hints on to the next empty one.
   input.addEventListener('input', () => kostumeRefreshHints(tr.parentNode));
   input.addEventListener('blur', () => {
@@ -283,14 +385,15 @@ function kostumeCreateTextInput(row, key, tr) {
 }
 
 // Click to cycle Søger → Lånt → Returneret; commits right away.
-function kostumeStatusToggle(row, key, tr) {
+function kostumeStatusToggle(row, key, tr, canEdit = true) {
   const btn = el('button', 'kostume-status');
   btn.type = 'button';
+  btn.disabled = !canEdit;
   function paint() {
     const meta = KOSTUME_STATUSES.find((st) => st.value === (row[key] || '')) || KOSTUME_STATUSES[0];
     btn.className = 'kostume-status ' + meta.cls;
     btn.textContent = meta.label;
-    btn.title = `${meta.label} (klik for at skifte)`;
+    btn.title = canEdit ? `${meta.label} (klik for at skifte)` : meta.label;
   }
   paint();
   btn.addEventListener('click', () => {
@@ -324,9 +427,17 @@ function kostumeRefreshHints(tbody) {
   }
 }
 
-function kostumeRenderRow(row) {
+function kostumeRenderRow(row, canEdit = true) {
   const tr = el('tr', 'kostume-row');
   tr._row = row;
+  if (!canEdit) {
+    for (const col of kostumeSheetColumns()) {
+      const td = el('td', col.status ? 'kostume-col-status' : null);
+      td.appendChild(col.status ? kostumeStatusToggle(row, col.key, tr, false) : kostumeCreateTextInput(row, col.key, tr, false));
+      tr.appendChild(td);
+    }
+    return tr;
+  }
   const handleTd = el('td', 'kostume-col-handle');
   const handle = el('span', 'boss-manage-drag-handle kostume-drag-handle', '⠿');
   handle.title = 'Træk for at flytte';
@@ -522,7 +633,7 @@ function kostumeColumnWidth(col) {
 }
 
 function kostumeUpdateSheetWidth(table) {
-  const total = KOSTUME_HANDLE_COL_WIDTH + KOSTUME_ACTIONS_COL_WIDTH
+  const total = (kostumeCanEdit() ? KOSTUME_HANDLE_COL_WIDTH + KOSTUME_ACTIONS_COL_WIDTH : 0)
     + kostumeSheetColumns().reduce((sum, col) => sum + kostumeColumnWidth(col), 0);
   // Never narrower than the card; wider columns overflow into the scroll.
   table.style.width = `max(100%, ${total}px)`;
@@ -714,5 +825,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel !== 'function' || !siteHasLevel('revyst')) return;
+  window.addEventListener('beforeunload', (e) => {
+    if (kostumePending > 0) { e.preventDefault(); e.returnValue = ''; }
+  });
+  if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(() => kostumePending > 0);
+  kostumeFolder = kostumeInitialFolder(kostumeRevyOptions());
+  kostumeRenderPicker();
   kostumeLoad();
 });

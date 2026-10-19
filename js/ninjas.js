@@ -10,15 +10,19 @@
      scene's Instruktør role(s) from Manus), Start cue, Giver cue, Slut
      cue, Bemærkninger.
 
-   Rows come from Manus (SCENES_DATA, or a fresh Manus save's override),
-   keyed by the scene's permanent uid, so a cell follows its scene when it
-   is moved or renamed. Extra rows (Bandintro, …) are added by hand per act
+   One document per revy, chosen in the revy picker top-right like
+   Rekvisitten's (Arkiv's years + the current production). Rows come from
+   Manus (SCENES_DATA, or a fresh Manus save's override) for the current
+   production, and from the scenes.json snapshot Koordinator's "Afslut
+   revyen" leaves in archive/<folder>/snapshot/ for an older year, keyed
+   by the scene's permanent uid, so a cell follows its scene when it is
+   moved or renamed. Extra rows (Bandintro, …) are added by hand per act
    and shown in both tabs. Everything lives in the private NINJAS_DATA_DIR
-   store via authenticated ninjas_* actions, always for the current
-   production.
+   store via authenticated ninjas_* actions.
 
-   Any revyst can edit, behind each sheet's own Rediger/Færdig toggle in
-   its card's top-right corner. Live
+   Any revyst can edit the current production (bosses any year), behind
+   each sheet's own Rediger/Færdig toggle in its card's top-right corner.
+   Live
    writes like Fællesspisning: a cell commits on blur/Enter, one cell per
    request, so several people can edit at once.
 
@@ -65,13 +69,14 @@ function ninjasResolvePassword() {
 }
 
 function ninjasMapError(status, detail) {
-  if (detail === 'no_production') return 'Der er ingen aktiv revy lige nu.';
+  if (detail === 'read_only') return 'Tidligere år kan kun redigeres af bosser.';
   if (detail === 'stale_mics') return 'Mikrofonerne er blevet ændret af en anden. Siden er opdateret.';
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
   return detail ? `Serverfejl: ${detail}` : `Serverfejl (${status}). Prøv igen senere.`;
 }
 
-async function ninjasApi(action, body) {
+// Every call is about the selected revy (`folder`).
+async function ninjasApi(action, body, folder = ninjasFolder) {
   const password = ninjasResolvePassword();
   if (!password) return { ok: false, status: 0, message: '' };
   let res;
@@ -79,7 +84,7 @@ async function ninjasApi(action, body) {
     res = await fetch(SITE_API_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, password, ...(body || {}) }),
+      body: JSON.stringify({ action, password, folder, ...(body || {}) }),
     });
   } catch (e) {
     return { ok: false, status: 0, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
@@ -141,12 +146,15 @@ const NINJAS_CUE_COLUMNS = [
 const ninjasEditing = { mikrofonplan: false, cues: false };
 let ninjasPrinting = false; // prints always render the read-only sheet
 function ninjasIsEditing() {
-  return !ninjasPrinting && !!ninjasEditing[ninjasActiveTab];
+  return !ninjasPrinting && ninjasCanEdit() && !!ninjasEditing[ninjasActiveTab];
 }
+let ninjasFolder = ''; // the revy picked top-right
+let ninjasLoadSeq = 0;
 let ninjasDoc = null; // {mics, micCells, cues, extraRows} once loaded
 let ninjasDragMicId = null;
-// Cell commits not yet confirmed by the server: cellId → value. Re-applied
-// over a full-document response so an in-flight edit never flickers back.
+// Cell commits not yet confirmed by the server: cellId → {folder, value}.
+// Re-applied over a full-document response of the same revy so an
+// in-flight edit never flickers back.
 const ninjasPending = new Map();
 const ninjasCellChains = new Map(); // cellId → promise (commits per cell run in order)
 
@@ -168,16 +176,115 @@ function ninjasActLabel(act) {
   return act === 'E' ? 'Ekstranumre' : `Akt ${act}`;
 }
 
+// ── Revy picker + edit rights (copy of rekvisit.js's) ────────
+const NINJAS_REVY_KEY = 'matrevy-ninjas-revy';
+
+function ninjasCurrentProductionFolder() {
+  const config = siteLoadOverride('config') || (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {});
+  return config.currentProductionFolder || '';
+}
+
+function ninjasIsCurrentFolder() {
+  return ninjasFolder !== '' && ninjasFolder === ninjasCurrentProductionFolder();
+}
+
+function ninjasArchiveYears() {
+  const override = siteLoadOverride('archive');
+  return (override || (typeof ARCHIVE_DATA !== 'undefined' ? ARCHIVE_DATA : [])).filter((y) => y && y.folder);
+}
+
+// Newest year first; the current production is always offered, even
+// before Koordinator has added its Arkiv entry.
+function ninjasRevyOptions() {
+  const options = ninjasArchiveYears().map((y) => ({ value: y.folder, label: y.name || y.folder, year: y.year || 0 }));
+  const current = ninjasCurrentProductionFolder();
+  if (current && !options.some((o) => o.value === current)) {
+    const m = /\d{4}/.exec(current);
+    options.push({ value: current, label: current.replace(/_/g, ' '), year: m ? Number(m[0]) : 9999 });
+  }
+  return options.sort((a, b) => (b.year - a.year) || a.label.localeCompare(b.label, 'da'));
+}
+
+function ninjasInitialFolder(options) {
+  let stored = '';
+  try { stored = localStorage.getItem(NINJAS_REVY_KEY) || ''; } catch (e) { /* ignore */ }
+  if (stored && options.some((o) => o.value === stored)) return stored;
+  const current = ninjasCurrentProductionFolder();
+  if (current) return current;
+  return options.length ? options[0].value : '';
+}
+
+// Boss/admin edit any year; revysts only the current production. Mirrors
+// the read_only check in update-data.php's dispatch.
+function ninjasCanEdit() {
+  return siteHasLevel('boss') || ninjasIsCurrentFolder();
+}
+
+function ninjasRenderPicker() {
+  const mount = document.getElementById('ninjas-revy-picker');
+  if (!mount) return;
+  const options = ninjasRevyOptions();
+  if (!options.length) { mount.replaceChildren(); return; }
+  const picker = siteCreateDropdownField(options.map(({ value, label }) => ({ value, label })), ninjasFolder);
+  picker.classList.add('ninjas-revy-select');
+  picker.setAttribute('aria-label', 'Vælg revy');
+  picker.addEventListener('change', () => {
+    if (picker.value === ninjasFolder) return;
+    // Commit whatever is being typed first (into the revy it was typed in).
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    siteCloseFieldPopup();
+    ninjasFolder = picker.value;
+    try { localStorage.setItem(NINJAS_REVY_KEY, ninjasFolder); } catch (e) { /* ignore */ }
+    ninjasEditing.mikrofonplan = false;
+    ninjasEditing.cues = false;
+    ninjasDoc = null;
+    ninjasLoad();
+  });
+  mount.replaceChildren(picker);
+}
+
+// "Tidligere år kan kun redigeres af bosser" — only on an older year.
+function ninjasUpdateEditNote() {
+  const note = document.getElementById('ninjas-edit-note');
+  if (note) note.hidden = ninjasIsCurrentFolder();
+}
+
+// An older year's scenes: the scenes.json snapshot Koordinator's "Afslut
+// revyen" uploads to the archive, flattened like embed-scenes.js does.
+// folder → scene list ([] when there's no snapshot); fetched once per load.
+const ninjasSnapshots = new Map();
+async function ninjasLoadSnapshot(folder) {
+  if (ninjasSnapshots.has(folder)) return;
+  let scenes = [];
+  try {
+    const res = await fetch(`archive/${encodeURIComponent(folder)}/snapshot/scenes.json`);
+    if (res.ok) {
+      const data = await res.json();
+      for (const act of (data && Array.isArray(data.acts)) ? data.acts : []) {
+        for (const scene of Array.isArray(act.scenes) ? act.scenes : []) {
+          scenes.push({ ...scene, actLabel: act.label });
+        }
+      }
+    }
+  } catch (e) {
+    scenes = [];
+  }
+  ninjasSnapshots.set(folder, scenes);
+}
+
 // Below boss nothing is listed until Manus's "Revyster kan se manus" is
-// on — same (cosmetic) gate as Øveplan's schedManusVisible().
+// on — same (cosmetic) gate as Øveplan's schedManusVisible(). An older
+// year is always shown.
 function ninjasManusVisible() {
-  if (siteHasLevel('boss')) return true;
+  if (siteHasLevel('boss') || !ninjasIsCurrentFolder()) return true;
   const config = siteLoadOverride('config') || (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {});
   return !!config.pdfLinksVisibleToRevyst;
 }
 
 // A fresh Manus save in this browser wins over the embed (as on Øveplan).
+// An older year's come from its archived snapshot.
 function ninjasScenes() {
+  if (!ninjasIsCurrentFolder()) return ninjasSnapshots.get(ninjasFolder) || [];
   const override = siteLoadOverride('manus');
   if (override && Array.isArray(override.scenes)) return override.scenes;
   return (typeof SCENES_DATA !== 'undefined' && Array.isArray(SCENES_DATA)) ? SCENES_DATA : [];
@@ -280,6 +387,13 @@ function ninjasMessageCard(text, isError) {
 
 async function ninjasLoad() {
   const root = ninjasRoot();
+  ninjasUpdateEditNote();
+  if (!ninjasFolder) {
+    root.replaceChildren();
+    ninjasRenderTabs(root);
+    root.appendChild(ninjasMessageCard('Der er ingen revyer endnu.'));
+    return;
+  }
   if (ninjasActiveTab === 'ninjaplan' || !ninjasManusVisible()) {
     ninjasRender();
     return;
@@ -291,12 +405,19 @@ async function ninjasLoad() {
     ninjasRenderTabs(root);
     root.appendChild(el('p', 'ninjas-muted', 'Indlæser…'));
   }
-  const result = await ninjasApi('ninjas_read', {});
+  const seq = ++ninjasLoadSeq;
+  const folder = ninjasFolder;
+  const [result] = await Promise.all([
+    ninjasApi('ninjas_read', {}),
+    ninjasIsCurrentFolder() ? null : ninjasLoadSnapshot(folder),
+  ]);
+  // A slower read for a revy you've since switched away from is dropped.
+  if (seq !== ninjasLoadSeq) return;
   if (!result.ok) {
     ninjasDoc = null;
     root.replaceChildren();
     ninjasRenderTabs(root);
-    root.appendChild(ninjasMessageCard(result.message || 'Kunne ikke indlæse planen.', result.detail !== 'no_production'));
+    root.appendChild(ninjasMessageCard(result.message || 'Kunne ikke indlæse planen.', true));
     return;
   }
   ninjasApplyDoc(result.data);
@@ -312,7 +433,9 @@ function ninjasApplyDoc(data) {
     cues: obj(data.cues),
     extraRows: Array.isArray(data.extraRows) ? data.extraRows : [],
   };
-  for (const [cellId, value] of ninjasPending) ninjasSetLocal(cellId, value);
+  for (const [cellId, p] of ninjasPending) {
+    if (p.folder === ninjasFolder) ninjasSetLocal(cellId, p.value);
+  }
 }
 
 function ninjasRender() {
@@ -329,7 +452,9 @@ function ninjasRender() {
   } else if (ninjasDoc) {
     const groups = ninjasBuildGroups();
     if (!groups.length) {
-      root.appendChild(ninjasMessageCard('Der er ingen scener i Manus endnu.'));
+      root.appendChild(ninjasMessageCard(ninjasIsCurrentFolder()
+        ? 'Der er ingen scener i Manus endnu.'
+        : 'Der er ingen scener gemt for denne revy.'));
     } else if (ninjasActiveTab === 'cues') {
       root.appendChild(ninjasBuildCuesCard(groups));
     } else {
@@ -372,6 +497,7 @@ function ninjasCardHead(title) {
   print.type = 'button';
   print.addEventListener('click', ninjasPrint);
   head.appendChild(print);
+  if (!ninjasCanEdit()) return head; // an older year below boss
   const editing = ninjasIsEditing();
   const btn = el('button', 'btn-small ninjas-edit-btn' + (editing ? ' ninjas-edit-active' : ''), editing ? 'Færdig' : 'Rediger');
   btn.type = 'button';
@@ -429,17 +555,23 @@ function ninjasSetLocal(cellId, value) {
 function ninjasCommitCell(cellId, value, onLocalChange) {
   if (value === ninjasGetLocal(cellId)) return;
   const previous = ninjasGetLocal(cellId);
+  const folder = ninjasFolder; // the revy it was typed in, even if switched meanwhile
   ninjasSetLocal(cellId, value);
-  ninjasPending.set(cellId, value);
+  const pending = { folder, value };
+  ninjasPending.set(cellId, pending);
   if (onLocalChange) onLocalChange();
   const [kind, rowKey, key] = cellId.split('|');
   const prior = ninjasCellChains.get(cellId) || Promise.resolve();
   const run = prior.then(async () => {
     const result = kind === 'mic'
-      ? await ninjasApi('ninjas_set_mic_cell', { rowKey, micId: key, value })
-      : await ninjasApi('ninjas_set_cue', { rowKey, field: key, value });
-    if (ninjasPending.get(cellId) === value) ninjasPending.delete(cellId);
+      ? await ninjasApi('ninjas_set_mic_cell', { rowKey, micId: key, value }, folder)
+      : await ninjasApi('ninjas_set_cue', { rowKey, field: key, value }, folder);
+    if (ninjasPending.get(cellId) === pending) ninjasPending.delete(cellId);
     if (result.ok) return;
+    if (folder !== ninjasFolder) {
+      if (result.message) siteShowToast(result.message);
+      return; // the sheet on screen is another revy's now
+    }
     if (result.message) siteShowToast(result.message);
     if (result.status === 409) {
       ninjasPending.delete(cellId);
@@ -991,6 +1123,8 @@ function ninjasInit() {
   });
   // Below revyst the page gate hides <main> anyway — don't prompt for a password.
   if (!siteHasLevel('revyst')) return;
+  ninjasFolder = ninjasInitialFolder(ninjasRevyOptions());
+  ninjasRenderPicker();
   ninjasLoad();
 }
 

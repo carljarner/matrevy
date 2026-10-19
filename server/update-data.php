@@ -303,8 +303,9 @@ if (isset($BAND_ACTIONS[$action])) {
 
 // ── Kostumetinder actions (costume sheet per revy) ──
 // A Sangoversigt-style sheet ("Jeg mangler" / "Jeg har det" …) with names,
-// so it lives in the private KOSTUME_DATA_DIR. Fully open at the revyst
-// tier; always the current production's sheet (resolved server-side).
+// so it lives in the private KOSTUME_DATA_DIR. One sheet per revy folder:
+// any revy can be read at the revyst tier; writes below boss only reach
+// the current production's folder (like Rekvisitten).
 $KOSTUME_ACTIONS = [
   'kostume_read'               => 'revyst',
   'kostume_upsert_row'         => 'revyst', // create (no id) or merge fields into one row
@@ -318,7 +319,12 @@ if (isset($KOSTUME_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$KOSTUME_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
-  handle_kostume($action, $body);
+  $kostumeFolder = rekvisit_folder_from_body($body);
+  if ($action !== 'kostume_read' && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']
+      && $kostumeFolder !== manus_current_production_folder()) {
+    respond(403, ['error' => 'read_only']);
+  }
+  handle_kostume($action, $kostumeFolder, $body);
 }
 
 // ── Rekvisitten actions (five prop-crew sheets per revy) ──
@@ -354,8 +360,9 @@ if (isset($REKVISIT_ACTIONS[$action])) {
 
 // ── Ninjas, Mics & Cues actions (mic plan + cue sheet per revy) ──
 // Names per scene, so it lives in the private NINJAS_DATA_DIR. Fully open
-// at the revyst tier (the page's Rediger toggle is UI only); always the
-// current production's document (resolved server-side). Every write
+// at the revyst tier for the current production (the page's Rediger
+// toggle is UI only); one document per revy folder, and writes below boss
+// only reach the current production's (like Rekvisitten). Every write
 // touches one cell, so people editing different cells never collide.
 $NINJAS_ACTIONS = [
   'ninjas_read'             => 'revyst',
@@ -369,7 +376,12 @@ if (isset($NINJAS_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$NINJAS_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
-  handle_ninjas($action, $body);
+  $ninjasFolder = rekvisit_folder_from_body($body);
+  if ($action !== 'ninjas_read' && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']
+      && $ninjasFolder !== manus_current_production_folder()) {
+    respond(403, ['error' => 'read_only']);
+  }
+  handle_ninjas($action, $ninjasFolder, $body);
 }
 
 // ── Lokaler actions (Koordinator's signed room-booking forms) ──
@@ -4769,22 +4781,16 @@ function handle_band($action, $body) {
 // ── Kostumetinder datastore (private, local files under KOSTUME_DATA_DIR) ──
 //   KOSTUME_DATA_DIR/<folder>/kostumer.json
 //     {rows, columnLabels, columnWidths, customColumns, hiddenColumns, updatedAt}
-// One sheet per revy, always the current production's (never a folder from
-// the request body). rows = [{id, jegMangler, scene, navn, jegHarDet, note,
+// One sheet per revy; the folder comes from the body (validated at
+// dispatch, which also limits writes below boss). rows = [{id, jegMangler, scene, navn, jegHarDet, note,
 // status, …custom keys}] — status '' (Søger) / 'laant' / 'returneret'. A trimmed copy of the band_* sheet handlers (no sections,
-// files or folder picker). Dispatched early, so hoisted functions only.
+// files or extra instances). Dispatched early, so hoisted functions only.
 
 function kostume_dir() {
   if (!defined('KOSTUME_DATA_DIR') || !is_string(KOSTUME_DATA_DIR) || KOSTUME_DATA_DIR === '') {
     respond(500, ['error' => 'kostume_not_configured']);
   }
   return rtrim(KOSTUME_DATA_DIR, '/');
-}
-
-function kostume_folder() {
-  $folder = manus_current_production_folder();
-  if ($folder === null) respond(409, ['error' => 'no_production']);
-  return $folder;
 }
 
 function kostume_text_fields() {
@@ -4905,8 +4911,7 @@ function kostume_value_keys($doc) {
   return array_merge(kostume_text_fields(), ['status'], kostume_custom_keys($doc));
 }
 
-function kostume_read($body) {
-  $folder = kostume_folder();
+function kostume_read($folder, $body) {
   $doc = kostume_load($folder);
   respond(200, [
     'ok' => true,
@@ -4922,8 +4927,7 @@ function kostume_read($body) {
 
 // {row:{id?, …fields}, afterId?} — create appends at the end (or right after
 // afterId); update merges only the sent fields.
-function kostume_upsert_row($body) {
-  $folder = kostume_folder();
+function kostume_upsert_row($folder, $body) {
   $rowIn = $body['row'] ?? null;
   if (!is_array($rowIn)) respond(400, ['error' => 'invalid_shape']);
   $rowId = $rowIn['id'] ?? null;
@@ -4968,8 +4972,7 @@ function kostume_upsert_row($body) {
   respond(200, ['ok' => true, 'row' => $savedRow]);
 }
 
-function kostume_delete_row($body) {
-  $folder = kostume_folder();
+function kostume_delete_row($folder, $body) {
   $rowId = $body['rowId'] ?? '';
   if (!kostume_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
   kostume_mutate($folder, function ($doc) use ($rowId) {
@@ -4982,8 +4985,7 @@ function kostume_delete_row($body) {
 }
 
 // {order:[ids]} — must name exactly the current rows (409 stale_rows).
-function kostume_reorder($body) {
-  $folder = kostume_folder();
+function kostume_reorder($folder, $body) {
   $order = $body['order'] ?? null;
   if (!is_array($order)) respond(400, ['error' => 'invalid_shape']);
   foreach ($order as $id) {
@@ -5009,8 +5011,7 @@ function kostume_reorder($body) {
 // {customColumns:[{key?, label}], hiddenColumns:[keys]} — full replace. A
 // custom column without a key is new; one left out is deleted together with
 // its values, title and width.
-function kostume_save_columns($body) {
-  $folder = kostume_folder();
+function kostume_save_columns($folder, $body) {
   $customIn = $body['customColumns'] ?? null;
   $hiddenIn = $body['hiddenColumns'] ?? null;
   if (!is_array($customIn) || !is_array($hiddenIn) || count($customIn) > 30) respond(400, ['error' => 'invalid_shape']);
@@ -5049,8 +5050,7 @@ function kostume_save_columns($body) {
 }
 
 // {columnLabels:{key: title}} — full replace; only renamed columns are stored.
-function kostume_save_column_labels($body) {
-  $folder = kostume_folder();
+function kostume_save_column_labels($folder, $body) {
   $labels = $body['columnLabels'] ?? null;
   if (!is_array($labels)) respond(400, ['error' => 'invalid_shape']);
   $allowed = kostume_value_keys(kostume_load($folder));
@@ -5068,8 +5068,7 @@ function kostume_save_column_labels($body) {
 }
 
 // {columnWidths:{key: px}} — full replace; only resized columns are stored.
-function kostume_save_column_widths($body) {
-  $folder = kostume_folder();
+function kostume_save_column_widths($folder, $body) {
   $widths = $body['columnWidths'] ?? null;
   if (!is_array($widths)) respond(400, ['error' => 'invalid_shape']);
   $keys = kostume_value_keys(kostume_load($folder));
@@ -5085,15 +5084,15 @@ function kostume_save_column_widths($body) {
   respond(200, ['ok' => true, 'columnWidths' => (object) $doc['columnWidths']]);
 }
 
-function handle_kostume($action, $body) {
+function handle_kostume($action, $folder, $body) {
   switch ($action) {
-    case 'kostume_read':               return kostume_read($body);
-    case 'kostume_upsert_row':         return kostume_upsert_row($body);
-    case 'kostume_delete_row':         return kostume_delete_row($body);
-    case 'kostume_reorder':            return kostume_reorder($body);
-    case 'kostume_save_columns':       return kostume_save_columns($body);
-    case 'kostume_save_column_labels': return kostume_save_column_labels($body);
-    case 'kostume_save_column_widths': return kostume_save_column_widths($body);
+    case 'kostume_read':               return kostume_read($folder, $body);
+    case 'kostume_upsert_row':         return kostume_upsert_row($folder, $body);
+    case 'kostume_delete_row':         return kostume_delete_row($folder, $body);
+    case 'kostume_reorder':            return kostume_reorder($folder, $body);
+    case 'kostume_save_columns':       return kostume_save_columns($folder, $body);
+    case 'kostume_save_column_labels': return kostume_save_column_labels($folder, $body);
+    case 'kostume_save_column_widths': return kostume_save_column_widths($folder, $body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
@@ -5621,21 +5620,15 @@ function handle_rekvisit($action, $folder, $body) {
 // scene's permanent uid ('s…' for a scene made in Manus, 'sub:<id>' for one
 // chosen from the upload pool, or 'id:<act-number>' for a legacy scene
 // without one) or 'x<id>' for an extra row. Cells of scenes that no longer
-// exist are kept, just not shown. Always the current production's document
-// (never a folder from the request body). Dispatched early, so hoisted
-// functions only.
+// exist are kept, just not shown. One document per revy; the folder comes
+// from the body (validated at dispatch, which also limits writes below
+// boss). Dispatched early, so hoisted functions only.
 
 function ninjas_dir() {
   if (!defined('NINJAS_DATA_DIR') || !is_string(NINJAS_DATA_DIR) || NINJAS_DATA_DIR === '') {
     respond(500, ['error' => 'ninjas_not_configured']);
   }
   return rtrim(NINJAS_DATA_DIR, '/');
-}
-
-function ninjas_folder() {
-  $folder = manus_current_production_folder();
-  if ($folder === null) respond(409, ['error' => 'no_production']);
-  return $folder;
 }
 
 function ninjas_doc_path($folder) {
@@ -5741,8 +5734,7 @@ function ninjas_respond_doc($folder, $doc) {
   ]);
 }
 
-function ninjas_read($body) {
-  $folder = ninjas_folder();
+function ninjas_read($folder, $body) {
   ninjas_respond_doc($folder, ninjas_load($folder));
 }
 
@@ -5755,8 +5747,7 @@ function ninjas_set_cell(&$map, $rowKey, $key, $value) {
   else unset($map[$rowKey]);
 }
 
-function ninjas_set_mic_cell($body) {
-  $folder = ninjas_folder();
+function ninjas_set_mic_cell($folder, $body) {
   $rowKey = $body['rowKey'] ?? null;
   $micId = $body['micId'] ?? null;
   $value = $body['value'] ?? null;
@@ -5773,8 +5764,7 @@ function ninjas_set_mic_cell($body) {
   respond(200, ['ok' => true]);
 }
 
-function ninjas_set_cue($body) {
-  $folder = ninjas_folder();
+function ninjas_set_cue($folder, $body) {
   $rowKey = $body['rowKey'] ?? null;
   $field = $body['field'] ?? null;
   $value = $body['value'] ?? null;
@@ -5791,8 +5781,7 @@ function ninjas_set_cue($body) {
 
 // {mics:[{id?, name, label, color}]} — full replace; a mic without id is
 // new. A removed mic's cells go with it.
-function ninjas_save_mics($body) {
-  $folder = ninjas_folder();
+function ninjas_save_mics($folder, $body) {
   $micsIn = $body['mics'] ?? null;
   if (!is_array($micsIn) || count($micsIn) > 40) respond(400, ['error' => 'invalid_shape']);
   $mics = [];
@@ -5827,8 +5816,7 @@ function ninjas_save_mics($body) {
 
 // {row:{id?, act, afterKey, title}} — create (no id) or replace one extra
 // row. afterKey null = first in the act.
-function ninjas_upsert_extra_row($body) {
-  $folder = ninjas_folder();
+function ninjas_upsert_extra_row($folder, $body) {
   $rowIn = $body['row'] ?? null;
   if (!is_array($rowIn)) respond(400, ['error' => 'invalid_shape']);
   $id = $rowIn['id'] ?? null;
@@ -5858,8 +5846,7 @@ function ninjas_upsert_extra_row($body) {
   ninjas_respond_doc($folder, $doc);
 }
 
-function ninjas_delete_extra_row($body) {
-  $folder = ninjas_folder();
+function ninjas_delete_extra_row($folder, $body) {
   $id = $body['id'] ?? null;
   if (!ninjas_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
   $doc = ninjas_mutate($folder, function ($doc) use ($id) {
@@ -5882,14 +5869,14 @@ function ninjas_delete_extra_row($body) {
   ninjas_respond_doc($folder, $doc);
 }
 
-function handle_ninjas($action, $body) {
+function handle_ninjas($action, $folder, $body) {
   switch ($action) {
-    case 'ninjas_read':             return ninjas_read($body);
-    case 'ninjas_set_mic_cell':     return ninjas_set_mic_cell($body);
-    case 'ninjas_set_cue':          return ninjas_set_cue($body);
-    case 'ninjas_save_mics':        return ninjas_save_mics($body);
-    case 'ninjas_upsert_extra_row': return ninjas_upsert_extra_row($body);
-    case 'ninjas_delete_extra_row': return ninjas_delete_extra_row($body);
+    case 'ninjas_read':             return ninjas_read($folder, $body);
+    case 'ninjas_set_mic_cell':     return ninjas_set_mic_cell($folder, $body);
+    case 'ninjas_set_cue':          return ninjas_set_cue($folder, $body);
+    case 'ninjas_save_mics':        return ninjas_save_mics($folder, $body);
+    case 'ninjas_upsert_extra_row': return ninjas_upsert_extra_row($folder, $body);
+    case 'ninjas_delete_extra_row': return ninjas_delete_extra_row($folder, $body);
   }
   respond(400, ['error' => 'unknown_action']);
 }

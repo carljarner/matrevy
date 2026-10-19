@@ -4,6 +4,65 @@
    719px is the site-wide mobile breakpoint.
    ========================================================= */
 
+/* --- Title row: centered h1, revy picker pinned top-right ---------- */
+/* A copy of rekvisit.css's. */
+.ninjas-title-row {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.ninjas-title-row h1 {
+  margin-bottom: 0;
+}
+
+/* Pinned top-left, mirroring the picker on the right. */
+.ninjas-edit-note {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  margin: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.ninjas-revy-picker {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ninjas-revy-select {
+  min-width: 10rem;
+  height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.85rem;
+  background: var(--surface);
+}
+
+@media (max-width: 719px) {
+  .ninjas-edit-note {
+    position: static;
+    transform: none;
+    white-space: normal;
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .ninjas-revy-picker {
+    position: static;
+    transform: none;
+    display: flex;
+    justify-content: center;
+    margin-top: 0.75rem;
+  }
+}
+
 /* --- Sheet card head: title left, Print centred, Rediger/Færdig right -- */
 .ninjas-card-head {
   display: grid;
@@ -425,7 +484,7 @@ textarea.ninjas-field {
 
   .site-header,
   .site-footer,
-  .page-content > h1,
+  .ninjas-title-row,
   .ninjas-mode-tabs,
   .ninjas-print-btn,
   .ninjas-edit-btn {
