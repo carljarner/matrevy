@@ -608,6 +608,8 @@ function bandBuildBossSettingsCard() {
   field.appendChild(label);
   field.appendChild(picker);
   card.appendChild(field);
+  card.appendChild(el('p', 'band-muted band-boss-note',
+    'MatRevy mapperne oprettes automatisk og følger Arkivet. For at oprette en mappe til Galla eller andre arrangementer bruges "+ Opret ny", som findes i menuen i øverste højre hjørne af siden. Mapper, der oprettes på den måde, kan (i modsætning til revy-mapperne) redigeres og slettes løbende.'));
   return card;
 }
 
