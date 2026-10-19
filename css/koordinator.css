@@ -822,37 +822,6 @@
   background: transparent;
 }
 
-/* Horizontal scrollbar in the page's own warm palette instead of the OS
-   grey: a thin rounded tan thumb on a transparent track, amber on hover.
-   scrollbar-width/-color covers Chrome/Firefox; the ::-webkit-scrollbar
-   rules cover Safari (Chrome ignores them once scrollbar-color is set). */
-.koord-lok-table-wrap {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-
-.koord-lok-table-wrap::-webkit-scrollbar {
-  height: 8px;
-}
-
-.koord-lok-table-wrap::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.koord-lok-table-wrap::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 999px;
-}
-
-@media (hover: hover) {
-  .koord-lok-table-wrap:hover {
-    scrollbar-color: var(--accent-warm) transparent;
-  }
-  .koord-lok-table-wrap::-webkit-scrollbar-thumb:hover {
-    background: var(--accent-warm);
-  }
-}
-
 /* Øvrige bookinger | Underskrevne blanketter, side by side under the grid. */
 .koord-lok-columns {
   display: grid;

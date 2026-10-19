@@ -83,6 +83,44 @@ body {
   outline-offset: 2px;
 }
 
+/* --- Scrollbars ------------------------------------------
+   Every scrollbar on the site (page, modals, tables, sheets;
+   vertical and horizontal) in the warm palette instead of the OS
+   grey: a thin rounded tan thumb on a transparent track, amber on
+   hover. scrollbar-width/-color covers Chrome/Firefox; the
+   ::-webkit-scrollbar rules cover Safari (Chrome ignores them once
+   scrollbar-color is set). html/body are left out of the hover rule,
+   since the mouse is always over it and the page's own scrollbar
+   would stay amber. :where() keeps the specificity at zero. */
+:where(*) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+:where(*)::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+:where(*)::-webkit-scrollbar-track,
+:where(*)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:where(*)::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+
+@media (hover: hover) {
+  :where(:not(html, body)):hover {
+    scrollbar-color: var(--accent-warm) transparent;
+  }
+  :where(*)::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-warm);
+  }
+}
+
 /* --- Site header / navigation ---------------------------- */
 .site-header {
   background: var(--header);

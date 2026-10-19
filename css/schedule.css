@@ -880,25 +880,13 @@
   font-size: 0.88rem;
 }
 
-/* A horizontally scrolling strip of day columns, with the warm thin
-   scrollbar (scrollbar-* for Chrome/Firefox, ::-webkit-* for Safari). */
+/* A horizontally scrolling strip of day columns (warm scrollbar from
+   style.css). */
 .sched-lok-days {
   display: flex;
   gap: 0.6rem;
   overflow-x: auto;
   padding-bottom: 0.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-.sched-lok-days::-webkit-scrollbar { height: 8px; }
-.sched-lok-days::-webkit-scrollbar-track { background: transparent; }
-.sched-lok-days::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 999px;
-}
-@media (hover: hover) {
-  .sched-lok-days:hover { scrollbar-color: var(--accent-warm) transparent; }
-  .sched-lok-days::-webkit-scrollbar-thumb:hover { background: var(--accent-warm); }
 }
 
 .sched-lok-day {
