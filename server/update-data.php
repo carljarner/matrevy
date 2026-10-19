@@ -423,6 +423,7 @@ $TEKNIK_ACTIONS = [
   'teknik_upload_abort'  => 'revyst', // idempotent
   'teknik_download_url'  => 'revyst', // a signed ?teknik_dl= link, valid 10 min
   'teknik_folder_download_url' => 'revyst', // same, for a folder (null = all) as one .zip
+  'teknik_clear_all'     => 'admin',  // Koordinator's "Afslut revyen": every folder and file
 ];
 if (isset($TEKNIK_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$TEKNIK_ACTIONS[$action]]) {
@@ -4060,9 +4061,20 @@ function band_default_id($folder, $salt) {
   return substr(sha1($folder . '/' . $salt), 0, 16);
 }
 
+// Only a revy being set up now inherits another revy's Bandmedlemmer: the
+// active folder, the current production and extra instances (a Galla). An
+// older Arkiv year without a document must not show this year's band.
+function band_folder_inherits_members($folder) {
+  if ($folder === band_active_folder() || $folder === manus_current_production_folder()) return true;
+  foreach (band_instances_load() as $inst) {
+    if (($inst['folder'] ?? null) === $folder) return true;
+  }
+  return false;
+}
+
 // A revy without a document yet: the three section headings from last
-// year's sheet, and the instrument table of the most recently edited other
-// revy (the band rarely changes year to year).
+// year's sheet, and (for a revy being set up now) the instrument table of
+// the most recently edited other revy (the band rarely changes year to year).
 function band_default_doc($folder) {
   if ($folder === band_archive_folder()) {
     return ['rows' => [], 'instruments' => [], 'updatedAt' => null];
@@ -4070,6 +4082,9 @@ function band_default_doc($folder) {
   $rows = [];
   foreach (['Revysange', 'Pausefisk, sketchsange eller dansenumre', 'Bandintroer og -jingles'] as $i => $title) {
     $rows[] = ['id' => band_default_id($folder, 'section' . $i), 'type' => 'section', 'title' => $title];
+  }
+  if (!band_folder_inherits_members($folder)) {
+    return ['rows' => $rows, 'instruments' => [], 'updatedAt' => null];
   }
   $instruments = null;
   $latest = '';
@@ -6211,6 +6226,22 @@ function teknik_delete_folder($body) {
   respond(200, ['ok' => true]);
 }
 
+// Empties the whole store (Koordinator's "Afslut revyen"). Idempotent.
+// Uploads in progress are left alone: a finish into a deleted folder 404s.
+function teknik_clear_all($body) {
+  $removedFiles = [];
+  teknik_mutate(function ($doc) use (&$removedFiles) {
+    foreach ($doc['files'] ?? [] as $file) $removedFiles[] = $file['id'] ?? '';
+    $doc['folders'] = [];
+    $doc['files'] = [];
+    return $doc;
+  });
+  foreach ($removedFiles as $fileId) {
+    if (teknik_valid_id($fileId)) @unlink(teknik_file_path($fileId));
+  }
+  respond(200, ['ok' => true, 'removed' => count($removedFiles)]);
+}
+
 // {fileId, name} — `name` without extension; the stored extension is kept.
 function teknik_rename_file($body) {
   $fileId = $body['fileId'] ?? '';
@@ -6718,6 +6749,7 @@ function handle_teknik($action, $body) {
     case 'teknik_upload_abort':  return teknik_upload_abort($body);
     case 'teknik_download_url':  return teknik_download_url($body);
     case 'teknik_folder_download_url': return teknik_folder_download_url($body);
+    case 'teknik_clear_all':     return teknik_clear_all($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
@@ -7764,14 +7796,24 @@ function save_config($payload) {
     if (!is_bool($payload[$key])) respond(400, ['error' => 'invalid_shape']);
     $typeFlags[$key] = $payload[$key];
   }
-  if (!$hasFolder && !$hasPdfFlag && !$hasUploadsClosedFlag && !$typeFlags) {
+  // Koordinator's Arkivering guide: Teknikken/Manus marked ready to archive.
+  // Admin-only like the production folder.
+  $readyFlags = [];
+  foreach (['archiveReadyTeknik', 'archiveReadyManus'] as $key) {
+    if (!array_key_exists($key, $payload)) continue;
+    if ($GLOBALS['level'] !== 'admin') respond(403, ['error' => 'insufficient_level']);
+    if (!is_bool($payload[$key])) respond(400, ['error' => 'invalid_shape']);
+    $readyFlags[$key] = $payload[$key];
+  }
+  if (!$hasFolder && !$hasPdfFlag && !$hasUploadsClosedFlag && !$typeFlags && !$readyFlags) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasUploadsClosedFlag, $uploadsClosedFlag, $typeFlags) {
+  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasUploadsClosedFlag, $uploadsClosedFlag, $typeFlags, $readyFlags) {
     if ($hasFolder) $json['currentProductionFolder'] = $folder;
     if ($hasPdfFlag) $json['pdfLinksVisibleToRevyst'] = $pdfFlag;
     if ($hasUploadsClosedFlag) $json['uploadsClosedForRevyst'] = $uploadsClosedFlag;
     foreach ($typeFlags as $key => $flag) $json[$key] = $flag;
+    foreach ($readyFlags as $key => $flag) $json[$key] = $flag;
     // The per-type keys supersede the legacy single flag — drop it once
     // either is written so it can't linger as a stale fallback.
     if ($typeFlags) unset($json['uploadsClosedForRevyst']);
