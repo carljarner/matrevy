@@ -334,6 +334,7 @@ $REKVISIT_ACTIONS = [
   'rekvisit_save_column_widths' => 'revyst',
   'rekvisit_save_columns'       => 'revyst', // custom + hidden built-ins
   'rekvisit_set_budget'         => 'revyst', // Regnskab's budget
+  'rekvisit_set_note'           => 'boss',   // the text line above a sheet
   'rekvisit_add_day'            => 'revyst', // Hvem, hvornår? extra day
   'rekvisit_delete_day'         => 'revyst',
   'rekvisit_hide_day'           => 'revyst', // hide a Kalender date on this sheet
@@ -5483,6 +5484,20 @@ function rekvisit_set_budget($folder, $body) {
   respond(200, ['ok' => true, 'budget' => $s['budget']]);
 }
 
+// {sheet, note} — the text line above a sheet. Stored as typed ('' = no
+// line); a sheet that never had one set shows the client's default.
+function rekvisit_set_note($folder, $body) {
+  $sheet = $body['sheet'] ?? '';
+  rekvisit_sheet_def($sheet, false);
+  $note = $body['note'] ?? null;
+  if (!is_string($note) || mb_strlen($note) > 300) respond(400, ['error' => 'invalid_shape']);
+  $s = rekvisit_mutate($folder, $sheet, function ($s) use ($note) {
+    $s['note'] = trim($note);
+    return $s;
+  });
+  respond(200, ['ok' => true, 'note' => $s['note']]);
+}
+
 // {date, title?} — a Hvem, hvornår?-only day column (never touches Kalender).
 function rekvisit_add_day($folder, $body) {
   $date = $body['date'] ?? '';
@@ -5532,6 +5547,7 @@ function handle_rekvisit($action, $folder, $body) {
     case 'rekvisit_save_column_labels': return rekvisit_save_column_labels($folder, $body);
     case 'rekvisit_save_column_widths': return rekvisit_save_column_widths($folder, $body);
     case 'rekvisit_set_budget':         return rekvisit_set_budget($folder, $body);
+    case 'rekvisit_set_note':           return rekvisit_set_note($folder, $body);
     case 'rekvisit_add_day':            return rekvisit_add_day($folder, $body);
     case 'rekvisit_delete_day':         return rekvisit_delete_day($folder, $body);
     case 'rekvisit_hide_day':           return rekvisit_hide_day($folder, $body);

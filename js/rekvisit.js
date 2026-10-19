@@ -181,6 +181,7 @@ const REKVISIT_SHEETS = {
   },
   indkob: {
     rowSheet: 'indkob', locked: 'hvad', custom: true, rows: true,
+    note: 'Skriv her, hvad vi skal ud og købe.',
     columns: [
       { key: 'hvad', label: 'Hvad?', width: 220 },
       { key: 'hvor', label: 'Hvor', width: 150 },
@@ -367,10 +368,9 @@ function rekvisitRender() {
 
   const head = el('div', 'rekvisit-card-head');
   if (def.budget) head.appendChild(rekvisitBuildBudgetField(canEdit));
-  const notes = [];
-  if (def.note) notes.push(def.note);
-  if (!canEdit) notes.push('Tidligere år kan kun redigeres af bosser.');
-  for (const text of notes) head.appendChild(el('p', 'rekvisit-muted rekvisit-note', text));
+  const note = rekvisitBuildNote();
+  if (note) head.appendChild(note);
+  if (!canEdit) head.appendChild(el('p', 'rekvisit-muted rekvisit-note', 'Tidligere år kan kun redigeres af bosser.'));
   if (head.childNodes.length) card.appendChild(head);
 
   const wrap = el('div', 'rekvisit-table-wrap');
@@ -672,6 +672,51 @@ function rekvisitRefreshComputed() {
   const values = rekvisitFooterValues(rows, rekvisitSheetColumns());
   if (!values) return;
   for (const td of table.querySelectorAll('tfoot td[data-key]')) td.textContent = values[td.dataset.key] || '';
+}
+
+// ── The text line above a sheet ──────────────────────────────
+// A stored `note` wins ('' = no line); a sheet that never had one set
+// shows its REKVISIT_SHEETS default. Boss/admin edit it in place.
+function rekvisitNoteText(tab = rekvisitActiveTab) {
+  const doc = rekvisitTabDoc(tab);
+  return typeof doc.note === 'string' ? doc.note : (rekvisitDef(tab).note || '');
+}
+
+function rekvisitBuildNote() {
+  const tab = rekvisitActiveTab;
+  if (!(typeof siteHasLevel === 'function' && siteHasLevel('boss'))) {
+    const text = rekvisitNoteText(tab);
+    return text ? el('p', 'rekvisit-muted rekvisit-note', text) : null;
+  }
+  const input = document.createElement('textarea');
+  input.className = 'rekvisit-field rekvisit-muted rekvisit-note rekvisit-note-input';
+  input.rows = 1;
+  input.maxLength = 300;
+  input.value = rekvisitNoteText(tab);
+  input.placeholder = 'Tilføj en tekst over arket';
+  input.setAttribute('aria-label', 'Tekst over arket');
+  const grow = () => { input.style.height = 'auto'; input.style.height = `${input.scrollHeight}px`; };
+  input.addEventListener('input', grow);
+  requestAnimationFrame(grow);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { input.value = rekvisitNoteText(tab); grow(); input.blur(); }
+  });
+  input.addEventListener('blur', async () => {
+    const value = input.value.replace(/\s+/g, ' ').trim();
+    if (value === rekvisitNoteText(tab)) { input.value = value; grow(); return; }
+    const result = await rekvisitApi('rekvisit_set_note', { sheet: tab, note: value });
+    if (!result.ok) {
+      input.value = rekvisitNoteText(tab);
+      grow();
+      rekvisitHandleFailure(result);
+      return;
+    }
+    rekvisitTabDoc(tab).note = result.data.note;
+    input.value = result.data.note;
+    grow();
+  });
+  return input;
 }
 
 // ── Regnskab's budget ────────────────────────────────────────

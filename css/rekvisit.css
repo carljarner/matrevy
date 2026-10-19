@@ -94,6 +94,16 @@
   margin: 0;
 }
 
+/* Boss/admin edit the note in place (inline field style from .rekvisit-field). */
+.rekvisit-field.rekvisit-note-input {
+  flex: 1 1 20rem;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.4;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
 .rekvisit-budget {
   display: inline-flex;
   align-items: center;
