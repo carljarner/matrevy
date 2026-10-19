@@ -151,6 +151,15 @@ button.manus-col-header {
   background: var(--surface-2);
 }
 
+/* "ny" before a pool row's title (manusComputeNewIds) */
+.manus-new-tag {
+  flex: none;
+  margin-right: -0.2rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-warm-text);
+}
+
 .manus-pdf-title {
   flex: 1;
   min-width: 0;

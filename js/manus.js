@@ -342,10 +342,67 @@ function manusFileToBase64(file) {
   });
 }
 
+// ── "Ny" tag on new uploads ───────────────────────────────────
+// Per browser: localStorage remembers when this browser first saw each
+// submission ({folder, seen: {<id>: firstSeenMs}}, 0 = baseline or own
+// upload, never tagged). A submission first seen on this page load is
+// tagged "ny" until MANUS_NEW_TAG_MS after that, computed once per load so
+// a tag never disappears while the page is open, only on a later reload.
+// A first visit (or a new production folder) tags nothing.
+const MANUS_SEEN_KEY = 'matrevy-manus-seen';
+const MANUS_NEW_TAG_MS = 60 * 60 * 1000;
+let manusNewIds = null;
+
+function manusReadSeenStore() {
+  try {
+    const store = JSON.parse(localStorage.getItem(MANUS_SEEN_KEY) || 'null');
+    if (store && typeof store === 'object' && store.seen && typeof store.seen === 'object') return store;
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+function manusWriteSeenStore(store) {
+  try { localStorage.setItem(MANUS_SEEN_KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
+}
+
+function manusComputeNewIds() {
+  const now = Date.now();
+  const folder = getEffectiveConfig().currentProductionFolder || '';
+  const old = manusReadSeenStore();
+  const baseline = !old || old.folder !== folder;
+  const seen = {};
+  const newIds = new Set();
+  for (const sub of getEffectiveManuscripts()) {
+    if (!sub || !sub.id) continue;
+    const prev = baseline ? 0 : old.seen[sub.id];
+    const firstSeen = typeof prev === 'number' ? prev : now;
+    seen[sub.id] = firstSeen;
+    if (firstSeen > 0 && now - firstSeen < MANUS_NEW_TAG_MS) newIds.add(sub.id);
+  }
+  manusWriteSeenStore({ folder, seen });
+  return newIds;
+}
+
+// Own uploads count as seen right away, so they're never tagged "ny".
+function manusMarkSeen(id) {
+  const folder = getEffectiveConfig().currentProductionFolder || '';
+  const store = manusReadSeenStore();
+  if (!store || store.folder !== folder) return;
+  store.seen[id] = 0;
+  manusWriteSeenStore(store);
+}
+
 // ── Upload pool: two-column render ────────────────────────────
 function renderPdfRow(item, displayTitle = item.title) {
   const row = document.createElement('div');
   row.className = 'manus-pdf-row';
+
+  if (manusNewIds && manusNewIds.has(item.id)) {
+    const tag = document.createElement('span');
+    tag.className = 'manus-new-tag';
+    tag.textContent = 'ny';
+    row.appendChild(tag);
+  }
 
   const link = document.createElement('a');
   link.className = 'manus-pdf-title';
@@ -436,6 +493,7 @@ function renderColumn(type, { items = getEffectiveManuscripts().filter(s => s.ty
 function renderColumns() {
   const mount = document.getElementById('manus-columns');
   mount.textContent = '';
+  if (!manusNewIds) manusNewIds = manusComputeNewIds();
   const split = !!getEffectiveConfig().pdfLinksVisibleToRevyst;
   mount.classList.toggle('manus-columns-split', split);
   for (const type of MANUS_TYPES) {
@@ -653,6 +711,7 @@ function openUploadModal() {
       };
       manuscriptsOverride = getEffectiveManuscripts().concat([local]);
       siteSaveOverride('manuscripts', manuscriptsOverride);
+      manusMarkSeen(local.id);
       renderColumns();
       close();
       siteShowToast('Manus uploadet');
