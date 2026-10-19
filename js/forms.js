@@ -1181,6 +1181,30 @@ function formsChartIcon() {
   return svg;
 }
 
+// "Se svar" (one response) row icon — an open eye, same recipe as
+// wiki.js's wikiEyeOpenIcon (duplicated, wiki.js isn't loaded here).
+function formsEyeIcon() {
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.3');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const outline = document.createElementNS(svgNS, 'path');
+  outline.setAttribute('d', 'M1 8s2.6-4.5 7-4.5S15 8 15 8s-2.6 4.5-7 4.5S1 8 1 8z');
+  svg.appendChild(outline);
+  const pupil = document.createElementNS(svgNS, 'circle');
+  pupil.setAttribute('cx', '8');
+  pupil.setAttribute('cy', '8');
+  pupil.setAttribute('r', '2');
+  svg.appendChild(pupil);
+  return svg;
+}
+
 // A native drag lets the browser snapshot the dragged element itself as
 // the drag image, but a <tr> can't be rasterized on its own outside its
 // <table> — every browser tested falls back to something that reads as
@@ -2750,10 +2774,15 @@ function formsOpenStickyColMenu(th, isPinned, onToggle) {
 // horizontal scrollbar reads better than every column being squeezed
 // to fit.
 async function formsRenderResponsesScreen(root, formId) {
+  // listView = Betingelser + the table; the eye view (formsRenderResponseDetail)
+  // swaps it out for one response and back, so the table, its pins, scroll
+  // position and the conditions all survive the round trip.
+  const listView = el('div', 'forms-responses-list-view');
   const card = el('section', 'card');
   const body = el('div', null, 'Henter svar …');
   card.appendChild(body);
-  root.appendChild(card);
+  listView.appendChild(card);
+  root.appendChild(listView);
 
   const result = await formsApi('forms_admin_read', { formId });
   body.replaceChildren();
@@ -2793,6 +2822,19 @@ async function formsRenderResponsesScreen(root, formId) {
   header.appendChild(exportBtn);
   body.appendChild(header);
 
+  const showDetail = (r) => {
+    const scrollY = window.scrollY;
+    formsHideResponseTooltip();
+    listView.hidden = true;
+    const detail = formsRenderResponseDetail(definition, r, () => {
+      detail.remove();
+      listView.hidden = false;
+      window.scrollTo(0, scrollY);
+    });
+    root.appendChild(detail);
+    window.scrollTo(0, 0);
+  };
+
   const columns = formsAnswerColumns(definition);
   const wrap = el('div', 'forms-responses-wrap');
   // A stray mouseenter can leave the fixed tooltip anchored to a cell that
@@ -2802,7 +2844,7 @@ async function formsRenderResponsesScreen(root, formId) {
   const table = el('table', 'forms-responses-table');
   const thead = el('thead');
   const headRow = el('tr');
-  headRow.appendChild(el('th')); // delete-button column, no label
+  headRow.appendChild(el('th', 'forms-response-action-cell')); // eye-button column, no label
   // Every labelled column can be pinned from its title (formsOpenStickyColMenu).
   let pinnedKeys = formsLoadStickyCols(formId);
   const addPinnableHead = (key, label) => {
@@ -2822,12 +2864,29 @@ async function formsRenderResponsesScreen(root, formId) {
   };
   addPinnableHead(FORMS_SENDT_COL_KEY, 'Sendt');
   columns.forEach((c) => addPinnableHead(c.key, c.label));
+  headRow.appendChild(el('th', 'forms-response-action-cell')); // delete-button column, no label
   thead.appendChild(headRow);
   table.appendChild(thead);
   const tbody = el('tbody');
+  const rowEls = []; // { r, row } for the Betingelser filter
   for (const r of responses) {
     const row = el('tr');
-    const deleteCell = el('td');
+    const viewCell = el('td', 'forms-response-action-cell');
+    const viewBtn = el('button', 'forms-row-icon-btn');
+    viewBtn.type = 'button';
+    // A title, not the data-tooltip ::after: that one would be clipped by
+    // .forms-responses-wrap's overflow (see formsShowResponseTooltip).
+    viewBtn.title = 'Se svar';
+    viewBtn.setAttribute('aria-label', 'Se svar');
+    viewBtn.appendChild(formsEyeIcon());
+    viewBtn.addEventListener('click', () => showDetail(r));
+    viewCell.appendChild(viewBtn);
+    row.appendChild(viewCell);
+    row.appendChild(formsResponseCell('td', formsFormatSubmittedAt(r.submittedAt)));
+    for (const c of columns) {
+      row.appendChild(formsResponseCell('td', c.get(r.answers)));
+    }
+    const deleteCell = el('td', 'forms-response-action-cell');
     const deleteBtn = el('button', 'boss-edit-remove', '✕');
     deleteBtn.type = 'button';
     deleteBtn.title = 'Slet svar';
@@ -2840,23 +2899,168 @@ async function formsRenderResponsesScreen(root, formId) {
     });
     deleteCell.appendChild(deleteBtn);
     row.appendChild(deleteCell);
-    row.appendChild(formsResponseCell('td', formsFormatSubmittedAt(r.submittedAt)));
-    for (const c of columns) {
-      row.appendChild(formsResponseCell('td', c.get(r.answers)));
-    }
     tbody.appendChild(row);
+    rowEls.push({ r, row });
   }
   table.appendChild(tbody);
   wrap.appendChild(table);
   body.appendChild(wrap);
+
+  const conditionsCard = formsBuildResponseConditionsCard(definition, rowEls);
+  if (conditionsCard) listView.insertBefore(conditionsCard, card);
+
   formsApplyStickyColumns(table, pinnedKeys);
   // Column widths can shift with the viewport (min-width:100% table) —
   // re-measure, and drop the listener once this screen is gone.
   const onResize = () => {
     if (!table.isConnected) { window.removeEventListener('resize', onResize); return; }
-    formsApplyStickyColumns(table, pinnedKeys);
+    if (!listView.hidden) formsApplyStickyColumns(table, pinnedKeys);
   };
   window.addEventListener('resize', onResize);
+}
+
+// ── Svar: Betingelser card ─────
+// A collapsible card above the responses table (closed on every visit)
+// that hides the rows not matching its conditions, live. Same condition
+// editor as the export modal, offered every fixed-answer question.
+// Returns null when the form has no question a condition could use.
+function formsBuildResponseConditionsCard(definition, rowEls) {
+  const allFields = formsAllFields(definition);
+  const eligible = allFields.filter((f) =>
+    FORMS_DEPENDENCY_CONTROL_TYPES.includes(f.type) && formsDependencyOptionsForField(f).length > 0);
+  if (eligible.length === 0) return null;
+
+  let open = false;
+  const card = el('section', 'card forms-conditions-card');
+  const heading = el('h2', 'forms-conditions-heading');
+  const toggle = el('button', 'forms-conditions-toggle');
+  toggle.type = 'button';
+  const chevron = el('span', 'forms-conditions-chevron');
+  const label = el('span');
+  toggle.appendChild(chevron);
+  toggle.appendChild(label);
+  heading.appendChild(toggle);
+  card.appendChild(heading);
+  const body = el('div', 'forms-conditions-body');
+  card.appendChild(body);
+
+  const applyOpen = () => {
+    chevron.textContent = open ? '▾' : '▸';
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    body.hidden = !open;
+    card.classList.toggle('open', open);
+  };
+  toggle.addEventListener('click', () => { open = !open; applyOpen(); });
+
+  const footer = el('div', 'forms-conditions-footer');
+  const status = el('span', 'forms-conditions-status');
+  const resetBtn = el('button', 'btn-small', 'Fjern betingelser');
+  resetBtn.type = 'button';
+  footer.appendChild(status);
+  footer.appendChild(resetBtn);
+
+  const editor = formsCreateConditionEditor({ allFields, getEligible: () => eligible, onChange: applyFilter });
+  body.appendChild(editor.el);
+  body.appendChild(footer);
+  resetBtn.addEventListener('click', () => editor.reset());
+
+  function applyFilter() {
+    const filters = editor.getFilters();
+    const mode = editor.getMode();
+    let shown = 0;
+    for (const { r, row } of rowEls) {
+      const match = formsRowMatchesFilters(filters, mode, r.answers);
+      row.hidden = !match;
+      if (match) shown++;
+    }
+    // The count stays in the title so a collapsed card never hides rows
+    // without saying so.
+    label.textContent = filters.length > 0 ? `Betingelser (${filters.length})` : 'Betingelser';
+    status.textContent = filters.length > 0 ? `Viser ${shown} af ${rowEls.length} svar` : '';
+    resetBtn.hidden = editor.count() === 0;
+  }
+  applyOpen();
+  applyFilter();
+  return card;
+}
+
+// ── Svar: one response, read-only (the eye button) ─────
+// The whole form stacked on one page (no paging), every field rendered with
+// the same widgets as the fill-in view, filled with this response's answer
+// and locked. Fields a dependency hid for this respondent are left out.
+// The back arrow (top right) calls onBack.
+function formsRenderResponseDetail(definition, response, onBack) {
+  const card = el('section', 'card forms-form forms-fillin-wide forms-response-detail');
+  // Spacer | title | back arrow, so the title stays centered.
+  const head = el('div', 'forms-response-detail-head');
+  head.appendChild(el('span'));
+  head.appendChild(el('h2', null, definition.title));
+  const backBtn = el('button', 'forms-back-btn', '←');
+  backBtn.type = 'button';
+  backBtn.title = 'Tilbage til svar';
+  backBtn.setAttribute('aria-label', 'Tilbage til svar');
+  backBtn.addEventListener('click', onBack);
+  head.appendChild(backBtn);
+  card.appendChild(head);
+  card.appendChild(el('p', 'forms-intro forms-response-detail-sent', 'Sendt ' + formsFormatSubmittedAt(response.submittedAt)));
+
+  const answers = response.answers || {};
+  const shownAnswers = {}; // same cascade as renderFormFillIn's updateDependentVisibility
+  for (const section of formsSectionsFromDefinition(definition)) {
+    const pageEl = el('div', 'forms-fillin-page forms-response-detail-section');
+    if (section.title) pageEl.appendChild(el('h3', 'forms-fillin-section-title', section.title));
+    if (section.description) pageEl.appendChild(el('p', 'forms-intro', section.description));
+    let anyField = false;
+    for (const field of section.fields) {
+      if (field.dependsOn && !formsDependencyMatches(field.dependsOn, shownAnswers[field.dependsOn.fieldId])) continue;
+      const value = answers[field.id];
+      shownAnswers[field.id] = value;
+      const input = formsRenderAnswerInput(field);
+      const unmatched = formsFillAnswerInput(field, input, value);
+      const wrap = siteEditField(field.label, input);
+      if (unmatched.length > 0) wrap.appendChild(el('p', 'forms-intro', 'Svar: ' + unmatched.join(', ')));
+      pageEl.appendChild(wrap);
+      anyField = true;
+    }
+    if (anyField || section.title || section.description) card.appendChild(pageEl);
+  }
+  return card;
+}
+
+// Puts a stored answer into a widget from formsRenderAnswerInput and locks
+// it. Returns the answer values the widget had no option for (a live
+// scenes/rehearsals list can have changed since), so they can be shown as
+// text instead of silently dropped.
+function formsFillAnswerInput(field, input, value) {
+  const unmatched = [];
+  const tick = (controls, v) => {
+    const vs = Array.isArray(v) ? v : (v === undefined || v === null || v === '' ? [] : [v]);
+    for (const one of vs) {
+      const hit = controls.find((c) => c.value === String(one));
+      if (hit) hit.checked = true; else unmatched.push(String(one));
+    }
+  };
+  if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') {
+    input.value = value == null ? '' : String(value);
+    if (input.tagName === 'TEXTAREA') input.rows = Math.max(2, input.value.split('\n').length);
+  } else if (field.type === 'yesno') {
+    if (value === true || value === false) input.value = value;
+  } else if (field.type === 'grid_single' || field.type === 'grid_multi') {
+    const tbodyRows = Array.from(input.querySelectorAll('tbody tr'));
+    (Array.isArray(field.rows) ? field.rows : []).forEach((r, i) => {
+      const tr = tbodyRows[i];
+      const v = value && typeof value === 'object' ? value[r.id] : undefined;
+      if (tr) tick(Array.from(tr.querySelectorAll('input')), v);
+    });
+  } else {
+    tick(Array.from(input.querySelectorAll('input[type=radio], input[type=checkbox]')), value);
+  }
+  // Text stays selectable (read-only); every choice widget goes inert, which
+  // locks it without the greyed-out look of `disabled`.
+  input.classList.add('forms-answer-locked');
+  if (input.tagName === 'INPUT' || input.tagName === 'TEXTAREA') input.readOnly = true;
+  else input.inert = true;
+  return unmatched;
 }
 
 // One flat, ordered field list — top-level fields first, then each
@@ -3049,24 +3253,55 @@ function formsOpenExportModal(definition, responses) {
   function toggleColumn(key) {
     if (selectedKeys.has(key)) selectedKeys.delete(key); else selectedKeys.add(key);
     syncEntryStyles();
-    syncFilters();
+    editor.sync(); // drops conditions on a deselected column (nothing persists until Eksportér)
   }
 
   selectAllBtn.addEventListener('click', () => {
     for (const group of groups) for (const column of group.columns) selectedKeys.add(column.key);
     syncEntryStyles();
-    syncFilters();
+    editor.sync();
   });
 
   // ── Filtre: only offers questions currently selected as columns ──
   form.appendChild(el('p', 'forms-intro',
     'Vælg evt. hvilke rækker der skal med, ud fra deres svar på et eller flere af de valgte spørgsmål.'));
+  const editor = formsCreateConditionEditor({ allFields, getEligible: computeEligibleFields });
+  form.appendChild(editor.el);
+
+  const exportError = el('p', 'forms-msg error');
+  form.appendChild(exportError);
+
+  const exportBtn = formsPillBtn('Eksportér', 'site-btn-success');
+  exportBtn.addEventListener('click', () => {
+    if (selectedKeys.size === 0) { exportError.textContent = 'Vælg mindst én kolonne.'; return; }
+    const selectedColumns = [];
+    for (const group of groups) {
+      for (const column of group.columns) {
+        if (selectedKeys.has(column.key)) selectedColumns.push(column);
+      }
+    }
+    const filters = editor.getFilters();
+    const filteredResponses = responses.filter((r) => formsRowMatchesFilters(filters, editor.getMode(), r.answers));
+    formsExportCsv(definition, filteredResponses, selectedColumns);
+    close();
+  });
+  actions.appendChild(exportBtn);
+}
+
+// The "Betingelser" editor shared by the export modal and the Svar screen's
+// Betingelser card: a grid of condition boxes (Spørgsmål + Svar checkboxes),
+// a Kombination toggle once there are two, and "+ Tilføj betingelse".
+// `getEligible()` returns the fields a condition may use (re-read on every
+// add/sync); `onChange()` fires on any edit that can change the result.
+function formsCreateConditionEditor({ allFields, getEligible, onChange }) {
+  const notify = () => { if (onChange) onChange(); };
+  const root = el('div', 'forms-conditions-editor');
 
   // Two condition boxes per row (grid, not a stacked list) — collapses to
   // one column at the site's mobile breakpoint, see .forms-export-filters
   // in css/forms.css.
   const filtersWrap = el('div', 'forms-export-filters');
-  form.appendChild(filtersWrap);
+  root.appendChild(filtersWrap);
 
   // Single-select two-button toggle (not a dropdown) — same idle/hover/
   // selected/focus treatment as Kalender's Måned/Liste view toggle
@@ -3082,18 +3317,18 @@ function formsOpenExportModal(definition, responses) {
     andBtn.classList.toggle('forms-export-mode-btn-selected', mode === 'and');
     orBtn.classList.toggle('forms-export-mode-btn-selected', mode === 'or');
   }
-  andBtn.addEventListener('click', () => setMode('and'));
-  orBtn.addEventListener('click', () => setMode('or'));
+  andBtn.addEventListener('click', () => { setMode('and'); notify(); });
+  orBtn.addEventListener('click', () => { setMode('or'); notify(); });
   const modeToggle = el('div', 'forms-export-mode-toggle');
   modeToggle.appendChild(andBtn);
   modeToggle.appendChild(orBtn);
   const modeField = siteEditField('Kombination', modeToggle);
   modeField.hidden = true;
-  form.appendChild(modeField);
+  root.appendChild(modeField);
 
   const addBtn = el('button', 'btn-small', '+ Tilføj betingelse');
   addBtn.type = 'button';
-  form.appendChild(addBtn);
+  root.appendChild(addBtn);
 
   const conditions = []; // { rowEl, titleEl, fieldId, getFilter, refreshChoices }
 
@@ -3103,7 +3338,7 @@ function formsOpenExportModal(definition, responses) {
   }
 
   function addCondition() {
-    const eligible = computeEligibleFields();
+    const eligible = getEligible();
     if (eligible.length === 0) return;
 
     const rowEl = el('div', 'forms-export-filter-row');
@@ -3147,11 +3382,12 @@ function formsOpenExportModal(definition, responses) {
       });
       valuesWrap.formsSelectedValues = () => boxes.filter((b) => b.cb.checked).map((b) => b.value);
     }
+    valuesWrap.addEventListener('change', notify);
 
     function mountFieldDropdown(choices, currentValue) {
       fieldDd = siteCreateDropdownField(
         choices.map((f) => ({ value: f.id, label: f.label || '(uden titel)' })), currentValue);
-      fieldDd.addEventListener('change', renderValues);
+      fieldDd.addEventListener('change', () => { renderValues(); notify(); });
       fieldDdSlot.replaceChildren(fieldDd);
     }
     mountFieldDropdown(eligible, eligible[0].id);
@@ -3161,6 +3397,7 @@ function formsOpenExportModal(definition, responses) {
       rowEl.remove();
       conditions.splice(conditions.indexOf(entry), 1);
       renumberConditions();
+      notify();
     });
 
     filtersWrap.appendChild(rowEl);
@@ -3173,16 +3410,15 @@ function formsOpenExportModal(definition, responses) {
     };
     conditions.push(entry);
     renumberConditions();
+    notify();
   }
   addBtn.addEventListener('click', addCondition);
 
-  // Recomputes which fields are eligible to filter by (fixed-answer type
-  // AND currently a selected column), drops any existing condition whose
-  // field fell out of eligibility (nothing persists until Eksportér, so no
-  // confirmation needed), refreshes the remaining conditions' Spørgsmål
-  // option lists, and toggles the add-button/empty-state note.
-  function syncFilters() {
-    const eligible = computeEligibleFields();
+  // Recomputes which fields are eligible to filter by, drops any existing
+  // condition whose field fell out of eligibility, refreshes the remaining
+  // conditions' Spørgsmål option lists, and toggles the add-button.
+  function sync() {
+    const eligible = getEligible();
     const eligibleIds = new Set(eligible.map((f) => f.id));
     for (let i = conditions.length - 1; i >= 0; i--) {
       if (!eligibleIds.has(conditions[i].fieldId())) {
@@ -3192,29 +3428,27 @@ function formsOpenExportModal(definition, responses) {
     }
     for (const c of conditions) c.refreshChoices(eligible);
     renumberConditions();
-    const hasEligible = eligible.length > 0;
-    addBtn.hidden = !hasEligible;
+    addBtn.hidden = eligible.length === 0;
   }
-  syncFilters();
+  sync();
 
-  const exportError = el('p', 'forms-msg error');
-  form.appendChild(exportError);
+  function reset() {
+    for (const c of conditions) c.rowEl.remove();
+    conditions.length = 0;
+    setMode('and');
+    renumberConditions();
+    notify();
+  }
 
-  const exportBtn = formsPillBtn('Eksportér', 'site-btn-success');
-  exportBtn.addEventListener('click', () => {
-    if (selectedKeys.size === 0) { exportError.textContent = 'Vælg mindst én kolonne.'; return; }
-    const selectedColumns = [];
-    for (const group of groups) {
-      for (const column of group.columns) {
-        if (selectedKeys.has(column.key)) selectedColumns.push(column);
-      }
-    }
-    const filters = conditions.map((c) => c.getFilter()).filter((f) => f.values.length > 0);
-    const filteredResponses = responses.filter((r) => formsRowMatchesFilters(filters, mode, r.answers));
-    formsExportCsv(definition, filteredResponses, selectedColumns);
-    close();
-  });
-  actions.appendChild(exportBtn);
+  return {
+    el: root,
+    sync,
+    reset,
+    count: () => conditions.length,
+    getMode: () => mode,
+    // Only conditions with at least one Svar ticked actually filter.
+    getFilters: () => conditions.map((c) => c.getFilter()).filter((f) => f.values.length > 0),
+  };
 }
 
 // ── Statistik screen ("Se statistik" row action) ───────────────

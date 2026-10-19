@@ -1703,3 +1703,75 @@
      wrap's own mobile override above halves the same way. */
   .forms-stats-donut-wrap { justify-content: center; padding: 0 1rem; }
 }
+
+/* ── Svar: Betingelser card + one-response view ─────────────── */
+
+/* Collapsible like Fællesspisning's Boss Box (.faelles-boss-toggle,
+   not loaded here); the whole heading is the toggle. */
+.forms-conditions-heading {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.forms-conditions-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+@media (hover: hover) {
+  .forms-conditions-toggle:hover { color: var(--accent-warm-text); }
+}
+.forms-conditions-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+.forms-conditions-chevron {
+  flex: none;
+  width: 0.8rem;
+  color: var(--text-muted);
+}
+.forms-conditions-body { margin-top: 0.75rem; }
+.forms-conditions-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.forms-conditions-status {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Eye (first) and ✕ (last) columns: as narrow as their button. */
+.forms-responses-table .forms-response-action-cell {
+  width: 1%;
+  padding-left: 0.3rem;
+  padding-right: 0.3rem;
+}
+
+.forms-response-detail-head {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr 2.2rem;
+  align-items: start;
+  gap: 0.5rem;
+}
+.forms-response-detail-head .forms-back-btn {
+  justify-self: end;
+  margin-bottom: 0;
+}
+.forms-response-detail-sent { text-align: center; }
+.forms-response-detail-section { margin-top: 1.5rem; }
+
+/* A locked answer keeps its normal colours (inert/readonly, not disabled). */
+.forms-answer-locked,
+.forms-answer-locked label,
+.forms-answer-locked input { cursor: default; }
