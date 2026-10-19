@@ -125,8 +125,18 @@ async function koordFetchPdfStatus(path) {
   };
 }
 
+// Embedded config plus this tab's own saves (same shadow as manus.js's
+// configOverride), so the Arkivering guide reflects a change without a reload.
+function koordConfig() {
+  return Object.assign({}, (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {}), siteLoadOverride('config') || {});
+}
+
+function koordSaveConfigOverride(flags) {
+  siteSaveOverride('config', Object.assign({}, siteLoadOverride('config') || {}, flags));
+}
+
 function koordCurrentFolder() {
-  return (typeof CONFIG_DATA !== 'undefined' && CONFIG_DATA.currentProductionFolder) || '';
+  return koordConfig().currentProductionFolder || '';
 }
 
 function koordPdfReferenceUrl() {
@@ -461,6 +471,10 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
   const castUpload = await siteUploadFile(`archive/${closingFolder}/snapshot/cast.json`, koordTextToBase64(castText));
   if (!castUpload.ok) throw new Error(castUpload.message || 'Kunne ikke gemme snapshot af cast.json.');
 
+  onProgress('Sletter alle filer i Teknikken...');
+  const teknikRes = await koordBudgetApi('teknik_clear_all', {});
+  if (!teknikRes.ok) throw new Error(teknikRes.message || 'Kunne ikke slette filerne i Teknikken.');
+
   onProgress('Nulstiller scener og rollebesætning...');
   const resetActs = [
     { act: '1', label: 'Akt 1', scenes: [] },
@@ -483,8 +497,11 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
   // save_config()'s own comment server-side and
   // manus_current_production_folder(), which treats '' as "no active
   // production" and rejects manuscripts_create with no_production_folder.
-  const configRes = await siteSaveResource('config', { currentProductionFolder: '', pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false });
+  // The guide's two "Klar til arkivering" toggles start over for next year.
+  const closedConfig = { currentProductionFolder: '', pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false, archiveReadyTeknik: false, archiveReadyManus: false };
+  const configRes = await siteSaveResource('config', closedConfig);
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke lukke produktionsmappen.');
+  koordSaveConfigOverride(closedConfig);
 
   onProgress('Færdig!');
 }
@@ -540,23 +557,52 @@ async function koordStartNewYear(newFolder, productionName, productionYear, onPr
   }
 
   onProgress('Skifter til den nye produktionsmappe...');
-  const configRes = await siteSaveResource('config', { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false });
+  const newConfig = { currentProductionFolder: newFolder, pdfLinksVisibleToRevyst: false, sketchUploadsClosedForRevyst: false, songUploadsClosedForRevyst: false, archiveReadyTeknik: false, archiveReadyManus: false };
+  const configRes = await siteSaveResource('config', newConfig);
   if (!configRes.ok) throw new Error(configRes.message || 'Kunne ikke skifte produktionsmappe.');
+  koordSaveConfigOverride(newConfig);
   onProgress('Færdig!');
 }
 
-// Trin 1 of the old modal: a guide for checking the final files are ready
-// (the PDF-generation reminder + "Tjek om klar" freshness check) — now
-// rendered directly into the Manus card itself rather than hidden behind
-// the "Afslut" button, since it's just a check, not a destructive action.
-// Only the actual archiving step (openCloseYearModal below) still needs a
-// modal.
-function renderKoordCloseYearGuide(container) {
-  container.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Klargør filerne'));
+// ── Guide til Arkivering ─────────────────────────────────────
+// Four sections: Teknikken and Manus each end in a "Klar til arkivering"
+// toggle (config.json's archiveReadyTeknik/archiveReadyManus, shared by every
+// admin), and Afslut only unlocks once both are on, since Afslut deletes
+// every file in Teknikken. Re-rendered in place whenever a toggle flips.
+const KOORD_READY_CONFIRM = {
+  archiveReadyTeknik: {
+    title: 'Er alt fra Teknikken gemt?',
+    text: 'Jeg bekræfter, at alle filer i Teknikken er downloadet og gemt et andet sted, og at de må slettes, når revyen afsluttes.',
+  },
+  archiveReadyManus: {
+    title: 'Er manus klar?',
+    text: 'Jeg bekræfter, at alle rettelser er lavet i Manus, og at PDF\'erne er genereret med den endelige version.',
+  },
+};
+
+function renderKoordGuide() {
+  const container = document.getElementById('koord-guide-body');
+  if (!container) return;
+  container.textContent = '';
+  const config = koordConfig();
+  const folder = config.currentProductionFolder || '';
+
+  container.appendChild(el('h3', 'koord-step-heading koord-step-heading-first', 'Teknikken'));
+  container.appendChild(el('p', null,
+    'Alle filer i Teknikken bliver slettet, når revyen afsluttes. Hent derfor alt ned med "Download alt" på ' +
+    'Teknikken-siden, og gem det et sikkert sted. Upload gerne videoerne til revyens YouTube-kanal, så de ikke går tabt.'));
+  const teknikRow = el('div', 'koord-check-row');
+  const teknikLink = el('a', 'btn-small', 'Gå til Teknikken');
+  teknikLink.href = 'teknikken.html';
+  teknikRow.appendChild(teknikLink);
+  teknikRow.appendChild(koordReadyToggle('archiveReadyTeknik', config));
+  container.appendChild(teknikRow);
+
+  container.appendChild(el('h3', 'koord-step-heading', 'Manus'));
   container.appendChild(el('p', null,
     'Færdiggør alle rettelser i Manus, og klik der på "Generér PDF\'er". Det genkompilerer hver scenes .tex/.pdf med den ' +
     'endelige tekst og rollebesætning og gemmer dem i arkivet. Bekræft herunder, at det er landet, ' +
-    'før du afslutter revyen nedenfor.'));
+    'og markér så Manus som klar til arkivering.'));
   const checkRow = el('div', 'koord-check-row');
   const checkBtn = el('button', 'btn-small', 'Tjek om klar');
   checkBtn.type = 'button';
@@ -573,23 +619,106 @@ function renderKoordCloseYearGuide(container) {
   checkRow.appendChild(checkBtn);
   checkRow.appendChild(statusText);
   container.appendChild(checkRow);
+  const manusReadyRow = el('div', 'koord-check-row');
+  manusReadyRow.appendChild(koordReadyToggle('archiveReadyManus', config));
+  container.appendChild(manusReadyRow);
+
+  container.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
+  container.appendChild(el('p', null,
+    'Gemmer et snapshot af scener og rollebesætning i arkivet, nulstiller Manus (scener, rollebesætning og indsendte ' +
+    'manuskripter), sletter alle filer i Teknikken og lukker den aktive produktionsmappe, så revyster ikke længere kan ' +
+    'indsende manuskripter. Kan først bruges, når Teknikken og Manus er markeret som klar til arkivering.'));
+  const ready = config.archiveReadyTeknik === true && config.archiveReadyManus === true;
+  const closeRow = el('div', 'koord-check-row');
+  const closeBtn = el('button', 'btn-small', 'Afslut');
+  closeBtn.type = 'button';
+  closeBtn.disabled = !folder || !ready;
+  closeBtn.addEventListener('click', () => openCloseYearModal(folder));
+  closeRow.appendChild(closeBtn);
+  if (!folder) closeRow.appendChild(el('span', 'koord-status-value', 'Ingen aktiv produktion at afslutte.'));
+  else if (!ready) closeRow.appendChild(el('span', 'koord-status-value', 'Markér Teknikken og Manus som klar til arkivering først.'));
+  container.appendChild(closeRow);
+
+  container.appendChild(el('h3', 'koord-step-heading', 'Start ny revy'));
+  container.appendChild(el('p', null,
+    'Når revyen er afsluttet: opret den nye revy med navn, årstal og produktionsmappe. Det opretter en arkiv-indgang, ' +
+    'sætter revyens navn på de genererede PDF\'er og åbner igen for, at revyster kan indsende manuskripter til Manus.'));
+  const startBtn = el('button', 'btn-small', 'Start');
+  startBtn.type = 'button';
+  startBtn.addEventListener('click', () => openStartNewYearModal(folder));
+  container.appendChild(startBtn);
+}
+
+// "Ikke klar" / "Klar til arkivering" button for one config flag. Marking it
+// ready asks first; marking it not ready again doesn't.
+function koordReadyToggle(key, config) {
+  const on = config[key] === true;
+  const btn = el('button', 'btn-small' + (on ? ' koord-ready-on' : ''), on ? 'Klar til arkivering' : 'Ikke klar');
+  btn.type = 'button';
+  btn.addEventListener('click', async () => {
+    if (!on) { openReadyConfirmModal(key); return; }
+    btn.disabled = true;
+    const result = await koordSaveReadyFlag(key, false);
+    if (!result.ok) {
+      btn.disabled = false;
+      if (result.message) siteShowToast(result.message);
+    }
+  });
+  return btn;
+}
+
+async function koordSaveReadyFlag(key, value) {
+  const result = await siteSaveResource('config', { [key]: value });
+  if (result.ok) {
+    koordSaveConfigOverride({ [key]: value });
+    renderKoordGuide();
+  }
+  return result;
+}
+
+function openReadyConfirmModal(key) {
+  const copy = KOORD_READY_CONFIRM[key];
+  const { modal, form, error, actions, close } = siteOpenEditModal(copy.title);
+  modal.classList.add('koord-arkiv-confirm-modal');
+  form.appendChild(el('p', 'koord-arkiv-confirm-text', copy.text));
+
+  const cancelBtn = koordPillBtn('Annuller');
+  cancelBtn.addEventListener('click', close);
+  const confirmBtn = koordPillBtn('Klar til arkivering', 'site-btn-success');
+  confirmBtn.addEventListener('click', async () => {
+    error.textContent = '';
+    cancelBtn.disabled = true;
+    confirmBtn.disabled = true;
+    const result = await koordSaveReadyFlag(key, true);
+    if (result.ok) {
+      close();
+    } else {
+      if (result.message) error.textContent = result.message;
+      cancelBtn.disabled = false;
+      confirmBtn.disabled = false;
+    }
+  });
+  actions.appendChild(cancelBtn);
+  actions.appendChild(confirmBtn);
 }
 
 // ── Modals ────────────────────────────────────────────────────
 // Opened by the "Afslut revyen" subtitle's "Afslut" button — archives the
-// current production and closes it (see koordCloseYear above; the guide
-// that used to precede this as the modal's own "Trin 1" now sits inline in
-// the guide card, see renderKoordCloseYearGuide above). Deliberately does
+// current production, clears Teknikken and closes it (see koordCloseYear
+// above). Only reachable once the guide's Teknikken and Manus sections are
+// marked ready (renderKoordGuide), and is itself the "are you sure" step.
+// Deliberately does
 // NOT pick a new production folder — that's "Start ny revy" below, a
 // separate step so closing a revy doesn't force naming the next one in the
 // same breath.
 function openCloseYearModal(closingFolder) {
-  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut revyen');
+  const { modal, form, error, actions, close } = siteOpenEditModal('Afslut revyen?');
   modal.classList.add('koord-close-year-modal');
 
   const intro = el('p', 'koord-modal-intro',
-    `Dette nulstiller Manus (scener, rollebesætning, indsendte manuskripter), gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, og lukker den aktive produktionsmappe. Revyster kan herefter ikke indsende manuskripter, før en ny revy startes.`);
+    `Dette gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, nulstiller Manus (scener, rollebesætning, indsendte manuskripter) og lukker den aktive produktionsmappe. Revyster kan herefter ikke indsende manuskripter, før en ny revy startes.`);
   form.appendChild(intro);
+  form.appendChild(el('p', 'koord-modal-warning', 'Alle filer i Teknikken slettes permanent. Det kan ikke fortrydes.'));
 
   const nameInput = document.createElement('input');
   nameInput.type = 'text';
@@ -610,7 +739,7 @@ function openCloseYearModal(closingFolder) {
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
 
-  const confirmBtn = koordPillBtn('Afslut revyen', 'site-btn-success');
+  const confirmBtn = koordPillBtn('Afslut revyen', 'site-btn-danger');
   confirmBtn.addEventListener('click', async () => {
     error.textContent = '';
     const closingName = nameInput.value.trim();
@@ -629,14 +758,10 @@ function openCloseYearModal(closingFolder) {
         { closingFolder, closingName, closingYear },
         (text) => { progress.textContent = text; }
       );
-      // CONFIG_DATA is this tab's embedded snapshot from page load — it has
-      // no localStorage override mechanism (unlike calendar/archive/posts/
-      // wiki/manus), so the status cards above can't reflect the closed
-      // production folder until a reload picks up the regenerated
-      // config-data.js (a few seconds after the save, once the worker has
-      // re-embedded it). Say so explicitly rather than silently re-rendering
-      // a status card that would still show the old folder.
-      progress.textContent = 'Revyen er afsluttet, og produktionsmappen er lukket. Genindlæs siden for at se det afspejlet ovenfor.';
+      // koordCloseYear saved the new config into the override shadow.
+      renderKoordGuide();
+      renderKoordManusSection();
+      progress.textContent = 'Revyen er afsluttet, og produktionsmappen er lukket.';
       siteShowToast('Revyen er afsluttet');
       cancelBtn.textContent = 'Luk';
       cancelBtn.disabled = false;
@@ -727,7 +852,9 @@ function openStartNewYearModal(currentFolder) {
     confirmBtn.disabled = true;
     try {
       await koordStartNewYear(newFolder, productionName, productionYear, (text) => { progress.textContent = text; });
-      progress.textContent = `Ny produktionsmappe startet (${newFolder}). Genindlæs siden for at se det afspejlet ovenfor.`;
+      renderKoordGuide();
+      renderKoordManusSection();
+      progress.textContent = `Ny produktionsmappe startet (${newFolder}).`;
       siteShowToast('Ny produktionsmappe startet');
       cancelBtn.textContent = 'Luk';
       cancelBtn.disabled = false;
@@ -3730,42 +3857,24 @@ function renderKoordModeTabs(root) {
   root.appendChild(tabs);
 }
 
-// "Arkivering" tab: a wide left "Guide til arkivering af manus" card
-// (three subtitled steps — Klargør filerne, Afslut revyen, Start ny revy)
+// "Arkivering" tab: a wide left "Guide til Arkivering" card
+// (four sections — Teknikken, Manus, Afslut revyen, Start ny revy, see
+// renderKoordGuide)
 // and a narrow right column stacking "Budget" (which budget is active, see
 // openKoordBudgetEditor), "Arkiv" (unchanged Rediger picker), and "Manus"
 // (active-folder status only) — same 2fr/1fr layout as style.css's
 // .dashboard-columns, page-scoped as .koord-columns since it only applies
 // within this one tab.
 function renderArkiveringCard(container) {
-  const folder = koordCurrentFolder();
-
   const layout = el('div', 'koord-columns');
 
   const guideCard = el('section', 'card');
   const guideHead = el('div', 'card-head');
-  guideHead.appendChild(el('h2', null, 'Guide til arkivering af manus'));
+  guideHead.appendChild(el('h2', null, 'Guide til Arkivering'));
   guideCard.appendChild(guideHead);
-
-  renderKoordCloseYearGuide(guideCard);
-
-  guideCard.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
-  guideCard.appendChild(el('p', null,
-    'Nulstiller Manus (scener, rollebesætning, indsendte manuskripter), gemmer et snapshot af scenes.json/cast.json i ' +
-    'arkivet, og lukker den aktive produktionsmappe, så revyster ikke længere kan indsende manuskripter.'));
-  const closeBtn = el('button', 'btn-small', 'Afslut');
-  closeBtn.type = 'button';
-  closeBtn.disabled = !folder;
-  closeBtn.addEventListener('click', () => openCloseYearModal(folder));
-  guideCard.appendChild(closeBtn);
-
-  guideCard.appendChild(el('h3', 'koord-step-heading', 'Start ny revy'));
-  guideCard.appendChild(el('p', null,
-    'Gør en ny mappe til den aktive produktion, så revyster igen kan indsende manuskripter til Manus.'));
-  const startBtn = el('button', 'btn-small', 'Start');
-  startBtn.type = 'button';
-  startBtn.addEventListener('click', () => openStartNewYearModal(folder));
-  guideCard.appendChild(startBtn);
+  const guideBody = el('div');
+  guideBody.id = 'koord-guide-body';
+  guideCard.appendChild(guideBody);
 
   layout.appendChild(guideCard);
 
@@ -3801,6 +3910,7 @@ function renderArkiveringCard(container) {
   layout.appendChild(rightCol);
 
   container.appendChild(layout);
+  renderKoordGuide();
   renderArkivSection();
   renderKoordManusSection();
   koordLoadBudgetYears();

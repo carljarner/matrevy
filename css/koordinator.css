@@ -1189,3 +1189,28 @@
   min-width: 7rem;
   max-width: 7rem;
 }
+
+/* Arkivering guide: a section marked "Klar til arkivering" (config.json's
+   archiveReadyTeknik/archiveReadyManus). Same green as .site-btn-success. */
+.btn-small.koord-ready-on {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+@media (hover: hover) {
+  .btn-small.koord-ready-on:hover { background: #146a2c; border-color: #146a2c; }
+}
+
+/* Afslut-modal's warning that Teknikken's files are deleted for good. */
+.koord-modal-warning {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--danger);
+  margin-bottom: 1rem;
+}
+
+/* Afslut stays visibly locked until both sections are ready. */
+.koord-check-row .btn-small:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
