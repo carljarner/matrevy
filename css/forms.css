@@ -1708,7 +1708,9 @@
 
 /* Collapsible like Fællesspisning's Boss Box (.faelles-boss-toggle,
    not loaded here); the whole heading is the toggle. */
-.forms-conditions-heading {
+/* Two classes so it beats .page-content h2's margin-bottom (a collapsed
+   card would otherwise sit its title above center). */
+.forms-conditions-card .forms-conditions-heading {
   margin: 0;
   font-size: 1.15rem;
 }
@@ -1751,22 +1753,58 @@
   color: var(--text-muted);
 }
 
-/* Eye (first) and ✕ (last) columns: as narrow as their button. */
+/* formsShowResponseTooltip(…, small): the same look as the
+   .forms-row-icon-btn ::after label. */
+.forms-response-tooltip.forms-response-tooltip-small {
+  font-size: 0.7rem;
+  line-height: normal;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+/* Eye (first) and ✕ (last) columns: as narrow as their button. The eye
+   has no data-tooltip, so its ::after label must not render at all. */
+.forms-responses-table .forms-row-icon-btn::after { content: none; }
 .forms-responses-table .forms-response-action-cell {
   width: 1%;
   padding-left: 0.3rem;
   padding-right: 0.3rem;
 }
 
-.forms-response-detail-head {
+/* Back arrow | card | balancing spacer track, so the card stays centered
+   (same idea as .forms-stats-layout). */
+.forms-response-detail-layout {
   display: grid;
-  grid-template-columns: 2.2rem 1fr 2.2rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 640px) minmax(0, 1fr);
   align-items: start;
-  gap: 0.5rem;
+  gap: 1.5rem;
 }
-.forms-response-detail-head .forms-back-btn {
+.forms-response-detail-layout .forms-response-detail { grid-column: 2; grid-row: 1; }
+.forms-response-detail-back {
+  grid-column: 1;
+  grid-row: 1;
   justify-self: end;
+  position: sticky;
+  top: 131px;
   margin-bottom: 0;
+}
+@media (max-width: 719px) {
+  .forms-response-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+  .forms-response-detail-layout .forms-response-detail { grid-column: 1; grid-row: 2; }
+  /* Floats over the card while scrolling, so it gets its own backdrop. */
+  .forms-response-detail-back {
+    justify-self: start;
+    top: 64px;
+    z-index: 5;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  }
 }
 .forms-response-detail-sent { text-align: center; }
 .forms-response-detail-section { margin-top: 1.5rem; }

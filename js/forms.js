@@ -2662,15 +2662,18 @@ function formsFormatSubmittedAt(iso) {
 // field-popup chrome in site-utils.js — shown only while genuinely
 // truncated (scrollWidth > clientWidth).
 let formsResponseTooltipEl = null;
-function formsShowResponseTooltip(anchor, text) {
+// `small` = the one-line label look of .forms-row-icon-btn's ::after,
+// centered over the anchor (the eye button, which sits inside the same
+// clipping wrap, so it can't use that ::after).
+function formsShowResponseTooltip(anchor, text, small) {
   formsHideResponseTooltip();
-  const tip = el('div', 'forms-response-tooltip', text);
+  const tip = el('div', 'forms-response-tooltip' + (small ? ' forms-response-tooltip-small' : ''), text);
   document.body.appendChild(tip);
   const anchorRect = anchor.getBoundingClientRect();
   const tipRect = tip.getBoundingClientRect();
-  let top = anchorRect.top - tipRect.height - 6;
+  let top = anchorRect.top - tipRect.height - (small ? 4 : 6);
   if (top < 4) top = anchorRect.bottom + 6;
-  let left = anchorRect.left;
+  let left = small ? anchorRect.left + (anchorRect.width - tipRect.width) / 2 : anchorRect.left;
   if (left + tipRect.width > window.innerWidth - 4) left = window.innerWidth - tipRect.width - 4;
   if (left < 4) left = 4;
   tip.style.top = `${top}px`;
@@ -2874,11 +2877,16 @@ async function formsRenderResponsesScreen(root, formId) {
     const viewCell = el('td', 'forms-response-action-cell');
     const viewBtn = el('button', 'forms-row-icon-btn');
     viewBtn.type = 'button';
-    // A title, not the data-tooltip ::after: that one would be clipped by
-    // .forms-responses-wrap's overflow (see formsShowResponseTooltip).
-    viewBtn.title = 'Se svar';
     viewBtn.setAttribute('aria-label', 'Se svar');
     viewBtn.appendChild(formsEyeIcon());
+    // The fixed-position tooltip, not .forms-row-icon-btn's data-tooltip
+    // ::after: that one would be clipped by .forms-responses-wrap's overflow.
+    viewBtn.addEventListener('mouseenter', () => formsShowResponseTooltip(viewBtn, 'Se svar', true));
+    viewBtn.addEventListener('mouseleave', formsHideResponseTooltip);
+    viewBtn.addEventListener('focus', () => {
+      if (viewBtn.matches(':focus-visible')) formsShowResponseTooltip(viewBtn, 'Se svar', true);
+    });
+    viewBtn.addEventListener('blur', formsHideResponseTooltip);
     viewBtn.addEventListener('click', () => showDetail(r));
     viewCell.appendChild(viewBtn);
     row.appendChild(viewCell);
@@ -2989,19 +2997,19 @@ function formsBuildResponseConditionsCard(definition, rowEls) {
 // the same widgets as the fill-in view, filled with this response's answer
 // and locked. Fields a dependency hid for this respondent are left out.
 // The back arrow (top right) calls onBack.
+// The back arrow floats left of the card and stays put while scrolling
+// (sticky, like Statistik's section nav); at <=719px it sits above the card.
 function formsRenderResponseDetail(definition, response, onBack) {
-  const card = el('section', 'card forms-form forms-fillin-wide forms-response-detail');
-  // Spacer | title | back arrow, so the title stays centered.
-  const head = el('div', 'forms-response-detail-head');
-  head.appendChild(el('span'));
-  head.appendChild(el('h2', null, definition.title));
-  const backBtn = el('button', 'forms-back-btn', '←');
+  const layout = el('div', 'forms-response-detail-layout');
+  const backBtn = el('button', 'forms-back-btn forms-response-detail-back', '←');
   backBtn.type = 'button';
   backBtn.title = 'Tilbage til svar';
   backBtn.setAttribute('aria-label', 'Tilbage til svar');
   backBtn.addEventListener('click', onBack);
-  head.appendChild(backBtn);
-  card.appendChild(head);
+  layout.appendChild(backBtn);
+  const card = el('section', 'card forms-form forms-fillin-wide forms-response-detail');
+  layout.appendChild(card);
+  card.appendChild(el('h2', null, definition.title));
   card.appendChild(el('p', 'forms-intro forms-response-detail-sent', 'Sendt ' + formsFormatSubmittedAt(response.submittedAt)));
 
   const answers = response.answers || {};
@@ -3024,7 +3032,7 @@ function formsRenderResponseDetail(definition, response, onBack) {
     }
     if (anyField || section.title || section.description) card.appendChild(pageEl);
   }
-  return card;
+  return layout;
 }
 
 // Puts a stored answer into a widget from formsRenderAnswerInput and locks
