@@ -24,7 +24,7 @@ Planning documents (`plans/autosave.md`, `plans/multi-tenant-plan.md`, …) live
 
 **Deploy**: push to `main` → Coolify rebuilds and redeploys both containers (code and static files are baked into the `web` image, so any change needs a rebuild). Secrets live only in Coolify's environment variables.
 
-**`SITE_API_ENDPOINT`** (`js/site.js`): always `/update-data.php` (same origin, so a test domain writes to its own data). CORS in `update-data.php` still only allows `https://matematikrevy.dk`. The `manus.` DNS record (the API's old host, same container) is no longer used by the site.
+**`SITE_API_ENDPOINT`** (`js/site.js`): always `/update-data.php` (same origin, so a test domain writes to its own data). CORS in `update-data.php` still only allows `https://matematikrevy.dk`.
 
 **Local development**: pull the live public data and embed it — also what keeps the `file://` offline mode working:
 

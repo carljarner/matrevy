@@ -80,7 +80,6 @@ DNS for `matematikrevy.dk` is at Simply.com (DNS-only plan; nothing else is host
 | --- | --- | --- |
 | `matematikrevy.dk` | A | `188.245.30.36` |
 | `www` | CNAME | `matematikrevy.dk.` (the server redirects `www` to the main domain) |
-| `manus` | A | `188.245.30.36` (the API's old address, no longer used by the site; can be deleted) |
 | `matematikrevy.dk` | MX | `mx1.forwardemail.net.` and `mx2.forwardemail.net.` (priority 10) |
 | `matematikrevy.dk` | TXT | `forward-email=<address>`: Forward Email (forwardemail.net, free plan) forwards all mail for `@matematikrevy.dk` to that address. Receive-only; no mailboxes, no sending as `@matematikrevy.dk`. To change where mail goes, edit this TXT record. |
 
