@@ -16,8 +16,8 @@
    that default — see faellesDayDefault/faellesIsDayChecked below.
 
    Same privacy posture as Budget/Forms: names and food preferences never
-   touch the public repo / embed pipeline, only the private Simply.com
-   store (FAELLESSPISNING_DATA_DIR), via authenticated actions on
+   touch the public repo / embed pipeline, only the private store on web-1
+   (FAELLESSPISNING_DATA_DIR), via authenticated actions on
    SITE_API_ENDPOINT (site.js).
 
    One audience for the grid itself (any revyst+ visitor can add/edit/

@@ -4,7 +4,8 @@
 FROM php:8.3-apache
 RUN a2enmod headers rewrite
 COPY server/php.ini /usr/local/etc/php/conf.d/matrevy.ini
-# zz- so it loads after Debian's own security.conf (see server/Dockerfile).
+# zz- so it loads after Debian's own security.conf, which would otherwise
+# override ServerTokens/ServerSignature.
 COPY server/apache-matrevy.conf /etc/apache2/conf-enabled/zz-matrevy.conf
 COPY server/apache-site.conf /etc/apache2/sites-available/000-default.conf
 COPY . /var/www/html/

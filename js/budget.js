@@ -13,8 +13,8 @@
    Unlike the other data-driven pages, the budget data is PRIVATE:
    it never touches the public repo / embed pipeline. Everything
    is read/written through authenticated actions on the same PHP
-   endpoint (site.js's SITE_API_ENDPOINT), backed by files on the
-   Simply.com host — names, phone numbers and receipts stay off
+   endpoint (site.js's SITE_API_ENDPOINT), backed by files in a
+   private folder on web-1 — names, phone numbers and receipts stay off
    GitHub.
 
    Rendering rule (as elsewhere): createElement/textContent only,

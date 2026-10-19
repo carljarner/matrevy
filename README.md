@@ -51,7 +51,7 @@ There are four levels: public, revyst, boss and admin. Each level beyond public 
 └── data/README.md       Schemas for every data file
 ```
 
-The `data/`, `posts/` and `wiki/` folders, `calendar.ics` and the generated `js/*-data.js` files in the repo are **old copies from Oct 2, 2026**. The live data is on the server, and `plans/migration-guide.md` lists when these copies get removed from git.
+The live data (`data/`, `posts/`, `wiki/`, `calendar.ics` and the generated `js/*-data.js` files) is on the server, not in git. For local work, pull a copy with `rsync` and run `node scripts/embed-scenes.js` (CLAUDE.md, "Local development"); git ignores those copies.
 
 `archive/` is different: the worker mirrors the server's archive into it (one-way), about 5 minutes after the last change, so old and current productions stay browsable on GitHub. Don't edit it in the repo. Because the worker pushes to `main`, run `git pull --rebase` before you push.
 
@@ -80,7 +80,7 @@ DNS for `matematikrevy.dk` is at Simply.com (DNS-only plan; nothing else is host
 | --- | --- | --- |
 | `matematikrevy.dk` | A | `188.245.30.36` |
 | `www` | CNAME | `matematikrevy.dk.` (the server redirects `www` to the main domain) |
-| `manus` | A | `188.245.30.36` (the API's old address, still used by the site) |
+| `manus` | A | `188.245.30.36` (the API's old address, no longer used by the site; can be deleted) |
 | `matematikrevy.dk` | MX | `mx1.forwardemail.net.` and `mx2.forwardemail.net.` (priority 10) |
 | `matematikrevy.dk` | TXT | `forward-email=<address>`: Forward Email (forwardemail.net, free plan) forwards all mail for `@matematikrevy.dk` to that address. Receive-only; no mailboxes, no sending as `@matematikrevy.dk`. To change where mail goes, edit this TXT record. |
 

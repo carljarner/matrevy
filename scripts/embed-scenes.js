@@ -3,12 +3,12 @@
 // the site works over file:// (where fetch() fails). Run after any hand
 // edit to a data/*.json file:
 //   node scripts/embed-scenes.js
-// (A manus-tool save triggers .github/workflows/embed-scenes.yml, which
-// runs this automatically.)
+// On web-1 the worker runs this automatically after every save under
+// data/ (server/worker.sh).
 //
 // To embed a new data file (calendar, archive, ...): add an entry
-// to EMBEDS below, list the new output file in embed-scenes.yml's
-// `git add` step, and load it via <script src="..."> where needed.
+// to EMBEDS below, create the JSON on the server disk once, and load
+// it via <script src="..."> where needed.
 
 const fs = require('fs');
 const path = require('path');

@@ -12,8 +12,8 @@
    Like Budget, this data is PRIVATE: form definitions, templates, and
    responses never touch the public repo / embed pipeline. Everything is
    read/written through authenticated actions on the same PHP endpoint
-   (site.js's SITE_API_ENDPOINT), backed by files on the Simply.com host
-   under FORMS_DATA_DIR — a submitted answer may contain a name, phone
+   (site.js's SITE_API_ENDPOINT), backed by files on web-1 under
+   FORMS_DATA_DIR — a submitted answer may contain a name, phone
    number, or other personal information.
 
    select/checkboxes options are always manually typed in the builder now

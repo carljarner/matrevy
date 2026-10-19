@@ -9,3 +9,13 @@ node_modules/
 
 # Local planning documents, not tracked
 plans/
+
+# Live data lives on web-1 (/srv/matrevy/data/site). Local copies come from
+# rsync + node scripts/embed-scenes.js (CLAUDE.md → Local development).
+/data/*
+!/data/README.md
+/posts/
+/wiki/
+/calendar.ics
+/js/*-data.js
+!/js/manus-data.js

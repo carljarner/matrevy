@@ -1830,7 +1830,7 @@ const revyugenAutosave = siteCreateAutosave({
 });
 
 // ── Calendar-subscribe (.ics) ─────────────────────────────────
-// Static file served by GitHub Pages — the underlying data is already fully
+// Static file built by the worker and served by Apache — the underlying data is already fully
 // public (this page has no login gate), so there's no server round-trip.
 const CALENDAR_FEED_URL = 'https://matematikrevy.dk/calendar.ics';
 

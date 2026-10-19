@@ -170,7 +170,7 @@ if ($action === 'upload' || $action === 'delete') {
   else handle_delete($body);
 }
 
-// ── Budget actions (private Simply.com datastore) ────────────
+// ── Budget actions (private datastore) ────────────
 // These read/write local files under BUDGET_DATA_DIR (never the
 // public repo). Each handler validates + responds/exits.
 $BUDGET_ACTIONS = [
@@ -206,7 +206,7 @@ if (isset($BUDGET_ACTIONS[$action])) {
   handle_budget($action, $body);
 }
 
-// ── Forms actions (private Simply.com datastore, "Formularer" page) ──
+// ── Forms actions (private datastore, "Formularer" page) ──
 // Self-hosted sign-up forms — same privacy posture as Budget above (never
 // the public repo). Management (forms_admin_*/forms_save/forms_delete/
 // templates_*) is boss-level, not admin-level: this is production-
@@ -233,7 +233,7 @@ if (isset($FORMS_ACTIONS[$action])) {
   handle_forms($action, $body, $level);
 }
 
-// ── Fællesspisning actions (private Simply.com datastore) ──
+// ── Fællesspisning actions (private datastore) ──
 // Communal-meal rehearsal-day sign-up sheet — same privacy posture as
 // Budget/Forms above (never the public repo, since rows carry names/food
 // preferences). A single shared document, fully open at the revyst tier
@@ -743,9 +743,9 @@ function handle_delete($body) {
 }
 
 // ── Budget datastore (private, local files under BUDGET_DATA_DIR) ─
-// Unlike the resource savers below (which commit JSON to the public
-// GitHub repo), the budget feature stores expense requests, the paid
-// ledger and receipt photos as plain files on the Simply.com host —
+// Unlike the resource savers below (which write the public site data),
+// the budget feature stores expense requests, the paid
+// ledger and receipt photos as plain files outside every web-served folder —
 // names, phone numbers and receipts must NOT be public. No sha/409
 // dance: concurrency is handled with flock around each read-modify-write.
 
@@ -2636,7 +2636,7 @@ function streg_save_connection($body) {
   respond(200, ['ok' => true, 'connection' => $doc['connection'], 'rows' => $doc['rows'] ?? [], 'updatedAt' => $doc['updatedAt']]);
 }
 
-// ── Forms datastore (private Simply.com store, same posture as Budget) ──
+// ── Forms datastore (private store, same posture as Budget) ──
 // Self-hosted replacement for the Google Forms coordinators build every
 // year (cast/crew sign-up, rehearsal availability, ...). Definitions,
 // reusable templates, and submitted responses all live under
@@ -3415,7 +3415,7 @@ function handle_forms($action, $body, $level) {
   respond(400, ['error' => 'unknown_action']);
 }
 
-// ── Fællesspisning datastore (private Simply.com store, same posture as Budget/Forms) ──
+// ── Fællesspisning datastore (private store, same posture as Budget/Forms) ──
 // Communal-meal rehearsal-day sign-up sheet. A single JSON document lives
 // under FAELLESSPISNING_DATA_DIR — never the public repo, since rows carry
 // names and food preferences. Unlike Forms/Sheets (many documents, one per
