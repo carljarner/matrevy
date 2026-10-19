@@ -274,7 +274,7 @@ function faellesIsDayChecked(row, col) {
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, notice, columnWidths, updatedAt } once loaded
+let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, notice, subNotice, columnWidths, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -299,6 +299,7 @@ async function faellesLoad(root) {
     hiddenDays: result.data.hiddenDays || [],
     attendanceMode: result.data.attendanceMode === 'in' ? 'in' : 'out',
     notice: typeof result.data.notice === 'string' ? result.data.notice : '',
+    subNotice: typeof result.data.subNotice === 'string' ? result.data.subNotice : '',
     columnWidths: (result.data.columnWidths && typeof result.data.columnWidths === 'object') ? result.data.columnWidths : {},
     updatedAt: result.data.updatedAt || null,
   };
@@ -333,41 +334,46 @@ function faellesRender(root) {
 }
 
 // ── Notice centered above the sheet (boss/admin edit it in place) ──
-// Plain text below boss; boss/admin get an inline-styled input (Fællesspisning's
-// own inline field recipe) that saves on blur/Enter.
+// Two lines: the bold `notice` and the plain `subNotice` under it. Plain text
+// below boss; boss/admin get inline-styled inputs (Fællesspisning's own
+// inline field recipe) that save on blur/Enter.
 function faellesBuildNotice() {
   const wrap = el('div', 'faelles-notice-wrap');
+  wrap.appendChild(faellesBuildNoticeLine('notice', 'faelles-notice', 'Besked over arket'));
+  wrap.appendChild(faellesBuildNoticeLine('subNotice', 'faelles-notice faelles-notice-sub', 'Ekstra linje over arket'));
+  return wrap;
+}
+
+function faellesBuildNoticeLine(key, className, label) {
   if (!(typeof siteHasLevel === 'function' && siteHasLevel('boss'))) {
-    if (faellesState.notice) wrap.appendChild(el('div', 'faelles-notice', faellesState.notice));
-    return wrap;
+    return faellesState[key] ? el('div', className, faellesState[key]) : document.createDocumentFragment();
   }
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'faelles-notice faelles-notice-input';
+  input.className = `${className} faelles-notice-input`;
   input.maxLength = 200;
-  input.value = faellesState.notice;
+  input.value = faellesState[key];
   input.placeholder = 'Tilføj en besked…';
-  input.setAttribute('aria-label', 'Besked over arket');
+  input.setAttribute('aria-label', label);
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') input.blur();
-    else if (e.key === 'Escape') { input.value = faellesState.notice; input.blur(); }
+    else if (e.key === 'Escape') { input.value = faellesState[key]; input.blur(); }
   });
   input.addEventListener('blur', async () => {
     const value = input.value.trim();
-    if (value === faellesState.notice) { input.value = value; return; }
+    if (value === faellesState[key]) { input.value = value; return; }
     faellesSavesPending++;
-    const result = await faellesApi('faelles_set_notice', { notice: value });
+    const result = await faellesApi('faelles_set_notice', { [key]: value });
     faellesSavesPending--;
     if (!result.ok) {
-      input.value = faellesState.notice;
+      input.value = faellesState[key];
       if (result.message) siteShowToast(result.message);
       return;
     }
-    faellesState.notice = result.data.notice;
-    input.value = faellesState.notice;
+    faellesState[key] = result.data[key];
+    input.value = faellesState[key];
   });
-  wrap.appendChild(input);
-  return wrap;
+  return input;
 }
 
 // ── Boss Box (boss/admin settings above the sheet) ───────────

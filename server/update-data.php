@@ -248,7 +248,7 @@ $FAELLES_ACTIONS = [
   'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
   'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
   'faelles_set_attendance_mode' => 'boss', // 'out' (new rows auto-signed-up) or 'in' (new rows start unchecked) — only rows created afterwards
-  'faelles_set_notice'      => 'boss',   // the short text shown centered above the sheet ('' = none)
+  'faelles_set_notice'      => 'boss',   // the two short lines shown centered above the sheet ('' = none)
   'faelles_save_column_widths' => 'boss', // dragged Navn/Madforbehold widths (px), full replace
   'faelles_add_day'         => 'boss',   // add a Fællesspisning-only day column (never the public `calendar` resource)
   'faelles_delete_day'      => 'boss',   // remove one — the only way to correct a mistaken add
@@ -3475,6 +3475,11 @@ function faelles_notice($doc) {
   return (isset($doc['notice']) && is_string($doc['notice'])) ? $doc['notice'] : 'Madtilmelding lukker kl. 12 på dagen';
 }
 
+// The second, non-bold line under the notice; same rules as faelles_notice.
+function faelles_sub_notice($doc) {
+  return (isset($doc['subNotice']) && is_string($doc['subNotice'])) ? $doc['subNotice'] : '(I bliver automatisk tilføjet madarket gennem tilmeldingsformularen)';
+}
+
 // Boss-dragged widths of the two fixed columns ({navn?, madforbehold?} px);
 // a missing key = the page's default width.
 function faelles_column_widths($doc) {
@@ -3730,7 +3735,7 @@ function faelles_maybe_sync($doc) {
 function faelles_read($body) {
   $doc = faelles_load();
   $doc = faelles_maybe_sync($doc);
-  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Revyst: create (no rowId) or update (rowId given) one row from an
@@ -3844,17 +3849,24 @@ function faelles_set_attendance_mode($body) {
   respond(200, ['ok' => true, 'attendanceMode' => faelles_attendance_mode($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
-// Boss: sets the text shown centered above the sheet (see faelles_notice).
+// Boss: sets the text lines shown centered above the sheet (see
+// faelles_notice/faelles_sub_notice). Each of `notice`/`subNotice` is
+// optional; only the ones sent are changed.
 function faelles_set_notice($body) {
-  $notice = $body['notice'] ?? null;
-  if (!is_string($notice) || mb_strlen($notice) > 200) respond(400, ['error' => 'invalid_shape']);
-  $notice = trim($notice);
-  $doc = faelles_mutate(function ($doc) use ($notice) {
-    $doc['notice'] = $notice;
+  $changes = [];
+  foreach (['notice', 'subNotice'] as $key) {
+    if (!array_key_exists($key, $body)) continue;
+    $value = $body[$key];
+    if (!is_string($value) || mb_strlen($value) > 200) respond(400, ['error' => 'invalid_shape']);
+    $changes[$key] = trim($value);
+  }
+  if (!$changes) respond(400, ['error' => 'invalid_shape']);
+  $doc = faelles_mutate(function ($doc) use ($changes) {
+    foreach ($changes as $key => $value) $doc[$key] = $value;
     $doc['updatedAt'] = date('c');
     return $doc;
   });
-  respond(200, ['ok' => true, 'notice' => faelles_notice($doc), 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Boss: {columnWidths:{navn?, madforbehold?}} — full replace, like

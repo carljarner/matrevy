@@ -17,7 +17,9 @@
 
 .faelles-notice-wrap {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
   min-width: 0;
 }
 
@@ -25,6 +27,12 @@
   font-weight: 600;
   text-align: center;
   color: var(--text);
+}
+
+.faelles-notice.faelles-notice-sub {
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }
 
 /* Inline field-editing style (boss/admin): invisible border at rest,
