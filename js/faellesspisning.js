@@ -348,33 +348,54 @@ function faellesBuildNoticeLine(key, className, label) {
   if (!(typeof siteHasLevel === 'function' && siteHasLevel('boss'))) {
     return faellesState[key] ? el('div', className, faellesState[key]) : document.createDocumentFragment();
   }
-  const input = document.createElement('input');
-  input.type = 'text';
+  // A one-line textarea rather than an <input>, so a long line wraps on a
+  // narrow screen instead of scrolling sideways; Enter still saves (no
+  // line breaks), and the height follows the text (faellesFitNoticeInput).
+  const input = document.createElement('textarea');
+  input.rows = 1;
   input.className = `${className} faelles-notice-input`;
   input.maxLength = 200;
   input.value = faellesState[key];
   input.placeholder = 'Tilføj en besked…';
   input.setAttribute('aria-label', label);
+  const setValue = (value) => { input.value = value; faellesFitNoticeInput(input); };
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') input.blur();
-    else if (e.key === 'Escape') { input.value = faellesState[key]; input.blur(); }
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { setValue(faellesState[key]); input.blur(); }
+  });
+  input.addEventListener('input', () => {
+    // A pasted line break becomes a space (the notice is a single line).
+    if (/[\r\n]/.test(input.value)) input.value = input.value.replace(/\s*[\r\n]+\s*/g, ' ');
+    faellesFitNoticeInput(input);
   });
   input.addEventListener('blur', async () => {
     const value = input.value.trim();
-    if (value === faellesState[key]) { input.value = value; return; }
+    if (value === faellesState[key]) { setValue(value); return; }
     faellesSavesPending++;
     const result = await faellesApi('faelles_set_notice', { [key]: value });
     faellesSavesPending--;
     if (!result.ok) {
-      input.value = faellesState[key];
+      setValue(faellesState[key]);
       if (result.message) siteShowToast(result.message);
       return;
     }
     faellesState[key] = result.data[key];
-    input.value = faellesState[key];
+    setValue(faellesState[key]);
   });
+  // Not measurable until it's in the document.
+  requestAnimationFrame(() => faellesFitNoticeInput(input));
   return input;
 }
+
+function faellesFitNoticeInput(input) {
+  input.style.height = 'auto';
+  input.style.height = `${input.scrollHeight + 2}px`; // + the 1px borders (border-box)
+}
+
+// The notice's width follows the window, so its wrapping (and height) does too.
+window.addEventListener('resize', () => {
+  document.querySelectorAll('textarea.faelles-notice-input').forEach(faellesFitNoticeInput);
+});
 
 // ── Boss Box (boss/admin settings above the sheet) ───────────
 // Collapsed on every page load; kept in memory only, so it stays open across
