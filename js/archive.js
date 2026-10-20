@@ -191,10 +191,22 @@ const GITHUB_ARCHIVE_BASE = 'https://github.com/carljarner/matrevy/tree/main/arc
 // renderManusPdfLinksSection: boss/admin always see it, revyster only once
 // it's on. Earlier years are always visible. Reads the config shadow Manus
 // writes, so flipping the toggle shows here in that browser right away.
-// Cosmetic, like every read gate on this site.
+// Cosmetic, like every read gate on this site. While "Revyster kan se
+// roller" is off too, revyster get the redacted copy (archiveManusLink).
+function archiveConfig() {
+  return Object.assign({}, (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {}), siteLoadOverride('config') || {});
+}
+
+function archiveManusLink(entry) {
+  if (archiveManusHidden(entry)) return '';
+  const config = archiveConfig();
+  if (siteHasLevel('boss') || entry.folder !== config.currentProductionFolder || config.rolesVisibleToRevyst) return entry.manusPdf;
+  return entry.manusPdf ? `archive/${entry.folder}/anonym/manus.pdf` : '';
+}
+
 function archiveManusHidden(entry) {
   if (siteHasLevel('boss')) return false;
-  const config = Object.assign({}, (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {}), siteLoadOverride('config') || {});
+  const config = archiveConfig();
   if (!config.currentProductionFolder || entry.folder !== config.currentProductionFolder) return false;
   return !config.pdfLinksVisibleToRevyst;
 }
@@ -208,7 +220,7 @@ function buildActionRow(entry) {
 
   const media = document.createElement('div');
   media.className = 'arkiv-action-row';
-  media.appendChild(buildActionButton(archiveManusHidden(entry) ? '' : entry.manusPdf, 'Manus', buildPdfIcon()));
+  media.appendChild(buildActionButton(archiveManusLink(entry), 'Manus', buildPdfIcon()));
   media.appendChild(buildActionButton(entry.youtubeUrl, 'YouTube', buildPlayIcon(), 'arkiv-action-youtube'));
   media.appendChild(buildActionButton(entry.spotifyUrl, 'Spotify', buildSpotifyIcon(), 'arkiv-action-spotify'));
   wrap.appendChild(media);

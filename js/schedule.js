@@ -561,8 +561,9 @@ function hasSavedPlacements() {
   }
 }
 
-// Revyster only get the scenes once Manus's "Revyster kan se manus" toggle
-// (config.pdfLinksVisibleToRevyst) is on; boss/admin always do. Cosmetic
+// Revyster only get the scenes once Manus's "Revyster kan se manus" and
+// "Revyster kan se roller" toggles (config.pdfLinksVisibleToRevyst,
+// config.rolesVisibleToRevyst) are both on; boss/admin always do. Cosmetic
 // like every read gate on this site. Reads the same config shadow Manus
 // writes, so flipping the toggle shows here in that browser right away.
 // The cast roster stays (Rekvisitten, Fravær, "Andre revyster").
@@ -570,13 +571,14 @@ let schedManusHidden = false;
 function schedManusVisible() {
   if (siteHasLevel('boss')) return true;
   const config = schedLoadOverride('config') || (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {});
-  return !!config.pdfLinksVisibleToRevyst;
+  return !!config.pdfLinksVisibleToRevyst && !!config.rolesVisibleToRevyst;
 }
 
 function schedManusHiddenNote() {
+  const config = schedLoadOverride('config') || (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {});
   const note = document.createElement('div');
   note.className = 'scene-hidden-note';
-  note.textContent = 'Manus er ikke frigivet endnu.';
+  note.textContent = config.pdfLinksVisibleToRevyst ? 'Rollerne er ikke frigivet endnu.' : 'Manus er ikke frigivet endnu.';
   return note;
 }
 

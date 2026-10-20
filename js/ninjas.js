@@ -272,13 +272,17 @@ async function ninjasLoadSnapshot(folder) {
   ninjasSnapshots.set(folder, scenes);
 }
 
-// Below boss nothing is listed until Manus's "Revyster kan se manus" is
-// on — same (cosmetic) gate as Øveplan's schedManusVisible(). An older
-// year is always shown.
+function ninjasConfig() {
+  return siteLoadOverride('config') || (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {});
+}
+
+// Below boss nothing is listed until Manus's "Revyster kan se manus" and
+// "Revyster kan se roller" are on — same (cosmetic) gate as Øveplan's
+// schedManusVisible(). An older year is always shown.
 function ninjasManusVisible() {
   if (siteHasLevel('boss') || !ninjasIsCurrentFolder()) return true;
-  const config = siteLoadOverride('config') || (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {});
-  return !!config.pdfLinksVisibleToRevyst;
+  const config = ninjasConfig();
+  return !!config.pdfLinksVisibleToRevyst && !!config.rolesVisibleToRevyst;
 }
 
 // A fresh Manus save in this browser wins over the embed (as on Øveplan).
@@ -448,7 +452,7 @@ function ninjasRender() {
     card.appendChild(el('p', 'ninjas-muted', 'Ninjaplanen kommer snart.'));
     root.appendChild(card);
   } else if (!ninjasManusVisible()) {
-    root.appendChild(ninjasMessageCard('Manus er ikke frigivet endnu.'));
+    root.appendChild(ninjasMessageCard(ninjasConfig().pdfLinksVisibleToRevyst ? 'Rollerne er ikke frigivet endnu.' : 'Manus er ikke frigivet endnu.'));
   } else if (ninjasDoc) {
     const groups = ninjasBuildGroups();
     if (!groups.length) {

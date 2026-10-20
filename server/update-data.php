@@ -236,16 +236,16 @@ if (isset($FORMS_ACTIONS[$action])) {
 // ── Fællesspisning actions (private datastore) ──
 // Communal-meal rehearsal-day sign-up sheet — same privacy posture as
 // Budget/Forms above (never the public repo, since rows carry names/food
-// preferences). A single shared document, fully open at the revyst tier
-// (any logged-in cast/crew member can add/edit/delete any row, like a
-// plain shared spreadsheet) — managing day columns is boss-gated;
+// preferences). A single shared document: any logged-in cast/crew member
+// can edit any existing row; adding/deleting rows and managing day columns
+// is boss-gated (rows normally arrive through the connected form);
 // connecting a Formularer form is admin-only (not even visible to boss —
 // see faellesRender's own siteHasLevel('admin') check in
 // faellesspisning.js).
 $FAELLES_ACTIONS = [
   'faelles_read'            => 'revyst', // {rows, connection, extraDays, hiddenDays, updatedAt} — also lazily syncs a connected form
-  'faelles_upsert_row'      => 'revyst', // create (no rowId) or update (rowId given) one row
-  'faelles_delete_row'      => 'revyst', // idempotent — ok even if already gone
+  'faelles_upsert_row'      => 'revyst', // create (no rowId, boss only) or update (rowId given) one row
+  'faelles_delete_row'      => 'boss',   // idempotent — ok even if already gone
   'faelles_save_connection' => 'boss',   // connect (formId given) or disconnect (formId: null) a Formularer form
   'faelles_set_attendance_mode' => 'boss', // 'out' (new rows auto-signed-up) or 'in' (new rows start unchecked) — only rows created afterwards
   'faelles_set_notice'      => 'boss',   // the two short lines shown centered above the sheet ('' = none)
@@ -256,6 +256,11 @@ $FAELLES_ACTIONS = [
 ];
 if (isset($FAELLES_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FAELLES_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  // Creating a row (no rowId) is boss-only; a revyst only edits existing rows.
+  if ($action === 'faelles_upsert_row' && ($body['rowId'] ?? null) === null
+      && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
   handle_faelles($action, $body);
@@ -617,7 +622,8 @@ function github_api($method, $path, $payload = null) {
       touch($root . '/.archive-sync-requested');
     }
     // config.json decides what the GitHub mirror shows of the current
-    // production (pdfLinksVisibleToRevyst, currentProductionFolder), so sync
+    // production (pdfLinksVisibleToRevyst, rolesVisibleToRevyst,
+    // currentProductionFolder), so sync
     // now: a backdated flag counts as already quiet in worker.sh.
     if ($rel === 'data/config.json') {
       touch($root . '/.archive-sync-requested', time() - 86400);
@@ -3738,9 +3744,10 @@ function faelles_read($body) {
   respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
-// Revyst: create (no rowId) or update (rowId given) one row from an
-// ordinary grid edit. `answers` is merged onto the existing row's answers
-// (only overwriting keys actually sent), `dayOverrides` is a full replace —
+// Create (no rowId; boss, checked at dispatch) or update (rowId given;
+// revyst) one row from an ordinary grid edit. `answers` is merged onto the
+// existing row's answers (only overwriting keys actually sent),
+// `dayOverrides` is a full replace —
 // a checkbox handler always has the complete current override map on hand,
 // so that's safe. A row created/refreshed by a connected form goes through
 // faelles_sync_connection() instead, which writes rows directly (see
@@ -3792,8 +3799,7 @@ function faelles_upsert_row($body) {
   respond(200, ['ok' => true, 'row' => $savedRow, 'updatedAt' => $doc['updatedAt']]);
 }
 
-// Revyst, fully open (any row, not just one's own — matches the "plain
-// shared spreadsheet" model). Idempotent: still {ok:true} if already gone,
+// Boss (any row). Idempotent: still {ok:true} if already gone,
 // since two people deleting the same stale row is a realistic race here.
 function faelles_delete_row($body) {
   $rowId = $body['rowId'] ?? '';
@@ -7922,6 +7928,15 @@ function save_config($payload) {
   if ($hasPdfFlag && !is_bool($pdfFlag)) {
     respond(400, ['error' => 'invalid_shape']);
   }
+  // rolesVisibleToRevyst: Manus's "Revyster kan se roller". Only counts while
+  // pdfLinksVisibleToRevyst is on too; until then revyster get redacted roles
+  // (\role{A}[navn]) and no cast (Øveplan, Ninjas, Rollefordeling, the GitHub
+  // mirror's anonym/ view in server/worker.sh).
+  $hasRolesFlag = array_key_exists('rolesVisibleToRevyst', $payload);
+  $rolesFlag = $payload['rolesVisibleToRevyst'] ?? false;
+  if ($hasRolesFlag && !is_bool($rolesFlag)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
   $hasUploadsClosedFlag = array_key_exists('uploadsClosedForRevyst', $payload);
   $uploadsClosedFlag = $payload['uploadsClosedForRevyst'] ?? false;
   if ($hasUploadsClosedFlag && !is_bool($uploadsClosedFlag)) {
@@ -7947,7 +7962,7 @@ function save_config($payload) {
   if ($hasTeknikFlag && !is_bool($teknikFlag)) {
     respond(400, ['error' => 'invalid_shape']);
   }
-  if (!$hasFolder && !$hasPdfFlag && !$hasUploadsClosedFlag && !$typeFlags && !$readyFlags && !$hasTeknikFlag) {
+  if (!$hasFolder && !$hasPdfFlag && !$hasRolesFlag && !$hasUploadsClosedFlag && !$typeFlags && !$readyFlags && !$hasTeknikFlag) {
     respond(400, ['error' => 'invalid_shape']);
   }
   // While no revy is active (after "Afslut revyen", before "Start ny revy")
@@ -7955,14 +7970,16 @@ function save_config($payload) {
   $activeAfter = $hasFolder ? $folder !== '' : manus_current_production_folder() !== null;
   if (!$activeAfter) {
     $turnsOn = ($hasPdfFlag && $pdfFlag)
+      || ($hasRolesFlag && $rolesFlag)
       || ($hasUploadsClosedFlag && !$uploadsClosedFlag)
       || in_array(false, $typeFlags, true)
       || ($hasTeknikFlag && !$teknikFlag);
     if ($turnsOn) respond(409, ['error' => 'no_production']);
   }
-  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasUploadsClosedFlag, $uploadsClosedFlag, $typeFlags, $readyFlags, $hasTeknikFlag, $teknikFlag) {
+  update_file('data/config.json', function ($json) use ($hasFolder, $folder, $hasPdfFlag, $pdfFlag, $hasRolesFlag, $rolesFlag, $hasUploadsClosedFlag, $uploadsClosedFlag, $typeFlags, $readyFlags, $hasTeknikFlag, $teknikFlag) {
     if ($hasFolder) $json['currentProductionFolder'] = $folder;
     if ($hasPdfFlag) $json['pdfLinksVisibleToRevyst'] = $pdfFlag;
+    if ($hasRolesFlag) $json['rolesVisibleToRevyst'] = $rolesFlag;
     if ($hasUploadsClosedFlag) $json['uploadsClosedForRevyst'] = $uploadsClosedFlag;
     foreach ($typeFlags as $key => $flag) $json[$key] = $flag;
     foreach ($readyFlags as $key => $flag) $json[$key] = $flag;

@@ -479,7 +479,9 @@ function faellesBuildBossBox(root) {
 
 function faellesBuildTable(root) {
   const columns = faellesRehearsalColumns();
-  const showAddDate = typeof siteHasLevel === 'function' && siteHasLevel('boss');
+  // Boss/admin only: adding/removing rows and day columns, resizing. A
+  // revyst only edits existing rows (rows come in through the connected form).
+  const canManage = typeof siteHasLevel === 'function' && siteHasLevel('boss');
 
   const table = el('table', 'faelles-table');
   faellesApplyColumnWidths(table);
@@ -489,7 +491,7 @@ function faellesBuildTable(root) {
   for (const f of FAELLES_FIELDS) {
     const th = el('th', `faelles-col-field faelles-col-${f.id}`);
     th.appendChild(el('div', 'faelles-clip', f.label));
-    if (showAddDate) th.appendChild(faellesColumnResizer(f, th, table));
+    if (canManage) th.appendChild(faellesColumnResizer(f, th, table));
     headRow.appendChild(th);
   }
   for (const col of columns) {
@@ -500,14 +502,14 @@ function faellesBuildTable(root) {
     }
     headRow.appendChild(th);
   }
-  if (showAddDate) {
+  if (canManage) {
     const addDateTh = el('th', 'faelles-col-day');
     const addDateBtn = faellesAddPlusBtn('Tilføj dato');
     addDateBtn.addEventListener('click', () => faellesOpenQuickAddDateModal(root));
     addDateTh.appendChild(addDateBtn);
     headRow.appendChild(addDateTh);
   }
-  headRow.appendChild(el('th', '', ''));
+  if (canManage) headRow.appendChild(el('th', '', ''));
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -517,7 +519,7 @@ function faellesBuildTable(root) {
   const sortedRows = faellesState.rows.slice()
     .sort((a, b) => (a.answers.navn || '').localeCompare(b.answers.navn || '', 'da', { sensitivity: 'base' }));
   for (const row of sortedRows) {
-    tbody.appendChild(faellesRenderRow(row, columns, showAddDate));
+    tbody.appendChild(faellesRenderRow(row, columns, canManage));
   }
   // Bottom row: "Tilføj række" (under the Navn/Madforbehold columns) plus
   // one "✕" per day column, at the same row — every day column is
@@ -533,7 +535,7 @@ function faellesBuildTable(root) {
   const addBtn = faellesAddPlusBtn('Tilføj række');
   addBtn.addEventListener('click', () => {
     const draft = { id: null, answers: { navn: '', madforbehold: '' }, dayOverrides: {} };
-    const tr = faellesRenderRow(draft, columns, showAddDate);
+    const tr = faellesRenderRow(draft, columns, canManage);
     tbody.insertBefore(tr, addRow);
     const firstInput = tr.querySelector('input[type="text"]');
     if (firstInput) firstInput.focus();
@@ -544,7 +546,7 @@ function faellesBuildTable(root) {
 
   for (const col of columns) {
     const td = el('td', 'faelles-col-day');
-    if (showAddDate) {
+    if (canManage) {
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'faelles-col-day-remove';
@@ -556,13 +558,13 @@ function faellesBuildTable(root) {
     }
     addRow.appendChild(td);
   }
-  if (showAddDate) addRow.appendChild(el('td')); // filler under the header's add-date "+" column
+  addRow.appendChild(el('td')); // filler under the header's add-date "+" column
   addRow.appendChild(el('td')); // filler under the trailing per-row remove column
 
-  tbody.appendChild(addRow);
+  if (canManage) tbody.appendChild(addRow);
   table.appendChild(tbody);
 
-  const summary = faellesBuildSummaryBody(columns, showAddDate);
+  const summary = faellesBuildSummaryBody(columns, canManage);
   table.appendChild(summary);
 
   return table;
@@ -633,7 +635,7 @@ async function faellesSaveColumnWidths() {
   if (!result.ok && result.message) siteShowToast(result.message);
 }
 
-function faellesRenderRow(row, columns, showAddDate) {
+function faellesRenderRow(row, columns, canManage) {
   const tr = el('tr');
 
   for (const f of FAELLES_FIELDS) {
@@ -677,15 +679,16 @@ function faellesRenderRow(row, columns, showAddDate) {
     tr.appendChild(td);
   }
 
-  if (showAddDate) tr.appendChild(el('td')); // filler under the header's "+" add-date column
-
-  const removeTd = el('td');
-  const removeBtn = el('button', 'faelles-remove-btn', '✕');
-  removeBtn.type = 'button';
-  removeBtn.title = 'Fjern række';
-  removeBtn.addEventListener('click', () => faellesDeleteRow(row, tr));
-  removeTd.appendChild(removeBtn);
-  tr.appendChild(removeTd);
+  if (canManage) {
+    tr.appendChild(el('td')); // filler under the header's "+" add-date column
+    const removeTd = el('td');
+    const removeBtn = el('button', 'faelles-remove-btn', '✕');
+    removeBtn.type = 'button';
+    removeBtn.title = 'Fjern række';
+    removeBtn.addEventListener('click', () => faellesDeleteRow(row, tr));
+    removeTd.appendChild(removeBtn);
+    tr.appendChild(removeTd);
+  }
 
   return tr;
 }
@@ -791,17 +794,17 @@ function faellesRefreshSummary(tr) {
     if (countEl) countEl.textContent = `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`;
   }
   if (!table) return;
-  const showAddDate = typeof siteHasLevel === 'function' && siteHasLevel('boss');
+  const canManage = typeof siteHasLevel === 'function' && siteHasLevel('boss');
   const oldSummary = table.querySelector('tbody.faelles-summary');
-  const newSummary = faellesBuildSummaryBody(faellesRehearsalColumns(), showAddDate);
+  const newSummary = faellesBuildSummaryBody(faellesRehearsalColumns(), canManage);
   if (oldSummary) oldSummary.replaceWith(newSummary);
   else table.appendChild(newSummary);
 }
 
 // Computed client-side from faellesState.rows — no server round-trip.
-function faellesBuildSummaryBody(columns, showAddDate) {
+function faellesBuildSummaryBody(columns, canManage) {
   const tbody = el('tbody', 'faelles-summary');
-  const trailingCols = (showAddDate ? 1 : 0) + 1; // add-date filler + remove-column filler
+  const trailingCols = canManage ? 2 : 0; // add-date filler + remove-column filler
 
   const countRow = el('tr');
   const countLabel = el('th');

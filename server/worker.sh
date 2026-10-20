@@ -41,6 +41,20 @@ archive_sync_setup_ssh() {
   export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/archive_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
 }
 
+# Replaces the name in every \role{<code>}[<name>] of every .tex under $1
+# with "navn" (scripts/generate-pdfs.js's REDACTED_ROLE_NAME), so a
+# restricted view of the GitHub mirror never shows who plays what.
+redact_tex() {
+  find "$1" -type f -name '*.tex' -print0 | xargs -0 -r node -e '
+    const fs = require("fs");
+    for (const file of process.argv.slice(1)) {
+      const text = fs.readFileSync(file, "utf8");
+      const next = text.replace(/(\\role\{[^}]*\})\[[^\]]*\]/g, "$1[navn]");
+      if (next !== text) fs.writeFileSync(file, next);
+    }
+  '
+}
+
 archive_sync() {
   local repo=$ARCHIVE_GIT
   if [ ! -d "$repo/.git" ]; then
@@ -51,21 +65,31 @@ archive_sync() {
   git -C "$repo" config user.name 'MatRevy arkiv'
   git -C "$repo" config user.email 'noreply@matematikrevy.dk'
 
-  # Until Manus's "Revyster kan se manus" (config.pdfLinksVisibleToRevyst) is
-  # on, the current production is mirrored as a "hidden" view: every scene in
-  # submitted/ (selected ones copied back from sketches/ and songs/ as their
-  # current server version) and none of the generated PDFs (top-level *.pdf,
-  # manuskripter/). Turning it on makes the next sync a plain full mirror,
-  # which removes the copies again; update-data.php makes a config write sync
-  # right away instead of after the quiet period.
-  local hidden_folder
-  hidden_folder=$(node -e '
+  # The current production is mirrored in one of three views, from Manus's
+  # two toggles (update-data.php makes a config write sync right away):
+  # - hidden (manus off): every scene in submitted/ (selected ones copied
+  #   back from sketches/ and songs/ as their current server version) and
+  #   none of the generated PDFs (top-level *.pdf, manuskripter/).
+  # - redacted (manus on, roles off, config.rolesVisibleToRevyst): the full
+  #   folder, but sketches/, songs/ and manus.pdf come from the anonym/
+  #   copies scripts/generate-pdfs.js builds (names read "navn"), and
+  #   manuskripter/ and Rolleoversigt.pdf are left out.
+  # - full (both on): a plain mirror.
+  # Both restricted views are rebuilt from scratch and every .tex in them
+  # goes through redact_tex, so nothing an earlier sync pushed lingers.
+  # anonym/ itself is never mirrored.
+  local view_mode hidden_folder
+  view_mode=$(node -e '
     try {
       const c = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
       const f = typeof c.currentProductionFolder === "string" ? c.currentProductionFolder : "";
-      if (/^[A-Za-z0-9_-]+$/.test(f) && !c.pdfLinksVisibleToRevyst) process.stdout.write(f);
+      if (!/^[A-Za-z0-9_-]+$/.test(f)) process.exit(0);
+      if (!c.pdfLinksVisibleToRevyst) process.stdout.write("hidden " + f);
+      else if (!c.rolesVisibleToRevyst) process.stdout.write("redacted " + f);
     } catch (e) {}
   ' "$SITE/data/config.json")
+  hidden_folder=${view_mode#* }
+  view_mode=${view_mode%% *}
 
   local attempt message
   for attempt in 1 2; do
@@ -73,29 +97,42 @@ archive_sync() {
     git -C "$repo" reset -q --hard origin/main || return 1
     # README.md is repo-managed (excluded files are never deleted); *.tmp-*
     # are update-data.php's in-flight atomic writes.
-    if [ -z "$hidden_folder" ]; then
+    if [ -z "$view_mode" ]; then
       rsync -a --delete --exclude '/README.md' --exclude '*.tmp-*' --exclude '.DS_Store' \
-        "$SITE/archive/" "$repo/archive/" || return 1
+        --exclude '/*/anonym/' "$SITE/archive/" "$repo/archive/" || return 1
       message='Arkiv: synkroniseret fra matematikrevy.dk [skip ci]'
     else
       # Every other year as usual; an excluded folder is left alone by --delete.
       rsync -a --delete --exclude '/README.md' --exclude '*.tmp-*' --exclude '.DS_Store' \
-        --exclude "/$hidden_folder/" "$SITE/archive/" "$repo/archive/" || return 1
-      # Rebuilt from scratch, so whatever an earlier published sync pushed
-      # (sketches/, songs/, PDFs) goes away.
+        --exclude '/*/anonym/' --exclude "/$hidden_folder/" "$SITE/archive/" "$repo/archive/" || return 1
       local view="$repo/archive/$hidden_folder" src="$SITE/archive/$hidden_folder" dir
       rm -rf "$view"
-      if [ -d "$src" ]; then
+      if [ -d "$src" ] && [ "$view_mode" = hidden ]; then
         rsync -a --exclude '*.tmp-*' --exclude '.DS_Store' \
-          --exclude '/sketches/' --exclude '/songs/' --exclude '/manuskripter/' --exclude '/*.pdf' \
+          --exclude '/sketches/' --exclude '/songs/' --exclude '/manuskripter/' --exclude '/anonym/' --exclude '/*.pdf' \
           "$src/" "$view/" || return 1
         for dir in sketches songs; do
           [ -d "$src/$dir" ] || continue
           mkdir -p "$view/submitted" || return 1
           rsync -a --exclude '*.tmp-*' --exclude '.DS_Store' "$src/$dir/" "$view/submitted/" || return 1
         done
+        message='Arkiv: synkroniseret fra matematikrevy.dk (manus skjult) [skip ci]'
+      elif [ -d "$src" ]; then
+        rsync -a --exclude '*.tmp-*' --exclude '.DS_Store' \
+          --exclude '/sketches/' --exclude '/songs/' --exclude '/manuskripter/' --exclude '/anonym/' \
+          --exclude '/manus.pdf' --exclude '/Rolleoversigt.pdf' \
+          "$src/" "$view/" || return 1
+        for dir in sketches songs; do
+          [ -d "$src/anonym/$dir" ] || continue
+          mkdir -p "$view/$dir" || return 1
+          rsync -a --exclude '*.tmp-*' --exclude '.DS_Store' "$src/anonym/$dir/" "$view/$dir/" || return 1
+        done
+        [ -f "$src/anonym/manus.pdf" ] && { cp "$src/anonym/manus.pdf" "$view/manus.pdf" || return 1; }
+        message='Arkiv: synkroniseret fra matematikrevy.dk (roller skjult) [skip ci]'
+      else
+        message='Arkiv: synkroniseret fra matematikrevy.dk [skip ci]'
       fi
-      message='Arkiv: synkroniseret fra matematikrevy.dk (manus skjult) [skip ci]'
+      [ -d "$view" ] && { redact_tex "$view" || return 1; }
     fi
     git -C "$repo" add -A archive || return 1
     if git -C "$repo" diff --cached --quiet; then

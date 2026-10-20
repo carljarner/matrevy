@@ -264,6 +264,17 @@ function getEffectiveConfig() {
   return Object.assign({}, (typeof CONFIG_DATA !== 'undefined' ? CONFIG_DATA : {}), configOverride);
 }
 
+// "Revyster kan se roller" only counts while "Revyster kan se manus" is on
+// (turning manus off turns it off too). Until then a revyst gets the
+// redacted anonym/manus.pdf (names read "navn") and no Rollefordeling or
+// personal manuskripter. Boss/admin always see everything. Cosmetic, like
+// every read gate on this site.
+function manusRolesVisibleToRevyst() {
+  if (siteHasLevel('boss')) return true;
+  const config = getEffectiveConfig();
+  return !!config.pdfLinksVisibleToRevyst && !!config.rolesVisibleToRevyst;
+}
+
 // Sketches and songs close for revyst uploads independently. Mirrors
 // update-data.php's manus_uploads_closed_for_revyst(): each per-type key
 // falls back to the legacy single uploadsClosedForRevyst flag when absent.
@@ -7382,9 +7393,10 @@ function renderManusPdfLinksSection() {
   const linkRow = document.createElement('div');
   linkRow.className = 'manus-pdf-links-row';
 
+  const rolesVisible = manusRolesVisibleToRevyst();
   const files = [
     ['Aktfordeling', 'Aktoversigt.pdf'],
-    ['Rollefordeling', 'Rolleoversigt.pdf'],
+    ...(rolesVisible ? [['Rollefordeling', 'Rolleoversigt.pdf']] : []),
   ];
   for (const [label, filename] of files) {
     const btn = document.createElement('button');
@@ -7455,6 +7467,10 @@ function renderManusPdfLinksSection() {
     // generate-pdfs.js only writes a manuscript for someone cast in at
     // least one scene with a script (and Sangboss only when there's a song),
     // deleting the rest — so only those are offered (manusScenesWithPdf).
+    if (!rolesVisible) {
+      siteOpenDropdownPicker(manusBtn, [{ value: 'anonym/manus.pdf', label: 'Manus (uden navne)' }], null, openFile);
+      return;
+    }
     const pdfScenes = manusScenesWithPdf();
     const names = getEffectiveCastData()
       .filter((c) => !castIsPlaceholder(c))
@@ -7668,9 +7684,30 @@ function renderAdminSettings() {
     locked,
     confirm: manusConfirmPublish,
     onChange: async (next) => {
-      const res = await siteSaveResource('config', { pdfLinksVisibleToRevyst: next });
+      // Hiding the manus hides the roles too, so turning it back on later
+      // never reveals the names along with it.
+      const flags = next ? { pdfLinksVisibleToRevyst: true } : { pdfLinksVisibleToRevyst: false, rolesVisibleToRevyst: false };
+      const res = await siteSaveResource('config', flags);
       if (res.ok) {
-        configOverride = Object.assign({}, configOverride, { pdfLinksVisibleToRevyst: next });
+        configOverride = Object.assign({}, configOverride, flags);
+        siteSaveOverride('config', configOverride);
+        renderAdminSettings();
+      }
+      return res;
+    },
+    savedText: 'Gemt',
+  });
+
+  renderAdminToggleColumn(columns, {
+    id: 'manus-roles-toggle',
+    label: 'Revyster kan se roller',
+    checked: !!getEffectiveConfig().rolesVisibleToRevyst,
+    locked: locked || !getEffectiveConfig().pdfLinksVisibleToRevyst,
+    confirm: manusConfirmPublishRoles,
+    onChange: async (next) => {
+      const res = await siteSaveResource('config', { rolesVisibleToRevyst: next });
+      if (res.ok) {
+        configOverride = Object.assign({}, configOverride, { rolesVisibleToRevyst: next });
         siteSaveOverride('config', configOverride);
       }
       return res;
@@ -7681,13 +7718,34 @@ function renderAdminSettings() {
   section.appendChild(columns);
 }
 
-// "Revyster kan se manus" publishes more than the PDF links: Øveplan's
-// scenes, Arkiv's Manus pill and the GitHub mirror's view of the current
-// production (server/worker.sh) all follow it, so either direction asks.
+// "Revyster kan se manus" publishes more than the PDF links: Arkiv's Manus
+// pill and the GitHub mirror's view of the current production
+// (server/worker.sh) follow it, and with "Revyster kan se roller" Øveplan's
+// and Ninjas' scenes too, so either direction of either toggle asks.
 function manusConfirmPublish(next) {
+  return manusConfirmToggle(next, {
+    title: next ? 'Offentliggør manus?' : 'Skjul manus?',
+    text: next
+      ? "Dette vil opdatere GitHub og gøre manus-PDF'erne tilgængelige gennem revyst-login. Navnene i rollerne forbliver skjult, indtil \"Revyster kan se roller\" også slås til."
+      : "Dette vil opdatere GitHub, skjule manus-PDF'erne for revyster igen og slå \"Revyster kan se roller\" fra.",
+    confirmText: next ? 'Offentliggør' : 'Skjul',
+  });
+}
+
+function manusConfirmPublishRoles(next) {
+  return manusConfirmToggle(next, {
+    title: next ? 'Offentliggør roller?' : 'Skjul roller?',
+    text: next
+      ? 'Dette vil opdatere GitHub med navnene i rollerne og gøre Rollefordeling, de personlige manuskripter, øveplanen og Ninjas tilgængelige gennem revyst-login.'
+      : 'Dette vil opdatere GitHub, så navnene i rollerne står som "navn", og skjule Rollefordeling, de personlige manuskripter, øveplanen og Ninjas for revyster igen.',
+    confirmText: next ? 'Offentliggør' : 'Skjul',
+  });
+}
+
+function manusConfirmToggle(next, { title, text, confirmText }) {
   return new Promise((resolve) => {
     let answered = false;
-    const { form, actions, close } = siteOpenModalWithClose(next ? 'Offentliggør manus?' : 'Skjul manus?');
+    const { form, actions, close } = siteOpenModalWithClose(title);
     function finish(value) {
       if (answered) return;
       answered = true;
@@ -7696,9 +7754,7 @@ function manusConfirmPublish(next) {
     }
 
     const info = document.createElement('p');
-    info.textContent = next
-      ? "Dette vil opdatere GitHub, øveplanen og gøre manus-PDF'erne tilgængelige gennem revyst-login."
-      : "Dette vil opdatere GitHub, øveplanen og skjule manus-PDF'erne for revyster igen.";
+    info.textContent = text;
     form.appendChild(info);
 
     const cancelBtn = document.createElement('button');
@@ -7710,7 +7766,7 @@ function manusConfirmPublish(next) {
     const confirmBtn = document.createElement('button');
     confirmBtn.type = 'button';
     confirmBtn.className = next ? 'site-btn-success' : 'site-btn-danger';
-    confirmBtn.textContent = next ? 'Offentliggør' : 'Skjul';
+    confirmBtn.textContent = confirmText;
     confirmBtn.addEventListener('click', () => finish(true));
 
     actions.appendChild(cancelBtn);

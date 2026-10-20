@@ -157,6 +157,13 @@ function deriveSourcePdfPath(scene, currentFolder) {
 // this same path, overwriting whatever was originally submitted there, so
 // archive/<folder>/{sketches,songs}/ always reflects the truly final text
 // rather than the as-submitted draft.
+// The redacted twin of a scene's PDF/.tex (deriveSourcePdfPath/
+// deriveSourceTexPath): same file name under archive/<folder>/anonym/.
+function anonymPath(realRel, scene, currentFolder) {
+  const folder = isSongScene(scene) ? 'songs' : 'sketches';
+  return `archive/${currentFolder}/anonym/${folder}/${path.basename(realRel)}`;
+}
+
 function deriveSourceTexPath(scene, currentFolder) {
   if (scene.sourceTex) return scene.sourceTex;
   const folder = isSongScene(scene) ? 'songs' : 'sketches';
@@ -212,17 +219,21 @@ function sceneCastLabels(scene) {
   }));
 }
 
-function buildRolesBlock(scene) {
+// While Manus's "Revyster kan se roller" is off, revyster (and the GitHub
+// mirror) get the anonym/ copies, where every name reads like this.
+const REDACTED_ROLE_NAME = 'navn';
+
+function buildRolesBlock(scene, redact = false) {
   const labeled = sceneCastLabels(scene);
   if (!labeled.length) return '';
-  const lines = labeled.map((e) => `\\role{${texEscape(e.label)}}[${texEscape(e.name)}] ${texEscape(e.description)}`);
+  const lines = labeled.map((e) => `\\role{${texEscape(e.label)}}[${redact ? REDACTED_ROLE_NAME : texEscape(e.name)}] ${texEscape(e.description)}`);
   return `\\begin{roles}\n${lines.join('\n')}\n\\end{roles}\n\n`;
 }
 
 // amsmath/amssymb are loaded unconditionally: this is a math student revue,
 // so scriptBody routinely contains real math notation (e.g. \mathbb{R}) that
 // plain LaTeX has no macro for.
-function buildSceneTex(scene, prodMeta) {
+function buildSceneTex(scene, prodMeta, redact = false) {
   const envName = isSongScene(scene) ? 'song' : 'sketch';
 
   let preamble = '';
@@ -262,7 +273,7 @@ ${preamble}
 \\maketitle
 
 % matrevy:part=roller
-${buildRolesBlock(scene)}\\begin{${envName}}
+${buildRolesBlock(scene, redact)}\\begin{${envName}}
 % matrevy:part=manus
 ${scene.scriptBody}
 \\end{${envName}}
@@ -1158,6 +1169,23 @@ function removeStaleManuskripts(currentFolder, written) {
   }
 }
 
+// Deletes every file under anonym/ this run didn't write (scenes since
+// removed or renamed).
+function removeStaleAnonym(currentFolder, written) {
+  const walk = (dir) => {
+    if (!fs.existsSync(dir)) return;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(abs);
+      else if (!written.has(abs)) {
+        console.log(`  Removing stale anonym/${path.relative(root(`archive/${currentFolder}/anonym`), abs)}`);
+        fs.unlinkSync(abs);
+      }
+    }
+  };
+  walk(root(`archive/${currentFolder}/anonym`));
+}
+
 // ── Sangboss: a fixed pseudo-person, not a cast.json roster entry, whose
 // manuscript is every song scene regardless of cast — used by whoever is
 // responsible for the singers, not for a specific actor's own scenes.
@@ -1243,7 +1271,15 @@ async function main() {
   // into every scene's \version{} line via buildSceneTex) is re-stamped to
   // today's date on every manus save, so this cache only holds within the
   // same day — acceptable, since same-day re-generates are the common case.
+  //
+  // Every scene is also built redacted (buildSceneTex's `redact`, names
+  // read "navn") into archive/<folder>/anonym/, for revyster and the GitHub
+  // mirror while "Revyster kan se roller" is off. Built every run, whatever
+  // the toggle, so flipping it never needs a regeneration; the same cache
+  // applies, and a scene without roles just gets a copy of its real PDF.
   const scenePdfPaths = new Map();
+  const anonymPdfPaths = new Map();
+  const anonymWritten = new Set();
   for (const act of realActs) {
     for (const scene of act.scenes) {
       if (!hasScript(scene)) continue;
@@ -1275,6 +1311,44 @@ async function main() {
       // Persist the exact composed .tex that was just compiled (minus the
       // error-reporting markers) so the archived source matches the
       // archived PDF.
+      writeTextToRepo(tex, texRel);
+    }
+  }
+
+  // 1b) The redacted twins, for every scene whose real PDF exists.
+  for (const act of realActs) {
+    for (const scene of act.scenes) {
+      const realPdf = scenePdfPaths.get(scene.id);
+      if (!realPdf) continue;
+      const slug = slugify(scene.name) || scene.id;
+      const markedTex = buildSceneTex(scene, prodMeta, true);
+      const tex = stripMarkers(markedTex);
+      const pdfRel = anonymPath(deriveSourcePdfPath(scene, currentFolder), scene, currentFolder);
+      const texRel = anonymPath(deriveSourceTexPath(scene, currentFolder), scene, currentFolder);
+      const pdfAbs = root(pdfRel);
+      const texAbs = root(texRel);
+      anonymWritten.add(pdfAbs);
+      anonymWritten.add(texAbs);
+      const unchanged = fs.existsSync(pdfAbs) && fs.existsSync(texAbs)
+        && fs.readFileSync(texAbs, 'utf8') === tex;
+      if (unchanged) {
+        anonymPdfPaths.set(scene.id, pdfAbs);
+        continue;
+      }
+      if (buildRolesBlock(scene, true) === buildRolesBlock(scene)) {
+        // No names to hide: the real PDF is already the redacted one.
+        copyToRepo(realPdf, pdfRel);
+      } else {
+        console.log(`  Compiling scene "${scene.name}" (anonym)...`);
+        try {
+          copyToRepo(writeAndCompile(`anonym-${slug}`, `${slug}.tex`, markedTex), pdfRel);
+        } catch (err) {
+          console.error(`  FAILED: scene "${scene.name}" (anonym): ${err.message}`);
+          errors.push(buildErrorEntry(err, { document: 'scene', label: `${scene.name} (anonym)`, texSource: markedTex, scene, act }));
+          continue;
+        }
+      }
+      anonymPdfPaths.set(scene.id, pdfAbs);
       writeTextToRepo(tex, texRel);
     }
   }
@@ -1371,6 +1445,13 @@ async function main() {
   await buildManuskriptPdf(realActs, prodMeta, scenePdfPaths, root(`archive/${currentFolder}/manus.pdf`), {
     aktoversigtPdfPath: aktPdf,
   });
+  // Its redacted twin (Aktoversigt has no names).
+  const anonymManus = root(`archive/${currentFolder}/anonym/manus.pdf`);
+  await buildManuskriptPdf(realActs, prodMeta, anonymPdfPaths, anonymManus, {
+    aktoversigtPdfPath: aktPdf,
+  });
+  anonymWritten.add(anonymManus);
+  removeStaleAnonym(currentFolder, anonymWritten);
 
   // 6) One personalized manuscript per cast.json roster entry, plus the
   // fixed Sangboss manuscript (every song, regardless of cast).
