@@ -1,0 +1,1167 @@
+{
+  "production": "MatRevy 2010",
+  "generatedAt": "2026-10-21T07:57:29.763Z",
+  "backfilled": "manus.pdf Aktoversigt",
+  "acts": [
+    {
+      "act": "1",
+      "label": "Akt 1",
+      "scenes": [
+        {
+          "id": "1-1",
+          "uid": "id:1-1",
+          "number": 1,
+          "name": "Sorte Sække",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2010/other/SorteSaekke.tex"
+        },
+        {
+          "id": "1-2",
+          "uid": "id:1-2",
+          "number": 2,
+          "name": "Åbningssang 2010",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "melody": "Lady Gaga: \"Bad Romance\"",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2010/songs/Aabningssang2010.tex"
+        },
+        {
+          "id": "1-3",
+          "uid": "id:1-3",
+          "number": 3,
+          "name": "De nye unge russer - arbejdstitel",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "R1",
+              "description": "Rus 1, pige",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "R2",
+              "description": "Rus 2, dreng",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Æ1",
+              "description": "Ældre studerende 1, dreng",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Æ2",
+              "description": "Ældre studerende 2, dreng",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/DeNyeUngeRusser.tex"
+        },
+        {
+          "id": "1-4",
+          "uid": "id:1-4",
+          "number": 4,
+          "name": "Det græske alfabet",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Folkevise: \"Mester Jacob\"",
+          "duration": 1,
+          "sourceTex": "archive/MatRevy_2010/songs/DetGraeskeAlfabet.tex"
+        },
+        {
+          "id": "1-5",
+          "uid": "id:1-5",
+          "number": 5,
+          "name": "Inflation",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Mor",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "F",
+              "description": "Far",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "D",
+              "description": "Dreng",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Fortæller",
+              "description": "Fortæller",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2010/sketches/Inflation.tex"
+        },
+        {
+          "id": "1-6",
+          "uid": "id:1-6",
+          "number": 6,
+          "name": "Jeg er en lille Matemat",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Folkevise: \"Jeg er en lille undulat\"",
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/songs/JegErEnLilleMatemat.tex"
+        },
+        {
+          "id": "1-7",
+          "uid": "id:1-7",
+          "number": 7,
+          "name": "Sexy forelæsning",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 1.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/SexyForelaesning.tex"
+        },
+        {
+          "id": "1-8",
+          "uid": "id:1-8",
+          "number": 8,
+          "name": "Ernst Hansen",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S3",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S4",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Anden: \"Spørg om hjælp\"",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2010/songs/ErnstHansen.tex"
+        },
+        {
+          "id": "1-9",
+          "uid": "id:1-9",
+          "number": 9,
+          "name": "SU overlevelse",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "sourceTex": "archive/MatRevy_2010/sketches/SUoverlevelse.tex"
+        },
+        {
+          "id": "1-10",
+          "uid": "id:1-10",
+          "number": 10,
+          "name": "Licenssangen",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Fyr",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Licensmand",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Elvis Presley: \"Devil in Disguise\"",
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2010/songs/Licenssangen.tex"
+        },
+        {
+          "id": "1-11",
+          "uid": "id:1-11",
+          "number": 11,
+          "name": "Bare Rolig, jeg er læge",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/BareRolig1.tex"
+        },
+        {
+          "id": "1-12",
+          "uid": "id:1-12",
+          "number": 12,
+          "name": "Hvad er det matematiske dyr",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Roben og Knud: \"Darwins Sang \"",
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/songs/HEDMM1.tex"
+        },
+        {
+          "id": "1-13",
+          "uid": "id:1-13",
+          "number": 13,
+          "name": "Mathbusters",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Rolleindehaver",
+              "role": "Skuespil",
+              "roleCode": "H",
+              "description": "Hans",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rolleindehaver",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kurt",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rolleindehaver",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Sune",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rolleindehaver",
+              "role": "Skuespil",
+              "roleCode": "D",
+              "description": "Danser",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rolleindehaver",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Telegrambud",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2010/sketches/Mathbusters.tex"
+        },
+        {
+          "id": "1-14",
+          "uid": "id:1-14",
+          "number": 14,
+          "name": "Drik Mig Ned",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2010/other/DrikMigNed.tex"
+        },
+        {
+          "id": "1-15",
+          "uid": "id:1-15",
+          "number": 15,
+          "name": "Den Harmoniske Række",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "4 _k=0^n (-1)^k2k+1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Kor",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Andrew Lloyd Webber: \"Phantom of the Opera\"",
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2010/songs/DenHarmoniskeRaekke.tex"
+        }
+      ]
+    },
+    {
+      "act": "2",
+      "label": "Akt 2",
+      "scenes": [
+        {
+          "id": "2-1",
+          "uid": "id:2-1",
+          "number": 1,
+          "name": "Træsketchen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Elm",
+              "description": "Elm",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "TF",
+              "description": "Taks/Fjot",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/Traesketchen.tex"
+        },
+        {
+          "id": "2-2",
+          "uid": "id:2-2",
+          "number": 2,
+          "name": "Mat-Øk går mod succes",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Mat-Øk",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Kor",
+              "roleCode": "Kor",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            }
+          ],
+          "melody": "Rasmus Seebach: \"Engel\"",
+          "duration": 4.5,
+          "sourceTex": "archive/MatRevy_2010/songs/MatOekGaarModSucces.tex"
+        },
+        {
+          "id": "2-3",
+          "uid": "id:2-3",
+          "number": 3,
+          "name": "Bare Rolig, jeg er skilsmisseadvokat",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/BareRolig2.tex"
+        },
+        {
+          "id": "2-4",
+          "uid": "id:2-4",
+          "number": 4,
+          "name": "ESS-point",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "VO",
+              "description": "Voice-over",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "1",
+              "description": "Studerende 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "2",
+              "description": "Studerende 2",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "3",
+              "description": "Studerende 3",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "G",
+              "description": "Gert",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 5.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/ESSpoint.tex"
+        },
+        {
+          "id": "2-5",
+          "uid": "id:2-5",
+          "number": 5,
+          "name": "Operation Chi",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 5,
+          "sourceTex": "archive/MatRevy_2010/other/OperationChi.tex"
+        },
+        {
+          "id": "2-6",
+          "uid": "id:2-6",
+          "number": 6,
+          "name": "Lufthavnssikkerhed",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Manfred",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Sikkerhedsvagt (m/k)",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 4.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/Lufthavnssikkerhed.tex"
+        },
+        {
+          "id": "2-7",
+          "uid": "id:2-7",
+          "number": 7,
+          "name": "Fare for Nedfald",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/other/FareForNedfald.tex"
+        },
+        {
+          "id": "2-8",
+          "uid": "id:2-8",
+          "number": 8,
+          "name": "Det at være pige på matematik",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Tarzan: \"Fremmed som mig\"",
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2010/songs/Pigesangen.tex"
+        },
+        {
+          "id": "2-9",
+          "uid": "id:2-9",
+          "number": 9,
+          "name": "Bare Rolig, jeg er stripper",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/BareRolig3.tex"
+        },
+        {
+          "id": "2-10",
+          "uid": "id:2-10",
+          "number": 10,
+          "name": "Sølle",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "dreng",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "pige \\\\",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2010/sketches/Soelle.tex"
+        },
+        {
+          "id": "2-11",
+          "uid": "id:2-11",
+          "number": 11,
+          "name": "Hyldest til min Bimmer",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Mujaffa",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Kor",
+              "roleCode": "Kor",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            }
+          ],
+          "melody": "Anden: \"Jul på Vesterbro\"",
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2010/songs/HyldestTilMinBimmer.tex"
+        }
+      ]
+    },
+    {
+      "act": "3",
+      "label": "Akt 3",
+      "scenes": [
+        {
+          "id": "3-1",
+          "uid": "id:3-1",
+          "number": 1,
+          "name": "Kiks",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Pyrus: \"Cool Jul\"",
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2010/songs/Kiks.tex"
+        },
+        {
+          "id": "3-2",
+          "uid": "id:3-2",
+          "number": 2,
+          "name": "Matematikernes sexliv",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "F",
+              "description": "Forsker/Fremførerske",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 1.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/MatematikernesSexliv.tex"
+        },
+        {
+          "id": "3-3",
+          "uid": "id:3-3",
+          "number": 3,
+          "name": "Pigetoilet",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 1,
+          "sourceTex": "archive/MatRevy_2010/other/Pigetoilet.tex"
+        },
+        {
+          "id": "3-4",
+          "uid": "id:3-4",
+          "number": 4,
+          "name": "Hvem er den matematiske forfatter",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Roben og Knud: \"Darwins Sang \"",
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/songs/HEDMM2.tex"
+        },
+        {
+          "id": "3-5",
+          "uid": "id:3-5",
+          "number": 5,
+          "name": "Late Show",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "V",
+              "description": "Vært",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "D",
+              "description": "Villiam Gro, datalog",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Skabskvinde",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 4.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/LateShow.tex"
+        },
+        {
+          "id": "3-6",
+          "uid": "id:3-6",
+          "number": 6,
+          "name": "Hilberts Hotel",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 1,
+          "sourceTex": "archive/MatRevy_2010/other/HilbertsHotel.tex"
+        },
+        {
+          "id": "3-7",
+          "uid": "id:3-7",
+          "number": 7,
+          "name": "Men så blev jeg fuld",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Queen: \"The show must go on\"",
+          "duration": 4.5,
+          "sourceTex": "archive/MatRevy_2010/songs/MenSaaBlevJegFuld.tex"
+        },
+        {
+          "id": "3-8",
+          "uid": "id:3-8",
+          "number": 8,
+          "name": "Pigesketch",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Pia",
+              "description": "Pia",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Petra",
+              "description": "Petra",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Ninja",
+              "roleCode": "Pernille",
+              "description": "Pernille",
+              "tags": [
+                "Ninja"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Ninja",
+              "roleCode": "Pauline",
+              "description": "Pauline",
+              "tags": [
+                "Ninja"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Putte",
+              "description": "Putte",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2010/sketches/Pigesketch.tex"
+        },
+        {
+          "id": "3-9",
+          "uid": "id:3-9",
+          "number": 9,
+          "name": "Mat'matikken",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Rus",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Junglebogen: \"Junglens Rytme \"",
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2010/songs/Matmatikken.tex"
+        }
+      ]
+    },
+    {
+      "act": "E",
+      "label": "Ekstranumre",
+      "scenes": [
+        {
+          "id": "E-1",
+          "uid": "id:E-1",
+          "number": 1,
+          "name": "Drengetoilet",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2010/other/Drengetoilet.tex"
+        },
+        {
+          "id": "E-2",
+          "uid": "id:E-2",
+          "number": 2,
+          "name": "Kongesketch",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Joker",
+              "description": "Joker",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Fægt",
+              "description": "Kong Fægt",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Tragt",
+              "description": "Kong Tragt",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Skuespiller",
+              "role": "Skuespil",
+              "roleCode": "Thor",
+              "description": "Kong Thor",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2010/sketches/Kongesketch.tex"
+        },
+        {
+          "id": "E-3",
+          "uid": "id:E-3",
+          "number": 3,
+          "name": "Slutslutsang 2010",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "P",
+              "description": "Pocahontas",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "JS",
+              "description": "John Smith",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Dans",
+              "roleCode": "D",
+              "description": "Lille dreng",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Dans",
+              "roleCode": "DM",
+              "description": "Dyb mand",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "TP",
+              "description": "To piger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NaN",
+              "role": "Sang/Rap",
+              "roleCode": "L",
+              "description": "Liderbuks",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Resten",
+              "role": "Kor",
+              "roleCode": "Kor",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            }
+          ],
+          "melody": "South Park - The Movie: \"La Resistance\"",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2010/songs/Slutslutsang2010.tex"
+        }
+      ]
+    }
+  ]
+}

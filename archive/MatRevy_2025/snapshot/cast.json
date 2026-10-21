@@ -1,0 +1,189 @@
+{
+  "cast": [
+    {
+      "name": "Nadja",
+      "index": 0
+    },
+    {
+      "name": "Thor",
+      "index": 1
+    },
+    {
+      "name": "Baldur",
+      "index": 2
+    },
+    {
+      "name": "Klejne",
+      "index": 3
+    },
+    {
+      "name": "Lea",
+      "index": 4
+    },
+    {
+      "name": "Katrine",
+      "index": 5
+    },
+    {
+      "name": "Vibe",
+      "index": 6
+    },
+    {
+      "name": "Kisser",
+      "index": 7
+    },
+    {
+      "name": "Mathilde",
+      "index": 8
+    },
+    {
+      "name": "Snow",
+      "index": 9
+    },
+    {
+      "name": "Johan R",
+      "index": 10
+    },
+    {
+      "name": "Daniel",
+      "index": 11
+    },
+    {
+      "name": "Alberte F",
+      "index": 12
+    },
+    {
+      "name": "Oliver",
+      "index": 13
+    },
+    {
+      "name": "Elmer",
+      "index": 14
+    },
+    {
+      "name": "Emma",
+      "index": 15
+    },
+    {
+      "name": "Adam",
+      "index": 16
+    },
+    {
+      "name": "Louie",
+      "index": 17
+    },
+    {
+      "name": "Louise",
+      "index": 18
+    },
+    {
+      "name": "Emil",
+      "index": 19
+    },
+    {
+      "name": "Alberte C",
+      "index": 20
+    },
+    {
+      "name": "KE",
+      "index": 21
+    },
+    {
+      "name": "Christian",
+      "index": 22
+    },
+    {
+      "name": "Hugo",
+      "index": 23
+    },
+    {
+      "name": "Johan P",
+      "index": 24
+    },
+    {
+      "name": "Frederikke",
+      "index": 25
+    },
+    {
+      "name": "Sommer",
+      "index": 26
+    },
+    {
+      "name": "Markus",
+      "index": 27
+    },
+    {
+      "name": "Frigg",
+      "index": 28
+    },
+    {
+      "name": "Lise",
+      "index": 29
+    },
+    {
+      "name": "Anni",
+      "index": 30
+    },
+    {
+      "name": "Flemming",
+      "index": 31
+    },
+    {
+      "name": "Monrad",
+      "index": 32
+    },
+    {
+      "name": "Linea",
+      "index": 33
+    },
+    {
+      "name": "Ronja",
+      "index": 34
+    },
+    {
+      "name": "Pernille",
+      "index": 35
+    },
+    {
+      "name": "Freja",
+      "index": 36
+    },
+    {
+      "name": "Anna",
+      "index": 37
+    },
+    {
+      "name": "Viktor",
+      "index": 38
+    },
+    {
+      "name": "Sirius",
+      "index": 39
+    },
+    {
+      "name": "Niklas",
+      "index": 40
+    },
+    {
+      "name": "Conrad",
+      "index": 41
+    },
+    {
+      "name": "Thais",
+      "index": 42
+    },
+    {
+      "name": "Elinborg",
+      "index": 43
+    },
+    {
+      "name": "Julius",
+      "index": 44
+    },
+    {
+      "name": "Vitus",
+      "index": 45
+    }
+  ],
+  "generatedAt": "2026-10-21T07:57:30.468Z"
+}

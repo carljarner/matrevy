@@ -1,0 +1,344 @@
+{
+  "production": "MatRevy 2009",
+  "generatedAt": "2026-10-21T07:57:29.713Z",
+  "backfilled": "manus.pdf Indhold",
+  "acts": [
+    {
+      "act": "1",
+      "label": "Akt 1",
+      "scenes": [
+        {
+          "id": "1-1",
+          "uid": "id:1-1",
+          "number": 1,
+          "name": "Bandintro",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-2",
+          "uid": "id:1-2",
+          "number": 2,
+          "name": "Statistik Revyen 2009",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-3",
+          "uid": "id:1-3",
+          "number": 3,
+          "name": "Sikkerhedsintro",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-4",
+          "uid": "id:1-4",
+          "number": 4,
+          "name": "Åbningssang",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-5",
+          "uid": "id:1-5",
+          "number": 5,
+          "name": "Ny Studieordning",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-6",
+          "uid": "id:1-6",
+          "number": 6,
+          "name": "100 minutter",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-7",
+          "uid": "id:1-7",
+          "number": 7,
+          "name": "Læs Mat’matik",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-8",
+          "uid": "id:1-8",
+          "number": 8,
+          "name": "Forvir publikum 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-9",
+          "uid": "id:1-9",
+          "number": 9,
+          "name": "Cheerleader",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-10",
+          "uid": "id:1-10",
+          "number": 10,
+          "name": "De 3ε",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-11",
+          "uid": "id:1-11",
+          "number": 11,
+          "name": "StarCraft",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-12",
+          "uid": "id:1-12",
+          "number": 12,
+          "name": "Mine Studier",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        }
+      ]
+    },
+    {
+      "act": "2",
+      "label": "Akt 2",
+      "scenes": [
+        {
+          "id": "2-1",
+          "uid": "id:2-1",
+          "number": 1,
+          "name": "Kæledyr (take 2)",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "2-2",
+          "uid": "id:2-2",
+          "number": 2,
+          "name": "Torsdagssøster reklamefilm",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "2-3",
+          "uid": "id:2-3",
+          "number": 3,
+          "name": "Matematisk Hotline",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "2-4",
+          "uid": "id:2-4",
+          "number": 4,
+          "name": "BluRay BluRay",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "2-5",
+          "uid": "id:2-5",
+          "number": 5,
+          "name": "Du er ikke et plekter",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "2-6",
+          "uid": "id:2-6",
+          "number": 6,
+          "name": "Mujaffa",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "2-7",
+          "uid": "id:2-7",
+          "number": 7,
+          "name": "Fire Kasser",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "2-8",
+          "uid": "id:2-8",
+          "number": 8,
+          "name": "Stalinbanen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        }
+      ]
+    },
+    {
+      "act": "3",
+      "label": "Akt 3",
+      "scenes": [
+        {
+          "id": "3-1",
+          "uid": "id:3-1",
+          "number": 1,
+          "name": "Var-Zoo",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-2",
+          "uid": "id:3-2",
+          "number": 2,
+          "name": "Jeg bliver meget snart Kandidat",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-3",
+          "uid": "id:3-3",
+          "number": 3,
+          "name": "Forvir publikum 3",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-4",
+          "uid": "id:3-4",
+          "number": 4,
+          "name": "Mat Adore",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-5",
+          "uid": "id:3-5",
+          "number": 5,
+          "name": "Hold dig væk fra Holte",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-6",
+          "uid": "id:3-6",
+          "number": 6,
+          "name": "NBs film",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-7",
+          "uid": "id:3-7",
+          "number": 7,
+          "name": "Lykkehjulet",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-8",
+          "uid": "id:3-8",
+          "number": 8,
+          "name": "Slutslutsang",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "3-9",
+          "uid": "id:3-9",
+          "number": 9,
+          "name": "SLUT",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        }
+      ]
+    }
+  ]
+}

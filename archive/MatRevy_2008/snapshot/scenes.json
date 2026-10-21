@@ -1,0 +1,497 @@
+{
+  "production": "MatRevy 2008",
+  "generatedAt": "2026-10-21T07:57:29.676Z",
+  "backfilled": "manus.pdf Indhold",
+  "acts": [
+    {
+      "act": "1",
+      "label": "Alle scener (aktinddeling ukendt)",
+      "scenes": [
+        {
+          "id": "1-1",
+          "uid": "id:1-1",
+          "number": 1,
+          "name": "Åbningssang",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-2",
+          "uid": "id:1-2",
+          "number": 2,
+          "name": "Levende møbler",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-3",
+          "uid": "id:1-3",
+          "number": 3,
+          "name": "Caféen? Domino",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-4",
+          "uid": "id:1-4",
+          "number": 4,
+          "name": "Kappa, IKEA og Kridt",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-5",
+          "uid": "id:1-5",
+          "number": 5,
+          "name": "Du er ikke en vektor - 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-6",
+          "uid": "id:1-6",
+          "number": 6,
+          "name": "Guldbock",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-7",
+          "uid": "id:1-7",
+          "number": 7,
+          "name": "Nøglebærerens tur mod Netto",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-8",
+          "uid": "id:1-8",
+          "number": 8,
+          "name": "En tur i Netto",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-9",
+          "uid": "id:1-9",
+          "number": 9,
+          "name": "Prisen er Sat",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-10",
+          "uid": "id:1-10",
+          "number": 10,
+          "name": "Pauseneger rant om Jeppe",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-11",
+          "uid": "id:1-11",
+          "number": 11,
+          "name": "Guldbock del 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-12",
+          "uid": "id:1-12",
+          "number": 12,
+          "name": "Dinofilm 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-13",
+          "uid": "id:1-13",
+          "number": 13,
+          "name": "Du burde læse matematik 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-14",
+          "uid": "id:1-14",
+          "number": 14,
+          "name": "MatIntroMedley del 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-15",
+          "uid": "id:1-15",
+          "number": 15,
+          "name": "Integralsangen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-16",
+          "uid": "id:1-16",
+          "number": 16,
+          "name": "Du burde læse matematik 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-17",
+          "uid": "id:1-17",
+          "number": 17,
+          "name": "MatIntroMedley del 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-18",
+          "uid": "id:1-18",
+          "number": 18,
+          "name": "Skal jeg droppe ud?",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-19",
+          "uid": "id:1-19",
+          "number": 19,
+          "name": "Du er ikke en vektor - 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-20",
+          "uid": "id:1-20",
+          "number": 20,
+          "name": "Ode til Solovej og Eilers",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-21",
+          "uid": "id:1-21",
+          "number": 21,
+          "name": "Dinofilm 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-22",
+          "uid": "id:1-22",
+          "number": 22,
+          "name": "Hvordan ville verden se ud uden matematik?",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-23",
+          "uid": "id:1-23",
+          "number": 23,
+          "name": "Jeg gik på Caféen?",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-24",
+          "uid": "id:1-24",
+          "number": 24,
+          "name": "Statistik Revyen 2008",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-25",
+          "uid": "id:1-25",
+          "number": 25,
+          "name": "SaSt1-sangen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-26",
+          "uid": "id:1-26",
+          "number": 26,
+          "name": "Du burde læse matematik 3",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-27",
+          "uid": "id:1-27",
+          "number": 27,
+          "name": "Spørgsmål til folk på gaden",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-28",
+          "uid": "id:1-28",
+          "number": 28,
+          "name": "Jeg bliver meget snart Kandidat",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-29",
+          "uid": "id:1-29",
+          "number": 29,
+          "name": "Du er ikke en vektor - 3",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-30",
+          "uid": "id:1-30",
+          "number": 30,
+          "name": "Robinson",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-31",
+          "uid": "id:1-31",
+          "number": 31,
+          "name": "Reklameblokken",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-32",
+          "uid": "id:1-32",
+          "number": 32,
+          "name": "Robinson; Ø-Rådet",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-33",
+          "uid": "id:1-33",
+          "number": 33,
+          "name": "Buggi",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-34",
+          "uid": "id:1-34",
+          "number": 34,
+          "name": "Eventyret",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-35",
+          "uid": "id:1-35",
+          "number": 35,
+          "name": "Dinofilm 3",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-36",
+          "uid": "id:1-36",
+          "number": 36,
+          "name": "Log nu på",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-37",
+          "uid": "id:1-37",
+          "number": 37,
+          "name": "Dinofilm 4",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-38",
+          "uid": "id:1-38",
+          "number": 38,
+          "name": "Rustur med/uden druk",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-39",
+          "uid": "id:1-39",
+          "number": 39,
+          "name": "Inverssangen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-40",
+          "uid": "id:1-40",
+          "number": 40,
+          "name": "MatIntroMedley del 3",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-41",
+          "uid": "id:1-41",
+          "number": 41,
+          "name": "Smukke ting ved Mat’matik",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-42",
+          "uid": "id:1-42",
+          "number": 42,
+          "name": "Brorfelde støttesangen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-43",
+          "uid": "id:1-43",
+          "number": 43,
+          "name": "Du er ikke en vektor - 4",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-44",
+          "uid": "id:1-44",
+          "number": 44,
+          "name": "Slutslutsang",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3387 @@
+{
+  "production": "MatRevy 2013",
+  "generatedAt": "2026-10-21T07:57:29.916Z",
+  "backfilled": "manus.pdf Aktoversigt",
+  "acts": [
+    {
+      "act": "1",
+      "label": "Akt 1",
+      "scenes": [
+        {
+          "id": "1-1",
+          "uid": "id:1-1",
+          "number": 1,
+          "name": "Scenemøde",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": []
+        },
+        {
+          "id": "1-2",
+          "uid": "id:1-2",
+          "number": 2,
+          "name": "Sikkerhedsintro",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Christine",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Cæcilia",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mette",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/sikkerhedsintro.tex"
+        },
+        {
+          "id": "1-3",
+          "uid": "id:1-3",
+          "number": 3,
+          "name": "Åbningssang",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sofie",
+              "role": "Sang/Rap",
+              "roleCode": "S3",
+              "description": "Sanger 3",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "*Quack*'er",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Ane-Martine",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Bettina",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Dans",
+              "roleCode": "D5",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Dans",
+              "roleCode": "D6",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Christina Aguilera: Dirrty",
+          "sourceTex": "archive/MatRevy_2013/songs/AabningssangDirrty.tex"
+        },
+        {
+          "id": "1-4",
+          "uid": "id:1-4",
+          "number": 4,
+          "name": "Bistandsklienten",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Charlotte",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Bistandssøgende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Emil",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kommunalt ansat",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/Bistandsklienten.tex"
+        },
+        {
+          "id": "1-5",
+          "uid": "id:1-5",
+          "number": 5,
+          "name": "Overspringshandlinger",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Christine",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Studerende",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Julemanden",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "Roommate",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Rasmus Rap Sluttema",
+          "sourceTex": "archive/MatRevy_2013/other/Overspringshandlinger.tex"
+        },
+        {
+          "id": "1-6",
+          "uid": "id:1-6",
+          "number": 6,
+          "name": "Tallaboratoriet",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Skuespil",
+              "roleCode": "R",
+              "description": "Rus",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktor i TalLab 1",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Emil",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Hektor",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mette",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/Tallaboratoriet.tex"
+        },
+        {
+          "id": "1-7",
+          "uid": "id:1-7",
+          "number": 7,
+          "name": "Søre Eilers",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Agent A.",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Albert",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane-Martine",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Bettina",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Charlotte",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Christine",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Cæcilia",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Emil",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Hektor",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jakob",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jenny M",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mawek",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mette",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Patrick",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sofie",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/other/SorenEilers.tex"
+        },
+        {
+          "id": "1-8",
+          "uid": "id:1-8",
+          "number": 8,
+          "name": "Et Kursus Jeg Engang Bestod",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Studerende",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Kor",
+              "roleCode": "K",
+              "description": "Kurset",
+              "tags": [
+                "Kor"
+              ]
+            }
+          ],
+          "melody": "Gotye: Somebody That I Used To Know",
+          "sourceTex": "archive/MatRevy_2013/songs/EtKursusJegEngangBestod.tex"
+        },
+        {
+          "id": "1-9",
+          "uid": "id:1-9",
+          "number": 9,
+          "name": "Øvesegment 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "H",
+              "description": "Henning (Soldat)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Monica (Monique) (Heks)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "T",
+              "description": "Torben (Hund)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "D",
+              "description": "Desiré (Prinsesse)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "(Instruktør)",
+              "tags": [
+                "Instruktør"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/Oevesegmentsketch1.tex"
+        },
+        {
+          "id": "1-10",
+          "uid": "id:1-10",
+          "number": 10,
+          "name": "Jeg Vil Vær' Instruktor",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktor",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Charlotte",
+              "role": "Kor",
+              "roleCode": "K0",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Christine",
+              "role": "Kor",
+              "roleCode": "K1",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Mawek",
+              "role": "Kor",
+              "roleCode": "K2",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Kor",
+              "roleCode": "K3",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            }
+          ],
+          "melody": "John Mayer: I Don't Need No Docotr",
+          "sourceTex": "archive/MatRevy_2013/songs/JegVilVaerInstruktor.tex"
+        },
+        {
+          "id": "1-11",
+          "uid": "id:1-11",
+          "number": 11,
+          "name": "Støttegruppen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Skuespil",
+              "roleCode": "P",
+              "description": "Psykolog",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Emil",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Ustabil Lærer, Morten",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Veteran Lærer, Kjeld",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Skuespil",
+              "roleCode": "T",
+              "description": "Vred Lærer, Torben",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/Stoettegruppen.tex"
+        },
+        {
+          "id": "1-12",
+          "uid": "id:1-12",
+          "number": 12,
+          "name": "Ode Til Analyse 1",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sofie",
+              "role": "Sang/Rap",
+              "roleCode": "S3",
+              "description": "Sanger 3",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Bettina",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Shout: Jeg Tror Det Kaldes Kærlighed",
+          "sourceTex": "archive/MatRevy_2013/songs/OdeTilAnalyse1.tex"
+        }
+      ]
+    },
+    {
+      "act": "2",
+      "label": "Akt 2",
+      "scenes": [
+        {
+          "id": "2-1",
+          "uid": "id:2-1",
+          "number": 1,
+          "name": "Flere Russer",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Sang/Rap",
+              "roleCode": "S3",
+              "description": "Sanger 3",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sofie",
+              "role": "Sang/Rap",
+              "roleCode": "S4",
+              "description": "Sanger 4",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Disney's Hercules: Gospel Truth",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2013/songs/FlereRusser.tex"
+        },
+        {
+          "id": "2-2",
+          "uid": "id:2-2",
+          "number": 2,
+          "name": "Rho I Retten",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Hektor",
+              "role": "Skuespil",
+              "roleCode": "H",
+              "description": "Høje Censor",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "E",
+              "description": "Eksaminator",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "F",
+              "description": "Funktion",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/RhoIRetten.tex"
+        },
+        {
+          "id": "2-3",
+          "uid": "id:2-3",
+          "number": 3,
+          "name": "10 Små Aksiomer",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Charlotte",
+              "role": "Sang/Rap",
+              "roleCode": "F",
+              "description": "Forelæser",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Skilteholder",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "10 Små Cyklister",
+          "sourceTex": "archive/MatRevy_2013/other/10SmaaAksiomer.tex"
+        },
+        {
+          "id": "2-4",
+          "uid": "id:2-4",
+          "number": 4,
+          "name": "På Science",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Agent A.",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Mawek",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Simon and Garfunkle: Sound of Silence",
+          "sourceTex": "archive/MatRevy_2013/songs/PaaScience.tex"
+        },
+        {
+          "id": "2-5",
+          "uid": "id:2-5",
+          "number": 5,
+          "name": "Øvesegment 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "H",
+              "description": "Henning (Soldat)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Monica (Monique) (Heks)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "T",
+              "description": "Torben (Hund)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "(Instruktør)",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "(Træ)",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/Oevesegmentsketch2.tex"
+        },
+        {
+          "id": "2-6",
+          "uid": "id:2-6",
+          "number": 6,
+          "name": "Matematikkens Historie 3 - Version 1",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sopran",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Sang/Rap",
+              "roleCode": "M",
+              "description": "Mezzo",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Sang/Rap",
+              "roleCode": "A",
+              "description": "Alt",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Sang/Rap",
+              "roleCode": "T",
+              "description": "Tenor",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Mawek",
+              "role": "Sang/Rap",
+              "roleCode": "B",
+              "description": "Baryton",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Beach Boys: I Get Around \\\\ Queen: Bohemian Rhapsody \\Jackson: Billie Jean\\\\ Black Eyed Peas: I Got A Feeling \\.: Som Nights",
+          "sourceTex": "archive/MatRevy_2013/songs/MatematikkensHistorie3.tex"
+        },
+        {
+          "id": "2-7",
+          "uid": "id:2-7",
+          "number": 7,
+          "name": "Den Sorte Sketch",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Skuespil",
+              "roleCode": "T1",
+              "description": "Revyst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Skuespil",
+              "roleCode": "T2",
+              "description": "Revyst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "T3",
+              "description": "Revyst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Skuespil",
+              "roleCode": "T4",
+              "description": "Revyst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "T5",
+              "description": "Revyst",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/DenSorteSketch.tex"
+        },
+        {
+          "id": "2-8",
+          "uid": "id:2-8",
+          "number": 8,
+          "name": "Nørden Niels 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Albert",
+              "role": "Ninja",
+              "roleCode": "N",
+              "description": "Nørden Niels",
+              "tags": [
+                "Ninja"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Socialrådgiver",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/NoerdenNiels1.tex"
+        },
+        {
+          "id": "2-9",
+          "uid": "id:2-9",
+          "number": 9,
+          "name": "Hårdt At være Nørd",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Agent A.",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Albert",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane-Martine",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Bettina",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Charlotte",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Christine",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Cæcilia",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Emil",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Hektor",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jakob",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jenny M",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mawek",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mette",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Patrick",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sofie",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/other/HaardtAtVaereNoerd.tex"
+        },
+        {
+          "id": "2-10",
+          "uid": "id:2-10",
+          "number": 10,
+          "name": "En Almindelig Analyse-1 time",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktor",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Sang/Rap",
+              "roleCode": "E",
+              "description": "Dum Elev",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Dans",
+              "roleCode": "D0",
+              "description": "Danser 0",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser 1",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser 2",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Bettina",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser 3",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Cæcilia",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser 4",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Dans",
+              "roleCode": "D5",
+              "description": "Danser 5",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Dans",
+              "roleCode": "D6",
+              "description": "Danser 6",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Dans",
+              "roleCode": "D7",
+              "description": "Danser 7",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Dans",
+              "roleCode": "D8",
+              "description": "Danser 8",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Dans",
+              "roleCode": "D9",
+              "description": "Danser 9",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Nissebanden: Det er Risengrød & Alina Devecerski: Flytta På Dej",
+          "sourceTex": "archive/MatRevy_2013/songs/EnAlmindeligAnalyse1time.tex"
+        }
+      ]
+    },
+    {
+      "act": "3",
+      "label": "Akt 3",
+      "scenes": [
+        {
+          "id": "3-1",
+          "uid": "id:3-1",
+          "number": 1,
+          "name": "Den Nye Hjælper",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Sang/Rap",
+              "roleCode": "B1",
+              "description": "Boyband 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Sang/Rap",
+              "roleCode": "B2",
+              "description": "Boyband 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Agent A.",
+              "role": "Sang/Rap",
+              "roleCode": "B3",
+              "description": "Boyband 3",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Sang/Rap",
+              "roleCode": "B4",
+              "description": "Boyband 4",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "Ham med en enhjørning",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Albert",
+              "role": "Sang/Rap",
+              "roleCode": "EF",
+              "description": "Enhjørning front",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Sang/Rap",
+              "roleCode": "EB",
+              "description": "Enhjørning bag",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "C21: One Night in Bangkok",
+          "sourceTex": "archive/MatRevy_2013/songs/DenNyeHjaelper.tex"
+        },
+        {
+          "id": "3-2",
+          "uid": "id:3-2",
+          "number": 2,
+          "name": "En Lille Relation",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "Relation",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "En Lille Undulat",
+          "sourceTex": "archive/MatRevy_2013/other/EnLilleRelation.tex"
+        },
+        {
+          "id": "3-3",
+          "uid": "id:3-3",
+          "number": 3,
+          "name": "Tetris Flyttemænd",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Skuespil",
+              "roleCode": "1",
+              "description": "Person der skal flytte",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mette",
+              "role": "Skuespil",
+              "roleCode": "2",
+              "description": "Ven",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Skuespil",
+              "roleCode": "TF1",
+              "description": "Tetris Flyttemand 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Hektor",
+              "role": "Skuespil",
+              "roleCode": "TF2",
+              "description": "Tetris Flyttemand 2",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/TetrisFlyttemaend.tex"
+        },
+        {
+          "id": "3-4",
+          "uid": "id:3-4",
+          "number": 4,
+          "name": "HarDu Problem",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Agent A.",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Albert",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane-Martine",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Bettina",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Charlotte",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Christine",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Cæcilia",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Emil",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Hektor",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jakob",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jenny M",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mawek",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mette",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Patrick",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sofie",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/other/HarDuProblem.tex"
+        },
+        {
+          "id": "3-5",
+          "uid": "id:3-5",
+          "number": 5,
+          "name": "Da Jeg Var Rus",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "Rus",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Agent A.",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Studerende",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Avenue Q: If You Were Gay",
+          "sourceTex": "archive/MatRevy_2013/songs/DaJegVarRUS.tex"
+        },
+        {
+          "id": "3-6",
+          "uid": "id:3-6",
+          "number": 6,
+          "name": "Nørden Niels 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Albert",
+              "role": "Ninja",
+              "roleCode": "N",
+              "description": "Nørden Niels",
+              "tags": [
+                "Ninja"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Socialrådgiver",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/NoerdenNiels2.tex"
+        },
+        {
+          "id": "3-7",
+          "uid": "id:3-7",
+          "number": 7,
+          "name": "Den Dedikerede Mentor",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "The Script: The Man Who Can't Be Moved",
+          "sourceTex": "archive/MatRevy_2013/songs/DenDedikeredeMentor.tex"
+        }
+      ]
+    },
+    {
+      "act": "E",
+      "label": "Ekstranumre",
+      "scenes": [
+        {
+          "id": "E-1",
+          "uid": "id:E-1",
+          "number": 1,
+          "name": "Øvesegment 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "H",
+              "description": "Henning (Soldat)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Monica (Monique) (Heks)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "T",
+              "description": "Torben (Hund)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "(Instruktør)",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "(Træ)",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/sketches/Oevesegmentsketch2.tex"
+        },
+        {
+          "id": "E-2",
+          "uid": "id:E-2",
+          "number": 2,
+          "name": "Den Glade Studerende",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Agent A.",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Albert",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anders",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ane-Martine",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anne G",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Bettina",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Charlotte",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Christine",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Cæcilia",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Emil",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Hektor",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jakob",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jasper",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jenny M",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jeppe",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "KØK",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mawek",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mette",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Milette",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Skuespil",
+              "roleCode": "S4",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Patrick",
+              "role": "Skuespil",
+              "roleCode": "S5",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Pornokongen",
+              "role": "Skuespil",
+              "roleCode": "S6",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Skuespil",
+              "roleCode": "S7",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Skuespil",
+              "roleCode": "S8",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Shake",
+              "role": "Skuespil",
+              "roleCode": "S9",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Signe",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Skuespil",
+              "roleCode": "K",
+              "description": "Kaptajn",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sofie",
+              "role": "Skuespil",
+              "roleCode": "S0",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "S3",
+              "description": "Stewardesse",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "sourceTex": "archive/MatRevy_2013/other/DenGladeStuderende.tex"
+        },
+        {
+          "id": "E-3",
+          "uid": "id:E-3",
+          "number": 3,
+          "name": "Vi Vil Læs' Mer",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jakob",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Silvia",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Ane-Martine",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Cæcilia",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Johnny Deluxe: Vi Vil Ha' Mer",
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2013/songs/ViVilLaesMer.tex"
+        }
+      ]
+    }
+  ]
+}

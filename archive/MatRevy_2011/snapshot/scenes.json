@@ -1,0 +1,1975 @@
+{
+  "production": "MatRevy 2011",
+  "generatedAt": "2026-10-21T07:57:29.813Z",
+  "backfilled": "manus.pdf Aktoversigt",
+  "acts": [
+    {
+      "act": "1",
+      "label": "Akt 1",
+      "scenes": [
+        {
+          "id": "1-1",
+          "uid": "id:1-1",
+          "number": 1,
+          "name": "Sikkerhedsintro",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Kirsten",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "F1",
+              "description": "Fysiker 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Camilla",
+              "role": "Skuespil",
+              "roleCode": "F2",
+              "description": "Fysiker 2",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 1,
+          "sourceTex": "archive/MatRevy_2011/sketches/Sikkerhedsintro.tex"
+        },
+        {
+          "id": "1-2",
+          "uid": "id:1-2",
+          "number": 2,
+          "name": "Åbningssang",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Kor",
+              "roleCode": "Ko",
+              "description": "Koreograf",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "René",
+              "role": "Sang/Rap",
+              "roleCode": "B1",
+              "description": "Boybandmedlem 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Morten",
+              "role": "Sang/Rap",
+              "roleCode": "B2",
+              "description": "Boybandmedlem 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "B3",
+              "description": "Boybandmedlem 3",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Christoffer",
+              "role": "Sang/Rap",
+              "roleCode": "B4",
+              "description": "Boybandmedlem 4",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Backstreet Boys: Everybody (Backstreets Back)",
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2011/songs/Aabningssang.tex"
+        },
+        {
+          "id": "1-3",
+          "uid": "id:1-3",
+          "number": 3,
+          "name": "NBSP",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ronni",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Alexander Jasper",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Arkitekt",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Journalist",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2011/sketches/NBSP.tex"
+        },
+        {
+          "id": "1-4",
+          "uid": "id:1-4",
+          "number": 4,
+          "name": "De tog stadig folk ind",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Loke",
+              "role": "Sang/Rap",
+              "roleCode": "05",
+              "description": "Sanger fra '05",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Sang/Rap",
+              "roleCode": "06",
+              "description": "Sanger fra '06",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "07",
+              "description": "Sanger fra '07",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Rasmus Bryder",
+              "role": "Sang/Rap",
+              "roleCode": "08",
+              "description": "Sanger fra '08",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Camilla",
+              "role": "Sang/Rap",
+              "roleCode": "09",
+              "description": "Sanger fra '09",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Alexander Jasper",
+              "role": "Sang/Rap",
+              "roleCode": "10",
+              "description": "Sanger fra '10",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Simone",
+              "role": "Sang/Rap",
+              "roleCode": "11",
+              "description": "Sanger fra '11",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "De bar stadig øl ind",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2011/songs/DeTogStadigFolkInd.tex"
+        },
+        {
+          "id": "1-5",
+          "uid": "id:1-5",
+          "number": 5,
+          "name": "Matematikhistorien på 100 sekunder",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2011/other/HistoriePaa100Sek1.tex"
+        },
+        {
+          "id": "1-6",
+          "uid": "id:1-6",
+          "number": 6,
+          "name": "Harry Potter",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Kirsten",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "F",
+              "description": "Fortæller",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "HP",
+              "description": "Harry Potter",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kasper Brandt",
+              "role": "Skuespil",
+              "roleCode": "PX",
+              "description": "P(X x)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mathias",
+              "role": "Skuespil",
+              "roleCode": "R",
+              "description": "Ron",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "H",
+              "description": "Hermione",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktor",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Kristian",
+              "role": "Skuespil",
+              "roleCode": "HB",
+              "description": "Henrik Busch",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Alexander",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Malfoy",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 5,
+          "sourceTex": "archive/MatRevy_2011/sketches/HarryPotter.tex"
+        },
+        {
+          "id": "1-7",
+          "uid": "id:1-7",
+          "number": 7,
+          "name": "Caféen?s Sortiment",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Maling",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Kor",
+              "roleCode": "Ko",
+              "description": "Koreograf",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Mathias",
+              "role": "Kor",
+              "roleCode": "K",
+              "description": "Kunde",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Sang/Rap",
+              "roleCode": "B",
+              "description": "Bartender",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Simone",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Anna Munk",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "The Sound of Music: My Favourite Things",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2011/songs/CafeensSortiment.tex"
+        },
+        {
+          "id": "1-8",
+          "uid": "id:1-8",
+          "number": 8,
+          "name": "Filmen om Muren",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2011/other/FilmenOmMuren.tex"
+        },
+        {
+          "id": "1-9",
+          "uid": "id:1-9",
+          "number": 9,
+          "name": "Muren",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Alexander",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Matematik Rus",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "JØP",
+              "role": "Skuespil",
+              "roleCode": "RM1",
+              "description": "Rusvejleder på Matematik 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna Munk",
+              "role": "Skuespil",
+              "roleCode": "RM2",
+              "description": "Rusvejleder på Matematik 2",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "Ø",
+              "description": "Mat-Øk rus",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "RØ1",
+              "description": "Rusvejleder på Mat-Øk 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Camilla",
+              "role": "Skuespil",
+              "roleCode": "RØ2",
+              "description": "Rusvejleder på Mat-Øk 2",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Statist 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Christoffer",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Statist 2",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 4.5,
+          "sourceTex": "archive/MatRevy_2011/sketches/Muren.tex"
+        },
+        {
+          "id": "1-10",
+          "uid": "id:1-10",
+          "number": 10,
+          "name": "Den Store Ordspilsbog",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2011/other/DenStoreOrdspilsbog.tex"
+        },
+        {
+          "id": "1-11",
+          "uid": "id:1-11",
+          "number": 11,
+          "name": "2012",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ronni",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "D",
+              "description": "Dommedagsprofet",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2011/sketches/2012.tex"
+        },
+        {
+          "id": "1-12",
+          "uid": "id:1-12",
+          "number": 12,
+          "name": "Bevis for Skæringssætningen",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Maling",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Kor",
+              "roleCode": "Ko",
+              "description": "Koreograf",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Morten",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "Rus",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Loke",
+              "role": "Kor",
+              "roleCode": "K1",
+              "description": "Kor 1 / Instruktør",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "René",
+              "role": "Kor",
+              "roleCode": "K2",
+              "description": "Kor 2",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Kor",
+              "roleCode": "K3",
+              "description": "Kor 3",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Queen: Bohemian Rhapsody",
+          "duration": 6,
+          "sourceTex": "archive/MatRevy_2011/songs/BevisForSkaeringssaetningen.tex"
+        }
+      ]
+    },
+    {
+      "act": "2",
+      "label": "Akt 2",
+      "scenes": [
+        {
+          "id": "2-1",
+          "uid": "id:2-1",
+          "number": 1,
+          "name": "Tenikkens Musical",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ronni",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Skuespil",
+              "roleCode": "Ko",
+              "description": "Koreograf",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Simone",
+              "role": "Skuespil",
+              "roleCode": "Ø",
+              "description": "Økonomiboss",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna Munk",
+              "role": "Skuespil",
+              "roleCode": "T",
+              "description": "Teknikboss",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Christoffer",
+              "role": "Skuespil",
+              "roleCode": "R",
+              "description": "Rekvisitboss",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "René",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Sponsorboss",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2011/sketches/TeXnikkensMusical.tex"
+        },
+        {
+          "id": "2-2",
+          "uid": "id:2-2",
+          "number": 2,
+          "name": "Datalogihistorien på 100 sekunder",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2011/other/HistoriePaa100Sek2.tex"
+        },
+        {
+          "id": "2-3",
+          "uid": "id:2-3",
+          "number": 3,
+          "name": "Pokémon",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "F",
+              "description": "Fortæller",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "JØP",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Ash",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jenny",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Misty",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Alexander",
+              "role": "Skuespil",
+              "roleCode": "TK1",
+              "description": "Team Kroket",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "TK2",
+              "description": "Team Kroket",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "O",
+              "description": "Professor Oak",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2011/sketches/Pokemon.tex"
+        },
+        {
+          "id": "2-4",
+          "uid": "id:2-4",
+          "number": 4,
+          "name": "Grand Theft Auto",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 5,
+          "sourceTex": "archive/MatRevy_2011/other/GrandTheftAuto.tex"
+        },
+        {
+          "id": "2-5",
+          "uid": "id:2-5",
+          "number": 5,
+          "name": "Det Store Univers Matematik",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ronni",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Studerende",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Yakko's Universe Song",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2011/songs/DetStoreUniversMatematik.tex"
+        },
+        {
+          "id": "2-6",
+          "uid": "id:2-6",
+          "number": 6,
+          "name": "Multiple Choice Test",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "J",
+              "description": "Journalist",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna Munk",
+              "role": "Skuespil",
+              "roleCode": "R",
+              "description": "Rusvejleder",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2011/sketches/MultipleChoiceTest.tex"
+        },
+        {
+          "id": "2-7",
+          "uid": "id:2-7",
+          "number": 7,
+          "name": "Hvad der ikke dræber dig gør dig stærkere 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2011/other/HDIDDGDS1.tex"
+        },
+        {
+          "id": "2-8",
+          "uid": "id:2-8",
+          "number": 8,
+          "name": "Inverssketchen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Maling",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Kristian",
+              "role": "Skuespil",
+              "roleCode": "M",
+              "description": "Mand (læge)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jenny",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Kvinde",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 1.5,
+          "sourceTex": "archive/MatRevy_2011/sketches/Inverssketchen.tex"
+        },
+        {
+          "id": "2-9",
+          "uid": "id:2-9",
+          "number": 9,
+          "name": "Eksamen Afgør Alt",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KØK",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Kor",
+              "roleCode": "Ko",
+              "description": "Koreograf",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Camilla",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "ABBA: The Winner Takes It All",
+          "duration": 4.5,
+          "sourceTex": "archive/MatRevy_2011/songs/EksamenAfgoerAlt.tex"
+        },
+        {
+          "id": "2-10",
+          "uid": "id:2-10",
+          "number": 10,
+          "name": "Matematik Olympiaden",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ronni",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Alexander Jasper",
+              "role": "Skuespil",
+              "roleCode": "S",
+              "description": "Speaker",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Skuespil",
+              "roleCode": "1",
+              "description": "1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "JØP",
+              "role": "Skuespil",
+              "roleCode": "exp",
+              "description": "Eksponentialfunktionen",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna Brusch",
+              "role": "Skuespil",
+              "roleCode": "LV",
+              "description": "Logistisk Vækst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Ninja",
+              "roleCode": "NF",
+              "description": "Normalfordelingsfunktionen",
+              "tags": [
+                "Ninja"
+              ]
+            }
+          ],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2011/sketches/MatematikOlympiaden.tex"
+        },
+        {
+          "id": "2-11",
+          "uid": "id:2-11",
+          "number": 11,
+          "name": "Fysikhistorien på 100 sekunder",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2011/other/HistoriePaa100Sek3.tex"
+        },
+        {
+          "id": "2-12",
+          "uid": "id:2-12",
+          "number": 12,
+          "name": "Årene på KU",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ronni",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Anna Brusch",
+              "role": "Sang/Rap",
+              "roleCode": "1",
+              "description": "Sanger 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "René",
+              "role": "Sang/Rap",
+              "roleCode": "2",
+              "description": "Sanger 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Statist 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Christoffer",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Statist 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "The Wild Rover",
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2011/songs/AarenePaaKU.tex"
+        }
+      ]
+    },
+    {
+      "act": "3",
+      "label": "Akt 3",
+      "scenes": [
+        {
+          "id": "3-1",
+          "uid": "id:3-1",
+          "number": 1,
+          "name": "Det' sidste chance",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Kirsten",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Kor",
+              "roleCode": "Ko",
+              "description": "Koreograf",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Simone",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Kor",
+              "roleCode": "K1",
+              "description": "Kor og danser",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Kor",
+              "roleCode": "K2",
+              "description": "Kor og danser",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Camilla",
+              "role": "Dans",
+              "roleCode": "D1",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Bonnie Tyler: Holding out for a Hero",
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2011/songs/DetSidsteChance.tex"
+        },
+        {
+          "id": "3-2",
+          "uid": "id:3-2",
+          "number": 2,
+          "name": "En GTs Liv",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 1.5,
+          "sourceTex": "archive/MatRevy_2011/other/EnGTsLiv.tex"
+        },
+        {
+          "id": "3-3",
+          "uid": "id:3-3",
+          "number": 3,
+          "name": "Super Sketchen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Maling",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Mathias",
+              "role": "Skuespil",
+              "roleCode": "dx",
+              "description": "Diff-dude",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kristian",
+              "role": "Skuespil",
+              "roleCode": "/",
+              "description": "The Divider",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Ninja",
+              "roleCode": "int",
+              "description": "Antiderivertman",
+              "tags": [
+                "Ninja"
+              ]
+            },
+            {
+              "name": "Kasper Brandt",
+              "role": "Skuespil",
+              "roleCode": "+1",
+              "description": "AddAOne",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "FG",
+              "description": "Det-man-lærer-i-folkeskolen-efter-plus Guy",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Skuespil",
+              "roleCode": "$x^3$",
+              "description": "x^3",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2011/sketches/SuperSketchen.tex"
+        },
+        {
+          "id": "3-4",
+          "uid": "id:3-4",
+          "number": 4,
+          "name": "Hvad der ikke dræber dig gør dig stærkere 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2011/other/HDIDDGDS2.tex"
+        },
+        {
+          "id": "3-5",
+          "uid": "id:3-5",
+          "number": 5,
+          "name": "Ingen GT",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Kirsten",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "René",
+              "role": "Kor",
+              "roleCode": "K",
+              "description": "Kunde",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Morten",
+              "role": "Sang/Rap",
+              "roleCode": "B",
+              "description": "Bartender",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Simone",
+              "role": "Kor",
+              "roleCode": "K1",
+              "description": "Kor 1",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Anna Munk",
+              "role": "Kor",
+              "roleCode": "K2",
+              "description": "Kor 2",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Kor",
+              "roleCode": "K3",
+              "description": "Kor 3",
+              "tags": [
+                "Kor"
+              ]
+            }
+          ],
+          "melody": "Mulan: Rigtige Mænd",
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2011/songs/IngenGT.tex"
+        },
+        {
+          "id": "3-6",
+          "uid": "id:3-6",
+          "number": 6,
+          "name": "MUH",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Maling",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Skuespil",
+              "roleCode": "MUH",
+              "description": "MUH Redaktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Bartender",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Alexander",
+              "role": "Skuespil",
+              "roleCode": "M1",
+              "description": "Mand 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Skuespil",
+              "roleCode": "M2",
+              "description": "Mand 2",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kristian",
+              "role": "Skuespil",
+              "roleCode": "S2",
+              "description": "Person der brækker sig",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Mathias",
+              "role": "Skuespil",
+              "roleCode": "S1",
+              "description": "Statist 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Jenny",
+              "role": "Skuespil",
+              "roleCode": "LP1",
+              "description": "Lækker Pige 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Skuespil",
+              "roleCode": "LP2",
+              "description": "Lækker Pige 2",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna Munk",
+              "role": "Skuespil",
+              "roleCode": "LP3",
+              "description": "Lækker Pige 3",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Skuespil",
+              "roleCode": "LP4",
+              "description": "Lækker Pige 4",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Alexander",
+              "role": "Skuespil",
+              "roleCode": "P",
+              "description": "Præst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kristian",
+              "role": "Skuespil",
+              "roleCode": "R",
+              "description": "Rabbiner",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2011/sketches/MUH.tex"
+        },
+        {
+          "id": "3-7",
+          "uid": "id:3-7",
+          "number": 7,
+          "name": "Bedre Studie",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Ronni",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Kor",
+              "roleCode": "Ko",
+              "description": "Koreograf",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Morten",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "A Friend in London: New Tomorrow",
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2011/songs/BedreStudie.tex"
+        }
+      ]
+    },
+    {
+      "act": "E",
+      "label": "Ekstranumre",
+      "scenes": [
+        {
+          "id": "E-1",
+          "uid": "id:E-1",
+          "number": 1,
+          "name": "FysikRevy Manusmøde",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Maling",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Skuespil",
+              "roleCode": "F1",
+              "description": "Fysiker 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Kasper Brandt",
+              "role": "Skuespil",
+              "roleCode": "F2",
+              "description": "Fysiker 2",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Camilla",
+              "role": "Skuespil",
+              "roleCode": "F3",
+              "description": "Fysiker 3",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2011/sketches/FysikRevyManusmoede.tex"
+        },
+        {
+          "id": "E-2",
+          "uid": "id:E-2",
+          "number": 2,
+          "name": "Banach Tarski",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2011/other/BanachTarski.tex"
+        },
+        {
+          "id": "E-3",
+          "uid": "id:E-3",
+          "number": 3,
+          "name": "Feste Natten Lang",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Maling",
+              "role": "Instruktør",
+              "roleCode": "I",
+              "description": "Instruktør",
+              "tags": [
+                "Instruktør"
+              ]
+            },
+            {
+              "name": "Christoffer",
+              "role": "Sang/Rap",
+              "roleCode": "B1",
+              "description": "Boyband 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Morten",
+              "role": "Sang/Rap",
+              "roleCode": "B2",
+              "description": "Boyband 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "NB",
+              "role": "Sang/Rap",
+              "roleCode": "B3",
+              "description": "Boyband 3",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Lilli",
+              "role": "Sang/Rap",
+              "roleCode": "X3",
+              "description": "X^3",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Mathias",
+              "role": "Dans",
+              "roleCode": "DD",
+              "description": "DiffDude",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Anna Munk",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "Rusvejleder",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Kristian",
+              "role": "Sang/Rap",
+              "roleCode": "HB",
+              "description": "Henrik Busch",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Therkel",
+              "role": "Dans",
+              "roleCode": "D",
+              "description": "Dommer",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Rikke",
+              "role": "Sang/Rap",
+              "roleCode": "B",
+              "description": "Bartender",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "René",
+              "role": "Sang/Rap",
+              "roleCode": "GT",
+              "description": "GT-elsker",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "William",
+              "role": "Sang/Rap",
+              "roleCode": "W",
+              "description": "William",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Kasper Brandt",
+              "role": "Sang/Rap",
+              "roleCode": "F1",
+              "description": "Fysiker 1",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Camilla",
+              "role": "Sang/Rap",
+              "roleCode": "F2",
+              "description": "Fysiker 2",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Alexander",
+              "role": "Sang/Rap",
+              "roleCode": "TK1",
+              "description": "Team Kroket",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Ada",
+              "role": "Sang/Rap",
+              "roleCode": "TK2",
+              "description": "Team Kroket",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jenny",
+              "role": "Sang/Rap",
+              "roleCode": "M",
+              "description": "Misty",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "JØP",
+              "role": "Sang/Rap",
+              "roleCode": "Ash",
+              "description": "Ash",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Alexander Jasper",
+              "role": "Sang/Rap",
+              "roleCode": "Ar",
+              "description": "Arkitekten",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Anna Brusch",
+              "role": "Sang/Rap",
+              "roleCode": "0",
+              "description": "0",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Johanna",
+              "role": "Dans",
+              "roleCode": "AD",
+              "description": "Antiderivertmann",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Søren",
+              "role": "Dans",
+              "roleCode": "DP",
+              "description": "Dommedagsprofet",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Kirsten",
+              "role": "Sang/Rap",
+              "roleCode": "J",
+              "description": "Journalist",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Loke",
+              "role": "Sang/Rap",
+              "roleCode": "C",
+              "description": "Censor",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Freja",
+              "role": "Sang/Rap",
+              "roleCode": "MØR",
+              "description": "Mat-Øk Rus (med glorie)",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Simone",
+              "role": "Sang/Rap",
+              "roleCode": "T",
+              "description": "Teknikboss",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sanne",
+              "role": "Instruktør",
+              "roleCode": "In",
+              "description": "Instruktor",
+              "tags": [
+                "Instruktør"
+              ]
+            }
+          ],
+          "melody": "Drengene fra Angora: Jul i Angora",
+          "duration": 2.5,
+          "sourceTex": "archive/MatRevy_2011/songs/FesteNattenLang.tex"
+        }
+      ]
+    }
+  ]
+}

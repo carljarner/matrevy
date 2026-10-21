@@ -1,0 +1,149 @@
+{
+  "cast": [
+    {
+      "name": "Snow",
+      "index": 0
+    },
+    {
+      "name": "Lui",
+      "index": 1
+    },
+    {
+      "name": "Sanne",
+      "index": 2
+    },
+    {
+      "name": "Line",
+      "index": 3
+    },
+    {
+      "name": "Nanna",
+      "index": 4
+    },
+    {
+      "name": "Johanna",
+      "index": 5
+    },
+    {
+      "name": "Katrine",
+      "index": 6
+    },
+    {
+      "name": "Nadja",
+      "index": 7
+    },
+    {
+      "name": "Simone",
+      "index": 8
+    },
+    {
+      "name": "Mads",
+      "index": 9
+    },
+    {
+      "name": "Maja",
+      "index": 10
+    },
+    {
+      "name": "Frigg",
+      "index": 11
+    },
+    {
+      "name": "Toke",
+      "index": 12
+    },
+    {
+      "name": "Sommer",
+      "index": 13
+    },
+    {
+      "name": "Elinborg",
+      "index": 14
+    },
+    {
+      "name": "Tina",
+      "index": 15
+    },
+    {
+      "name": "Thais",
+      "index": 16
+    },
+    {
+      "name": "Mikkel",
+      "index": 17
+    },
+    {
+      "name": "Stine",
+      "index": 18
+    },
+    {
+      "name": "Baldur",
+      "index": 19
+    },
+    {
+      "name": "Augusta",
+      "index": 20
+    },
+    {
+      "name": "Frida",
+      "index": 21
+    },
+    {
+      "name": "MaWeK",
+      "index": 22
+    },
+    {
+      "name": "Rikke",
+      "index": 23
+    },
+    {
+      "name": "Kasper",
+      "index": 24
+    },
+    {
+      "name": "Louise",
+      "index": 25
+    },
+    {
+      "name": "Niklas",
+      "index": 26
+    },
+    {
+      "name": "Jesper",
+      "index": 27
+    },
+    {
+      "name": "Sara",
+      "index": 28
+    },
+    {
+      "name": "Rune",
+      "index": 29
+    },
+    {
+      "name": "Stig",
+      "index": 30
+    },
+    {
+      "name": "Rasmus",
+      "index": 31
+    },
+    {
+      "name": "Jonas",
+      "index": 32
+    },
+    {
+      "name": "NB",
+      "index": 33
+    },
+    {
+      "name": "Axel",
+      "index": 34
+    },
+    {
+      "name": "Jeppe",
+      "index": 35
+    }
+  ],
+  "generatedAt": "2026-10-21T07:57:29.597Z"
+}

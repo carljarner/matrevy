@@ -1,0 +1,22 @@
+{
+  "cast": [
+    {
+      "name": "Skuespiller",
+      "index": 0,
+      "placeholder": true
+    },
+    {
+      "name": "NaN",
+      "index": 1
+    },
+    {
+      "name": "Rolleindehaver",
+      "index": 2
+    },
+    {
+      "name": "Resten",
+      "index": 3
+    }
+  ],
+  "generatedAt": "2026-10-21T07:57:29.763Z"
+}

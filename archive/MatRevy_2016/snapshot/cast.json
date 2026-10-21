@@ -1,0 +1,161 @@
+{
+  "cast": [
+    {
+      "name": "Alexander",
+      "index": 0
+    },
+    {
+      "name": "Skuespiller",
+      "index": 1,
+      "placeholder": true
+    },
+    {
+      "name": "Freja",
+      "index": 2
+    },
+    {
+      "name": "Tina",
+      "index": 3
+    },
+    {
+      "name": "Mikkel F",
+      "index": 4
+    },
+    {
+      "name": "Anne",
+      "index": 5
+    },
+    {
+      "name": "Helle",
+      "index": 6
+    },
+    {
+      "name": "Sofie",
+      "index": 7
+    },
+    {
+      "name": "Stine",
+      "index": 8
+    },
+    {
+      "name": "Marie",
+      "index": 9
+    },
+    {
+      "name": "Jakob",
+      "index": 10
+    },
+    {
+      "name": "Shake",
+      "index": 11
+    },
+    {
+      "name": "Skuespiller 1",
+      "index": 12,
+      "placeholder": true
+    },
+    {
+      "name": "Skuespiller 2",
+      "index": 13,
+      "placeholder": true
+    },
+    {
+      "name": "Skuespiller 3",
+      "index": 14,
+      "placeholder": true
+    },
+    {
+      "name": "Skuespiller 4",
+      "index": 15,
+      "placeholder": true
+    },
+    {
+      "name": "Skuespiller 5",
+      "index": 16,
+      "placeholder": true
+    },
+    {
+      "name": "Skuespiller 6",
+      "index": 17,
+      "placeholder": true
+    },
+    {
+      "name": "Skuespiller 7",
+      "index": 18,
+      "placeholder": true
+    },
+    {
+      "name": "Frederikke",
+      "index": 19
+    },
+    {
+      "name": "Tomas",
+      "index": 20
+    },
+    {
+      "name": "Jonas",
+      "index": 21
+    },
+    {
+      "name": "Nicolas",
+      "index": 22
+    },
+    {
+      "name": "Patrick",
+      "index": 23
+    },
+    {
+      "name": "Minna",
+      "index": 24
+    },
+    {
+      "name": "Christine",
+      "index": 25
+    },
+    {
+      "name": "Emilie",
+      "index": 26
+    },
+    {
+      "name": "Julie",
+      "index": 27
+    },
+    {
+      "name": "Mikkel M",
+      "index": 28
+    },
+    {
+      "name": "Christoffer",
+      "index": 29
+    },
+    {
+      "name": "Amalie T",
+      "index": 30
+    },
+    {
+      "name": "Rikke",
+      "index": 31
+    },
+    {
+      "name": "MaWeK",
+      "index": 32
+    },
+    {
+      "name": "Stig",
+      "index": 33
+    },
+    {
+      "name": "Line",
+      "index": 34
+    },
+    {
+      "name": "Lasse",
+      "index": 35
+    },
+    {
+      "name": "Thor",
+      "index": 36
+    }
+  ],
+  "generatedAt": "2026-10-21T07:57:30.093Z"
+}

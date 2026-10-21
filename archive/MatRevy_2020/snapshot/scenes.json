@@ -1,0 +1,1014 @@
+{
+  "production": "MatRevy 2020",
+  "generatedAt": "2026-10-21T07:57:30.207Z",
+  "backfilled": "manus.pdf Aktoversigt",
+  "acts": [
+    {
+      "act": "1",
+      "label": "Akt 1",
+      "scenes": [
+        {
+          "id": "1-1",
+          "uid": "id:1-1",
+          "number": 1,
+          "name": "Sikkerhedsintro",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Marius",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Regine",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Terrorist 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Terrorist 2",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2020/sketches/Sikkerhedsintro.tex"
+        },
+        {
+          "id": "1-2",
+          "uid": "id:1-2",
+          "number": 2,
+          "name": "Covid Rammer",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Marius",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sommer",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Stine",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sunniva",
+              "role": "Sang/Rap",
+              "roleCode": "S3",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "PATINA: \"Flammer Rammer\"",
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2020/songs/CovidRammer.tex"
+        },
+        {
+          "id": "1-3",
+          "uid": "id:1-3",
+          "number": 3,
+          "name": "Matematiker i Reality 1",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Toke",
+              "role": "Skuespil",
+              "roleCode": "XD",
+              "description": "Instruktør / Dommer",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sunniva",
+              "role": "Skuespil",
+              "roleCode": "D2",
+              "description": "Dommer",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Maja",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Deltager",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Regine",
+              "role": "Statist",
+              "roleCode": "St1",
+              "description": "Statist",
+              "tags": [
+                "Statist"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Statist",
+              "roleCode": "St2",
+              "description": "Statist",
+              "tags": [
+                "Statist"
+              ]
+            }
+          ],
+          "duration": 1,
+          "sourceTex": "archive/MatRevy_2020/sketches/MatematikerIReality1.tex"
+        },
+        {
+          "id": "1-4",
+          "uid": "id:1-4",
+          "number": 4,
+          "name": "Halv Tid",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Nynne",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Maja",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "The Temptations: \"My Girl\"",
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2020/songs/HalvTid.tex"
+        },
+        {
+          "id": "1-5",
+          "uid": "id:1-5",
+          "number": 5,
+          "name": "Støt Revysterne",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Stine",
+              "role": "Skuespil",
+              "roleCode": "XB",
+              "description": "Instruktør / Bunde revyst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Speaker",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Skuespil",
+              "roleCode": "C",
+              "description": "Nøgen revyst",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Toke",
+              "role": "Skuespil",
+              "roleCode": "D",
+              "description": "Revyst der panikker i skoven",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Maja",
+              "role": "Statist",
+              "roleCode": "St1",
+              "description": "Statist",
+              "tags": [
+                "Statist"
+              ]
+            },
+            {
+              "name": "Sommer",
+              "role": "Statist",
+              "roleCode": "St2",
+              "description": "Statist",
+              "tags": [
+                "Statist"
+              ]
+            },
+            {
+              "name": "Sunniva",
+              "role": "Statist",
+              "roleCode": "St3",
+              "description": "Statist",
+              "tags": [
+                "Statist"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2020/sketches/StoetRevysterne.tex"
+        },
+        {
+          "id": "1-6",
+          "uid": "id:1-6",
+          "number": 6,
+          "name": "Ikke Mere Kaffe",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Nynne",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf / Danser",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Sunniva",
+              "role": "Sang/Rap",
+              "roleCode": "R",
+              "description": "Rapper",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "AK",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Mathias",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Dans",
+              "roleCode": "D5",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Linkin Park: \"In the End\"",
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2020/songs/IkkeMereKaffe.tex"
+        }
+      ]
+    },
+    {
+      "act": "2",
+      "label": "Akt 2",
+      "scenes": [
+        {
+          "id": "2-1",
+          "uid": "id:2-1",
+          "number": 1,
+          "name": "Indspilning",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Nynne",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sommer",
+              "role": "Skuespil",
+              "roleCode": "XA",
+              "description": "Instruktør / Producer (God sanger)",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "KE",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Dårlig sanger",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2020/sketches/Indspilning.tex"
+        },
+        {
+          "id": "2-2",
+          "uid": "id:2-2",
+          "number": 2,
+          "name": "Sommer i Corona",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Nynne",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf / Danser",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Sommer",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Rasmus Nøhr: \"Sommer i Europa\"",
+          "duration": 4.5,
+          "sourceTex": "archive/MatRevy_2020/songs/SommerICorona.tex"
+        },
+        {
+          "id": "2-3",
+          "uid": "id:2-3",
+          "number": 3,
+          "name": "Matematiker i Reality 2",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Toke",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Algebraiker",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Pige",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2020/sketches/MatematikerIReality2.tex"
+        },
+        {
+          "id": "2-4",
+          "uid": "id:2-4",
+          "number": 4,
+          "name": "Har Du Nogensinde...?",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Marius",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sunniva",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 0.5,
+          "sourceTex": "archive/MatRevy_2020/sketches/HarDuNogensinde.tex"
+        },
+        {
+          "id": "2-5",
+          "uid": "id:2-5",
+          "number": 5,
+          "name": "Kantinesangen",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Nynne",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sommer",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Stine",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Sunniva",
+              "role": "Statist",
+              "roleCode": "St",
+              "description": "Statist",
+              "tags": [
+                "Statist"
+              ]
+            }
+          ],
+          "melody": "James Morrison: \"I Won't Let You Go\"",
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2020/songs/Kantinesangen.tex"
+        },
+        {
+          "id": "2-6",
+          "uid": "id:2-6",
+          "number": 6,
+          "name": "The Regning",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KE",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Regine",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Rus",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Skuespil",
+              "roleCode": "BC",
+              "description": "Instruktor 1 + 2",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Victoria",
+              "role": "Skuespil",
+              "roleCode": "D",
+              "description": "Stresset rus",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2020/sketches/TheRegning.tex"
+        },
+        {
+          "id": "2-7",
+          "uid": "id:2-7",
+          "number": 7,
+          "name": "Mit Grundlag i Flammer",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Marius",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf / Danser",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "KE",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "AK",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Saybia: \"The Day After Tomorrow\"",
+          "duration": 4,
+          "sourceTex": "archive/MatRevy_2020/songs/MitGrundlagIFlammer.tex"
+        }
+      ]
+    },
+    {
+      "act": "3",
+      "label": "Akt 3",
+      "scenes": [
+        {
+          "id": "3-1",
+          "uid": "id:3-1",
+          "number": 1,
+          "name": "Matematikken",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Nynne",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "KE",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Matematikekspert 1",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sommer",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Matematikekspert 2",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2020/sketches/Matematikken.tex"
+        },
+        {
+          "id": "3-2",
+          "uid": "id:3-2",
+          "number": 2,
+          "name": "Så Fuck da Algebra",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Marius",
+              "role": "Sang/Rap",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Koreograf",
+              "roleCode": "Y",
+              "description": "Koreograf / Danser",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Stine",
+              "role": "Sang/Rap",
+              "roleCode": "S",
+              "description": "Sanger",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "KE",
+              "role": "Kor",
+              "roleCode": "K1",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "Sommer",
+              "role": "Kor",
+              "roleCode": "K2",
+              "description": "Kor",
+              "tags": [
+                "Kor"
+              ]
+            },
+            {
+              "name": "AK",
+              "role": "Dans",
+              "roleCode": "D2",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Dans",
+              "roleCode": "D3",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            },
+            {
+              "name": "Jasmin",
+              "role": "Dans",
+              "roleCode": "D4",
+              "description": "Danser",
+              "tags": [
+                "Dans"
+              ]
+            }
+          ],
+          "melody": "Shakira: \"Waka Waka (This Time for Africa)\"",
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2020/songs/SaaFuckDaAlgebra.tex"
+        },
+        {
+          "id": "3-3",
+          "uid": "id:3-3",
+          "number": 3,
+          "name": "Rejsen gennem Vandrehallen",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Sommer",
+              "role": "Skuespil",
+              "roleCode": "X",
+              "description": "Instruktør",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Maja",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Studerende",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 3,
+          "sourceTex": "archive/MatRevy_2020/sketches/RejsenGennemVandrehallen.tex"
+        },
+        {
+          "id": "3-4",
+          "uid": "id:3-4",
+          "number": 4,
+          "name": "Flasken",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "KE",
+              "role": "Sang/Rap",
+              "roleCode": "X1",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Victoria",
+              "role": "Sang/Rap",
+              "roleCode": "X2",
+              "description": "Instruktør",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Tramper Torben: \"Basken\"",
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2020/sketches/Flasken.tex"
+        },
+        {
+          "id": "3-5",
+          "uid": "id:3-5",
+          "number": 5,
+          "name": "Matematiker i Reality 3",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Toke",
+              "role": "Skuespil",
+              "roleCode": "XC",
+              "description": "Instruktør / Rus",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Regine",
+              "role": "Skuespil",
+              "roleCode": "A",
+              "description": "Rus, der dropper ud",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Anna",
+              "role": "Skuespil",
+              "roleCode": "B",
+              "description": "Mentor",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Maja",
+              "role": "Skuespil",
+              "roleCode": "DE",
+              "description": "Rus",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Skuespil",
+              "roleCode": "F",
+              "description": "Rus",
+              "tags": [
+                "Skuespil"
+              ]
+            },
+            {
+              "name": "Sunniva",
+              "role": "Skuespil",
+              "roleCode": "G",
+              "description": "Rus",
+              "tags": [
+                "Skuespil"
+              ]
+            }
+          ],
+          "duration": 2,
+          "sourceTex": "archive/MatRevy_2020/sketches/MatematikerIReality3.tex"
+        },
+        {
+          "id": "3-6",
+          "uid": "id:3-6",
+          "number": 6,
+          "name": "Zoom, Zoom!!",
+          "types": [
+            "sang"
+          ],
+          "schedulable": true,
+          "cast": [
+            {
+              "name": "Jasmin",
+              "role": "Koreograf",
+              "roleCode": "XY1",
+              "description": "Instruktør / Koreograf / Danser",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Nanna",
+              "role": "Koreograf",
+              "roleCode": "XY2",
+              "description": "Instruktør / Koreograf / Danser",
+              "tags": [
+                "Koreograf"
+              ]
+            },
+            {
+              "name": "Maja",
+              "role": "Sang/Rap",
+              "roleCode": "S1",
+              "description": "Sanger / Danser",
+              "tags": [
+                "Sang/Rap"
+              ]
+            },
+            {
+              "name": "Rune",
+              "role": "Sang/Rap",
+              "roleCode": "S2",
+              "description": "Sanger / Danser",
+              "tags": [
+                "Sang/Rap"
+              ]
+            }
+          ],
+          "melody": "Vengaboys: \"Boom, Boom, Boom, Boom!!\"",
+          "duration": 3.5,
+          "sourceTex": "archive/MatRevy_2020/songs/ZoomZoom.tex"
+        },
+        {
+          "id": "3-7",
+          "uid": "id:3-7",
+          "number": 7,
+          "name": "Sjove Fraklip",
+          "types": [
+            "sketch"
+          ],
+          "schedulable": true,
+          "cast": [],
+          "sourceTex": "archive/MatRevy_2020/other/SjoveFraklip.tex"
+        }
+      ]
+    }
+  ]
+}
