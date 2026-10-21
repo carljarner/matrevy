@@ -433,6 +433,7 @@ $KOORD_ACTIONS = [
   'koord_notes_upsert' => 'admin',  // {note} without id = create (placed before beforeId)
   'koord_notes_delete' => 'admin',  // {id}, idempotent
   'koord_notes_move' => 'admin',    // {id, column, beforeId|null}
+  'koord_notes_archive' => 'admin', // {folder, name}: Afslut revyen files the current notes under that revy
 ];
 if (isset($KOORD_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$KOORD_ACTIONS[$action]]) {
@@ -443,6 +444,7 @@ if (isset($KOORD_ACTIONS[$action])) {
   if ($action === 'koord_notes_read') koord_notes_read();
   if ($action === 'koord_notes_upsert') koord_notes_upsert($body);
   if ($action === 'koord_notes_delete') koord_notes_delete($body);
+  if ($action === 'koord_notes_archive') koord_notes_archive($body);
   koord_notes_move($body);
 }
 
@@ -6137,8 +6139,10 @@ function koord_logins_save($body) {
 
 // ── Koordinator notes (KOORD_DATA_DIR/notes.json) ──
 // Tjeklister & Fællesbeskeder's Keep-style notes: {notes: [{id, column,
-// kind, title, text, items: [{id, text, done}], color, updatedAt}],
-// updatedAt}. Array order is the display order within each column. Every
+// kind, title, text, items: [{id, text, done, indent: 0-3}], color,
+// archive?: {folder, name, at}, updatedAt}], updatedAt}. A note with
+// `archive` belongs to a closed revy (koord_notes_archive, run by Afslut
+// revyen) and shows in that year's collapsed section; it stays editable. Array order is the display order within each column. Every
 // write touches one note under a flock, so two admins editing different
 // notes never overwrite each other (same note: last save wins).
 
@@ -6219,11 +6223,12 @@ function koord_note_clean($note) {
   foreach ($items as $item) {
     $id = is_array($item) ? ($item['id'] ?? null) : null;
     if (!is_string($id) || !preg_match('/^[a-z0-9]{1,40}$/', $id) || isset($seen[$id])
-        || !koord_note_line($item['text'] ?? null, 500) || !is_bool($item['done'] ?? null)) {
+        || !koord_note_line($item['text'] ?? null, 500) || !is_bool($item['done'] ?? null)
+        || !in_array($item['indent'] ?? 0, [0, 1, 2, 3], true)) {
       respond(400, ['error' => 'invalid_shape']);
     }
     $seen[$id] = true;
-    $cleanItems[] = ['id' => $id, 'text' => $item['text'], 'done' => $item['done']];
+    $cleanItems[] = ['id' => $id, 'text' => $item['text'], 'done' => $item['done'], 'indent' => $item['indent'] ?? 0];
   }
   return [
     'column' => $column,
@@ -6250,13 +6255,55 @@ function koord_notes_insert($notes, $note, $beforeId) {
   return $notes;
 }
 
+// Three-way merge of a checklist's items, so items added by different
+// people are all kept (theirs appended at the end). $base = the items the
+// client last saw saved, $mine = what it sends, $theirs = the live note's.
+// Per item and field, my value wins unless I left it as it was in $base.
+// An item I had saved but removed is dropped; one they removed is dropped
+// unless I changed it. Mirrored by koordMergeNoteItems() in koordinator.js.
+function koord_note_merge_items($base, $mine, $theirs) {
+  $baseById = [];
+  foreach ($base as $item) $baseById[$item['id']] = $item;
+  $theirsById = [];
+  foreach ($theirs as $item) $theirsById[$item['id']] = $item;
+  $out = [];
+  $mineIds = [];
+  foreach ($mine as $item) {
+    $id = $item['id'];
+    $mineIds[$id] = true;
+    $b = $baseById[$id] ?? null;
+    if (isset($theirsById[$id])) {
+      $t = $theirsById[$id];
+      $merged = ['id' => $id];
+      foreach (['text' => '', 'done' => false, 'indent' => 0] as $field => $default) {
+        $merged[$field] = ($b !== null && $item[$field] === ($b[$field] ?? $default)) ? ($t[$field] ?? $default) : $item[$field];
+      }
+      $out[] = $merged;
+    } elseif ($b === null || $item['text'] !== $b['text'] || $item['done'] !== $b['done'] || $item['indent'] !== ($b['indent'] ?? 0)) {
+      $out[] = $item;
+    }
+  }
+  foreach ($theirs as $item) {
+    if (!isset($mineIds[$item['id']]) && !isset($baseById[$item['id']])) $out[] = $item;
+  }
+  return array_slice($out, 0, 200);
+}
+
 function koord_notes_upsert($body) {
   $clean = koord_note_clean($body['note'] ?? null);
+  // The items this client last saw saved (only used to merge a checklist).
+  $baseItems = [];
+  if (isset($body['baseItems'])) {
+    if (!is_array($body['baseItems']) || !array_is_list($body['baseItems']) || count($body['baseItems']) > 200) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $baseItems = koord_note_clean(['column' => 'beskeder', 'kind' => 'list', 'items' => $body['baseItems']])['items'];
+  }
   $id = is_array($body['note'] ?? null) ? ($body['note']['id'] ?? null) : null;
   if ($id !== null && !koord_note_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
   $beforeId = $body['beforeId'] ?? null;
   if ($beforeId !== null && !koord_note_valid_id($beforeId)) respond(400, ['error' => 'invalid_shape']);
-  [, $saved] = koord_notes_mutate(function (&$doc) use ($clean, $id, $beforeId) {
+  [, $saved] = koord_notes_mutate(function (&$doc) use ($clean, $id, $beforeId, $baseItems) {
     $note = ($id === null ? ['id' => dechex(time()) . bin2hex(random_bytes(4))] : ['id' => $id]) + $clean;
     $note['updatedAt'] = date('c');
     if ($id === null) {
@@ -6266,6 +6313,12 @@ function koord_notes_upsert($body) {
     }
     foreach ($doc['notes'] as $i => $other) {
       if (($other['id'] ?? null) === $id) {
+        // Title, text, colour and kind: last save wins. A checklist's items
+        // are merged, so nobody's additions get lost.
+        if ($note['kind'] === 'list' && ($other['kind'] ?? null) === 'list' && is_array($other['items'] ?? null)) {
+          $note['items'] = koord_note_merge_items($baseItems, $note['items'], $other['items']);
+        }
+        if (isset($other['archive'])) $note['archive'] = $other['archive'];
         $doc['notes'][$i] = $note;
         return $note;
       }
@@ -6284,6 +6337,27 @@ function koord_notes_delete($body) {
     return null;
   });
   respond(200, ['ok' => true]);
+}
+
+// Files every note that isn't archived yet under the revy being closed.
+// Idempotent: a re-run of Afslut finds nothing left to file.
+function koord_notes_archive($body) {
+  $folder = $body['folder'] ?? null;
+  $name = $body['name'] ?? '';
+  if (!is_string($folder) || !preg_match('/^[A-Za-z0-9_-]{1,100}$/', $folder) || !koord_note_line($name, 100)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $name = trim($name) === '' ? str_replace('_', ' ', $folder) : trim($name);
+  [, $count] = koord_notes_mutate(function (&$doc) use ($folder, $name) {
+    $count = 0;
+    foreach ($doc['notes'] as $i => $note) {
+      if (isset($note['archive'])) continue;
+      $doc['notes'][$i]['archive'] = ['folder' => $folder, 'name' => $name, 'at' => date('c')];
+      $count++;
+    }
+    return $count;
+  });
+  respond(200, ['ok' => true, 'archived' => $count]);
 }
 
 function koord_notes_move($body) {

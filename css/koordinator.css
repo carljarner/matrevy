@@ -1403,11 +1403,20 @@
   .koord-notes-columns { grid-template-columns: 1fr; }
 }
 
-.koord-notes-add-btns {
+.koord-notes-col-title {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* The fold chevron only exists on a phone, where the columns stack. */
+.koord-notes-col-chevron { display: none; }
+
+@media (max-width: 719px) {
+  .koord-notes-col-head { cursor: pointer; user-select: none; }
+  .koord-notes-col-chevron { display: inline; }
+  .koord-notes-card-closed .koord-notes-list { display: none; }
 }
 
 .koord-notes-list {
@@ -1456,6 +1465,8 @@
   color: var(--text-muted);
   border-radius: 6px;
 }
+
+.koord-note-drop-tail:empty { min-height: 0.6rem; }
 
 .koord-note-drop-tail.koord-mp-drop-target {
   box-shadow: inset 0 3px 0 0 var(--accent-warm);
@@ -1529,16 +1540,16 @@
   cursor: pointer;
 }
 
+.koord-note-item { padding-left: calc(var(--indent, 0) * 1.6rem); }
+
 .koord-note-item-done .koord-note-item-input {
   text-decoration: line-through;
   color: var(--text-muted);
 }
 
-.koord-note-add-item,
-.koord-note-done-toggle {
+.koord-note-add-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
   align-self: flex-start;
   background: none;
   border: none;
@@ -1550,27 +1561,40 @@
   cursor: pointer;
 }
 
-.koord-note-done-toggle {
-  margin-top: 0.2rem;
-  padding-top: 0.35rem;
+.koord-note-collapse {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
 }
 
 @media (hover: hover) {
-  .koord-note-add-item:hover,
-  .koord-note-done-toggle:hover { color: var(--accent-warm-text); }
+  .koord-note-add-item:hover { color: var(--accent-warm-text); }
+  .koord-note-collapse:hover .koord-login-chevron { color: var(--accent-warm-text); }
 }
 
 .koord-note-add-item:focus-visible,
-.koord-note-done-toggle:focus-visible {
+.koord-note-collapse:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
+
+.koord-note-collapsed { padding-bottom: 0.55rem; }
 
 .koord-note-tools {
   display: flex;
   justify-content: flex-end;
   gap: 0.15rem;
 }
+
+.koord-note-copy { margin-right: auto; }
 
 /* Revealed on hover/focus where there's a mouse; always shown on touch. */
 @media (hover: hover) {
@@ -1609,4 +1633,52 @@
 .koord-note-swatch-selected {
   outline: 2px solid var(--accent-warm-text);
   outline-offset: 2px;
+}
+
+/* A closed revy's notes: "Fællesbeskeder (MatRevy 2025)", collapsed by
+   default, below the current notes. */
+.koord-notes-archive {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.koord-notes-archive-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  padding: 0.25rem 0.2rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.koord-notes-archive-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .koord-notes-archive-toggle:hover,
+  .koord-notes-archive-toggle:hover .koord-login-chevron { color: var(--accent-warm-text); }
+}
+
+.koord-notes-archive-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.koord-notes-archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
 }

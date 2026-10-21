@@ -476,6 +476,10 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
   const teknikRes = await koordBudgetApi('teknik_clear_all', {});
   if (!teknikRes.ok) throw new Error(teknikRes.message || 'Kunne ikke slette filerne i Teknikken.');
 
+  onProgress('Arkiverer fællesbeskeder og tjeklister...');
+  const notesRes = await koordBudgetApi('koord_notes_archive', { folder: closingFolder, name: closingName });
+  if (!notesRes.ok) throw new Error(notesRes.message || 'Kunne ikke arkivere fællesbeskeder og tjeklister.');
+
   onProgress('Nulstiller scener og rollebesætning...');
   const resetActs = [
     { act: '1', label: 'Akt 1', scenes: [] },
@@ -616,7 +620,8 @@ function renderKoordGuide() {
   container.appendChild(el('h3', 'koord-step-heading', 'Afslut revyen'));
   container.appendChild(el('p', null,
     'Gemmer et snapshot af scener og rollebesætning i arkivet, nulstiller Manus (scener, rollebesætning og indsendte ' +
-    'manuskripter), sletter alle filer i Teknikken og lukker den aktive produktionsmappe. Revyster kan derefter ikke ' +
+    'manuskripter), sletter alle filer i Teknikken, samler årets fællesbeskeder og tjeklister i en sammenfoldet sektion ' +
+    'for revyen og lukker den aktive produktionsmappe. Revyster kan derefter ikke ' +
     'længere indsende manus eller uploade til teknikken. Revyen kan først afsluttes, når Teknikken og Manus er markeret ' +
     'som klar til arkivering ovenfor.'));
   const ready = config.archiveReadyTeknik === true && config.archiveReadyManus === true;
@@ -4172,16 +4177,18 @@ function renderKoordManusSection() {
 }
 
 // ── Tjeklister & Fællesbeskeder ──────────────────────────────
-// Google Keep-style notes in two columns, "Fællesbeskeder" and "Tjekliste".
-// Every note is either free text or a checklist (switchable), has a colour
-// and drags by its ⠿ handle (within a column or across). Private, admin-only
+// Google Keep-style notes in two columns, "Tjekliste" and "Fællesbeskeder".
+// Every note is either free text or a checklist (switchable; a ticked item
+// is crossed out in place), has a colour, folds up to its title (per
+// browser) and drags by its ⠿ handle (within a column or across). Private, admin-only
 // store (KOORD_DATA_DIR/notes.json via the koord_notes_* actions), written
-// one note at a time like Fællesspisning's rows: text commits on change
-// (blur), everything else at once; commits on one note are chained on
-// note._inFlight. A new note stays a local draft until it has content.
+// one note at a time like Fællesspisning's rows: text commits when its field
+// loses focus, everything else at once; commits on one note are chained on
+// note._inFlight. Title/text/colour: last save wins; a checklist's items are
+// merged (koordMergeNoteItems), so items added by several people all stay. A new note stays a local draft until it has content.
 const KOORD_NOTE_COLUMNS = [
-  { key: 'beskeder', label: 'Fællesbeskeder', empty: 'Ingen fællesbeskeder endnu.' },
   { key: 'tjekliste', label: 'Tjekliste', empty: 'Ingen tjeklister endnu.' },
+  { key: 'beskeder', label: 'Fællesbeskeder', empty: 'Ingen fællesbeskeder endnu.' },
 ];
 // Mirrors koord_note_colors() in update-data.php.
 const KOORD_NOTE_COLORS = [
@@ -4194,13 +4201,32 @@ const KOORD_NOTE_COLORS = [
   { key: 'purple', label: 'Lilla' },
   { key: 'grey', label: 'Grå' },
 ];
+const KOORD_NOTE_MAX_INDENT = 3; // mirrors the server's allowed indent levels (0-3)
 let koordNotes = null;             // [{id?, column, kind, title, text, items, color, …}] in server order
 let koordNotesState = 'loading';   // 'loading' | 'ready' | 'failed'
 let koordNotesMessage = '';
 let koordNotesPending = 0;         // commits not yet answered
 let koordNoteDragItem = null;
 let koordNoteKeySeq = 0;
-const koordNotesDoneOpen = new Set(); // _keys of notes whose "afkrydsede" group is open
+// Ids of collapsed notes (only the title shows), remembered per browser.
+const KOORD_NOTES_COLLAPSED_KEY = 'matrevy-koord-notes-collapsed';
+const koordNotesCollapsed = new Set((() => {
+  try { return JSON.parse(localStorage.getItem(KOORD_NOTES_COLLAPSED_KEY)) || []; } catch (e) { return []; }
+})());
+
+function koordNoteIsCollapsed(note) {
+  return koordNotesCollapsed.has(note.id || note._key);
+}
+
+function koordToggleNoteCollapsed(note) {
+  const key = note.id || note._key;
+  if (koordNotesCollapsed.has(key)) koordNotesCollapsed.delete(key); else koordNotesCollapsed.add(key);
+  try {
+    // Only saved notes are remembered; a draft's key dies with the page.
+    localStorage.setItem(KOORD_NOTES_COLLAPSED_KEY, JSON.stringify([...koordNotesCollapsed].filter((k) => !/^n\d+$/.test(k))));
+  } catch (e) { /* storage unavailable: collapse for this page load only */ }
+  koordRerenderNote(note);
+}
 
 window.addEventListener('beforeunload', (e) => {
   if (koordNotesPending > 0) { e.preventDefault(); e.returnValue = ''; }
@@ -4220,6 +4246,7 @@ function koordNoteFromServer(note) {
     text: note.text || '',
     items: (note.items || []).map((item) => Object.assign({}, item)),
     color: note.color || '',
+    archive: note.archive || null,
   };
   copy._key = 'n' + (++koordNoteKeySeq);
   copy._saved = JSON.stringify(koordNotePayload(copy));
@@ -4234,7 +4261,7 @@ function koordNotePayload(note) {
     title: note.title.replace(/[\x00-\x1f\x7f]/g, ' ').trim(),
     text: note.kind === 'text' ? note.text : '',
     items: note.kind === 'list'
-      ? note.items.filter((item) => item.text.trim() !== '').map((item) => ({ id: item.id, text: item.text.trim(), done: item.done }))
+      ? note.items.filter((item) => item.text.trim() !== '').map((item) => ({ id: item.id, text: item.text.trim(), done: item.done, indent: item.indent || 0 }))
       : [],
     color: note.color,
   };
@@ -4263,6 +4290,40 @@ function koordNoteChain(note, task) {
   note._inFlight = prev.then(() => task(note)).catch(() => {}).finally(() => { koordNotesPending--; });
 }
 
+// Mirrors koord_note_merge_items() in update-data.php: a three-way merge
+// of checklist items, used on a save's reply so items others added show up
+// without losing anything typed here while the save was on its way.
+function koordMergeNoteItems(base, mine, theirs) {
+  const baseById = new Map(base.map((item) => [item.id, item]));
+  const theirsById = new Map(theirs.map((item) => [item.id, item]));
+  const mineIds = new Set();
+  const out = [];
+  mine.forEach((item) => {
+    mineIds.add(item.id);
+    const b = baseById.get(item.id);
+    const t = theirsById.get(item.id);
+    if (t) {
+      out.push({
+        id: item.id,
+        text: b && item.text.trim() === b.text ? t.text : item.text,
+        done: b && item.done === b.done ? t.done : item.done,
+        indent: b && (item.indent || 0) === (b.indent || 0) ? (t.indent || 0) : (item.indent || 0),
+      });
+    } else if (!b || item.text.trim() !== b.text || item.done !== b.done || (item.indent || 0) !== (b.indent || 0)) {
+      out.push(item);
+    }
+  });
+  theirs.forEach((item) => {
+    if (!mineIds.has(item.id) && !baseById.has(item.id)) out.push(Object.assign({}, item));
+  });
+  return out;
+}
+
+function koordNoteItemsEqual(a, b) {
+  return a.length === b.length && a.every((item, i) => item.id === b[i].id && item.text === b[i].text
+    && item.done === b[i].done && (item.indent || 0) === (b[i].indent || 0));
+}
+
 function koordNoteCommit(note) {
   if (!note.id && !note._creating && !koordNoteHasContent(note)) return;
   if (!note.id) note._creating = true;
@@ -4275,11 +4336,23 @@ function koordNoteCommit(note) {
     if (note.id && JSON.stringify(payload) === note._saved) return;
     const body = { note: payload };
     if (!note.id) body.beforeId = koordNoteBeforeId(note);
+    else if (payload.kind === 'list') body.baseItems = JSON.parse(note._saved).items;
     const result = await koordBudgetApi('koord_notes_upsert', body);
     if (result.ok) {
-      note.id = result.data.note.id;
+      const saved = result.data.note;
+      const sentItems = payload.items;
+      note.id = saved.id;
       payload.id = note.id;
+      payload.items = (saved.items || []).map((item) => ({ id: item.id, text: item.text, done: item.done, indent: item.indent || 0 }));
       note._saved = JSON.stringify(payload);
+      // Someone else's checklist items came back in the merge: show them.
+      if (note.kind === 'list' && saved.kind === 'list') {
+        const merged = koordMergeNoteItems(sentItems, note.items, payload.items);
+        if (!koordNoteItemsEqual(merged, note.items)) {
+          note.items = merged;
+          koordRerenderNote(note);
+        }
+      }
       return;
     }
     if (/not_found/.test(result.message || '')) {
@@ -4321,20 +4394,50 @@ async function koordLoadNotes() {
   renderKoordNotes();
 }
 
+// On a phone (one column, ≤719px) each column card folds up by a tap on its
+// top row; the folded columns are remembered per browser. Wider screens
+// always show both columns open (the CSS only hides inside the breakpoint).
+const KOORD_NOTES_COLS_CLOSED_KEY = 'matrevy-koord-notes-cols-closed';
+const koordNotesColsClosed = new Set((() => {
+  try { return JSON.parse(localStorage.getItem(KOORD_NOTES_COLS_CLOSED_KEY)) || []; } catch (e) { return []; }
+})());
+const koordNotesNarrow = window.matchMedia('(max-width: 719px)');
+
+function koordSetNotesColumnClosed(card, columnKey, closed) {
+  if (closed) koordNotesColsClosed.add(columnKey); else koordNotesColsClosed.delete(columnKey);
+  try { localStorage.setItem(KOORD_NOTES_COLS_CLOSED_KEY, JSON.stringify([...koordNotesColsClosed])); } catch (e) { /* this page load only */ }
+  card.classList.toggle('koord-notes-card-closed', closed);
+  const chevron = card.querySelector('.koord-notes-col-chevron');
+  chevron.textContent = closed ? '▸' : '▾';
+  card.querySelector('.koord-notes-col-head').setAttribute('aria-expanded', String(!closed));
+}
+
 function renderTjeklisterCard(container) {
   const layout = el('div', 'koord-notes-columns');
   KOORD_NOTE_COLUMNS.forEach((column) => {
-    const card = el('section', 'card koord-notes-card');
-    const head = el('div', 'card-head');
-    head.appendChild(el('h2', null, column.label));
-    const actions = el('div', 'koord-notes-add-btns');
-    [['text', '+ Note'], ['list', '+ Tjekliste']].forEach(([kind, label]) => {
-      const btn = el('button', 'btn-small', label);
-      btn.type = 'button';
-      btn.addEventListener('click', () => koordAddNote(column.key, kind));
-      actions.appendChild(btn);
+    const closed = koordNotesColsClosed.has(column.key);
+    const card = el('section', 'card koord-notes-card' + (closed ? ' koord-notes-card-closed' : ''));
+    const head = el('div', 'card-head koord-notes-col-head');
+    head.setAttribute('aria-expanded', String(!closed));
+    const titleWrap = el('div', 'koord-notes-col-title');
+    titleWrap.appendChild(el('span', 'koord-login-chevron koord-notes-col-chevron', closed ? '▸' : '▾'));
+    titleWrap.appendChild(el('h2', null, column.label));
+    head.appendChild(titleWrap);
+    head.addEventListener('click', (e) => {
+      if (!koordNotesNarrow.matches || e.target.closest('button')) return;
+      koordSetNotesColumnClosed(card, column.key, !koordNotesColsClosed.has(column.key));
     });
-    head.appendChild(actions);
+    // One "+" top right: a new checklist (switch it to text in its tool row).
+    // A plain .btn-small "+", the same as Kalender's add button on a phone.
+    const add = el('button', 'btn-small koord-notes-add', '+');
+    add.type = 'button';
+    add.title = 'Ny tjekliste';
+    add.setAttribute('aria-label', 'Ny tjekliste');
+    add.addEventListener('click', () => {
+      if (koordNotesNarrow.matches && koordNotesColsClosed.has(column.key)) koordSetNotesColumnClosed(card, column.key, false);
+      koordAddNote(column.key, 'list');
+    });
+    head.appendChild(add);
     card.appendChild(head);
     const body = el('div', 'koord-notes-list');
     body.id = `koord-notes-${column.key}`;
@@ -4357,6 +4460,79 @@ function koordAddNote(column, kind) {
   if (input) input.focus();
 }
 
+// Copies a note (this year's or a closed revy's) to the top of this year's
+// notes in the same column: same title, text and colour, a checklist's
+// items with fresh ids and no ticks. Saved right away as a new note.
+function koordCopyNote(source) {
+  if (koordNotesState !== 'ready') return;
+  const note = koordNoteFromServer({
+    column: source.column,
+    kind: source.kind,
+    title: source.title,
+    text: source.text,
+    items: source.items
+      .filter((item) => item.text.trim() !== '')
+      .map((item) => ({ id: koordNoteItemId(), text: item.text, done: false, indent: item.indent || 0 })),
+    color: source.color,
+  });
+  delete note.id;
+  const firstIdx = koordNotes.findIndex((n) => n.column === note.column);
+  if (firstIdx === -1) koordNotes.push(note); else koordNotes.splice(firstIdx, 0, note);
+  koordNotesCollapsed.delete(note._key);
+  renderKoordNotes();
+  koordNoteCommit(note);
+  const card = document.querySelector(`[data-note-key="${note._key}"]`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  siteShowToast('Kopieret til toppen');
+}
+
+function openCopyNoteConfirm(note) {
+  const isList = note.kind === 'list';
+  const { modal, form, actions, close } = siteOpenModalWithClose(`Kopier denne ${isList ? 'tjekliste' : 'note'} til toppen?`);
+  modal.classList.add('koord-arkiv-confirm-modal', 'koord-guide-confirm-modal');
+  const column = KOORD_NOTE_COLUMNS.find((c) => c.key === note.column);
+  form.appendChild(el('p', 'koord-arkiv-confirm-text', isList
+    ? `Kopien lægges øverst i årets ${column ? column.label : ''}. Alle punkter starter uden flueben.`
+    : `Kopien lægges øverst i årets ${column ? column.label : ''}.`));
+  const confirmBtn = koordPillBtn('Kopier', 'site-btn-success');
+  confirmBtn.addEventListener('click', () => { close(); koordCopyNote(note); });
+  actions.appendChild(confirmBtn);
+}
+
+// Which revy a note belongs to: '' = the current one, else the folder of
+// the closed revy it was filed under by Afslut revyen (koord_notes_archive).
+function koordNoteGroup(note) {
+  return note.archive ? note.archive.folder : '';
+}
+
+// Closed revys that have notes, newest first: [{folder, name}].
+function koordNoteArchives() {
+  const byFolder = new Map();
+  koordNotes.forEach((note) => {
+    if (!note.archive) return;
+    const known = byFolder.get(note.archive.folder);
+    if (!known || (note.archive.at || '') > known.at) {
+      byFolder.set(note.archive.folder, { folder: note.archive.folder, name: note.archive.name || note.archive.folder, at: note.archive.at || '' });
+    }
+  });
+  return [...byFolder.values()].sort((a, b) => b.at.localeCompare(a.at));
+}
+
+// The notes of one column and revy, plus a drop tail that puts a dragged
+// note last there.
+function koordBuildNoteGroup(column, group, emptyText) {
+  const frag = document.createDocumentFragment();
+  const notes = koordNotes.filter((note) => note.column === column && koordNoteGroup(note) === group);
+  notes.forEach((note) => frag.appendChild(koordBuildNote(note)));
+  const tail = el('div', 'koord-note-drop-tail', notes.length ? null : emptyText);
+  koordWireDropHighlight(tail, () => koordDropNote(column, null, group));
+  frag.appendChild(tail);
+  return frag;
+}
+
+// "<Column> (<revy>)" sections for the closed revys, collapsed on every load.
+const koordNotesArchiveOpen = new Set(); // `${column}:${folder}` of expanded sections
+
 function renderKoordNotes() {
   KOORD_NOTE_COLUMNS.forEach((column) => {
     const list = document.getElementById(`koord-notes-${column.key}`);
@@ -4366,24 +4542,60 @@ function renderKoordNotes() {
       list.appendChild(el('p', 'koord-status-value', koordNotesState === 'loading' ? 'Indlæser…' : koordNotesMessage));
       return;
     }
-    const notes = koordNotes.filter((note) => note.column === column.key);
-    notes.forEach((note) => list.appendChild(koordBuildNote(note)));
-    // Drop tail: dropping here moves the dragged note to the end of this column.
-    const tail = el('div', 'koord-note-drop-tail', notes.length ? null : column.empty);
-    koordWireDropHighlight(tail, () => koordDropNote(column.key, null));
-    list.appendChild(tail);
+    list.appendChild(koordBuildNoteGroup(column.key, '', column.empty));
+
+    koordNoteArchives().forEach((archive) => {
+      const notes = koordNotes.filter((note) => note.column === column.key && koordNoteGroup(note) === archive.folder);
+      if (!notes.length) return;
+      const key = `${column.key}:${archive.folder}`;
+      const isOpen = koordNotesArchiveOpen.has(key);
+      const section = el('div', 'koord-notes-archive');
+      const toggle = el('button', 'koord-notes-archive-toggle');
+      toggle.type = 'button';
+      toggle.setAttribute('aria-expanded', String(isOpen));
+      toggle.appendChild(el('span', 'koord-login-chevron', isOpen ? '▾' : '▸'));
+      toggle.appendChild(el('span', null, `${column.label} (${archive.name})`));
+      toggle.appendChild(el('span', 'koord-notes-archive-count', String(notes.length)));
+      toggle.addEventListener('click', () => {
+        if (isOpen) koordNotesArchiveOpen.delete(key); else koordNotesArchiveOpen.add(key);
+        renderKoordNotes();
+      });
+      section.appendChild(toggle);
+      if (isOpen) {
+        const body = el('div', 'koord-notes-archive-list');
+        body.appendChild(koordBuildNoteGroup(column.key, archive.folder, null));
+        section.appendChild(body);
+      }
+      list.appendChild(section);
+    });
   });
 }
 
+// Rebuilds one note, keeping the caret where it was if a field in it had
+// focus (a save's reply can re-render a note while someone is typing).
 function koordRerenderNote(note) {
   const old = document.querySelector(`[data-note-key="${note._key}"]`);
-  if (old) old.replaceWith(koordBuildNote(note));
+  if (!old) return;
+  const active = old.contains(document.activeElement) ? document.activeElement : null;
+  let selector = null;
+  if (active && active.matches('.koord-note-title, .koord-note-text')) selector = active.matches('.koord-note-title') ? '.koord-note-title' : '.koord-note-text';
+  else if (active && active.matches('.koord-note-item-input')) selector = `[data-item-id="${active.closest('[data-item-id]').dataset.itemId}"] .koord-note-item-input`;
+  const caret = selector ? [active.selectionStart, active.selectionEnd] : null;
+  const fresh = koordBuildNote(note);
+  old.replaceWith(fresh);
+  const target = selector && fresh.querySelector(selector);
+  if (target) {
+    target.focus();
+    target.setSelectionRange(caret[0], caret[1]);
+  }
 }
 
-function koordDropNote(column, beforeNote) {
+// A note only moves within its own revy's notes (either column); a drop
+// between the current notes and a closed revy's section is ignored.
+function koordDropNote(column, beforeNote, group) {
   const note = koordNoteDragItem;
   koordNoteDragItem = null;
-  if (!note || note === beforeNote) return;
+  if (!note || note === beforeNote || koordNoteGroup(note) !== group) return;
   note.column = column;
   koordMoveDraftItem(koordNotes, note, beforeNote, renderKoordNotes);
   koordNoteChain(note, async () => {
@@ -4416,7 +4628,18 @@ function koordBuildNote(note) {
   });
   handle.addEventListener('dragend', () => { koordNoteDragItem = null; });
   head.appendChild(handle);
-  koordWireDropHighlight(card, () => koordDropNote(note.column, note));
+  koordWireDropHighlight(card, () => koordDropNote(note.column, note, koordNoteGroup(note)));
+
+  const collapsed = koordNoteIsCollapsed(note);
+  card.classList.toggle('koord-note-collapsed', collapsed);
+  const chevron = el('button', 'koord-note-collapse');
+  chevron.type = 'button';
+  chevron.setAttribute('aria-expanded', String(!collapsed));
+  chevron.setAttribute('aria-label', collapsed ? 'Fold ud' : 'Fold sammen');
+  chevron.title = collapsed ? 'Fold ud' : 'Fold sammen';
+  chevron.appendChild(el('span', 'koord-login-chevron', collapsed ? '▸' : '▾'));
+  chevron.addEventListener('click', () => koordToggleNoteCollapsed(note));
+  head.appendChild(chevron);
 
   const title = document.createElement('input');
   title.type = 'text';
@@ -4425,7 +4648,6 @@ function koordBuildNote(note) {
   title.placeholder = 'Titel';
   title.maxLength = 200;
   title.addEventListener('input', () => { note.title = title.value; });
-  title.addEventListener('change', () => koordNoteCommit(note));
   title.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
@@ -4434,6 +4656,13 @@ function koordBuildNote(note) {
   });
   head.appendChild(title);
   card.appendChild(head);
+  // A text field saves when you leave it (never per keystroke). Blur rather
+  // than change, so text typed before a re-render still gets saved; an
+  // unchanged note sends nothing (koordNoteCommit compares with _saved).
+  card.addEventListener('focusout', (e) => {
+    if (e.target.matches('.koord-note-title, .koord-note-text, .koord-note-item-input')) koordNoteCommit(note);
+  });
+  if (collapsed) return card;
 
   if (note.kind === 'text') card.appendChild(koordBuildNoteText(note));
   else card.appendChild(koordBuildNoteList(note));
@@ -4450,45 +4679,25 @@ function koordBuildNoteText(note) {
   text.rows = 1;
   text.maxLength = 10000;
   text.addEventListener('input', () => { note.text = text.value; koordAutoGrow(text); });
-  text.addEventListener('change', () => koordNoteCommit(note));
   requestAnimationFrame(() => koordAutoGrow(text));
   return text;
 }
 
-// Open items in order, then a "+ Punkt" row, then the ticked ones in a
-// collapsible "N afkrydsede" group, like Keep.
+// Every item in its own place (a ticked one is just crossed out), then a
+// "+ Punkt" row that adds one at the end.
 function koordBuildNoteList(note) {
   const wrap = el('div', 'koord-note-items');
-  const open = note.items.filter((item) => !item.done);
-  const done = note.items.filter((item) => item.done);
-  open.forEach((item) => wrap.appendChild(koordBuildNoteItem(note, item)));
+  note.items.forEach((item) => wrap.appendChild(koordBuildNoteItem(note, item)));
 
   const add = el('button', 'koord-note-add-item', '+ Punkt');
   add.type = 'button';
   add.addEventListener('click', () => {
-    const lastOpen = open[open.length - 1];
     const item = { id: koordNoteItemId(), text: '', done: false };
-    const at = lastOpen ? note.items.indexOf(lastOpen) + 1 : 0;
-    note.items.splice(at, 0, item);
+    note.items.push(item);
     koordRerenderNote(note);
     koordFocusNoteItem(note, item);
   });
   wrap.appendChild(add);
-
-  if (done.length) {
-    const isOpen = koordNotesDoneOpen.has(note._key);
-    const toggle = el('button', 'koord-note-done-toggle');
-    toggle.type = 'button';
-    toggle.setAttribute('aria-expanded', String(isOpen));
-    toggle.appendChild(el('span', 'koord-login-chevron', isOpen ? '▾' : '▸'));
-    toggle.appendChild(el('span', null, `${done.length} afkrydsede`));
-    toggle.addEventListener('click', () => {
-      if (isOpen) koordNotesDoneOpen.delete(note._key); else koordNotesDoneOpen.add(note._key);
-      koordRerenderNote(note);
-    });
-    wrap.appendChild(toggle);
-    if (isOpen) done.forEach((item) => wrap.appendChild(koordBuildNoteItem(note, item)));
-  }
   return wrap;
 }
 
@@ -4501,6 +4710,7 @@ function koordFocusNoteItem(note, item, atEnd) {
 
 function koordBuildNoteItem(note, item) {
   const row = el('div', 'koord-note-item' + (item.done ? ' koord-note-item-done' : ''));
+  row.style.setProperty('--indent', String(item.indent || 0));
   row.dataset.itemId = item.id;
   const box = document.createElement('input');
   box.type = 'checkbox';
@@ -4509,7 +4719,8 @@ function koordBuildNoteItem(note, item) {
   box.setAttribute('aria-label', item.done ? 'Fjern flueben' : 'Sæt flueben');
   box.addEventListener('change', () => {
     item.done = box.checked;
-    koordRerenderNote(note);
+    row.classList.toggle('koord-note-item-done', item.done);
+    box.setAttribute('aria-label', item.done ? 'Fjern flueben' : 'Sæt flueben');
     koordNoteCommit(note);
   });
   row.appendChild(box);
@@ -4521,19 +4732,26 @@ function koordBuildNoteItem(note, item) {
   input.maxLength = 500;
   input.placeholder = 'Punkt';
   input.addEventListener('input', () => { item.text = input.value; });
-  input.addEventListener('change', () => koordNoteCommit(note));
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const next = { id: koordNoteItemId(), text: '', done: item.done };
+      const next = { id: koordNoteItemId(), text: '', done: false, indent: item.indent || 0 };
       note.items.splice(note.items.indexOf(item) + 1, 0, next);
       koordRerenderNote(note);
       koordFocusNoteItem(note, next);
       koordNoteCommit(note);
+    } else if (e.key === 'Tab') {
+      // Tab indents one more level (up to KOORD_NOTE_MAX_INDENT), Shift+Tab
+      // one less; saved with the rest when the field loses focus.
+      const current = item.indent || 0;
+      const indent = Math.max(0, Math.min(KOORD_NOTE_MAX_INDENT, current + (e.shiftKey ? -1 : 1)));
+      e.preventDefault(); // stay in the item, even at the first or last level
+      if (indent === current) return;
+      item.indent = indent;
+      row.style.setProperty('--indent', String(indent));
     } else if (e.key === 'Backspace' && input.value === '') {
       e.preventDefault();
-      const siblings = note.items.filter((other) => other.done === item.done);
-      const prev = siblings[siblings.indexOf(item) - 1];
+      const prev = note.items[note.items.indexOf(item) - 1];
       note.items = note.items.filter((other) => other !== item);
       koordRerenderNote(note);
       if (prev) koordFocusNoteItem(note, prev, true);
@@ -4555,6 +4773,14 @@ function koordBuildNoteItem(note, item) {
 
 function koordBuildNoteTools(note) {
   const tools = el('div', 'koord-note-tools');
+
+  // Bottom left: copy to the top of this year's notes (asks first).
+  const copyBtn = koordLokIconBtn('Kopier til toppen', koordLokIcon('0 0 16 16', '15', '1.3', [
+    'M5.5 5.5h7v8h-7z', 'M3.5 10.5v-8h7',
+  ]));
+  copyBtn.classList.add('koord-note-copy');
+  copyBtn.addEventListener('click', () => openCopyNoteConfirm(note));
+  tools.appendChild(copyBtn);
 
   const colorBtn = koordLokIconBtn('Farve', koordLokIcon('0 0 16 16', '15', '1.3', [
     'M8 2a6 6 0 1 0 0 12c1 0 1.4-.6 1.4-1.3 0-.9-.7-1.2-.7-2 0-.7.6-1.2 1.3-1.2H11.5A2.5 2.5 0 0 0 14 7C14 4.2 11.3 2 8 2z',
