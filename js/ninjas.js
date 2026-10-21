@@ -325,6 +325,14 @@ function ninjasInstructors(scene) {
   return names.join(', ');
 }
 
+// Videos and band jingles get no row (same check as Manus's manusRowIsManualMedia,
+// whose manusRowType() lets sketch/sang win over the other types).
+function ninjasSceneIsMedia(scene) {
+  const types = Array.isArray(scene.types) ? scene.types : [];
+  const type = types.find((t) => t === 'sketch' || t === 'sang') || types[0] || '';
+  return type === 'video' || type === 'bandsang';
+}
+
 // [{act, label, rows:[{key, title, cast, instructors, extra?}]}], in Manus's act order,
 // with the extra rows spliced in after their afterKey (null = first in the
 // act; an unknown afterKey = last in the act).
@@ -339,9 +347,17 @@ function ninjasBuildGroups() {
     }
     return byAct.get(act);
   }
+  // A hidden video/jingle → the row before it, so an extra row placed after
+  // one keeps its spot.
+  const mediaAnchor = new Map();
   for (const scene of ninjasScenes()) {
     const act = ninjasActCode(scene);
     if (act === 'pool') continue; // Manus's reserved pseudo-act
+    if (ninjasSceneIsMedia(scene)) {
+      const rows = group(act, scene.actLabel).rows;
+      mediaAnchor.set(ninjasSceneKey(scene), rows.length ? rows[rows.length - 1].key : null);
+      continue;
+    }
     group(act, scene.actLabel).rows.push({
       key: ninjasSceneKey(scene),
       title: scene.name || scene.title || 'Unavngivet scene',
@@ -350,7 +366,8 @@ function ninjasBuildGroups() {
     });
   }
   const extras = (ninjasDoc ? ninjasDoc.extraRows : []).map((x) => ({
-    key: `x${x.id}`, title: x.title, cast: [], instructors: '', extra: x,
+    key: `x${x.id}`, title: x.title, cast: [], instructors: '',
+    extra: mediaAnchor.has(x.afterKey) ? { ...x, afterKey: mediaAnchor.get(x.afterKey) } : x,
   }));
   for (const row of extras) group(row.extra.act);
   for (const g of groups) {
