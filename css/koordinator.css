@@ -1383,3 +1383,230 @@
 .koord-guide-intro {
   margin: 0.4rem 0 0;
 }
+
+/* --- Tjeklister & Fællesbeskeder: Google Keep-style notes in two columns
+   (Fællesbeskeder | Tjekliste), each note a tinted tile with a title, a
+   text or checklist body and a hover-revealed tool row. */
+.koord-notes-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+  gap: 1.25rem;
+}
+
+.koord-notes-columns .card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+@media (max-width: 719px) {
+  .koord-notes-columns { grid-template-columns: 1fr; }
+}
+
+.koord-notes-add-btns {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.koord-notes-list {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.koord-note {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.55rem 0.6rem 0.35rem;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Mirrors KOORD_NOTE_COLORS (and koord_note_colors() on the server). */
+.koord-note-yellow { background: #fff6b3; border-color: #e8d56a; }
+.koord-note-orange { background: #ffe0b8; border-color: #e9b46d; }
+.koord-note-red    { background: #fbd3cf; border-color: #e39a92; }
+.koord-note-green  { background: #d3f2da; border-color: #8fcf9d; }
+.koord-note-blue   { background: #d6e4f8; border-color: #94b4e0; }
+.koord-note-purple { background: #ead9f2; border-color: #c39bd3; }
+.koord-note-grey   { background: #e6e6e6; border-color: #bdbdbd; }
+
+/* Drop position: an orange line just above the note. */
+.koord-note.koord-mp-drop-target::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(-0.375rem - 1.5px);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent-warm);
+}
+
+.koord-note-drop-tail {
+  min-height: 1.25rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-radius: 6px;
+}
+
+.koord-note-drop-tail.koord-mp-drop-target {
+  box-shadow: inset 0 3px 0 0 var(--accent-warm);
+}
+
+.koord-note-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.koord-note-handle { padding: 0 0.1rem; }
+
+/* Inline field style: borderless until hovered, warm border while focused. */
+.koord-note-title,
+.koord-note-text,
+.koord-note-item-input {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 0.2rem 0.35rem;
+}
+
+.koord-note-title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.koord-note-text {
+  display: block;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.45;
+  min-height: 2rem;
+}
+
+.koord-note-title:focus,
+.koord-note-text:focus,
+.koord-note-item-input:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  background: var(--input-bg);
+}
+
+@media (hover: hover) {
+  .koord-note-title:hover,
+  .koord-note-text:hover,
+  .koord-note-item-input:hover { border-color: var(--border); }
+}
+
+.koord-note-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.koord-note-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.koord-note-check {
+  flex: none;
+  margin: 0 0.15rem 0 0.4rem;
+  accent-color: var(--accent-warm-text);
+  cursor: pointer;
+}
+
+.koord-note-item-done .koord-note-item-input {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.koord-note-add-item,
+.koord-note-done-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.koord-note-done-toggle {
+  margin-top: 0.2rem;
+  padding-top: 0.35rem;
+}
+
+@media (hover: hover) {
+  .koord-note-add-item:hover,
+  .koord-note-done-toggle:hover { color: var(--accent-warm-text); }
+}
+
+.koord-note-add-item:focus-visible,
+.koord-note-done-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.koord-note-tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.15rem;
+}
+
+/* Revealed on hover/focus where there's a mouse; always shown on touch. */
+@media (hover: hover) {
+  .koord-note-tools,
+  .koord-note-item-remove { opacity: 0; transition: opacity 0.15s; }
+  .koord-note:hover .koord-note-tools,
+  .koord-note:focus-within .koord-note-tools,
+  .koord-note-item:hover .koord-note-item-remove,
+  .koord-note-item:focus-within .koord-note-item-remove { opacity: 1; }
+  .koord-note-remove:hover,
+  .koord-note-item-remove:hover { color: var(--danger); }
+}
+
+.koord-note-color-pop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-width: 11rem;
+  padding: 0.5rem;
+}
+
+.koord-note-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.koord-note-swatch.koord-note-none {
+  background: var(--input-bg);
+  background-image: linear-gradient(135deg, transparent 46%, var(--danger) 46%, var(--danger) 54%, transparent 54%);
+}
+
+.koord-note-swatch-selected {
+  outline: 2px solid var(--accent-warm-text);
+  outline-offset: 2px;
+}

@@ -4171,13 +4171,470 @@ function renderKoordManusSection() {
     : 'Ingen aktiv produktionsmappe.'));
 }
 
-// "Tjeklister & Fællesbeskeder" tab: empty placeholder for now.
+// ── Tjeklister & Fællesbeskeder ──────────────────────────────
+// Google Keep-style notes in two columns, "Fællesbeskeder" and "Tjekliste".
+// Every note is either free text or a checklist (switchable), has a colour
+// and drags by its ⠿ handle (within a column or across). Private, admin-only
+// store (KOORD_DATA_DIR/notes.json via the koord_notes_* actions), written
+// one note at a time like Fællesspisning's rows: text commits on change
+// (blur), everything else at once; commits on one note are chained on
+// note._inFlight. A new note stays a local draft until it has content.
+const KOORD_NOTE_COLUMNS = [
+  { key: 'beskeder', label: 'Fællesbeskeder', empty: 'Ingen fællesbeskeder endnu.' },
+  { key: 'tjekliste', label: 'Tjekliste', empty: 'Ingen tjeklister endnu.' },
+];
+// Mirrors koord_note_colors() in update-data.php.
+const KOORD_NOTE_COLORS = [
+  { key: '', label: 'Ingen farve' },
+  { key: 'yellow', label: 'Gul' },
+  { key: 'orange', label: 'Orange' },
+  { key: 'red', label: 'Rød' },
+  { key: 'green', label: 'Grøn' },
+  { key: 'blue', label: 'Blå' },
+  { key: 'purple', label: 'Lilla' },
+  { key: 'grey', label: 'Grå' },
+];
+let koordNotes = null;             // [{id?, column, kind, title, text, items, color, …}] in server order
+let koordNotesState = 'loading';   // 'loading' | 'ready' | 'failed'
+let koordNotesMessage = '';
+let koordNotesPending = 0;         // commits not yet answered
+let koordNoteDragItem = null;
+let koordNoteKeySeq = 0;
+const koordNotesDoneOpen = new Set(); // _keys of notes whose "afkrydsede" group is open
+
+window.addEventListener('beforeunload', (e) => {
+  if (koordNotesPending > 0) { e.preventDefault(); e.returnValue = ''; }
+});
+if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(() => koordNotesPending > 0);
+
+function koordNoteItemId() {
+  return 'i' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function koordNoteFromServer(note) {
+  const copy = {
+    id: note.id,
+    column: note.column,
+    kind: note.kind === 'list' ? 'list' : 'text',
+    title: note.title || '',
+    text: note.text || '',
+    items: (note.items || []).map((item) => Object.assign({}, item)),
+    color: note.color || '',
+  };
+  copy._key = 'n' + (++koordNoteKeySeq);
+  copy._saved = JSON.stringify(koordNotePayload(copy));
+  return copy;
+}
+
+// What the server stores for a note (empty checklist items are left out).
+function koordNotePayload(note) {
+  const payload = {
+    column: note.column,
+    kind: note.kind,
+    title: note.title.replace(/[\x00-\x1f\x7f]/g, ' ').trim(),
+    text: note.kind === 'text' ? note.text : '',
+    items: note.kind === 'list'
+      ? note.items.filter((item) => item.text.trim() !== '').map((item) => ({ id: item.id, text: item.text.trim(), done: item.done }))
+      : [],
+    color: note.color,
+  };
+  if (note.id) payload.id = note.id;
+  return payload;
+}
+
+function koordNoteHasContent(note) {
+  return note.title.trim() !== '' || note.text.trim() !== '' || note.items.some((item) => item.text.trim() !== '');
+}
+
+// The first saved note after `note` in its column (where the server should
+// put it), or null for the end of the column.
+function koordNoteBeforeId(note) {
+  const idx = koordNotes.indexOf(note);
+  for (let i = idx + 1; i < koordNotes.length; i++) {
+    if (koordNotes[i].column === note.column && koordNotes[i].id) return koordNotes[i].id;
+  }
+  return null;
+}
+
+// Queues `task(note)` behind the note's earlier commits.
+function koordNoteChain(note, task) {
+  koordNotesPending++;
+  const prev = note._inFlight || Promise.resolve();
+  note._inFlight = prev.then(() => task(note)).catch(() => {}).finally(() => { koordNotesPending--; });
+}
+
+function koordNoteCommit(note) {
+  if (!note.id && !note._creating && !koordNoteHasContent(note)) return;
+  if (!note.id) note._creating = true;
+  note._editSeq = (note._editSeq || 0) + 1;
+  const seq = note._editSeq;
+  koordNoteChain(note, async () => {
+    if (note._deleted) return;
+    const payload = koordNotePayload(note);
+    // Nothing changed since the last save: skip the request.
+    if (note.id && JSON.stringify(payload) === note._saved) return;
+    const body = { note: payload };
+    if (!note.id) body.beforeId = koordNoteBeforeId(note);
+    const result = await koordBudgetApi('koord_notes_upsert', body);
+    if (result.ok) {
+      note.id = result.data.note.id;
+      payload.id = note.id;
+      note._saved = JSON.stringify(payload);
+      return;
+    }
+    if (/not_found/.test(result.message || '')) {
+      siteShowToast('Noten er slettet af en anden.');
+      note._deleted = true;
+      koordNotes = koordNotes.filter((n) => n !== note);
+      renderKoordNotes();
+      return;
+    }
+    if (result.message) siteShowToast(result.message);
+    if (seq !== note._editSeq) return;
+    if (!note.id) {
+      note._creating = false; // stays as a local draft, retried on the next edit
+      return;
+    }
+    Object.assign(note, JSON.parse(note._saved));
+    note.items = note.items.map((item) => Object.assign({}, item));
+    koordRerenderNote(note);
+  });
+}
+
+async function koordLoadNotes() {
+  if (location.protocol === 'file:') {
+    koordNotesState = 'failed';
+    koordNotesMessage = 'Kun tilgængelig online.';
+    renderKoordNotes();
+    return;
+  }
+  koordNotesState = 'loading';
+  renderKoordNotes();
+  const result = await koordBudgetApi('koord_notes_read', {});
+  if (result.ok) {
+    koordNotes = (result.data.notes || []).map(koordNoteFromServer);
+    koordNotesState = 'ready';
+  } else {
+    koordNotesState = 'failed';
+    koordNotesMessage = result.message || 'Kunne ikke hente noterne.';
+  }
+  renderKoordNotes();
+}
+
 function renderTjeklisterCard(container) {
-  const card = el('section', 'card');
-  const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, 'Tjeklister & Fællesbeskeder'));
+  const layout = el('div', 'koord-notes-columns');
+  KOORD_NOTE_COLUMNS.forEach((column) => {
+    const card = el('section', 'card koord-notes-card');
+    const head = el('div', 'card-head');
+    head.appendChild(el('h2', null, column.label));
+    const actions = el('div', 'koord-notes-add-btns');
+    [['text', '+ Note'], ['list', '+ Tjekliste']].forEach(([kind, label]) => {
+      const btn = el('button', 'btn-small', label);
+      btn.type = 'button';
+      btn.addEventListener('click', () => koordAddNote(column.key, kind));
+      actions.appendChild(btn);
+    });
+    head.appendChild(actions);
+    card.appendChild(head);
+    const body = el('div', 'koord-notes-list');
+    body.id = `koord-notes-${column.key}`;
+    card.appendChild(body);
+    layout.appendChild(card);
+  });
+  container.appendChild(layout);
+  koordLoadNotes();
+}
+
+function koordAddNote(column, kind) {
+  if (koordNotesState !== 'ready') return;
+  const note = koordNoteFromServer({ column, kind, title: '', text: '', items: [], color: '' });
+  delete note.id;
+  if (kind === 'list') note.items.push({ id: koordNoteItemId(), text: '', done: false });
+  const firstIdx = koordNotes.findIndex((n) => n.column === column);
+  if (firstIdx === -1) koordNotes.push(note); else koordNotes.splice(firstIdx, 0, note);
+  renderKoordNotes();
+  const input = document.querySelector(`[data-note-key="${note._key}"] .koord-note-title`);
+  if (input) input.focus();
+}
+
+function renderKoordNotes() {
+  KOORD_NOTE_COLUMNS.forEach((column) => {
+    const list = document.getElementById(`koord-notes-${column.key}`);
+    if (!list) return;
+    list.textContent = '';
+    if (koordNotesState !== 'ready') {
+      list.appendChild(el('p', 'koord-status-value', koordNotesState === 'loading' ? 'Indlæser…' : koordNotesMessage));
+      return;
+    }
+    const notes = koordNotes.filter((note) => note.column === column.key);
+    notes.forEach((note) => list.appendChild(koordBuildNote(note)));
+    // Drop tail: dropping here moves the dragged note to the end of this column.
+    const tail = el('div', 'koord-note-drop-tail', notes.length ? null : column.empty);
+    koordWireDropHighlight(tail, () => koordDropNote(column.key, null));
+    list.appendChild(tail);
+  });
+}
+
+function koordRerenderNote(note) {
+  const old = document.querySelector(`[data-note-key="${note._key}"]`);
+  if (old) old.replaceWith(koordBuildNote(note));
+}
+
+function koordDropNote(column, beforeNote) {
+  const note = koordNoteDragItem;
+  koordNoteDragItem = null;
+  if (!note || note === beforeNote) return;
+  note.column = column;
+  koordMoveDraftItem(koordNotes, note, beforeNote, renderKoordNotes);
+  koordNoteChain(note, async () => {
+    if (note._deleted || !note.id) return; // a draft is placed when it's created
+    const result = await koordBudgetApi('koord_notes_move', { id: note.id, column, beforeId: koordNoteBeforeId(note) });
+    if (!result.ok && result.message) siteShowToast(result.message);
+  });
+}
+
+function koordAutoGrow(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function koordBuildNote(note) {
+  const card = el('div', 'koord-note' + (note.color ? ` koord-note-${note.color}` : ''));
+  card.dataset.noteKey = note._key;
+
+  const head = el('div', 'koord-note-head');
+  const handle = el('span', 'boss-manage-drag-handle koord-note-handle', '⠿');
+  handle.title = 'Træk for at flytte';
+  handle.draggable = true;
+  handle.addEventListener('dragstart', (e) => {
+    koordNoteDragItem = note;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', note._key);
+    const ghost = koordMpGetDragImageEl();
+    ghost.replaceChildren(el('div', 'koord-mp-drag-image-line', note.title.trim() || 'Uden titel'));
+    e.dataTransfer.setDragImage(ghost, 12, 16);
+  });
+  handle.addEventListener('dragend', () => { koordNoteDragItem = null; });
+  head.appendChild(handle);
+  koordWireDropHighlight(card, () => koordDropNote(note.column, note));
+
+  const title = document.createElement('input');
+  title.type = 'text';
+  title.className = 'koord-note-title';
+  title.value = note.title;
+  title.placeholder = 'Titel';
+  title.maxLength = 200;
+  title.addEventListener('input', () => { note.title = title.value; });
+  title.addEventListener('change', () => koordNoteCommit(note));
+  title.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const next = card.querySelector('.koord-note-text, .koord-note-item-input');
+    if (next) next.focus();
+  });
+  head.appendChild(title);
   card.appendChild(head);
-  container.appendChild(card);
+
+  if (note.kind === 'text') card.appendChild(koordBuildNoteText(note));
+  else card.appendChild(koordBuildNoteList(note));
+
+  card.appendChild(koordBuildNoteTools(note));
+  return card;
+}
+
+function koordBuildNoteText(note) {
+  const text = document.createElement('textarea');
+  text.className = 'koord-note-text';
+  text.value = note.text;
+  text.placeholder = 'Skriv en besked…';
+  text.rows = 1;
+  text.maxLength = 10000;
+  text.addEventListener('input', () => { note.text = text.value; koordAutoGrow(text); });
+  text.addEventListener('change', () => koordNoteCommit(note));
+  requestAnimationFrame(() => koordAutoGrow(text));
+  return text;
+}
+
+// Open items in order, then a "+ Punkt" row, then the ticked ones in a
+// collapsible "N afkrydsede" group, like Keep.
+function koordBuildNoteList(note) {
+  const wrap = el('div', 'koord-note-items');
+  const open = note.items.filter((item) => !item.done);
+  const done = note.items.filter((item) => item.done);
+  open.forEach((item) => wrap.appendChild(koordBuildNoteItem(note, item)));
+
+  const add = el('button', 'koord-note-add-item', '+ Punkt');
+  add.type = 'button';
+  add.addEventListener('click', () => {
+    const lastOpen = open[open.length - 1];
+    const item = { id: koordNoteItemId(), text: '', done: false };
+    const at = lastOpen ? note.items.indexOf(lastOpen) + 1 : 0;
+    note.items.splice(at, 0, item);
+    koordRerenderNote(note);
+    koordFocusNoteItem(note, item);
+  });
+  wrap.appendChild(add);
+
+  if (done.length) {
+    const isOpen = koordNotesDoneOpen.has(note._key);
+    const toggle = el('button', 'koord-note-done-toggle');
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    toggle.appendChild(el('span', 'koord-login-chevron', isOpen ? '▾' : '▸'));
+    toggle.appendChild(el('span', null, `${done.length} afkrydsede`));
+    toggle.addEventListener('click', () => {
+      if (isOpen) koordNotesDoneOpen.delete(note._key); else koordNotesDoneOpen.add(note._key);
+      koordRerenderNote(note);
+    });
+    wrap.appendChild(toggle);
+    if (isOpen) done.forEach((item) => wrap.appendChild(koordBuildNoteItem(note, item)));
+  }
+  return wrap;
+}
+
+function koordFocusNoteItem(note, item, atEnd) {
+  const input = document.querySelector(`[data-note-key="${note._key}"] [data-item-id="${item.id}"] .koord-note-item-input`);
+  if (!input) return;
+  input.focus();
+  if (atEnd) input.setSelectionRange(input.value.length, input.value.length);
+}
+
+function koordBuildNoteItem(note, item) {
+  const row = el('div', 'koord-note-item' + (item.done ? ' koord-note-item-done' : ''));
+  row.dataset.itemId = item.id;
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.className = 'koord-note-check';
+  box.checked = item.done;
+  box.setAttribute('aria-label', item.done ? 'Fjern flueben' : 'Sæt flueben');
+  box.addEventListener('change', () => {
+    item.done = box.checked;
+    koordRerenderNote(note);
+    koordNoteCommit(note);
+  });
+  row.appendChild(box);
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'koord-note-item-input';
+  input.value = item.text;
+  input.maxLength = 500;
+  input.placeholder = 'Punkt';
+  input.addEventListener('input', () => { item.text = input.value; });
+  input.addEventListener('change', () => koordNoteCommit(note));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const next = { id: koordNoteItemId(), text: '', done: item.done };
+      note.items.splice(note.items.indexOf(item) + 1, 0, next);
+      koordRerenderNote(note);
+      koordFocusNoteItem(note, next);
+      koordNoteCommit(note);
+    } else if (e.key === 'Backspace' && input.value === '') {
+      e.preventDefault();
+      const siblings = note.items.filter((other) => other.done === item.done);
+      const prev = siblings[siblings.indexOf(item) - 1];
+      note.items = note.items.filter((other) => other !== item);
+      koordRerenderNote(note);
+      if (prev) koordFocusNoteItem(note, prev, true);
+      koordNoteCommit(note);
+    }
+  });
+  row.appendChild(input);
+
+  const remove = koordLokIconBtn('Fjern punkt', koordLokIcon('0 0 16 16', '12', '1.6', ['M4 4l8 8', 'M12 4l-8 8']));
+  remove.classList.add('koord-note-item-remove');
+  remove.addEventListener('click', () => {
+    note.items = note.items.filter((other) => other !== item);
+    koordRerenderNote(note);
+    koordNoteCommit(note);
+  });
+  row.appendChild(remove);
+  return row;
+}
+
+function koordBuildNoteTools(note) {
+  const tools = el('div', 'koord-note-tools');
+
+  const colorBtn = koordLokIconBtn('Farve', koordLokIcon('0 0 16 16', '15', '1.3', [
+    'M8 2a6 6 0 1 0 0 12c1 0 1.4-.6 1.4-1.3 0-.9-.7-1.2-.7-2 0-.7.6-1.2 1.3-1.2H11.5A2.5 2.5 0 0 0 14 7C14 4.2 11.3 2 8 2z',
+    'M5 7.2h.01', 'M7 4.8h.01', 'M10 5h.01',
+  ]));
+  colorBtn.addEventListener('click', () => {
+    siteToggleFieldPopup(colorBtn, () => {
+      const pop = el('div', 'site-field-pop koord-note-color-pop');
+      pop.setAttribute('role', 'radiogroup');
+      pop.setAttribute('aria-label', 'Farve');
+      KOORD_NOTE_COLORS.forEach((c) => {
+        const sw = el('button', `koord-note-swatch koord-note-${c.key || 'none'}` + (c.key === note.color ? ' koord-note-swatch-selected' : ''));
+        sw.type = 'button';
+        sw.title = c.label;
+        sw.setAttribute('role', 'radio');
+        sw.setAttribute('aria-checked', String(c.key === note.color));
+        sw.setAttribute('aria-label', c.label);
+        sw.addEventListener('click', () => {
+          siteCloseFieldPopup();
+          if (c.key === note.color) return;
+          note.color = c.key;
+          koordRerenderNote(note);
+          koordNoteCommit(note);
+        });
+        pop.appendChild(sw);
+      });
+      siteOpenFieldPopup(colorBtn, pop);
+    });
+  });
+  tools.appendChild(colorBtn);
+
+  const toList = note.kind === 'text';
+  const kindBtn = koordLokIconBtn(toList ? 'Lav til tjekliste' : 'Lav til tekst', toList
+    ? koordLokIcon('0 0 16 16', '15', '1.3', ['M2.5 3.5h2v2h-2z', 'M2.5 10.5h2v2h-2z', 'M7 4.5h6.5', 'M7 11.5h6.5'])
+    : koordLokIcon('0 0 16 16', '15', '1.3', ['M2.5 4h11', 'M2.5 8h11', 'M2.5 12h7']));
+  kindBtn.addEventListener('click', () => {
+    if (toList) {
+      note.items = note.text.split('\n').map((line) => line.trim()).filter(Boolean)
+        .map((line) => ({ id: koordNoteItemId(), text: line.slice(0, 500), done: false }));
+      if (!note.items.length) note.items.push({ id: koordNoteItemId(), text: '', done: false });
+      note.text = '';
+      note.kind = 'list';
+    } else {
+      note.text = note.items.map((item) => item.text).filter((line) => line.trim() !== '').join('\n');
+      note.items = [];
+      note.kind = 'text';
+    }
+    koordRerenderNote(note);
+    koordNoteCommit(note);
+  });
+  tools.appendChild(kindBtn);
+
+  const remove = koordLokIconBtn('Slet note', koordLokIcon('0 0 16 16', '13', '1.6', ['M4 4l8 8', 'M12 4l-8 8']));
+  remove.classList.add('koord-note-remove');
+  remove.addEventListener('click', () => {
+    if (koordNoteHasContent(note)) openRemoveNoteConfirm(note, () => koordDeleteNote(note));
+    else koordDeleteNote(note);
+  });
+  tools.appendChild(remove);
+  return tools;
+}
+
+function openRemoveNoteConfirm(note, onConfirm) {
+  const { modal, form, actions, close } = siteOpenModalWithClose(`Slet "${note.title.trim() || 'Uden titel'}"?`);
+  modal.classList.add('koord-arkiv-confirm-modal', 'koord-guide-confirm-modal');
+  form.appendChild(el('p', 'koord-arkiv-confirm-text', 'Noten slettes for alle koordinatorer.'));
+  const confirmBtn = koordPillBtn('Slet', 'site-btn-danger');
+  confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
+  actions.appendChild(confirmBtn);
+}
+
+function koordDeleteNote(note) {
+  note._deleted = true;
+  koordNotes = koordNotes.filter((n) => n !== note);
+  renderKoordNotes();
+  koordNoteChain(note, async () => {
+    if (!note.id) return;
+    const result = await koordBudgetApi('koord_notes_delete', { id: note.id });
+    if (!result.ok && result.message) siteShowToast(result.message);
+  });
 }
 
 function renderKoordinator(root) {

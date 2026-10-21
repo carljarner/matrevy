@@ -428,13 +428,22 @@ if (isset($FRAVAER_ACTIONS[$action])) {
 $KOORD_ACTIONS = [
   'koord_logins_read' => 'admin', // {title, accounts: [{id, title, email, password, phone}]}
   'koord_logins_save' => 'admin', // full replace of the list
+  // Tjeklister & Fællesbeskeder: Keep-style notes, one note per write.
+  'koord_notes_read' => 'admin',    // {notes: [...]}
+  'koord_notes_upsert' => 'admin',  // {note} without id = create (placed before beforeId)
+  'koord_notes_delete' => 'admin',  // {id}, idempotent
+  'koord_notes_move' => 'admin',    // {id, column, beforeId|null}
 ];
 if (isset($KOORD_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$KOORD_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
   if ($action === 'koord_logins_read') koord_logins_read();
-  koord_logins_save($body);
+  if ($action === 'koord_logins_save') koord_logins_save($body);
+  if ($action === 'koord_notes_read') koord_notes_read();
+  if ($action === 'koord_notes_upsert') koord_notes_upsert($body);
+  if ($action === 'koord_notes_delete') koord_notes_delete($body);
+  koord_notes_move($body);
 }
 
 // ── Teknikken actions (the tech crew's Drive-like file store) ──
@@ -6124,6 +6133,179 @@ function koord_logins_save($body) {
   }
   @chmod($path, 0660);
   respond(200, ['ok' => true, 'title' => $title, 'accounts' => $clean, 'updatedAt' => $doc['updatedAt']]);
+}
+
+// ── Koordinator notes (KOORD_DATA_DIR/notes.json) ──
+// Tjeklister & Fællesbeskeder's Keep-style notes: {notes: [{id, column,
+// kind, title, text, items: [{id, text, done}], color, updatedAt}],
+// updatedAt}. Array order is the display order within each column. Every
+// write touches one note under a flock, so two admins editing different
+// notes never overwrite each other (same note: last save wins).
+
+function koord_note_columns() {
+  return ['beskeder', 'tjekliste'];
+}
+
+function koord_note_colors() {
+  return ['', 'yellow', 'orange', 'red', 'green', 'blue', 'purple', 'grey'];
+}
+
+function koord_note_valid_id($id) {
+  return is_string($id) && preg_match('/^[0-9a-f]{8,40}$/', $id) === 1;
+}
+
+function koord_notes_path() {
+  return koord_dir() . '/notes.json';
+}
+
+function koord_notes_mutate($mutate) {
+  $dir = koord_dir();
+  if (!is_dir($dir) && !@mkdir($dir, 0770, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'koord_storage_unavailable']);
+  }
+  $path = koord_notes_path();
+  $fh = @fopen($path, 'c+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'koord_storage_unavailable']);
+  }
+  $raw = stream_get_contents($fh);
+  $doc = ($raw === '' || $raw === false) ? null : json_decode($raw, true);
+  if (!is_array($doc) || !is_array($doc['notes'] ?? null) || !array_is_list($doc['notes'])) $doc = ['notes' => []];
+  $result = $mutate($doc);
+  $doc['updatedAt'] = date('c');
+  rewind($fh);
+  ftruncate($fh, 0);
+  fwrite($fh, json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  @chmod($path, 0660);
+  return [$doc, $result];
+}
+
+function koord_notes_read() {
+  $path = koord_notes_path();
+  $doc = is_file($path) ? json_decode((string) file_get_contents($path), true) : null;
+  $notes = (is_array($doc) && is_array($doc['notes'] ?? null) && array_is_list($doc['notes'])) ? $doc['notes'] : [];
+  respond(200, ['ok' => true, 'notes' => $notes]);
+}
+
+// A one-line string (no control characters) of at most $max characters.
+function koord_note_line($value, $max) {
+  return is_string($value) && mb_strlen($value) <= $max && !preg_match('/[\x00-\x1f\x7f]/', $value);
+}
+
+// Validates a client note (everything but id/updatedAt) or answers 400.
+function koord_note_clean($note) {
+  if (!is_array($note)) respond(400, ['error' => 'invalid_shape']);
+  $column = $note['column'] ?? null;
+  $kind = $note['kind'] ?? null;
+  $color = $note['color'] ?? '';
+  $title = $note['title'] ?? '';
+  $text = $note['text'] ?? '';
+  $items = $note['items'] ?? [];
+  if (!in_array($column, koord_note_columns(), true)
+      || !in_array($kind, ['text', 'list'], true)
+      || !in_array($color, koord_note_colors(), true)
+      || !koord_note_line($title, 200)
+      || !is_string($text) || mb_strlen($text) > 10000
+      || preg_match('/[\x00-\x08\x0b-\x1f\x7f]/', str_replace("\r", '', $text))
+      || !is_array($items) || !array_is_list($items) || count($items) > 200) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $cleanItems = [];
+  $seen = [];
+  foreach ($items as $item) {
+    $id = is_array($item) ? ($item['id'] ?? null) : null;
+    if (!is_string($id) || !preg_match('/^[a-z0-9]{1,40}$/', $id) || isset($seen[$id])
+        || !koord_note_line($item['text'] ?? null, 500) || !is_bool($item['done'] ?? null)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $seen[$id] = true;
+    $cleanItems[] = ['id' => $id, 'text' => $item['text'], 'done' => $item['done']];
+  }
+  return [
+    'column' => $column,
+    'kind' => $kind,
+    'title' => $title,
+    'text' => str_replace("\r", '', $text),
+    'items' => $kind === 'list' ? $cleanItems : [],
+    'color' => $color,
+  ];
+}
+
+// Puts $note into $notes before the note with id $beforeId; an unknown or
+// null $beforeId puts it last (array order only matters within a column).
+function koord_notes_insert($notes, $note, $beforeId) {
+  if (is_string($beforeId)) {
+    foreach ($notes as $i => $other) {
+      if (($other['id'] ?? null) === $beforeId) {
+        array_splice($notes, $i, 0, [$note]);
+        return $notes;
+      }
+    }
+  }
+  $notes[] = $note;
+  return $notes;
+}
+
+function koord_notes_upsert($body) {
+  $clean = koord_note_clean($body['note'] ?? null);
+  $id = is_array($body['note'] ?? null) ? ($body['note']['id'] ?? null) : null;
+  if ($id !== null && !koord_note_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  $beforeId = $body['beforeId'] ?? null;
+  if ($beforeId !== null && !koord_note_valid_id($beforeId)) respond(400, ['error' => 'invalid_shape']);
+  [, $saved] = koord_notes_mutate(function (&$doc) use ($clean, $id, $beforeId) {
+    $note = ($id === null ? ['id' => dechex(time()) . bin2hex(random_bytes(4))] : ['id' => $id]) + $clean;
+    $note['updatedAt'] = date('c');
+    if ($id === null) {
+      if (count($doc['notes']) >= 500) respond(400, ['error' => 'too_many_notes']);
+      $doc['notes'] = koord_notes_insert($doc['notes'], $note, $beforeId);
+      return $note;
+    }
+    foreach ($doc['notes'] as $i => $other) {
+      if (($other['id'] ?? null) === $id) {
+        $doc['notes'][$i] = $note;
+        return $note;
+      }
+    }
+    return null;
+  });
+  if ($saved === null) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true, 'note' => $saved]);
+}
+
+function koord_notes_delete($body) {
+  $id = $body['id'] ?? null;
+  if (!koord_note_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  koord_notes_mutate(function (&$doc) use ($id) {
+    $doc['notes'] = array_values(array_filter($doc['notes'], fn($n) => ($n['id'] ?? null) !== $id));
+    return null;
+  });
+  respond(200, ['ok' => true]);
+}
+
+function koord_notes_move($body) {
+  $id = $body['id'] ?? null;
+  $column = $body['column'] ?? null;
+  $beforeId = $body['beforeId'] ?? null;
+  if (!koord_note_valid_id($id) || !in_array($column, koord_note_columns(), true)
+      || ($beforeId !== null && !koord_note_valid_id($beforeId)) || $beforeId === $id) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  [, $found] = koord_notes_mutate(function (&$doc) use ($id, $column, $beforeId) {
+    foreach ($doc['notes'] as $i => $note) {
+      if (($note['id'] ?? null) !== $id) continue;
+      array_splice($doc['notes'], $i, 1);
+      $note['column'] = $column;
+      $doc['notes'] = koord_notes_insert($doc['notes'], $note, $beforeId);
+      return true;
+    }
+    return false;
+  });
+  if (!$found) respond(404, ['error' => 'not_found']);
+  respond(200, ['ok' => true]);
 }
 
 function handle_lokaler($action, $body) {
