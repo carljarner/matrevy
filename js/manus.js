@@ -404,6 +404,32 @@ function manusMarkSeen(id) {
 }
 
 // ── Upload pool: two-column render ────────────────────────────
+// A chosen submission's PDF (moved to sketches/ or songs/) is overwritten by
+// the generator with the cast's names, so while "Revyster kan se roller" is
+// off a revyst gets its redacted twin under anonym/ (generate-pdfs.js's
+// anonymPath: same file name). null = link the real file.
+function manusPoolAnonymPdfPath(item) {
+  if (manusRolesVisibleToRevyst()) return null;
+  const m = /^(archive\/[^/]+\/)((?:sketches|songs)\/[^/]+)$/.exec(item.pdfPath || '');
+  return m ? `${m[1]}anonym/${m[2]}` : null;
+}
+
+// The anonym copy only exists once "Generér PDF'er" has run for the scene.
+// Never falls back to the real PDF (it may carry names). The tab is opened
+// synchronously in the click so popup blockers allow it.
+async function manusOpenAnonymPdf(path) {
+  const win = window.open('', '_blank');
+  const status = await siteFileStatus(path);
+  if (status.exists) {
+    if (win) win.location.href = '/' + path; else window.location.href = '/' + path;
+    return;
+  }
+  if (win) win.close();
+  siteShowToast(status.checkFailed
+    ? 'Kunne ikke hente scenen. Prøv igen.'
+    : 'Scenen findes ikke uden navne endnu.');
+}
+
 function renderPdfRow(item, displayTitle = item.title) {
   const row = document.createElement('div');
   row.className = 'manus-pdf-row';
@@ -421,6 +447,14 @@ function renderPdfRow(item, displayTitle = item.title) {
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
   link.textContent = displayTitle;
+  const anonymPath = manusPoolAnonymPdfPath(item);
+  if (anonymPath) {
+    link.href = anonymPath;
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      manusOpenAnonymPdf(anonymPath);
+    });
+  }
   row.appendChild(link);
 
   const sender = document.createElement('span');
