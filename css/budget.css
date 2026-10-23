@@ -1833,3 +1833,53 @@ tr.budget-row-filler td {
 
   .budget-print-table tr { page-break-inside: avoid; }
 }
+
+/* --- Read-only management view (boss) ----------------------
+   js/budget.js's budgetMarkReadOnly()/budgetReadOnlyAmount(): the admin
+   view's always-editable inputs render as plain text, with no hover/focus
+   affordance. */
+.budget-amount-readonly {
+  white-space: nowrap;
+}
+
+.budget-income-row .budget-amount-readonly {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.streg-table .streg-col-navn input[type="text"].budget-input-readonly,
+.streg-table .streg-col-count input[type="number"].budget-input-readonly {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .streg-table .streg-col-navn input[type="text"].budget-input-readonly:hover,
+  .streg-table .streg-col-count input[type="number"].budget-input-readonly:hover {
+    border-color: transparent;
+  }
+}
+
+.streg-table .streg-col-count input[type="number"].budget-input-readonly {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.streg-table .streg-col-count input[type="number"].budget-input-readonly::-webkit-inner-spin-button,
+.streg-table .streg-col-count input[type="number"].budget-input-readonly::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.streg-paid-checkbox:disabled {
+  cursor: default;
+}
+
+.streg-price-label-static {
+  font-size: 0.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

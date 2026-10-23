@@ -9,6 +9,7 @@
      (paid) — which assigns the next bilagsnummer, renames the
      receipt to "<kategori>_<n>.<ext>" and moves it into the ledger —
      plus a read-only browser of paid expenses by category.
+   - Bosses get the same management view, read-only (budgetReadOnly).
 
    Unlike the other data-driven pages, the budget data is PRIVATE:
    it never touches the public repo / embed pipeline. Everything
@@ -410,6 +411,29 @@ let budgetState = { requests: [], expenses: [], budget: { planned: {}, income: [
 let budgetPaidFilter = 'alle';
 let budgetPaidExpanded = false;
 const BUDGET_PAID_PAGE_SIZE = 10;
+
+// Boss sees the whole management view, but only admin can change anything
+// (every write action stays admin-level server-side). Follows the header's
+// level switch, so an admin viewing as Boss gets this view too.
+function budgetReadOnly() {
+  return !siteHasLevel('admin');
+}
+
+// Locks one of the admin view's always-editable inputs in the read-only view.
+function budgetMarkReadOnly(input) {
+  if (!budgetReadOnly()) return;
+  input.readOnly = true;
+  input.tabIndex = -1;
+  input.classList.add('budget-input-readonly');
+}
+
+// The Budget sheet's planned/income amounts as plain formatted text instead.
+// Keeps the input's raw `value`, which updateSheetTotals() reads.
+function budgetReadOnlyAmount(input) {
+  const span = el('span', 'budget-amount-readonly', formatKr(parseAmount(input.value) || 0));
+  span.value = input.value;
+  return span;
+}
 
 // Which budget the admin view is currently displaying/editing — decoupled
 // from which budget is "active" (where new revyst submissions/receipts
@@ -836,7 +860,7 @@ function budgetIsSheetDirty() {
   // No live planned/income-amount inputs exist while structurally editing
   // categories (Planlagt is replaced by Bilagskode, income amounts go
   // read-only) — autosave/beforeunload simply have nothing to track then.
-  if (budgetCategoriesEditMode) return false;
+  if (budgetCategoriesEditMode || budgetReadOnly()) return false;
   return !!budgetSheet && JSON.stringify(collectSheetPayload()) !== budgetSheetSnapshot;
 }
 
@@ -875,7 +899,7 @@ function buildBudgetSheetCard() {
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Budget'));
   const status = el('span', 'budget-save-status', 'Gemt');
-  head.appendChild(status);
+  if (!budgetReadOnly()) head.appendChild(status);
   card.appendChild(head);
 
   let categoryDrafts = null;
@@ -885,6 +909,11 @@ function buildBudgetSheetCard() {
   } else {
     const refs = buildNormalSheetSection(card);
     budgetSheet = { ...refs, status };
+  }
+
+  if (budgetReadOnly()) {
+    updateSheetTotals();
+    return card;
   }
 
   const saveBar = el('div', 'budget-save-bar');
@@ -972,8 +1001,8 @@ function buildNormalSheetSection(card) {
       const pv = budgetState.budget.planned[c.key];
       if (pv != null && pv !== '') inp.value = String(pv).replace('.', ',');
       inp.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
-      plannedInputs[c.key] = inp;
-      pTd.appendChild(inp);
+      plannedInputs[c.key] = budgetReadOnly() ? budgetReadOnlyAmount(inp) : inp;
+      pTd.appendChild(plannedInputs[c.key]);
     }
     tr.appendChild(pTd);
 
@@ -1002,8 +1031,8 @@ function buildNormalSheetSection(card) {
       const subPv = budgetState.budget.planned[sub.key];
       if (subPv != null && subPv !== '') subInp.value = String(subPv).replace('.', ',');
       subInp.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
-      plannedInputs[sub.key] = subInp;
-      subPTd.appendChild(subInp);
+      plannedInputs[sub.key] = budgetReadOnly() ? budgetReadOnlyAmount(subInp) : subInp;
+      subPTd.appendChild(plannedInputs[sub.key]);
       subTr.appendChild(subPTd);
 
       // Unlike the parent, a subcategory's own Brugt/Rest ARE derived from
@@ -1078,9 +1107,10 @@ function buildIncomeRow(def, stored, incomeRows) {
   const amt = stored.amount;
   if (amt != null && amt !== '') amountInput.value = String(amt).replace('.', ',');
   amountInput.addEventListener('input', () => { budgetRefreshSheetStatus(); updateSheetTotals(); });
-  row.appendChild(amountInput);
+  const amountField = budgetReadOnly() ? budgetReadOnlyAmount(amountInput) : amountInput;
+  row.appendChild(amountField);
 
-  incomeRows.push({ key: def.key, amountInput });
+  incomeRows.push({ key: def.key, amountInput: amountField });
   return row;
 }
 
@@ -1195,7 +1225,7 @@ async function saveBudgetSheetIfDirty() {
 
 // Register the 15-minute autosave interval and the unsaved-changes guard once.
 function ensureBudgetSheetTimers(root) {
-  if (budgetSheetTimersReady) return;
+  if (budgetSheetTimersReady || budgetReadOnly()) return;
   budgetSheetTimersReady = true;
   setInterval(() => { if (budgetIsSheetDirty()) saveBudgetSheet(); }, 15 * 60 * 1000);
   siteRegisterUnsavedCheck(() => budgetIsSheetDirty() || stregSavesPending > 0);
@@ -1873,9 +1903,11 @@ function buildPendingRowContent(root, req) {
 
   if (req.comment) wrap.appendChild(el('div', 'budget-item-note', req.comment));
   if (isOrphan) {
-    wrap.appendChild(el('div', 'budget-item-note budget-orphan-note',
-      'Kategorien findes ikke længere. Vælg en ny under "Rediger" før dette udlæg kan godkendes.'));
+    wrap.appendChild(el('div', 'budget-item-note budget-orphan-note', budgetReadOnly()
+      ? 'Kategorien findes ikke længere.'
+      : 'Kategorien findes ikke længere. Vælg en ny under "Rediger" før dette udlæg kan godkendes.'));
   }
+  if (budgetReadOnly()) return wrap;
 
   const actions = el('div', 'budget-item-actions');
   const approveBtn = el('button', 'budget-icon-btn budget-act-approve');
@@ -1940,7 +1972,7 @@ function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
     return b.required && !b.complete;
   });
   approveAllBtn.addEventListener('click', () => openApproveAllModal(root, members));
-  header.appendChild(approveAllBtn);
+  if (!budgetReadOnly()) header.appendChild(approveAllBtn);
   group.appendChild(header);
 
   const rows = el('div', 'budget-group-rows');
@@ -2306,9 +2338,11 @@ function renderPaidSection(root) {
   const card = el('section', 'card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Betalte udgifter'));
-  const addBtn = el('button', 'btn-small', '＋ Tilføj udgift');
-  addBtn.addEventListener('click', () => openExpenseAddModal(root));
-  head.appendChild(addBtn);
+  if (!budgetReadOnly()) {
+    const addBtn = el('button', 'btn-small', '＋ Tilføj udgift');
+    addBtn.addEventListener('click', () => openExpenseAddModal(root));
+    head.appendChild(addBtn);
+  }
   card.appendChild(head);
 
   // Category filter ("shuffle through categories").
@@ -2387,12 +2421,14 @@ function renderPaidTable(wrap) {
       });
       actionsWrap.appendChild(viewBtn);
     }
-    const editBtn = el('button', 'budget-icon-btn');
-    editBtn.type = 'button';
-    editBtn.setAttribute('aria-label', 'Rediger udgift');
-    editBtn.appendChild(budgetPencilIcon());
-    editBtn.addEventListener('click', () => openExpenseEditModal(document.getElementById('budget-root'), e));
-    actionsWrap.appendChild(editBtn);
+    if (!budgetReadOnly()) {
+      const editBtn = el('button', 'budget-icon-btn');
+      editBtn.type = 'button';
+      editBtn.setAttribute('aria-label', 'Rediger udgift');
+      editBtn.appendChild(budgetPencilIcon());
+      editBtn.addEventListener('click', () => openExpenseEditModal(document.getElementById('budget-root'), e));
+      actionsWrap.appendChild(editBtn);
+    }
     actionsTd.appendChild(actionsWrap);
     tr.appendChild(actionsTd);
 
@@ -3151,7 +3187,7 @@ function buildStregSheetCard() {
   connectBtn.type = 'button';
   connectBtn.textContent = stregState.connection ? 'Forbundet' : 'Forbind';
   connectBtn.addEventListener('click', () => stregOpenConnectModal());
-  head.appendChild(connectBtn);
+  if (!budgetReadOnly()) head.appendChild(connectBtn);
 
   const wrap = el('div', 'streg-table-wrap');
   wrap.appendChild(stregBuildTable(draft));
@@ -3162,7 +3198,8 @@ function buildStregSheetCard() {
   const resetBtn = el('button', 'site-btn-danger', 'Nulstil');
   resetBtn.type = 'button';
   resetBtn.addEventListener('click', () => stregOpenResetConfirm());
-  actions.appendChild(resetBtn);
+  // Read-only keeps an empty placeholder so Udskriv stays centred.
+  actions.appendChild(budgetReadOnly() ? el('span') : resetBtn);
 
   const printBtn = el('button', 'site-btn-warm budget-center-btn', 'Udskriv');
   printBtn.type = 'button';
@@ -3171,7 +3208,7 @@ function buildStregSheetCard() {
 
   const saveGroup = el('div', 'streg-save-group');
   stregSaveStatusEl = el('span', 'budget-save-status');
-  saveGroup.appendChild(stregSaveStatusEl);
+  if (!budgetReadOnly()) saveGroup.appendChild(stregSaveStatusEl);
   actions.appendChild(saveGroup);
   stregPaintSaveStatus();
 
@@ -3254,7 +3291,7 @@ function stregBuildTable(rows) {
     headRow.appendChild(el('th', 'streg-col-count', c.label));
   });
   headRow.appendChild(el('th', 'streg-col-betaling', 'Betaling'));
-  headRow.appendChild(el('th', '', ''));
+  if (!budgetReadOnly()) headRow.appendChild(el('th', '', ''));
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -3263,6 +3300,12 @@ function stregBuildTable(rows) {
     .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'da', { sensitivity: 'base' }));
   sortedRows.forEach((row) => tbody.appendChild(
     stregRenderRow(row, betalingCells, recomputeAll, rows)));
+
+  if (budgetReadOnly()) {
+    table.appendChild(tbody);
+    recomputeAll();
+    return table;
+  }
 
   const addRow = el('tr', 'streg-add-row');
   const addCell = el('td', 'streg-add-row-plus-cell');
@@ -3304,6 +3347,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
   paidCheckbox.className = 'streg-paid-checkbox';
   paidCheckbox.checked = !!row.paid;
   paidCheckbox.title = 'Har betalt';
+  paidCheckbox.disabled = budgetReadOnly();
   paidCheckbox.addEventListener('change', () => {
     row.paid = paidCheckbox.checked;
     betalingTd.classList.toggle('streg-paid', row.paid);
@@ -3349,6 +3393,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
   });
   navnInput.addEventListener('mouseleave', budgetHideFieldTooltip);
   navnInput.addEventListener('focus', budgetHideFieldTooltip);
+  budgetMarkReadOnly(navnInput);
   navnWrap.appendChild(navnInput);
   tr.appendChild(navnTd);
 
@@ -3379,6 +3424,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
       const n = (row.counts || {})[c.key] || 0;
       input.value = n ? String(n) : '';
     });
+    budgetMarkReadOnly(input);
     td.appendChild(input);
     tr.appendChild(td);
   });
@@ -3387,6 +3433,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
   if (row.paid) betalingTd.classList.add('streg-paid');
   betalingCells.set(row, betalingTd);
   tr.appendChild(betalingTd);
+  if (budgetReadOnly()) return tr;
 
   const removeTd = el('td');
   const removeBtn = el('button', 'streg-remove-btn', '✕');
@@ -3925,6 +3972,16 @@ function buildStregPricesCard() {
     stregPriceUnitCells = new Map();
     items.forEach((item) => {
       const row = el('div', 'streg-price-row');
+      if (budgetReadOnly()) {
+        row.appendChild(el('span', 'streg-price-label-input streg-price-label-static', item.label));
+        row.appendChild(el('span', 'streg-price-buy-value', formatKr(item.price)));
+        const roPerUnit = el('span', 'streg-price-per-unit', '-');
+        stregPriceUnitCells.set(item, roPerUnit);
+        row.appendChild(roPerUnit);
+        row.appendChild(el('span', 'streg-price-header-spacer'));
+        list.appendChild(row);
+        return;
+      }
       row.draggable = true;
       row.addEventListener('dragstart', (e) => {
         dragItem = item;
@@ -3995,6 +4052,10 @@ function buildStregPricesCard() {
     // this trailing spacer is the only way to drop a drink type after the
     // last one, same drop-tail recipe as wiki.js's/manus.js's own
     // reorderable lists.
+    if (budgetReadOnly()) {
+      refreshComputed();
+      return;
+    }
     const tailRow = el('div', 'streg-price-drop-tail');
     budgetWireDropHighlight(tailRow, () => {
       if (dragItem) {
@@ -4017,7 +4078,7 @@ function buildStregPricesCard() {
     const lastLabel = list.lastElementChild && list.lastElementChild.querySelector('.streg-price-label-input');
     if (lastLabel) lastLabel.focus();
   });
-  card.appendChild(addBtn);
+  if (!budgetReadOnly()) card.appendChild(addBtn);
 
   const totalRow = el('div', 'streg-price-total');
   totalRow.appendChild(el('span', null, 'I alt'));
@@ -4069,7 +4130,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const root = document.getElementById('budget-root');
   if (!root) return;
   // The page gate (site.js) already hides <main> for public visitors.
-  if (typeof siteHasLevel === 'function' && siteHasLevel('admin')) {
+  if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
+    // Boss gets the same view, read-only (budgetReadOnly).
     loadAndRenderAdmin(root);
   } else if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
     renderRevystForm(root);
