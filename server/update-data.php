@@ -3614,6 +3614,18 @@ function faelles_overrides_for_json($overrides) {
   return (object) $overrides;
 }
 
+// Rows as read from disk: json_decode(..., true) turns a saved `{}` back
+// into an empty PHP array, which would go out as `[]` and land in the
+// browser as a JS array, where a checkbox's `dayOverrides[id] = false`
+// is a named property JSON.stringify drops, so the change never saved.
+// Every response that hands out rows goes through this.
+function faelles_rows_for_json($rows) {
+  return array_map(function ($row) {
+    $row['dayOverrides'] = faelles_overrides_for_json(is_array($row['dayOverrides'] ?? null) ? $row['dayOverrides'] : []);
+    return $row;
+  }, $rows);
+}
+
 // title/date for a Fællesspisning-only day column (faelles_add_day).
 function faelles_validate_extra_day($body) {
   $title = $body['title'] ?? '';
@@ -3752,7 +3764,7 @@ function faelles_maybe_sync($doc) {
 function faelles_read($body) {
   $doc = faelles_load();
   $doc = faelles_maybe_sync($doc);
-  respond(200, ['ok' => true, 'rows' => $doc['rows'], 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'rows' => faelles_rows_for_json($doc['rows']), 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Create (no rowId; boss, checked at dispatch) or update (rowId given;
@@ -3841,7 +3853,7 @@ function faelles_save_connection($body) {
       $doc['updatedAt'] = date('c');
       return $doc;
     });
-    respond(200, ['ok' => true, 'connection' => null, 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
+    respond(200, ['ok' => true, 'connection' => null, 'rows' => faelles_rows_for_json($doc['rows']), 'updatedAt' => $doc['updatedAt']]);
   }
 
   $doc = faelles_mutate(function ($doc) use ($clean) {
@@ -3850,7 +3862,7 @@ function faelles_save_connection($body) {
     return $doc;
   });
   $doc = faelles_sync_connection($doc['connection']);
-  respond(200, ['ok' => true, 'connection' => $doc['connection'], 'rows' => $doc['rows'], 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'connection' => $doc['connection'], 'rows' => faelles_rows_for_json($doc['rows']), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Boss: sets the opt-in/opt-out default for rows created from now on (see

@@ -264,6 +264,17 @@ function faellesDayDefault(row, col) {
   return col.date >= faellesRowJoinDate(row);
 }
 
+// A server reply's rows with `dayOverrides` forced to a plain object. An
+// array (an empty `{}` that PHP re-encoded as `[]`) would swallow every
+// checkbox change: JSON.stringify drops named properties on an array.
+function faellesNormalizeRows(rows) {
+  for (const row of rows) {
+    const o = row.dayOverrides;
+    if (!o || typeof o !== 'object' || Array.isArray(o)) row.dayOverrides = {};
+  }
+  return rows;
+}
+
 function faellesIsDayChecked(row, col) {
   const overrides = row.dayOverrides || {};
   if (Object.prototype.hasOwnProperty.call(overrides, col.id)) return !!overrides[col.id];
@@ -293,7 +304,7 @@ async function faellesLoad(root) {
     return;
   }
   faellesState = {
-    rows: result.data.rows || [],
+    rows: faellesNormalizeRows(result.data.rows || []),
     connection: result.data.connection || null,
     extraDays: result.data.extraDays || [],
     hiddenDays: result.data.hiddenDays || [],
@@ -736,7 +747,7 @@ async function faellesSendRow(row, tr) {
   row.attendanceMode = result.data.row.attendanceMode;
   if (row._editSeq === seq) {
     row.answers = result.data.row.answers;
-    row.dayOverrides = result.data.row.dayOverrides || {};
+    row.dayOverrides = faellesNormalizeRows([result.data.row])[0].dayOverrides;
   }
   if (wasNew) faellesState.rows.push(row);
   faellesRefreshSummary(tr);
@@ -1032,7 +1043,7 @@ async function faellesOpenConnectModal(root) {
       return;
     }
     faellesState.connection = result.data.connection;
-    faellesState.rows = result.data.rows;
+    faellesState.rows = faellesNormalizeRows(result.data.rows || []);
     close();
     faellesRender(root);
   });
@@ -1073,7 +1084,7 @@ function faellesOpenDisconnectConfirm(root, closeParent) {
       return;
     }
     faellesState.connection = null;
-    faellesState.rows = result.data.rows;
+    faellesState.rows = faellesNormalizeRows(result.data.rows || []);
     close();
     closeParent();
     faellesRender(root);
