@@ -81,7 +81,7 @@
   border-radius: 4px;
 }
 
-/* --- Card head: notes + Regnskab's budget -------------------------- */
+/* --- Card head: notes + Samlet status ----------------------------- */
 .rekvisit-card-head {
   display: flex;
   flex-wrap: wrap;
@@ -102,19 +102,6 @@
   line-height: 1.4;
   font-size: 0.9rem;
   color: var(--text-muted);
-}
-
-.rekvisit-budget {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-weight: 600;
-}
-
-.rekvisit-budget .rekvisit-budget-input {
-  width: 7rem;
-  font-weight: 600;
-  text-align: right;
 }
 
 .rekvisit-empty {
@@ -190,9 +177,11 @@
   table-layout: fixed;
 }
 
+/* A line under every row and between every column (not after the drag
+   handle or before the actions column, which belong to their neighbour). */
 .rekvisit-table th,
 .rekvisit-table td {
-  box-shadow: inset 0 -1px 0 0 var(--border);
+  box-shadow: inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
   padding: 0.25rem 0.3rem;
   text-align: left;
   vertical-align: middle;
@@ -202,20 +191,31 @@
   overflow: hidden;
 }
 
+.rekvisit-table .rekvisit-col-handle,
+.rekvisit-table .rekvisit-col-actions {
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+/* Header rows follow the page: rekvisitSyncStickyHead() shifts each cell
+   down with a transform, so they need a solid background and to sit
+   above the body cells (the sticky first column included). */
+.rekvisit-table thead th {
+  position: relative;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.rekvisit-table thead th.rekvisit-col-sticky {
+  position: sticky;
+  z-index: 3;
+}
+
 /* First column (+ handle) pinned while scrolling sideways, like
    Fællesspisning's Navn; rekvisit.js sets each cell's `left`. */
 .rekvisit-table .rekvisit-col-sticky {
   position: sticky;
   z-index: 1;
   background: var(--surface);
-}
-
-.rekvisit-table tr.rekvisit-row > td.rekvisit-col-sticky:not(.rekvisit-col-handle) {
-  box-shadow: inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
-}
-
-.rekvisit-table tr.rekvisit-drop-target > td.rekvisit-col-sticky:not(.rekvisit-col-handle) {
-  box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
 }
 
 /* Rekvisitter: who fills in which columns — a band above the titles and
@@ -236,8 +236,29 @@
 /* A sliver of card between the two bands. */
 .rekvisit-table thead tr.rekvisit-group-row th + th { box-shadow: inset 3px 0 0 0 var(--surface); }
 
-.rekvisit-table thead th.rekvisit-in-group-instr { box-shadow: inset 0 -2px 0 0 #7fa9d8; }
-.rekvisit-table thead th.rekvisit-in-group-rekv { box-shadow: inset 0 -2px 0 0 #d2ac5c; }
+.rekvisit-table thead th.rekvisit-in-group-instr { box-shadow: inset 0 -2px 0 0 #7fa9d8, inset -1px 0 0 0 var(--border); }
+.rekvisit-table thead th.rekvisit-in-group-rekv { box-shadow: inset 0 -2px 0 0 #d2ac5c, inset -1px 0 0 0 var(--border); }
+
+/* Boss/admin rename a band in place (rekvisitGroupTitleInput). */
+.rekvisit-group-input {
+  display: inline-block;
+  min-width: 4rem;
+  padding: 0 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: text;
+  overflow-wrap: break-word;
+}
+
+@media (hover: hover) {
+  .rekvisit-group-input:hover { border-color: currentColor; }
+}
+
+.rekvisit-group-input:focus {
+  outline: none;
+  border-color: currentColor;
+  background: rgba(255, 255, 255, 0.5);
+}
 
 .rekvisit-table thead th {
   color: var(--text-muted);
@@ -357,6 +378,11 @@
 /* Drop highlight: an inset top line (never a real border on a table row). */
 .rekvisit-table tr > td { transition: box-shadow 0.15s; }
 .rekvisit-table tr.rekvisit-drop-target > td {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
+}
+
+.rekvisit-table tr.rekvisit-drop-target > td.rekvisit-col-handle,
+.rekvisit-table tr.rekvisit-drop-target > td.rekvisit-col-actions {
   box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border);
 }
 
@@ -390,23 +416,18 @@
   margin: 0.5rem auto 0;
 }
 
-/* --- Read-only and derived cells ----------------------------------- */
+/* --- Read-only cells ---------------------------------------------- */
 .rekvisit-head-label {
   padding: 0.25rem 0.35rem;
   overflow-wrap: break-word;
 }
 
-.rekvisit-readonly,
-.rekvisit-derived {
+.rekvisit-readonly {
   display: block;
   padding: 0.25rem 0.35rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.rekvisit-derived {
-  color: var(--text-muted);
 }
 
 .rekvisit-field[readonly] {
@@ -431,7 +452,7 @@
 .rekvisit-footer-row td {
   font-weight: 600;
   padding: 0.45rem 0.65rem;
-  box-shadow: inset 0 1px 0 0 var(--text-muted);
+  box-shadow: inset 0 1px 0 0 var(--text-muted), inset -1px 0 0 0 var(--border);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -479,7 +500,7 @@
    day (amber). Tints are translucent so they sit on the cream surface. */
 .rekvisit-table td.rekvisit-day-absent {
   background: rgba(192, 57, 43, 0.22);
-  box-shadow: inset 0 -1px 0 0 rgba(192, 57, 43, 0.35);
+  box-shadow: inset 0 -1px 0 0 rgba(192, 57, 43, 0.35), inset -1px 0 0 0 var(--border);
 }
 .rekvisit-table td.rekvisit-day-absent .rekvisit-field {
   color: #8e2a1f;
@@ -517,6 +538,9 @@
 }
 
 .rekvisit-pill-warm { background: var(--accent-warm-text); color: #fff; }
+/* Brændimprægneret: "-" (not yet) light red, "En side" light green. */
+.rekvisit-pill-todo { background: #f6d4cf; color: #8e2a1f; }
+.rekvisit-pill-light-done { background: #d3ebd4; color: #2e6b34; }
 .rekvisit-pill-done { background: var(--success); color: #fff; }
 .rekvisit-pill-dropped { background: var(--danger); color: #fff; }
 .rekvisit-pill-muted {
@@ -530,7 +554,7 @@
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
-/* --- Status tab: draggable progress bar ---------------------------- */
+/* --- Rekvisitter's Status: draggable progress bar ------------------ */
 .rekvisit-progress {
   position: relative;
   height: 1.5rem;
@@ -546,15 +570,12 @@
 
 .rekvisit-progress-fill {
   position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--accent-warm);
+  inset: 0 auto 0 0; /* colour set per value by rekvisitPaintProgress() */
 }
 
 .rekvisit-progress:not(.rekvisit-progress-dragging) .rekvisit-progress-fill {
   transition: width 0.12s ease;
 }
-
-.rekvisit-progress-done .rekvisit-progress-fill { background: var(--success); }
 
 .rekvisit-progress-label {
   position: relative;
@@ -566,13 +587,30 @@
   color: var(--text);
 }
 
-.rekvisit-progress-done .rekvisit-progress-label { color: #fff; }
-
 .rekvisit-progress-readonly { cursor: default; }
 
 .rekvisit-progress:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* "Samlet status" top right of Rekvisitter's card. */
+.rekvisit-total {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rekvisit-total[hidden] {
+  display: none;
+}
+
+.rekvisit-total .rekvisit-progress {
+  width: 180px;
 }
 
 /* Add-column / add-day modal: the shared field width. */

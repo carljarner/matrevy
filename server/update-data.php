@@ -345,8 +345,8 @@ $REKVISIT_ACTIONS = [
   'rekvisit_save_column_labels' => 'revyst',
   'rekvisit_save_column_widths' => 'revyst',
   'rekvisit_save_columns'       => 'revyst', // custom + hidden built-ins
-  'rekvisit_set_budget'         => 'revyst', // Regnskab's budget
   'rekvisit_set_note'           => 'boss',   // the text line above a sheet
+  'rekvisit_set_group_label'    => 'boss',   // Rekvisitter's Instruktør/Rekvisit band titles
   'rekvisit_add_day'            => 'revyst', // Hvem, hvornår? extra day
   'rekvisit_delete_day'         => 'revyst',
   'rekvisit_hide_day'           => 'revyst', // hide a Kalender date on this sheet
@@ -5140,13 +5140,15 @@ function handle_kostume($action, $folder, $body) {
 
 // ── Rekvisitten datastore (private, local files under REKVISIT_DATA_DIR) ──
 //   REKVISIT_DATA_DIR/<folder>/rekvisitten.json
-//     {sheets: {rekvisitter, hvem, indkob, braend, regnskab}, updatedAt}
+//     {sheets: {rekvisitter, hvem, indkob, braend}, updatedAt}
 // A row sheet is {rows, columnLabels, columnWidths, customColumns,
 // hiddenColumns}; hvem adds {extraDays:[{id,date,title}], hiddenDays:[date]}
-// and its rows carry days:{YYYY-MM-DD: text}; regnskab adds {budget}.
-// braend (the Status tab) has no rows of its own — it shows Rekvisitter's
-// rows, whose progress/braend fields it edits — so it only stores
-// titles/widths.
+// and its rows carry days:{YYYY-MM-DD: text}. A sheets.regnskab from when
+// there was a Regnskab tab stays in the file, unused (each write replaces
+// only its own sheet).
+// braend (the Brændimprægnering tab) has no rows of its own — it shows
+// Rekvisitter's rows, whose braendNote/braend/braendProgress fields it
+// edits — so it only stores titles/widths.
 // The folder comes from the body (any revy can be read); the dispatch
 // block limits writes below boss to the current production. A copy of the
 // kostume_* handlers generalised to several sheets. Dispatched early, so
@@ -5180,9 +5182,11 @@ function rekvisit_sheet_defs() {
       'fields' => [
         'rekvisit' => 'text', 'scene' => 'text', 'instruktoer' => 'text', 'kommentar' => 'text',
         'type' => 'text', 'ansvarlig' => 'text', 'ekstra' => 'text',
-        'progress' => 'progress', 'braend' => 'status',
+        'progress' => 'progress', 'braend' => 'status', 'braendNote' => 'text',
+        'braendProgress' => 'progress',
       ],
-      // progress/braend only show on the Status tab.
+      // braend/braendNote/braendProgress only show on the
+      // Brændimprægnering tab; progress is never hideable.
       'hideable' => ['scene', 'instruktoer', 'kommentar', 'type', 'ansvarlig', 'ekstra'],
     ],
     'hvem' => [
@@ -5196,13 +5200,10 @@ function rekvisit_sheet_defs() {
     ],
     'braend' => [
       'rows' => false, 'locked' => null, 'custom' => false,
-      'extraKeys' => ['rekvisit', 'kommentar', 'progress', 'braend'],
+      // kommentar/progress were shown here before; kept so stored titles
+      // still validate.
+      'extraKeys' => ['rekvisit', 'kommentar', 'progress', 'braendNote', 'braend', 'braendProgress'],
       'fields' => [], 'hideable' => [],
-    ],
-    'regnskab' => [
-      'rows' => true, 'locked' => 'udgift', 'custom' => true, 'extraKeys' => ['rest'],
-      'fields' => ['udgift' => 'text', 'belob' => 'text', 'bilag' => 'text', 'lagtUd' => 'text', 'behandlet' => 'status'],
-      'hideable' => ['belob', 'bilag', 'lagtUd', 'behandlet'],
     ],
   ];
 }
@@ -5210,9 +5211,8 @@ function rekvisit_sheet_defs() {
 // Pill values per status column; '' is each one's default.
 function rekvisit_status_values($sheet, $key) {
   $map = [
-    'rekvisitter/braend' => ['', 'ja', 'skalikke'],
+    'rekvisitter/braend' => ['', 'enside', 'begge', 'skalikke'],
     'indkob/kobt' => ['', 'ja'],
-    'regnskab/behandlet' => ['', 'maaske', 'ja'],
   ];
   return $map[$sheet . '/' . $key] ?? [''];
 }
@@ -5298,17 +5298,29 @@ function rekvisit_sheet($doc, $folder, $sheet) {
     unset($row);
   }
   if ($sheet === 'rekvisitter') {
+    // Rekvisitter starts with 50 rows. A sheet with fewer (written before
+    // that, or never written) is padded once with blank rows whose ids
+    // depend only on their slot; the flag is stored with the first write,
+    // so rows deleted after that stay deleted.
+    if (empty($out['minRowsApplied'])) {
+      for ($i = count($out['rows']); $i < 50; $i++) {
+        $out['rows'][] = array_merge(['id' => rekvisit_default_id($folder, 'rekvisitter/pad' . $i)], rekvisit_blank_row($sheet));
+      }
+      $out['minRowsApplied'] = true;
+    }
     // progress replaced the old status pill (Færdig = 100%, I gang = 50%).
     foreach ($out['rows'] as &$row) {
       if (!is_int($row['progress'] ?? null)) {
         $legacy = ['faerdig' => 100, 'igang' => 50];
         $row['progress'] = $legacy[$row['status'] ?? ''] ?? 0;
       }
+      // The Brændimprægnering tab's own progress, separate from progress.
+      if (!is_int($row['braendProgress'] ?? null)) $row['braendProgress'] = 0;
+      // Brændimprægneret's old "Ja" became "Begge sider!".
+      if (($row['braend'] ?? '') === 'ja') $row['braend'] = 'begge';
     }
     unset($row);
-  }
-  if ($sheet === 'regnskab') {
-    $out['budget'] = is_string($out['budget'] ?? null) ? $out['budget'] : '';
+    $out['groupLabels'] = (object) ($out['groupLabels'] ?? []);
   }
   return $out;
 }
@@ -5570,17 +5582,6 @@ function rekvisit_save_column_widths($folder, $body) {
   respond(200, ['ok' => true, 'columnWidths' => $s['columnWidths']]);
 }
 
-// {budget} — Regnskab's budget, free text (parsed client-side like Beløb).
-function rekvisit_set_budget($folder, $body) {
-  $budget = $body['budget'] ?? null;
-  if (!is_string($budget) || mb_strlen($budget) > 30) respond(400, ['error' => 'invalid_shape']);
-  $s = rekvisit_mutate($folder, 'regnskab', function ($s) use ($budget) {
-    $s['budget'] = trim($budget);
-    return $s;
-  });
-  respond(200, ['ok' => true, 'budget' => $s['budget']]);
-}
-
 // {sheet, note} — the text line above a sheet. Stored as typed ('' = no
 // line); a sheet that never had one set shows the client's default.
 function rekvisit_set_note($folder, $body) {
@@ -5593,6 +5594,25 @@ function rekvisit_set_note($folder, $body) {
     return $s;
   });
   respond(200, ['ok' => true, 'note' => $s['note']]);
+}
+
+// {key, label} — a Rekvisitter band title ('instr' or 'rekv'); '' = the
+// client's default.
+function rekvisit_set_group_label($folder, $body) {
+  $key = $body['key'] ?? '';
+  $label = $body['label'] ?? null;
+  if (!in_array($key, ['instr', 'rekv'], true) || !is_string($label) || mb_strlen($label) > 60) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $label = trim(preg_replace('/\s+/u', ' ', $label));
+  $s = rekvisit_mutate($folder, 'rekvisitter', function ($s) use ($key, $label) {
+    $labels = (array) $s['groupLabels'];
+    if ($label === '') unset($labels[$key]);
+    else $labels[$key] = $label;
+    $s['groupLabels'] = (object) $labels;
+    return $s;
+  });
+  respond(200, ['ok' => true, 'groupLabels' => $s['groupLabels']]);
 }
 
 // {date, title?} — a Hvem, hvornår?-only day column (never touches Kalender).
@@ -5643,8 +5663,8 @@ function handle_rekvisit($action, $folder, $body) {
     case 'rekvisit_save_columns':       return rekvisit_save_columns($folder, $body);
     case 'rekvisit_save_column_labels': return rekvisit_save_column_labels($folder, $body);
     case 'rekvisit_save_column_widths': return rekvisit_save_column_widths($folder, $body);
-    case 'rekvisit_set_budget':         return rekvisit_set_budget($folder, $body);
     case 'rekvisit_set_note':           return rekvisit_set_note($folder, $body);
+    case 'rekvisit_set_group_label':    return rekvisit_set_group_label($folder, $body);
     case 'rekvisit_add_day':            return rekvisit_add_day($folder, $body);
     case 'rekvisit_delete_day':         return rekvisit_delete_day($folder, $body);
     case 'rekvisit_hide_day':           return rekvisit_hide_day($folder, $body);

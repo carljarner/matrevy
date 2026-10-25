@@ -1,15 +1,16 @@
 /* =========================================================
    Matematikrevyen – Rekvisitten (rekvisitten.html)
 
-   The prop crew's five sheets for one revy, as tabs: Rekvisitter (what
-   each scene needs), Status (how far along each prop is, and whether it
-   is fire-proofed), Hvem, hvornår? (who is away which day), Indkøbsliste
-   and Regnskab. Styled like Kostumetinder/Bandet's sheet: cells commit on
-   blur, rows reorder by their handle, columns can be renamed, resized,
+   The prop crew's four sheets for one revy, as tabs: Rekvisitter (what
+   each scene needs and how far along each prop is), Brændimprægnering
+   (whether it is fire-proofed), Hvem, hvornår? (who is away which day)
+   and Indkøbsliste. Styled like Kostumetinder/Bandet's sheet: cells
+   commit on blur, rows reorder by their handle, columns can be renamed, resized,
    removed and added, pills cycle on click.
 
-   Status (key `braend`, its old name) has no rows of its own: it lists
-   Rekvisitter's rows and edits their progress/braend fields, so the two
+   Brændimprægnering (key `braend`) has no rows of its own: it lists
+   Rekvisitter's rows and edits their braendNote/braend/braendProgress
+   fields (braendProgress is its own bar, not Rekvisitter's), so the two
    can't drift.
    Hvem, hvornår?'s day columns are Kalender's øvedage/forestillinger in
    July–December of the revy's year plus days added here; a cell is free
@@ -115,10 +116,9 @@ async function rekvisitApi(action, body, folder = rekvisitFolder) {
 // ── Sheet definitions ────────────────────────────────────────
 const REKVISIT_TABS = [
   { key: 'rekvisitter', label: 'Rekvisitter' },
-  { key: 'braend', label: 'Status' },
+  { key: 'braend', label: 'Brændimprægnering' },
   { key: 'hvem', label: 'Hvem, hvornår?' },
   { key: 'indkob', label: 'Indkøbsliste' },
-  { key: 'regnskab', label: 'Regnskab' },
 ];
 const REKVISIT_TAB_KEY = 'matrevy-rekvisit-tab';
 const REKVISIT_REVY_KEY = 'matrevy-rekvisit-revy';
@@ -127,25 +127,22 @@ const REKVISIT_REVY_KEY = 'matrevy-rekvisit-revy';
 // rekvisit_status_values() in update-data.php.
 const REKVISIT_STATUSES = {
   'rekvisitter/braend': [
-    { value: '', label: '-', cls: 'rekvisit-pill-none' },
-    { value: 'ja', label: 'Ja', cls: 'rekvisit-pill-done' },
-    { value: 'skalikke', label: 'Skal ikke', cls: 'rekvisit-pill-muted' },
+    { value: '', label: '-', cls: 'rekvisit-pill-todo' },
+    { value: 'enside', label: 'En side', cls: 'rekvisit-pill-light-done' },
+    { value: 'begge', label: 'Begge sider!', cls: 'rekvisit-pill-done' },
+    { value: 'skalikke', label: 'Skal ikke', cls: 'rekvisit-pill-light-done' },
   ],
   'indkob/kobt': [
     { value: '', label: '-', cls: 'rekvisit-pill-none' },
     { value: 'ja', label: 'Ja', cls: 'rekvisit-pill-done' },
   ],
-  'regnskab/behandlet': [
-    { value: '', label: 'Nej', cls: 'rekvisit-pill-none' },
-    { value: 'maaske', label: 'Ja?', cls: 'rekvisit-pill-warm' },
-    { value: 'ja', label: 'Ja', cls: 'rekvisit-pill-done' },
-  ],
 };
 
-// Per tab: rowSheet = whose rows it shows (Status borrows Rekvisitter's);
+// Per tab: rowSheet = whose rows it shows (Brændimprægnering borrows
+// Rekvisitter's);
 // columns = built-ins (width = default px; status = pill; progress =
 // draggable 0-100% bar;
-// readOnly = shown, not edited; derived = computed; stayRight = custom
+// readOnly = shown, not edited; stayRight = custom
 // columns are inserted before it); locked = can't be removed; custom =
 // text columns can be added; rows = rows can be added/removed/moved.
 // Mirrors rekvisit_sheet_defs() in update-data.php.
@@ -154,13 +151,14 @@ const REKVISIT_SHEETS = {
     rowSheet: 'rekvisitter', locked: 'rekvisit', custom: true, rows: true,
     note: 'Rekvisit, Sketch/Sang, Instruktør og Kommentar udfyldes af instruktørerne, resten af rekvisitten.',
     hintRequired: ['rekvisit', 'scene', 'instruktoer'],
-    // A header row above the titles shows who fills in what; custom
-    // columns belong to the last group.
+    // A header row above the titles shows who fills in what (titles
+    // boss-editable, stored as groupLabels); custom columns belong to the
+    // last group.
     groups: [
       { key: 'instr', label: 'Instruktør' },
       { key: 'rekv', label: 'Rekvisit' },
     ],
-    // progress/braend live on the Status tab, not here.
+    // braend/braendNote/braendProgress live on the Brændimprægnering tab.
     columns: [
       { key: 'rekvisit', label: 'Rekvisit', width: 160, hint: 'Det, der skal laves', group: 'instr' },
       { key: 'scene', label: 'Sketch/Sang', width: 160, hint: 'Til hvilken scene', group: 'instr' },
@@ -169,7 +167,9 @@ const REKVISIT_SHEETS = {
       { key: 'type', label: 'Type (pap/stof/hønsenet/træ)', width: 180, group: 'rekv' },
       { key: 'ansvarlig', label: 'Ansvarlig', width: 110, group: 'rekv' },
       { key: 'ekstra', label: 'Ekstra', width: 200, group: 'rekv' },
+      { key: 'progress', label: 'Status', width: 200, progress: true, group: 'rekv', stayRight: true },
     ],
+    totalProgress: 'progress', // the key "Samlet status" averages
   },
   hvem: {
     rowSheet: 'hvem', locked: 'navn', custom: false, rows: true, days: true,
@@ -192,23 +192,14 @@ const REKVISIT_SHEETS = {
   },
   braend: {
     rowSheet: 'rekvisitter', locked: null, custom: false, rows: false,
+    totalProgress: 'braendProgress',
     note: 'Rækkerne kommer fra fanen Rekvisitter.',
     columns: [
       { key: 'rekvisit', label: 'Rekvisit', width: 180, readOnly: true },
-      { key: 'kommentar', label: 'Kommentar', width: 320, readOnly: true },
-      { key: 'progress', label: 'Status', width: 200, progress: true },
+      { key: 'braendNote', label: 'Kommentar', width: 320 },
       { key: 'braend', label: 'Brændimprægneret', width: 130, status: true },
-    ],
-  },
-  regnskab: {
-    rowSheet: 'regnskab', locked: 'udgift', custom: true, rows: true, budget: true,
-    columns: [
-      { key: 'udgift', label: 'Udgift', width: 200 },
-      { key: 'belob', label: 'Beløb', width: 110, amount: true },
-      { key: 'bilag', label: 'Bilag', width: 100 },
-      { key: 'lagtUd', label: 'Lagt ud', width: 150 },
-      { key: 'behandlet', label: 'Behandlet', width: 100, status: true },
-      { key: 'rest', label: 'Restbeløb', width: 120, derived: true, amount: true, stayRight: true },
+      // Its own progress, not Rekvisitter's Status.
+      { key: 'braendProgress', label: 'Status', width: 200, progress: true },
     ],
   },
 };
@@ -351,7 +342,7 @@ async function rekvisitLoad() {
       hiddenColumns: s.hiddenColumns || [],
       extraDays: s.extraDays || [],
       hiddenDays: s.hiddenDays || [],
-      budget: typeof s.budget === 'string' ? s.budget : '',
+      groupLabels: rekvisitPlainMap(s.groupLabels),
     };
   }
   rekvisitRender();
@@ -367,10 +358,10 @@ function rekvisitRender() {
   const card = el('section', 'card rekvisit-sheet-card');
 
   const head = el('div', 'rekvisit-card-head');
-  if (def.budget) head.appendChild(rekvisitBuildBudgetField(canEdit));
   const note = rekvisitBuildNote();
   if (note) head.appendChild(note);
   if (!canEdit) head.appendChild(el('p', 'rekvisit-muted rekvisit-note', 'Tidligere år kan kun redigeres af bosser.'));
+  if (def.totalProgress) head.appendChild(rekvisitBuildTotalProgress());
   if (head.childNodes.length) card.appendChild(head);
 
   const wrap = el('div', 'rekvisit-table-wrap');
@@ -383,6 +374,8 @@ function rekvisitRender() {
     card.appendChild(addRow);
   }
   root.appendChild(card);
+  rekvisitRefreshTotalProgress();
+  rekvisitSyncStickyHead();
 }
 
 // Styled like Ninjas' page tabs (.ninjas-mode-tabs, duplicated as
@@ -444,12 +437,13 @@ function rekvisitSheetColumns(tab = rekvisitActiveTab) {
 function rekvisitAllValueKeys(tab = rekvisitActiveTab) {
   const def = rekvisitDef(tab);
   return [
-    ...def.columns.filter((c) => !c.derived && !c.readOnly).map((c) => c.key),
+    ...def.columns.filter((c) => !c.readOnly).map((c) => c.key),
     ...(def.custom ? rekvisitTabDoc(tab).customColumns.map((c) => c.key) : []),
   ];
 }
 
 function rekvisitRowHasContent(row) {
+  // `|| ''` also makes a 0% progress count as empty.
   if (rekvisitAllValueKeys().some((key) => String(row[key] || '').trim() !== '')) return true;
   return Object.values(row.days || {}).some((v) => String(v || '').trim() !== '');
 }
@@ -457,6 +451,10 @@ function rekvisitRowHasContent(row) {
 function rekvisitRowLabel(row) {
   const def = rekvisitDef();
   return String(row[def.locked || def.columns[0].key] || '').trim() || 'Række';
+}
+
+function rekvisitColumnIsProgress(key) {
+  return rekvisitDef().columns.some((c) => c.key === key && c.progress);
 }
 
 function rekvisitStatusOptions(key) {
@@ -589,7 +587,7 @@ function rekvisitRemoveDay(col) {
   });
 }
 
-// ── Amounts (Indkøbsliste, Regnskab) ─────────────────────────
+// ── Amounts (Indkøbsliste) ───────────────────────────────────
 // Danish-style money as typed: "1.061,70", "130", "283,50 kr". null when
 // there's no number.
 function rekvisitParseAmount(text) {
@@ -615,21 +613,6 @@ function rekvisitSum(rows, key) {
   return any ? rekvisitFormatAmount(sum) : '';
 }
 
-// Regnskab's Restbeløb: budget minus the running total of Beløb, in row
-// order; blank on rows without an amount (or without a budget).
-function rekvisitRestValues(rows) {
-  const budget = rekvisitParseAmount(rekvisitSheets.regnskab.budget);
-  const out = new Map();
-  let rest = budget;
-  for (const row of rows) {
-    const n = rekvisitParseAmount(row.belob);
-    if (budget === null || n === null) { out.set(row, ''); continue; }
-    rest -= n;
-    out.set(row, rekvisitFormatAmount(rest));
-  }
-  return { perRow: out, final: budget === null ? '' : rekvisitFormatAmount(rest) };
-}
-
 // The footer row's cells, by column key (null = no footer).
 function rekvisitFooterValues(rows, columns) {
   const tab = rekvisitActiveTab;
@@ -644,10 +627,6 @@ function rekvisitFooterValues(rows, columns) {
   if (tab === 'indkob') {
     return { hvad: 'I alt', forventetPris: rekvisitSum(rows, 'forventetPris'), faktiskPris: rekvisitSum(rows, 'faktiskPris') };
   }
-  if (tab === 'regnskab') {
-    const firstKey = columns[0] ? columns[0].key : 'udgift';
-    return { [firstKey]: 'I alt', belob: rekvisitSum(rows, 'belob'), rest: rekvisitRestValues(rows).final };
-  }
   return null;
 }
 
@@ -657,18 +636,12 @@ function rekvisitScreenRows() {
   return tbody ? Array.from(tbody.querySelectorAll('tr.rekvisit-row')).map((tr) => tr._row) : [];
 }
 
-// Re-computes the derived cells and the footer as you type.
+// Re-computes the totals and the footer as you type.
 function rekvisitRefreshComputed() {
   const table = document.querySelector('.rekvisit-table');
   if (!table) return;
   const rows = rekvisitScreenRows();
-  if (rekvisitActiveTab === 'regnskab') {
-    const { perRow } = rekvisitRestValues(rows);
-    for (const tr of table.querySelectorAll('tbody tr.rekvisit-row')) {
-      const cell = tr.querySelector('.rekvisit-derived[data-key="rest"]');
-      if (cell) cell.textContent = perRow.get(tr._row) || '';
-    }
-  }
+  rekvisitRefreshTotalProgress();
   const values = rekvisitFooterValues(rows, rekvisitSheetColumns());
   if (!values) return;
   for (const td of table.querySelectorAll('tfoot td[data-key]')) td.textContent = values[td.dataset.key] || '';
@@ -719,39 +692,6 @@ function rekvisitBuildNote() {
   return input;
 }
 
-// ── Regnskab's budget ────────────────────────────────────────
-function rekvisitBuildBudgetField(canEdit) {
-  const wrap = el('label', 'rekvisit-budget');
-  wrap.appendChild(el('span', 'rekvisit-budget-label', 'Budget:'));
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.inputMode = 'decimal';
-  input.className = 'rekvisit-field rekvisit-budget-input';
-  input.maxLength = 30;
-  input.value = rekvisitSheets.regnskab.budget;
-  input.placeholder = '0';
-  input.readOnly = !canEdit;
-  let saved = input.value;
-  input.addEventListener('input', () => {
-    rekvisitSheets.regnskab.budget = input.value;
-    rekvisitRefreshComputed();
-  });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') input.blur();
-    if (e.key === 'Escape') { input.value = saved; input.dispatchEvent(new Event('input')); input.blur(); }
-  });
-  input.addEventListener('blur', async () => {
-    if (!canEdit || input.value.trim() === saved) return;
-    const result = await rekvisitApi('rekvisit_set_budget', { budget: input.value });
-    if (!result.ok) { rekvisitHandleFailure(result); return; }
-    saved = result.data.budget;
-    rekvisitSheets.regnskab.budget = saved;
-  });
-  wrap.appendChild(input);
-  wrap.appendChild(el('span', 'rekvisit-budget-label', 'kr.'));
-  return wrap;
-}
-
 // ── The sheet ────────────────────────────────────────────────
 // Fixed table layout driven by a <colgroup>, so a dragged width is exact
 // and the other columns don't shift to absorb it.
@@ -786,8 +726,8 @@ function rekvisitBuildSheetTable(canEdit) {
       th.appendChild(rekvisitDayHead(col, canEdit));
     } else if (canEdit) {
       // Clearing the title and pressing Backspace/Delete once more asks to
-      // remove the column (the locked one, derived and borrowed ones excepted).
-      const removable = col.custom || (def.rows && col.key !== def.locked && !col.derived && !col.readOnly);
+      // remove the column (the locked one, borrowed ones and Status excepted).
+      const removable = col.custom || (def.rows && col.key !== def.locked && !col.readOnly && !col.progress);
       th.appendChild(rekvisitColumnTitleInput(col.key, col.label, removable ? () => rekvisitRemoveColumn(col) : null));
       th.appendChild(rekvisitColumnResizer(col, cols[col.key], table, withHandle, withActions));
     } else {
@@ -813,10 +753,9 @@ function rekvisitBuildSheetTable(canEdit) {
 
   const tbody = el('tbody');
   let rows = rekvisitRowDoc().rows;
-  // Status lists only the props that have a name.
+  // Brændimprægnering lists only the props that have a name.
   if (!def.rows) rows = rows.filter((r) => String(r.rekvisit || '').trim() !== '');
-  const rest = rekvisitActiveTab === 'regnskab' ? rekvisitRestValues(rows).perRow : null;
-  rows.forEach((row) => tbody.appendChild(rekvisitRenderRow(row, columns, canEdit, rest)));
+  rows.forEach((row) => tbody.appendChild(rekvisitRenderRow(row, columns, canEdit)));
   if (withHandle) tbody.appendChild(rekvisitBuildDropTail(columns.length + (withActions ? 2 : 1)));
   table.appendChild(tbody);
   if (!rows.length && !def.rows) {
@@ -846,6 +785,36 @@ function rekvisitBuildSheetTable(canEdit) {
   return table;
 }
 
+// ── Header rows that follow the page ─────────────────────────
+// The wrap scrolls sideways (overflow-x), which would make CSS sticky
+// stick to the wrap rather than the page; so the header cells are shifted
+// down with a transform instead, keeping them just under the site header
+// while the table is on screen. No fixed height, no inner vertical scroll.
+let rekvisitStickyFrame = 0;
+
+function rekvisitSyncStickyHead() {
+  rekvisitStickyFrame = 0;
+  const table = document.querySelector('.rekvisit-table');
+  const thead = table && table.tHead;
+  if (!thead) return;
+  const cells = thead.querySelectorAll('th');
+  const header = document.querySelector('.site-header');
+  const top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+  // Measured without the current shift.
+  const tableRect = table.getBoundingClientRect();
+  const headHeight = thead.getBoundingClientRect().height;
+  const foot = table.tFoot ? table.tFoot.getBoundingClientRect().height : 0;
+  const max = Math.max(0, tableRect.height - headHeight - foot);
+  const offset = Math.round(Math.min(max, Math.max(0, top - tableRect.top)));
+  const transform = offset ? `translateY(${offset}px)` : '';
+  for (const th of cells) th.style.transform = transform;
+  thead.classList.toggle('rekvisit-head-floating', offset > 0);
+}
+
+function rekvisitScheduleStickyHead() {
+  if (!rekvisitStickyFrame) rekvisitStickyFrame = requestAnimationFrame(rekvisitSyncStickyHead);
+}
+
 // The first column (and the drag handle before it) stays put while the
 // sheet scrolls sideways, like Fællesspisning's Navn.
 function rekvisitStickyCell(cell, left) {
@@ -869,13 +838,54 @@ function rekvisitBuildGroupRow(columns, withHandle, withActions) {
     if (last && last.key === col.group) last.span++;
     else runs.push({ key: col.group, span: 1 });
   }
+  const isBoss = typeof siteHasLevel === 'function' && siteHasLevel('boss');
   runs.forEach((run, i) => {
     const group = def.groups.find((g) => g.key === run.key);
-    const th = el('th', `rekvisit-group rekvisit-group-${run.key}`, group ? group.label : '');
+    const th = el('th', `rekvisit-group rekvisit-group-${run.key}`);
+    if (group) th.appendChild(isBoss ? rekvisitGroupTitleInput(group) : el('span', null, rekvisitGroupLabel(group)));
     th.colSpan = run.span + (i === 0 && withHandle ? 1 : 0) + (i === runs.length - 1 && withActions ? 1 : 0);
     tr.appendChild(th);
   });
   return tr;
+}
+
+// Band titles: a stored groupLabels entry wins, else the REKVISIT_SHEETS
+// default. Boss/admin rename them in place (like a column title, but via
+// the boss-only rekvisit_set_group_label); clearing one brings the default
+// back.
+function rekvisitGroupLabel(group) {
+  const label = rekvisitTabDoc().groupLabels[group.key];
+  return (typeof label === 'string' && label.trim()) ? label : group.label;
+}
+
+function rekvisitGroupTitleInput(group) {
+  const tab = rekvisitActiveTab;
+  const title = el('div', 'rekvisit-group-input', rekvisitGroupLabel(group));
+  try { title.contentEditable = 'plaintext-only'; } catch (e) { title.contentEditable = 'true'; }
+  if (title.contentEditable !== 'plaintext-only') title.contentEditable = 'true';
+  title.spellcheck = false;
+  title.setAttribute('role', 'textbox');
+  title.setAttribute('aria-label', `Overskrift: ${group.label}`);
+  title.title = 'Klik for at omdøbe';
+  title.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); title.blur(); }
+    else if (e.key === 'Escape') { title.textContent = rekvisitGroupLabel(group); title.blur(); }
+  });
+  title.addEventListener('blur', async () => {
+    const value = (title.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    const next = value && value !== group.label ? value : '';
+    const labels = rekvisitTabDoc(tab).groupLabels;
+    title.textContent = next || group.label;
+    if ((labels[group.key] || '') === next) return;
+    const result = await rekvisitApi('rekvisit_set_group_label', { key: group.key, label: next });
+    if (!result.ok) {
+      title.textContent = rekvisitGroupLabel(group);
+      rekvisitHandleFailure(result);
+      return;
+    }
+    rekvisitTabDoc(tab).groupLabels = rekvisitPlainMap(result.data.groupLabels);
+  });
+  return title;
 }
 
 function rekvisitCellClass(col, extra) {
@@ -967,24 +977,71 @@ function rekvisitStatusToggle(row, key, tr, canEdit) {
 // Home/End work too. Commits once on release, not on every move.
 const REKVISIT_PROGRESS_STEP = 5;
 
-function rekvisitProgressBar(row, key, tr, canEdit) {
+// The fill fades red (0%) → orange (50%) → green (100%). Soft tones, so the
+// dark percentage label stays readable on top.
+const REKVISIT_PROGRESS_STOPS = [[226, 110, 98], [240, 166, 72], [104, 186, 112]];
+
+function rekvisitProgressColor(value) {
+  const t = Math.min(100, Math.max(0, value)) / 50;
+  const i = Math.min(1, Math.floor(t));
+  const f = t - i;
+  const [a, b] = [REKVISIT_PROGRESS_STOPS[i], REKVISIT_PROGRESS_STOPS[i + 1]];
+  return `rgb(${a.map((c, j) => Math.round(c + (b[j] - c) * f)).join(', ')})`;
+}
+
+function rekvisitPaintProgress(bar, value) {
+  bar.querySelector('.rekvisit-progress-fill').style.width = `${value}%`;
+  bar.querySelector('.rekvisit-progress-fill').style.background = rekvisitProgressColor(value);
+  bar.querySelector('.rekvisit-progress-label').textContent = `${value}%`;
+  bar.setAttribute('aria-valuenow', String(value));
+}
+
+function rekvisitProgressEl(ariaLabel) {
   const bar = el('div', 'rekvisit-progress');
-  const fill = el('div', 'rekvisit-progress-fill');
-  const label = el('span', 'rekvisit-progress-label');
-  bar.appendChild(fill);
-  bar.appendChild(label);
+  bar.appendChild(el('div', 'rekvisit-progress-fill'));
+  bar.appendChild(el('span', 'rekvisit-progress-label'));
   bar.setAttribute('role', 'slider');
-  bar.setAttribute('aria-label', 'Status');
+  bar.setAttribute('aria-label', ariaLabel);
   bar.setAttribute('aria-valuemin', '0');
   bar.setAttribute('aria-valuemax', '100');
+  return bar;
+}
+
+// "Samlet status" top right of Rekvisitter/Brændimprægnering: the plain
+// average of every named prop's def.totalProgress field (drafts included,
+// as typed).
+function rekvisitBuildTotalProgress() {
+  const wrap = el('div', 'rekvisit-total');
+  wrap.id = 'rekvisit-total';
+  wrap.appendChild(el('span', 'rekvisit-total-label', 'Samlet status'));
+  const bar = rekvisitProgressEl('Samlet status');
+  bar.classList.add('rekvisit-progress-readonly');
+  bar.setAttribute('aria-readonly', 'true');
+  wrap.appendChild(bar);
+  return wrap;
+}
+
+function rekvisitRefreshTotalProgress() {
+  const wrap = document.getElementById('rekvisit-total');
+  if (!wrap) return;
+  const named = rekvisitScreenRows().filter((r) => String(r.rekvisit || '').trim() !== '');
+  wrap.hidden = !named.length;
+  if (!named.length) return;
+  const key = rekvisitDef().totalProgress;
+  const avg = Math.round(named.reduce((sum, r) => sum + (Number(r[key]) || 0), 0) / named.length);
+  rekvisitPaintProgress(wrap.querySelector('.rekvisit-progress'), avg);
+}
+
+function rekvisitProgressBar(row, key, tr, canEdit) {
+  const bar = rekvisitProgressEl('Status');
   let value = Number(row[key]) || 0;
   function paint() {
-    fill.style.width = `${value}%`;
-    bar.classList.toggle('rekvisit-progress-done', value >= 100);
-    label.textContent = `${value}%`;
-    bar.setAttribute('aria-valuenow', String(value));
+    rekvisitPaintProgress(bar, value);
+    // The total follows the bar while it's being dragged.
+    row[key] = value;
+    rekvisitRefreshTotalProgress();
   }
-  paint();
+  rekvisitPaintProgress(bar, value);
   if (!canEdit) {
     bar.classList.add('rekvisit-progress-readonly');
     bar.setAttribute('aria-readonly', 'true');
@@ -992,8 +1049,10 @@ function rekvisitProgressBar(row, key, tr, canEdit) {
   }
   bar.tabIndex = 0;
   bar.title = 'Træk for at ændre';
+  let saved = value;
   const commit = () => {
-    if (value === (Number(row[key]) || 0)) return;
+    if (value === saved) return;
+    saved = value;
     row[key] = value;
     rekvisitCommitRow(row, { [key]: value }, tr);
   };
@@ -1054,7 +1113,7 @@ function rekvisitRefreshHints(tbody) {
   }
 }
 
-function rekvisitRenderRow(row, columns, canEdit, rest) {
+function rekvisitRenderRow(row, columns, canEdit) {
   const def = rekvisitDef();
   const tr = el('tr', 'rekvisit-row');
   tr._row = row;
@@ -1073,10 +1132,6 @@ function rekvisitRenderRow(row, columns, canEdit, rest) {
       td.appendChild(rekvisitStatusToggle(row, col.key, tr, canEdit));
     } else if (col.progress) {
       td.appendChild(rekvisitProgressBar(row, col.key, tr, canEdit));
-    } else if (col.derived) {
-      const span = el('span', 'rekvisit-derived', rest ? (rest.get(row) || '') : '');
-      span.dataset.key = col.key;
-      td.appendChild(span);
     } else if (col.readOnly) {
       const text = String(row[col.key] || '');
       const span = el('span', 'rekvisit-readonly', text);
@@ -1106,10 +1161,10 @@ function rekvisitRenderRow(row, columns, canEdit, rest) {
 // blur that leaves it non-empty (an abandoned "+" leaves nothing behind).
 function rekvisitAddDraftRow(card) {
   const row = { id: null };
-  rekvisitAllValueKeys().forEach((key) => { row[key] = ''; });
+  rekvisitAllValueKeys().forEach((key) => { row[key] = rekvisitColumnIsProgress(key) ? 0 : ''; });
   if (rekvisitDef().days) row.days = {};
   const tbody = card.querySelector('.rekvisit-table tbody');
-  const tr = rekvisitRenderRow(row, rekvisitSheetColumns(), true, null);
+  const tr = rekvisitRenderRow(row, rekvisitSheetColumns(), true);
   tr.classList.add('rekvisit-draft-row');
   tbody.insertBefore(tr, tbody.querySelector('.rekvisit-drop-tail-row'));
   rekvisitRefreshHints(tbody);
@@ -1129,7 +1184,9 @@ async function rekvisitCommitRow(row, fields, tr) {
   let body;
   if (isNew) {
     const payload = {};
-    rekvisitAllValueKeys().forEach((key) => { payload[key] = row[key] || ''; });
+    rekvisitAllValueKeys().forEach((key) => {
+      payload[key] = rekvisitColumnIsProgress(key) ? (Number(row[key]) || 0) : (row[key] || '');
+    });
     if (row.days) payload.days = { ...row.days };
     body = { sheet, row: payload };
   } else {
@@ -1490,5 +1547,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rekvisitPending > 0) { e.preventDefault(); e.returnValue = ''; }
   });
   if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(() => rekvisitPending > 0);
+  window.addEventListener('scroll', rekvisitScheduleStickyHead, { passive: true });
+  window.addEventListener('resize', rekvisitScheduleStickyHead);
   rekvisitLoad();
 });
