@@ -43,11 +43,8 @@
       separate persisted selected flag, the folder itself is the record. A
       selected count replaces the old "(total)" in each column's header.
       Aktfordeling/Rollefordeling/
-      Manus/Stjerneark all share one act-columns grid (renderActColumnsGrid(),
-      N columns = manusDraft.acts.length, 4 for the fixed skeleton, one row —
-      Stjerneark alone passes an explicit `columns` override — 3/2/1
-      depending on window width, see manusStarLayoutMode() — so its wider
-      rows wrap the remaining acts onto however many columns actually fit) —
+      Manus all share one act-columns grid (renderActColumnsGrid(),
+      N columns = manusDraft.acts.length, 4 for the fixed skeleton, one row) —
       Aktfordeling additionally renders "Ikke placeret" as its own
       full-width row below the acts (same column grid, filled row-wise,
       selected-but-unplaced pool rows only), and its drag-and-drop makes
@@ -76,10 +73,10 @@
       auto-import once from an already-uploaded .tex, fetched straight from
       the public repo (manusImportFromTex(), triggered from either tab's
       render loop, for every row shown — not just freshly-placed ones);
-      Stjerneark sets a 0-3 priority per scene, splitting a
-      dance-combined scene into two independent rows exactly like
-      Øveplan does (splitDanceScene()/applyDanceSplits-style helpers
-      duplicated from schedule.js). One shared "Gem" (manusSaveMain())
+      Stjerneark is one table (acts stacked, one row per scene) of four
+      0-3 priorities (Skuespil/Sang/Dans/Band), three checkboxes and a
+      comment, auto-saved per change (see manusApplyStarFields() for what
+      Øveplan reads). One shared "Gem" (manusSaveMain())
       saves everything: first manuscripts_sync_selection moves the files
       of pool submissions whose selection changed in this tab (selected →
       .../sketches/ or .../songs/ by type; deselected → .../submitted/),
@@ -181,16 +178,29 @@ function classifyOrKeep(code, isSong, isDans) {
   return ROLE_CATEGORIES.includes(code) ? code : classifyRoleCode(code, isSong, isDans);
 }
 
-// From schedule.js: a scene whose types combine 'dans' with 'sketch'/'sang'
-// is displayed here as two rows ("X" and "X (Dans)"), same split schedule.js
-// does for its own scheduling grid — display-only in this file, never re-saved
-// from the split form (see manusRowScene()/renderStjerneArkTab() below).
-const DANCE_SPLIT_SUFFIX = '::dans';
+// ── Stjerneark fields ─────────────────────────────────────────
+// One row per scene (see renderStjerneArkTab): four 0-3 priorities, three
+// checkboxes and a comment. Øveplan never reads the four priorities itself:
+// it keeps reading `priority` (its main half) and `dansPriority` (its
+// "(Dans)" half), so `priority` is derived from Skuespil/Sang (Band is
+// Stjerneark-only) and `dansRepeat` mirrors Dobbeltsegment on save.
+const MANUS_STAR_PRIO_FIELDS = [
+  { key: 'prioSkuespil', label: 'Skuespil' },
+  { key: 'prioSang', label: 'Sang' },
+  { key: 'dansPriority', label: 'Dans' },
+  { key: 'prioBand', label: 'Band' },
+];
+const MANUS_STAR_CHECK_FIELDS = [
+  { key: 'repeat', label: 'Dobbeltsegment' },
+  { key: 'oevetBand', label: 'Øvet med band' },
+  { key: 'oevetScene', label: 'Øvet på scene' },
+];
+const MANUS_STAR_NOTE_MAX = 2000;
+const MANUS_STAR_PRIO_KEYS = MANUS_STAR_PRIO_FIELDS.map(f => f.key);
 
-// Checked against the full `tags` array, not just `role` (which only ever
-// stores tags[0] — see manusRowScene() below), so a cast member tagged both
-// Instruktør and Koreograf is still detected regardless of tag order. Falls
-// back to classifying `role` itself for raw script codes with no tags yet.
+// Copied from schedule.js (Øveplan's rule for splitting off a "(Dans)"
+// part): a cast member tagged Dans or Koreograf, or a raw role code with
+// Y/D when there are no tags yet.
 function isDanceCastRole(c) {
   if (Array.isArray(c.tags) && c.tags.length) {
     return c.tags.includes('Dans') || c.tags.includes('Koreograf');
@@ -201,37 +211,82 @@ function isDanceCastRole(c) {
   return code.includes('Y') || code.includes('D');
 }
 
-// A scene is a dance-split candidate if any cast member is dance-classified
-// (Dans or Koreograf, per isDanceCastRole above — so a scene with only
-// credited dancers and no separate choreographer still qualifies) rather
-// than checking scene.types for 'dans', since nothing in this file's own
-// save path (manusRowScene()) ever adds 'dans' to a scene's types.
 function isDanceSplitCandidate(scene) {
   return (scene.cast || []).some(isDanceCastRole);
 }
 
-// Returns [mainPart, dancePart], or null if the scene doesn't qualify. Unlike
-// schedule.js's own copy, the dance half's priority comes from the scene's
-// own (persisted) dansPriority field, not a fresh 0 — Stjerneark's whole
-// point is to persist real priorities, so the split display must reflect
-// what's actually stored/drafted rather than resetting on every render.
-function splitDanceScene(scene) {
-  if (!isDanceSplitCandidate(scene)) return null;
-  const mainCast = [];
-  const danceCast = [];
-  for (const c of scene.cast) {
-    (isDanceCastRole(c) ? danceCast : mainCast).push(c);
-  }
-  const danceId = scene.id + DANCE_SPLIT_SUFFIX;
-  const mainPart = { ...scene, cast: mainCast };
-  const dancePart = {
-    ...scene,
-    id: danceId,
-    name: scene.name + ' (Dans)',
-    cast: danceCast,
-    priority: scene.dansPriority != null ? scene.dansPriority : 0,
+// Which priority pickers a scene shows without being added by hand:
+// a sketch only Skuespil; a song Skuespil, Sang and Band, plus Dans when
+// Øveplan would give it a "(Dans)" part.
+function manusStarDefaultFields(scene) {
+  if (!(scene.types || []).includes('sang')) return ['prioSkuespil'];
+  const keys = ['prioSkuespil', 'prioSang', 'prioBand'];
+  if (isDanceSplitCandidate(scene)) keys.push('dansPriority');
+  return keys;
+}
+
+// A priority value is 0-3, `null` (picker shown, nothing selected: e.g.
+// the dance isn't made yet) or missing (never set: a shown picker then
+// starts at 3, MANUS_STAR_START).
+const MANUS_STAR_START = 3;
+
+function manusStarPrioValue(v) {
+  if (v === null) return null;
+  return Number.isInteger(v) && v >= 0 && v <= 3 ? v : undefined;
+}
+
+// The draft row's Stjerneark values, read from a saved scene. A scene from
+// before the four columns has only `priority`, which becomes Skuespil (so
+// Øveplan's derived priority stays the same).
+function manusStarFieldsFromScene(s) {
+  return {
+    prioSkuespil: manusStarPrioValue('prioSkuespil' in s ? s.prioSkuespil : s.priority),
+    prioSang: manusStarPrioValue(s.prioSang),
+    dansPriority: manusStarPrioValue(s.dansPriority),
+    prioBand: manusStarPrioValue(s.prioBand),
+    repeat: !!s.repeat,
+    oevetBand: !!s.oevetBand,
+    oevetScene: !!s.oevetScene,
+    stjerneNote: typeof s.stjerneNote === 'string' ? s.stjerneNote : '',
+    // Pickers added by hand with "+", in column order.
+    stjerneExtra: MANUS_STAR_PRIO_KEYS.filter(k => Array.isArray(s.stjerneExtra) && s.stjerneExtra.includes(k)),
   };
-  return [mainPart, dancePart];
+}
+
+// Whether a scene shows a picker for `key`: a default, added with "+", or
+// an older value above 0 (so nothing set before the defaults disappears).
+function manusStarPickerShown(scene, values, key) {
+  return manusStarDefaultFields(scene).includes(key)
+    || values.stjerneExtra.includes(key)
+    || values[key] > 0;
+}
+
+// What a shown picker displays: its value, or 3 when never set.
+function manusStarEffective(v) {
+  return v === undefined ? MANUS_STAR_START : v;
+}
+
+// Writes the Stjerneark values onto a save-shaped scene (which needs its
+// types and cast, for the default pickers), plus the two fields Øveplan
+// reads: `priority` = the higher of Skuespil/Sang (an unselected one counts
+// as 0) and `dansRepeat` = Dobbeltsegment. A hidden picker's value is
+// dropped. `source` is a draft row or a manus_set_stars update (normalized
+// first, so a row restored from an older draft backup still maps its
+// `priority`). manus_set_stars() in update-data.php stores what this sends.
+function manusApplyStarFields(scene, source) {
+  const v = manusStarFieldsFromScene(source);
+  for (const key of MANUS_STAR_PRIO_KEYS) {
+    if (manusStarPickerShown(scene, v, key)) scene[key] = manusStarEffective(v[key]);
+    else delete scene[key];
+  }
+  scene.priority = Math.max(scene.prioSkuespil || 0, scene.prioSang || 0);
+  scene.repeat = !!v.repeat;
+  if (v.repeat) scene.dansRepeat = true; else delete scene.dansRepeat;
+  if (v.oevetBand) scene.oevetBand = true; else delete scene.oevetBand;
+  if (v.oevetScene) scene.oevetScene = true; else delete scene.oevetScene;
+  if (v.stjerneNote) scene.stjerneNote = v.stjerneNote; else delete scene.stjerneNote;
+  if (v.stjerneExtra.length) scene.stjerneExtra = v.stjerneExtra; else delete scene.stjerneExtra;
+  return scene;
 }
 
 // ── Data (with a localStorage-backed shadow after a create/delete) ──
@@ -2493,7 +2548,7 @@ let manusLastSavedSnapshot = null;
 // they must not affect the dirty diff below.
 // Stjerneark auto-saves its fields on every already-saved scene (see
 // manusSaveStars), so those never count as unsaved Gem work either.
-const MANUS_STAR_FIELDS = new Set(['priority', 'repeat', 'dansPriority', 'dansRepeat']);
+const MANUS_STAR_FIELDS = new Set(Object.keys(manusStarFieldsFromScene({})));
 function manusSerializeDraft(draft) {
   const saved = new Set((draft._base || []).flatMap(a => a.scenes.map(sc => sc.uid)));
   return JSON.stringify(draft, function (key, value) {
@@ -2655,10 +2710,7 @@ function manusRowFromScene(s) {
       description: c.description || '',
       tags: Array.isArray(c.tags) && c.tags.length ? c.tags.slice() : (c.role ? [classifyOrKeep(c.role, isSong, isDans)] : []),
     })),
-    priority: s.priority || 0,
-    dansPriority: isDanceSplitCandidate(s) ? (s.dansPriority != null ? s.dansPriority : 0) : null,
-    repeat: !!s.repeat,
-    dansRepeat: isDanceSplitCandidate(s) ? !!s.dansRepeat : null,
+    ...manusStarFieldsFromScene(s),
     scriptBody: s.scriptBody || '',
     status: s.status || '',
     melody: s.melody || '',
@@ -2704,10 +2756,7 @@ function manusInitDraft(existing = getEffectiveScenesData(), { setBaseline = tru
       // scenes save alone would drop the edit).
       _baseDuration: typeof sub.duration === 'number' ? sub.duration : null,
       cast: [],
-      priority: 0,
-      dansPriority: null,
-      repeat: false,
-      dansRepeat: null,
+      ...manusStarFieldsFromScene({}),
       scriptBody: '',
       status: '',
       melody: '',
@@ -3306,12 +3355,7 @@ function manusRowScene(row, act, idx) {
   // so it always wins over whichever origin branch above seeded scene.name.
   if (row.titleOverride) scene.name = row.titleOverride;
   scene.uid = row.uid;
-  scene.priority = row.priority || 0;
-  if (isDanceSplitCandidate(scene) && row.dansPriority != null) scene.dansPriority = row.dansPriority;
-  else delete scene.dansPriority;
-  scene.repeat = !!row.repeat;
-  if (isDanceSplitCandidate(scene) && row.dansRepeat) scene.dansRepeat = true;
-  else delete scene.dansRepeat;
+  manusApplyStarFields(scene, row);
   if (row.duration != null && row.duration !== '') scene.duration = row.duration;
   else delete scene.duration;
   if (row.scriptBody) scene.scriptBody = row.scriptBody; else delete scene.scriptBody;
@@ -3802,10 +3846,7 @@ function addManualMediaRow(manualType) {
     appliedSelected: true,
     duration: null,
     cast: [],
-    priority: 0,
-    dansPriority: null,
-    repeat: false,
-    dansRepeat: null,
+    ...manusStarFieldsFromScene({}),
     scriptBody: '',
     status: '',
     melody: '',
@@ -4580,27 +4621,17 @@ function buildActColumn(act, buildColumnBody, rowFilter = null) {
 // (N = manusDraft.acts.length, 4 for the fixed Akt1/2/3/Ekstranumre
 // skeleton) — used by Aktfordeling's act row and, unchanged otherwise, by
 // Rollefordeling/Manus below so those three tabs read as the same grid.
-// Stjerneark alone passes an explicit `columns` override (3/2/1 depending on
-// window width — see manusStarLayoutMode()/renderStjerneArkTab) so it wraps
-// — that tab's rows are wide (priority circles + repeat toggle alongside the
-// title), so four side-by-side columns read as cramped there in a way the
-// other tabs' plainer rows don't; below ~1000px even 3 is too narrow, and
-// below the site-wide ~719px breakpoint even 2 is, so all four acts stack
-// into a single column at that point. Any act beyond the first `columns - 1`
-// stacks into that *last* column — for the fixed 4-act skeleton at 3
-// columns that means Akt3 and Ekstranumre both land in column 3. That stack
-// is its own flex column (`.manus-kanban-col-stack`), not a second CSS grid
-// row: a real second grid row would size to the *tallest* column in that
-// row (i.e. however long Akt1/Akt2 happen to be), leaving a large gap
-// between Akt3's last card and Ekstranumre's header — a flex wrapper sizes
-// Ekstranumre flush against Akt3 regardless of its siblings' height.
+// An explicit `columns` below the act count stacks the remaining acts into
+// the *last* column (no caller does this today). That stack is its own flex
+// column (`.manus-kanban-col-stack`), not a second CSS grid row, so the
+// stacked acts sit flush regardless of the other columns' heights.
 // buildColumnBody(bodyEl, act, rowsInAct, colEl) fills each column's body;
 // whatever it doesn't wire up (drag-and-drop, in Aktfordeling's case) simply
 // isn't there for the other tabs. colEl (header+body together) is handed
 // through so Aktfordeling can make the *whole* column a drop target, not
 // just the body's own strip — see wireLaneDropZone(). `rowFilter`, when
 // given, narrows both the "N scener" header count and rowsInAct together
-// (via buildActColumn) — used by Rollefordeling/Manus/Stjerneark to exclude
+// (via buildActColumn) — used by Rollefordeling/Manus to exclude
 // manual video/bandsang rows (manusRowIsManualMedia) from a tab they have no
 // cast/roles/script relevance in; Aktfordeling passes none, so those rows
 // still count and render there.
@@ -5432,197 +5463,230 @@ function renderManusTextTab() {
 }
 
 // ── Tab 4: Stjerneark ────────────────────────────────────────────
-// Row styling matches Rollefordeling/Aktfordeling's box (.manus-akt-row) —
-// see the "styled the same" request. Priority is four always-visible
-// circles (0-3, grey when not the active one, colored via the existing
-// .manus-prio-0..3 palette when active) instead of a dropdown, plus a fifth
-// "repeat" circle (↻) marking a scene that wants a second rehearsal the
-// next day (row.repeat / row.dansRepeat for the dance half — mirrors
-// row.priority/row.dansPriority exactly).
+// One table like the old Stjerneark spreadsheet: the acts stacked
+// vertically, one row per scene (no separate dance row: Dans is its own
+// column), in a scroll box whose header row and title column stick. Every
+// change auto-saves (manusStarsAutosave below).
 const MANUS_PRIO_VALUES = [0, 1, 2, 3];
 
-// The dance half's own row sits directly under its main half (same `row`,
-// same forEach iteration in renderStjerneArkTab below) so repeating the full
-// scene name there is redundant — and with a long title, the " (Dans)" suffix
-// that used to carry entry.name was the first thing ellipsis truncation ate,
-// making the row look identical to its main half. A short, always-visible
-// "↳ Dans" badge up front replaces the name entirely for that row instead.
-// Mobile-only popup (site-utils.js's shared field-popup chrome) opening the
-// same four .manus-prio-circle buttons the desktop row shows inline — see
-// renderStarRow's isMobile branch below.
-function openStarPrioPopup(anchor, current, onSelect) {
-  const pop = document.createElement('div');
-  pop.className = 'site-field-pop manus-star-prio-pop';
-  MANUS_PRIO_VALUES.forEach(v => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = `manus-prio-circle manus-prio-${v}` + (v === current ? ' manus-prio-active' : '');
-    btn.textContent = v;
-    btn.title = `Prioritet ${v}`;
-    btn.addEventListener('click', () => { close(); onSelect(v); });
-    pop.appendChild(btn);
-  });
-  const close = siteOpenFieldPopup(anchor, pop);
-}
+// A priority cell: the four 0-3 circles when the scene has that picker
+// (one of its defaults, added with "+", or an older value above 0),
+// otherwise a small "+" that adds it (starting at 3). Right-click on an
+// added picker offers to remove it again; the defaults can't be removed.
+// manus-prio-N is a permanent per-value class (so :hover can preview that
+// value's own color via CSS alone); manus-prio-active is the separate,
+// toggled marker for which one is actually selected.
+function manusStarPrioCell(row, scene, field, label) {
+  const td = document.createElement('td');
+  td.className = 'manus-star-prio-cell';
+  const isDefault = manusStarDefaultFields(scene).includes(field);
+  const save = () => manusStarsAutosave.schedule();
+  const shown = () => manusStarPickerShown(scene, row, field);
 
-// `isMobile` (window.matchMedia('(max-width: 719px)'), checked once by the
-// caller — see renderStjerneArkTab) swaps the four always-visible priority
-// circles for a single circle showing just the active value, opening
-// openStarPrioPopup on click — four circles plus the repeat toggle is too
-// wide for the name to stay readable at phone width, even with Stjerneark's
-// mobile 1-column layout (see renderStjerneArkTab).
-function renderStarRow(row, entry, isMobile) {
-  const isDanceHalf = entry.id.endsWith(DANCE_SPLIT_SUFFIX);
-  const el = document.createElement('div');
-  el.className = 'manus-akt-row manus-star-row';
-
-  const name = document.createElement('span');
-  name.className = 'manus-akt-row-title';
-  if (isDanceHalf) {
-    name.classList.add('manus-star-dans-label');
-    const arrow = document.createElement('span');
-    arrow.className = 'manus-star-dans-arrow';
-    arrow.textContent = '↳';
-    name.appendChild(arrow);
-    name.appendChild(document.createTextNode(' Dans'));
-  } else {
-    name.textContent = entry.name;
-  }
-  el.appendChild(name);
-
-  const controls = document.createElement('div');
-  controls.className = 'manus-star-controls';
-
-  function currentPrio() { return isDanceHalf ? (row.dansPriority || 0) : (row.priority || 0); }
-  function setPrio(v) { if (isDanceHalf) row.dansPriority = v; else row.priority = v; }
-
-  if (isMobile) {
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.title = 'Vælg prioritet';
-    function renderToggle() {
-      const v = currentPrio();
-      toggle.className = `manus-prio-circle manus-prio-toggle manus-prio-${v} manus-prio-active`;
-      toggle.textContent = String(v);
-    }
-    renderToggle();
-    toggle.addEventListener('click', () => {
-      siteToggleFieldPopup(toggle, () => {
-        openStarPrioPopup(toggle, currentPrio(), (v) => { setPrio(v); renderToggle(); manusStarsAutosave.schedule(); });
+  function render() {
+    td.textContent = '';
+    if (!shown()) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = 'manus-star-add';
+      add.textContent = '+';
+      add.title = `Tilføj ${label}`;
+      add.setAttribute('aria-label', `Tilføj ${label}`);
+      add.addEventListener('click', () => {
+        row.stjerneExtra = MANUS_STAR_PRIO_KEYS.filter(k => k === field || row.stjerneExtra.includes(k));
+        row[field] = MANUS_STAR_START;
+        render();
+        save();
+        const first = td.querySelector('.manus-prio-circle');
+        if (first) first.focus();
       });
-    });
-    controls.appendChild(toggle);
-  } else {
-    // manus-prio-N is a permanent per-value class (so :hover can preview that
-    // value's own color via CSS alone); manus-prio-active is the separate,
-    // toggled marker for which one is actually selected.
-    const prioBtns = MANUS_PRIO_VALUES.map(v => {
+      td.appendChild(add);
+      return;
+    }
+    const group = document.createElement('div');
+    group.className = 'manus-star-prio';
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', label);
+    const btns = MANUS_PRIO_VALUES.map(v => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = `manus-prio-circle manus-prio-${v}`;
       btn.textContent = v;
-      btn.title = `Prioritet ${v}`;
-      btn.addEventListener('click', () => { setPrio(v); updatePrioBtns(); manusStarsAutosave.schedule(); });
-      controls.appendChild(btn);
+      btn.title = isDefault ? `${label}: ${v}` : `${label}: ${v} (højreklik for at fjerne)`;
+      // Clicking the selected value unselects it (nothing chosen yet). The
+      // hover colour stays off until the pointer moves, so the unselected
+      // circle visibly clears under the cursor.
+      btn.addEventListener('click', (e) => {
+        row[field] = manusStarEffective(row[field]) === v ? null : v;
+        paint();
+        save();
+        group.classList.add('manus-prio-hover-off');
+        const { clientX: x, clientY: y } = e;
+        const onMove = (m) => {
+          if (m.clientX === x && m.clientY === y) return;
+          group.classList.remove('manus-prio-hover-off');
+          document.removeEventListener('pointermove', onMove);
+        };
+        document.addEventListener('pointermove', onMove);
+      });
+      group.appendChild(btn);
       return btn;
     });
-    function updatePrioBtns() {
-      const active = currentPrio();
-      prioBtns.forEach((btn, v) => {
+    function paint() {
+      const active = manusStarEffective(row[field]);
+      btns.forEach((btn, v) => {
         btn.classList.toggle('manus-prio-active', v === active);
         btn.setAttribute('aria-pressed', String(v === active));
       });
     }
-    updatePrioBtns();
+    paint();
+    if (!isDefault) {
+      group.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const pop = document.createElement('div');
+        pop.className = 'site-field-pop';
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'site-list-row';
+        remove.textContent = `Fjern ${label}`;
+        remove.addEventListener('click', () => {
+          siteCloseFieldPopup();
+          row[field] = undefined;
+          row.stjerneExtra = row.stjerneExtra.filter(k => k !== field);
+          render();
+          save();
+        });
+        pop.appendChild(remove);
+        siteOpenFieldPopup(group, pop);
+      });
+    }
+    td.appendChild(group);
   }
+  render();
+  return td;
+}
 
-  const repeatBtn = document.createElement('button');
-  repeatBtn.type = 'button';
-  repeatBtn.className = 'manus-repeat-circle';
-  repeatBtn.textContent = '↻';
-  repeatBtn.title = 'Dobbeltsegment';
-  function updateRepeatBtn() {
-    const active = isDanceHalf ? !!row.dansRepeat : !!row.repeat;
-    repeatBtn.classList.toggle('manus-repeat-active', active);
-    repeatBtn.setAttribute('aria-pressed', String(active));
-  }
-  repeatBtn.addEventListener('click', () => {
-    if (isDanceHalf) row.dansRepeat = !row.dansRepeat; else row.repeat = !row.repeat;
-    updateRepeatBtn();
+function manusStarCheckCell(row, field, label) {
+  const td = document.createElement('td');
+  td.className = 'manus-star-check-cell';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.className = 'manus-star-check';
+  box.checked = !!row[field];
+  box.setAttribute('aria-label', label);
+  box.addEventListener('change', () => {
+    row[field] = box.checked;
     manusStarsAutosave.schedule();
   });
-  updateRepeatBtn();
-  controls.appendChild(repeatBtn);
-
-  el.appendChild(controls);
-  return el;
+  td.appendChild(box);
+  return td;
 }
 
-// Stjerneark's own responsive tiers — independent of the site-wide ≤719px
-// mobile breakpoint, since this tab's rows (name + up to 4 priority circles
-// + repeat toggle) get cramped well before that: the always-visible circles
-// collapse into a single tap-to-open toggle (see renderStarRow's `compact`
-// param) at ≤1000px already, and the 3-wide act-column grid drops to 2
-// columns at that same width, then to 1 (full stack, same as before) at the
-// existing ≤719px breakpoint. `key` is just `columns` as a string, cheap to
-// compare so the resize handler below only re-renders on an actual tier
-// change, not on every pixel of a drag-resize.
-function manusStarLayoutMode() {
-  const w = window.innerWidth;
-  if (w <= 719) return { columns: 1, compact: true, key: '1' };
-  if (w <= 1000) return { columns: 2, compact: true, key: '2' };
-  return { columns: 3, compact: false, key: '3' };
+// One line that grows sideways: the input shares a grid cell with an
+// invisible copy of its text (::after, from data-value), which sets the
+// width, so a long comment widens the column instead of wrapping.
+function manusStarNoteCell(row) {
+  const td = document.createElement('td');
+  td.className = 'manus-star-note-cell';
+  const sizer = document.createElement('div');
+  sizer.className = 'manus-star-note-sizer';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'manus-star-note';
+  input.maxLength = MANUS_STAR_NOTE_MAX;
+  input.value = row.stjerneNote || '';
+  input.setAttribute('aria-label', 'Kommentar');
+  sizer.dataset.value = input.value;
+  input.addEventListener('input', () => {
+    row.stjerneNote = input.value;
+    sizer.dataset.value = input.value;
+    manusStarsAutosave.schedule();
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.isComposing) input.blur();
+  });
+  sizer.appendChild(input);
+  td.appendChild(sizer);
+  return td;
 }
-
-// Set by renderStjerneArkTab, read by the resize listener further down so a
-// window resize that doesn't cross a tier boundary is a no-op instead of a
-// full re-render.
-let manusStarLastLayoutKey = null;
 
 function renderStjerneArkTab() {
   const mount = document.getElementById('manus-tab-stjerneark');
   mount.textContent = '';
 
-  const anyPlaced = manusAnyNonMediaPlaced();
-  if (!anyPlaced) {
+  if (!manusAnyNonMediaPlaced()) {
     const empty = document.createElement('p');
     empty.className = 'manus-col-empty';
     empty.textContent = 'Placer scener i Aktfordeling først.';
     mount.appendChild(empty);
-    manusStarLastLayoutKey = null;
     return;
   }
 
-  mount.appendChild(manusAutosaveStatusEl('stjerneark'));
-  const { columns, compact, key } = manusStarLayoutMode();
-  manusStarLastLayoutKey = key;
-  mount.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
-    rowsInAct.forEach((row, idx) => {
-      const scene = manusRowScene(row, act, idx);
-      const split = splitDanceScene(scene);
-      const entries = split || [scene];
-      for (const entry of entries) body.appendChild(renderStarRow(row, entry, compact));
-    });
-  }, columns, row => !manusRowIsManualMedia(row)));
-}
+  const columnCount = 1 + MANUS_STAR_PRIO_FIELDS.length + MANUS_STAR_CHECK_FIELDS.length + 1;
 
-// Re-renders Stjerneark in place when a resize crosses one of its own tier
-// boundaries (see manusStarLayoutMode above) — without this, switching
-// tiers by dragging the window narrower/wider only took effect on the next
-// tab switch/re-render, requiring a manual refresh to see the column count
-// or circle style catch up. rAF-debounced the same way site.js's own
-// siteUpdateHeaderFit resize listener is, so a drag-resize doesn't re-render
-// on every intermediate pixel.
-let manusStarResizeRaf = null;
-window.addEventListener('resize', () => {
-  if (manusStarResizeRaf) cancelAnimationFrame(manusStarResizeRaf);
-  manusStarResizeRaf = requestAnimationFrame(() => {
-    manusStarResizeRaf = null;
-    if (manusActiveTab !== 'stjerneark') return;
-    if (manusStarLayoutMode().key === manusStarLastLayoutKey) return;
-    renderStjerneArkTab();
-  });
-});
+  const wrap = document.createElement('div');
+  wrap.className = 'manus-star-scroll';
+  const table = document.createElement('table');
+  table.className = 'manus-star-table';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  const addHead = (text, className) => {
+    const th = document.createElement('th');
+    th.scope = 'col';
+    th.className = className;
+    th.textContent = text;
+    headRow.appendChild(th);
+  };
+  addHead('Titel', 'manus-star-col-title');
+  for (const f of MANUS_STAR_PRIO_FIELDS) addHead(f.label, 'manus-star-col-prio');
+  for (const f of MANUS_STAR_CHECK_FIELDS) addHead(f.label, 'manus-star-col-check');
+  addHead('Kommentar', 'manus-star-col-note');
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  for (const act of manusDraft.acts) {
+    const rows = manusDraftRowsForLane(act.code).filter(row => !manusRowIsManualMedia(row));
+    if (!rows.length) continue;
+
+    const actTr = document.createElement('tr');
+    actTr.className = 'manus-star-act-row';
+    const actTd = document.createElement('td');
+    actTd.colSpan = columnCount;
+    const actLabel = document.createElement('span');
+    actLabel.className = 'manus-star-act-label';
+    actLabel.textContent = act.label;
+    actTd.appendChild(actLabel);
+    actTr.appendChild(actTd);
+    tbody.appendChild(actTr);
+
+    rows.forEach((row, idx) => {
+      const tr = document.createElement('tr');
+      const title = document.createElement('th');
+      title.scope = 'row';
+      title.className = 'manus-star-col-title';
+      const scene = manusRowScene(row, act, idx);
+      // One line, cut with "..." (CSS); the full title on hover when cut.
+      const titleText = document.createElement('span');
+      titleText.className = 'manus-star-title-text';
+      titleText.textContent = scene.name;
+      titleText.addEventListener('mouseenter', () => {
+        if (titleText.scrollWidth > titleText.clientWidth) titleText.title = scene.name;
+        else titleText.removeAttribute('title');
+      });
+      title.appendChild(titleText);
+      tr.appendChild(title);
+      for (const f of MANUS_STAR_PRIO_FIELDS) tr.appendChild(manusStarPrioCell(row, scene, f.key, f.label));
+      for (const f of MANUS_STAR_CHECK_FIELDS) tr.appendChild(manusStarCheckCell(row, f.key, f.label));
+      tr.appendChild(manusStarNoteCell(row));
+      tbody.appendChild(tr);
+    });
+  }
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  mount.appendChild(wrap);
+}
 
 // ── Auto-save status lines (Stjerneark, Program) ──────────────
 // These two tabs save on their own, unlike the Gem-batched tabs, so each
@@ -5632,11 +5696,12 @@ const manusAutosaveState = {
   program: { state: 'saved', message: '' },
 };
 
-function manusAutosaveStatusText(tab) {
+// `short`: the Stjerneark status beside Gem, whose own "Gemt" sits next to it.
+function manusAutosaveStatusText(tab, short = false) {
   const { state, message } = manusAutosaveState[tab];
   if (state === 'saving') return 'Gemmer…';
   if (state === 'error') return message || 'Ikke gemt';
-  return 'Gemmes automatisk · Gemt';
+  return short ? 'Gemmes automatisk' : 'Gemmes automatisk · Gemt';
 }
 
 function manusAutosaveStatusEl(tab) {
@@ -5649,7 +5714,7 @@ function manusAutosaveStatusEl(tab) {
 
 function manusPaintAutosaveStatus(tab, el = document.querySelector(`[data-manus-autosave="${tab}"]`)) {
   if (!el) return;
-  el.textContent = manusAutosaveStatusText(tab);
+  el.textContent = manusAutosaveStatusText(tab, el.dataset.short === '1');
   el.classList.toggle('manus-autosave-error', manusAutosaveState[tab].state === 'error');
 }
 
@@ -5659,24 +5724,16 @@ function manusSetAutosaveStatus(tab, state, message) {
 }
 
 // ── Stjerneark auto-save ──────────────────────────────────────
-// Every priority/repeat click saves on its own via manus_set_stars, which
-// sets only those four fields on the named scenes — so it needs no read or
-// merge and can't undo anyone's other edits; two clicks on the same scene
-// from different tabs simply resolve as last click wins. Afterwards the
+// Every Stjerneark change (pickers, checkboxes, comment) saves on its own
+// via manus_set_stars, which sets only the Stjerneark fields (plus the
+// derived priority/dansRepeat) on the named scenes — so it needs no read or
+// merge and can't undo anyone's other edits; two edits of the same scene
+// from different tabs simply resolve as last save wins. Afterwards the
 // draft's merge base takes the saved values, so a later Gem neither counts
 // them as "my change" nor puts older values back. A scene not saved yet
 // (placed in Aktfordeling but no Gem since) has no server copy: its stars
 // stay in the draft and go with that Gem.
 let manusGemInFlight = null; // Promise of a running Gem, or null
-
-function manusStarValues(scene) {
-  return {
-    priority: scene.priority || 0,
-    repeat: !!scene.repeat,
-    dansPriority: scene.dansPriority != null ? scene.dansPriority : null,
-    dansRepeat: scene.dansRepeat === true,
-  };
-}
 
 async function manusSaveStars() {
   // Never alongside Gem: both write scenes.json, and Gem's merge reads the
@@ -5690,8 +5747,8 @@ async function manusSaveStars() {
     manusDraftRowsForLane(act.code, draft).forEach((row, idx) => {
       const base = baseByUid.get(row.uid);
       if (!base) return;
-      const values = manusStarValues(manusRowScene(row, act, idx));
-      if (JSON.stringify(values) !== JSON.stringify(manusStarValues(base))) sent.push({ uid: row.uid, ...values });
+      const values = manusStarFieldsFromScene(manusRowScene(row, act, idx));
+      if (JSON.stringify(values) !== JSON.stringify(manusStarFieldsFromScene(base))) sent.push({ uid: row.uid, ...values });
     });
   }
   if (!sent.length) return { ok: true };
@@ -5700,12 +5757,7 @@ async function manusSaveStars() {
   if (!result.ok) return result;
   const missing = new Set(result.data.missing || []);
   const savedByUid = new Map(sent.filter(u => !missing.has(u.uid)).map(u => [u.uid, u]));
-  const patch = (scene, u) => {
-    scene.priority = u.priority;
-    scene.repeat = u.repeat;
-    if (u.dansPriority != null) scene.dansPriority = u.dansPriority; else delete scene.dansPriority;
-    if (u.dansRepeat) scene.dansRepeat = true; else delete scene.dansRepeat;
-  };
+  const patch = (scene, u) => manusApplyStarFields(scene, u);
   for (const scene of baseByUid.values()) {
     if (savedByUid.has(scene.uid)) patch(scene, savedByUid.get(scene.uid));
   }
@@ -6122,6 +6174,19 @@ function manusSetActiveTab(key) {
   localStorage.setItem(MANUS_ACTIVE_TAB_KEY, manusActiveTab);
   renderTabBar();
   renderActiveTabPanel();
+  manusPaintActionsForTab();
+}
+
+// Stjerneark auto-saves and has nothing to do with Gem or the PDFs, so on
+// that tab the action bar shows only its auto-save status (CSS hides the
+// rest via .manus-actions-autosave-only).
+function manusPaintActionsForTab() {
+  const mount = document.getElementById('manus-main-view-actions');
+  if (!mount) return;
+  const stars = manusActiveTab === 'stjerneark';
+  mount.classList.toggle('manus-actions-autosave-only', stars);
+  const autoStatus = mount.querySelector('[data-manus-autosave="stjerneark"]');
+  if (autoStatus) autoStatus.hidden = !stars;
 }
 
 // Renders both the desktop flat-tab bar (styled like Budget's/Formularer's
@@ -6220,7 +6285,7 @@ function manusApplySyncResultsToRows(rows, results) {
 const MANUS_MERGE_GROUPS = [
   { key: 'cast', label: 'Roller', fields: ['cast'] },
   { key: 'script', label: 'Manus', fields: ['scriptBody'] },
-  { key: 'stjerne', label: 'Stjerneark', fields: ['priority', 'repeat', 'dansPriority', 'dansRepeat'] },
+  { key: 'stjerne', label: 'Stjerneark', fields: [...Object.keys(manusStarFieldsFromScene({})), 'priority', 'dansRepeat'] },
   { key: 'meta', label: 'Titel og detaljer', fields: null }, // every other field
 ];
 // Position fields are rebuilt from the merged act order, never merged.
@@ -7205,6 +7270,14 @@ function renderMainViewActions() {
   const buttons = document.createElement('div');
   buttons.className = 'manus-main-view-buttons';
 
+  // Stjerneark auto-saves; on that tab this status replaces Gem.
+  const autoStatus = document.createElement('span');
+  autoStatus.className = 'manus-autosave-inline';
+  autoStatus.dataset.manusAutosave = 'stjerneark';
+  autoStatus.dataset.short = '1';
+  buttons.appendChild(autoStatus);
+  manusPaintAutosaveStatus('stjerneark', autoStatus);
+
   const status = document.createElement('span');
   status.className = 'manus-save-status';
   buttons.appendChild(status);
@@ -7220,6 +7293,7 @@ function renderMainViewActions() {
   right.appendChild(buttons);
   mount.appendChild(right);
 
+  manusPaintActionsForTab();
   manusUpdateSaveStatus();
 }
 

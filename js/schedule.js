@@ -102,7 +102,8 @@ function isDanceSplitCandidate(scene) {
 
 // Returns [mainPart, dancePart], or null if the scene doesn't qualify. The
 // dance half's own priority/repeat come from the scene's dansPriority/
-// dansRepeat fields (set independently by Manus's Stjerneark tab), never
+// dansRepeat fields (Stjerneark's Dans column and Dobbeltsegment; the main
+// half's `priority` is derived there from Skuespil/Sang), never
 // copied from the main half's priority/repeat — a plain `{...scene}` spread
 // would otherwise leave both halves showing the same value.
 function splitDanceScene(scene) {

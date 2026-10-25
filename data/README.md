@@ -30,11 +30,11 @@ Normally done from **Koordinator → Arkivering** ("Afslut revyen", then "Start 
 
 1. **`scenes.json`** — the `acts` array holds the production's scenes.
    - Set `schedulable: false` for videos, band jingles, and anything else with no rehearsable cast.
-   - `priority` (0-3) is set on the Manus page's Stjerneark tab. Øveplan shows it read-only as a badge; there's no separate per-rehearsal priority any more.
+   - Stjerneark (Manus) sets `prioSkuespil`, `prioSang`, `dansPriority` and `prioBand` (0-3, or `null` when shown but unselected; left out when the scene has no picker for it), `repeat` (Dobbeltsegment), `oevetBand`/`oevetScene` (optional booleans, "Øvet med band"/"Øvet på scene") `stjerneNote` (optional comment) and `stjerneExtra` (optional list of the priority keys whose picker was added by hand with "+"). `priority` is derived as the max of Skuespil and Sang (Band isn't used by Øveplan) and `dansRepeat` as `repeat`; Øveplan shows `priority` on a scene and `dansPriority` on its "(Dans)" half, read-only. A scene with only `priority` (from before the four columns) reads it as Skuespil.
    - The `id` field must be unique (format: `"act-number"`, e.g. `"1-3"` or `"E-2"`).
    - `types` is optional but recommended: an array from `sketch`/`sang`/`dans`/`bandsang`/`video`. It drives role classification (Sang/Rap vs. Skuespil, etc. — see `CLAUDE.md`) and video/bandsang handling. The dance/actor split no longer depends on `types`: Øveplan splits any scene where a cast member is tagged Dans or Koreograf into two independently-schedulable halves.
    - `uid` (string) is the scene's permanent key, used by Manus's merge-before-save. Unlike `id` it never changes when a scene moves. Formats: `sub:<submissionId>` for a scene placed from the upload pool, `s<hex>` for a video/bandsang, `id:<id at the time>` for a scene saved before uids existed. Omit it when hand-adding a scene; Manus derives one (`id:<id>`) and saves it.
-   - `duration` (optional, minutes) defaults from the submission's `\eta{}` and is edited in Manus's Vælg scener. `sourcePdf`/`sourceTex` (optional) point at the originating submission's files under `archive/<folder>/{submitted,sketches,songs}/`; `generate-pdfs.js` overwrites `sourceTex` with the composed scene on every regeneration. `dansPriority` (optional int 0-3) holds the "(Dans)" half's priority for a dance-split scene, set by Stjerneark. `repeat`/`dansRepeat` (optional booleans) mark a scene (or its dance half) that wants a second rehearsal, also from Stjerneark. All are safe to omit on hand-edited/legacy scenes.
+   - `duration` (optional, minutes) defaults from the submission's `\eta{}` and is edited in Manus's Vælg scener. `sourcePdf`/`sourceTex` (optional) point at the originating submission's files under `archive/<folder>/{submitted,sketches,songs}/`; `generate-pdfs.js` overwrites `sourceTex` with the composed scene on every regeneration. The Stjerneark fields are all safe to omit on hand-edited/legacy scenes.
 
 2. **`cast.json`** — Replace the `cast` array with the new cast list.
    - Keep the `index` values sequential starting from 0 (Manus rebuilds them on every save).
@@ -54,10 +54,15 @@ Normally done from **Koordinator → Arkivering** ("Afslut revyen", then "Start 
           "name": "Scene name",
           "types": ["sketch"],
           "schedulable": true,
-          "priority": 0,
-          "dansPriority": null,
-          "repeat": false,
-          "dansRepeat": null,
+          "prioSkuespil": 2,
+          "prioSang": 0,
+          "dansPriority": 1,
+          "prioBand": 0,
+          "priority": 2,
+          "repeat": true,
+          "dansRepeat": true,
+          "oevetBand": true,
+          "stjerneNote": "Vil øve på scenen",
           "duration": 3,
           "sourcePdf": "archive/MatRevy_2026/sketches/Scene_name.pdf",
           "sourceTex": "archive/MatRevy_2026/sketches/Scene_name.tex",

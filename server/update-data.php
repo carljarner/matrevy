@@ -8381,45 +8381,74 @@ function program_read() {
   respond(200, ['ok' => true, 'program' => $decoded, 'sha' => $current['sha']]);
 }
 
-// Stjerneark's per-click auto-save: sets only the four Stjerneark fields on
-// the scenes named by uid (a scene saved before uids existed matches its
-// derived `id:<id>` and gets that uid stored). Last click wins per scene;
-// nothing else in scenes.json is touched, so it can't undo anyone's other
-// edits. Unknown uids (a scene not saved yet) are skipped and returned in
-// `missing` — those stars go with the next Gem.
+// Stjerneark's auto-save: sets only the Stjerneark fields on the scenes
+// named by uid (a scene saved before uids existed matches its derived
+// `id:<id>` and gets that uid stored): the four 0-3 priorities, the three
+// checkboxes, the comment and which pickers were added by hand, plus the two fields Øveplan reads, `priority`
+// = max(Skuespil, Sang) with an unselected one as 0 (Band is Stjerneark-only) and `dansRepeat` =
+// Dobbeltsegment. Mirrors manusApplyStarFields() in manus.js. Last save
+// wins per scene; nothing else in scenes.json is touched, so it can't undo
+// anyone's other edits. Unknown uids (a scene not saved yet) are skipped
+// and returned in `missing` — those stars go with the next Gem.
 function manus_set_stars($body) {
   $updates = $body['updates'] ?? null;
   if (!is_array($updates) || !$updates || count($updates) > 500) {
     respond(400, ['error' => 'invalid_shape']);
   }
+  $prioKeys = ['prioSkuespil', 'prioSang', 'dansPriority', 'prioBand'];
+  $boolKeys = ['repeat', 'oevetBand', 'oevetScene'];
   $byUid = [];
   foreach ($updates as $u) {
-    $prio = $u['priority'] ?? null;
-    $dansPrio = $u['dansPriority'] ?? null;
-    if (!is_array($u) || !is_string($u['uid'] ?? null) || $u['uid'] === '' || strlen($u['uid']) > 200
-        || !is_int($prio) || $prio < 0 || $prio > 3
-        || !is_bool($u['repeat'] ?? null)
-        || ($dansPrio !== null && (!is_int($dansPrio) || $dansPrio < 0 || $dansPrio > 3))
-        || !is_bool($u['dansRepeat'] ?? null)) {
+    if (!is_array($u) || !is_string($u['uid'] ?? null) || $u['uid'] === '' || strlen($u['uid']) > 200) {
       respond(400, ['error' => 'invalid_shape']);
+    }
+    // A priority is 0-3, null (picker shown, nothing selected) or left
+    // out (no picker on that scene).
+    foreach ($prioKeys as $k) {
+      if (!array_key_exists($k, $u) || $u[$k] === null) continue;
+      $v = $u[$k];
+      if (!is_int($v) || $v < 0 || $v > 3) respond(400, ['error' => 'invalid_shape']);
+    }
+    foreach ($boolKeys as $k) {
+      if (!is_bool($u[$k] ?? null)) respond(400, ['error' => 'invalid_shape']);
+    }
+    $note = $u['stjerneNote'] ?? null;
+    if (!is_string($note) || mb_strlen($note) > 2000) respond(400, ['error' => 'invalid_shape']);
+    // Pickers added by hand with "+" (column keys, no repeats).
+    $extra = $u['stjerneExtra'] ?? null;
+    if (!is_array($extra) || count($extra) > 4 || count(array_unique($extra)) !== count($extra)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    foreach ($extra as $k) {
+      if (!in_array($k, $prioKeys, true)) respond(400, ['error' => 'invalid_shape']);
     }
     $byUid[$u['uid']] = $u;
   }
 
   $found = [];
-  update_file('data/scenes.json', function ($json) use ($byUid, &$found) {
+  update_file('data/scenes.json', function ($json) use ($byUid, $prioKeys, &$found) {
     foreach (($json['acts'] ?? []) as $ai => $act) {
       foreach (($act['scenes'] ?? []) as $si => $scene) {
         $uid = (isset($scene['uid']) && is_string($scene['uid'])) ? $scene['uid'] : 'id:' . ($scene['id'] ?? '');
         if (!isset($byUid[$uid])) continue;
         $u = $byUid[$uid];
         $scene['uid'] = $uid;
-        $scene['priority'] = $u['priority'];
+        foreach ($prioKeys as $k) {
+          if (array_key_exists($k, $u)) $scene[$k] = $u[$k];
+          else unset($scene[$k]);
+        }
+        $scene['priority'] = max((int) ($u['prioSkuespil'] ?? 0), (int) ($u['prioSang'] ?? 0));
         $scene['repeat'] = $u['repeat'];
-        if ($u['dansPriority'] !== null) $scene['dansPriority'] = $u['dansPriority'];
-        else unset($scene['dansPriority']);
-        if ($u['dansRepeat']) $scene['dansRepeat'] = true;
+        if ($u['repeat']) $scene['dansRepeat'] = true;
         else unset($scene['dansRepeat']);
+        foreach (['oevetBand', 'oevetScene'] as $k) {
+          if ($u[$k]) $scene[$k] = true;
+          else unset($scene[$k]);
+        }
+        if ($u['stjerneNote'] !== '') $scene['stjerneNote'] = $u['stjerneNote'];
+        else unset($scene['stjerneNote']);
+        if ($u['stjerneExtra']) $scene['stjerneExtra'] = array_values($u['stjerneExtra']);
+        else unset($scene['stjerneExtra']);
         $json['acts'][$ai]['scenes'][$si] = $scene;
         $found[$uid] = true;
       }
