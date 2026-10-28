@@ -691,8 +691,17 @@ function ninjasWireSuggestions(input, getOptions, onPick) {
 
 // ── Act heading row (both sheets) ────────────────────────────
 // Printouts start a new page at Akt 3 (Akt 1-2 on page one, Akt 3 and
-// Ekstranumre on page two — see .ninjas-print-break in ninjas.css).
+// Ekstranumre on page two — see .ninjas-print-break in ninjas.css). On
+// screen the column titles are repeated just above it instead
+// (ninjasRepeatHeadRow), hidden in print where thead repeats anyway.
 const NINJAS_PRINT_BREAK_ACT = '3';
+
+function ninjasRepeatHeadRow(buildHeadRow, groups, group) {
+  if (group.act !== NINJAS_PRINT_BREAK_ACT || group === groups[0]) return null;
+  const tr = buildHeadRow();
+  tr.classList.add('ninjas-head-repeat');
+  return tr;
+}
 
 function ninjasActRow(group, colSpan) {
   const tr = el('tr', 'ninjas-act-row' + (group.act === NINJAS_PRINT_BREAK_ACT ? ' ninjas-print-break' : ''));
@@ -736,24 +745,29 @@ function ninjasBuildMicCard(groups) {
   const table = el('table', 'ninjas-table ninjas-mic-table' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
   const mics = ninjasDoc.mics;
 
+  const buildHeadRow = () => {
+    const headRow = el('tr', 'ninjas-head-row');
+    headRow.appendChild(el('th', 'ninjas-col-title')); // scene titles — no heading
+    for (const mic of mics) headRow.appendChild(ninjasMicHeader(mic));
+    if (ninjasIsEditing()) {
+      const th = el('th', 'ninjas-col-add');
+      const plus = ninjasAddPlusBtn('Tilføj mikrofon');
+      plus.addEventListener('click', () => ninjasOpenMicModal(null));
+      th.appendChild(plus);
+      ninjasWireMicDrop(th, null); // drop tail: move to the end
+      headRow.appendChild(th);
+    }
+    return headRow;
+  };
   const thead = el('thead');
-  const headRow = el('tr');
-  headRow.appendChild(el('th', 'ninjas-col-title')); // scene titles — no heading
-  for (const mic of mics) headRow.appendChild(ninjasMicHeader(mic));
-  if (ninjasIsEditing()) {
-    const th = el('th', 'ninjas-col-add');
-    const plus = ninjasAddPlusBtn('Tilføj mikrofon');
-    plus.addEventListener('click', () => ninjasOpenMicModal(null));
-    th.appendChild(plus);
-    ninjasWireMicDrop(th, null); // drop tail: move to the end
-    headRow.appendChild(th);
-  }
-  thead.appendChild(headRow);
+  thead.appendChild(buildHeadRow());
   table.appendChild(thead);
 
   const colSpan = 1 + mics.length + (ninjasIsEditing() ? 1 : 0);
   const tbody = el('tbody');
   for (const group of groups) {
+    const repeat = ninjasRepeatHeadRow(buildHeadRow, groups, group);
+    if (repeat) tbody.appendChild(repeat);
     tbody.appendChild(ninjasActRow(group, colSpan));
     for (const row of group.rows) tbody.appendChild(ninjasMicRow(group, row));
   }
@@ -1015,15 +1029,20 @@ function ninjasBuildCuesCard(groups) {
   const wrap = el('div', 'ninjas-table-wrap');
   const table = el('table', 'ninjas-table ninjas-cue-table' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
 
+  const buildHeadRow = () => {
+    const headRow = el('tr', 'ninjas-head-row');
+    headRow.appendChild(el('th', 'ninjas-col-title')); // scene titles — no heading
+    for (const col of NINJAS_CUE_COLUMNS) headRow.appendChild(el('th', `ninjas-cue-col-${col.key}`, col.label));
+    return headRow;
+  };
   const thead = el('thead');
-  const headRow = el('tr');
-  headRow.appendChild(el('th', 'ninjas-col-title')); // scene titles — no heading
-  for (const col of NINJAS_CUE_COLUMNS) headRow.appendChild(el('th', `ninjas-cue-col-${col.key}`, col.label));
-  thead.appendChild(headRow);
+  thead.appendChild(buildHeadRow());
   table.appendChild(thead);
 
   const tbody = el('tbody');
   for (const group of groups) {
+    const repeat = ninjasRepeatHeadRow(buildHeadRow, groups, group);
+    if (repeat) tbody.appendChild(repeat);
     tbody.appendChild(ninjasActRow(group, 1 + NINJAS_CUE_COLUMNS.length));
     for (const row of group.rows) tbody.appendChild(ninjasCueRow(group, row));
   }

@@ -91,9 +91,6 @@ if (isset($body['pin']) && !isset($body['action'])) {
 function password_level($pw) {
   if (!is_string($pw) || $pw === '') return null;
   if (defined('ADMIN_PASSWORD') && hash_equals(ADMIN_PASSWORD, $pw)) return 'admin';
-  // Legacy: the old manus PIN keeps working as an admin credential
-  // until it's removed from config.php.
-  if (defined('SHARED_PIN') && hash_equals(SHARED_PIN, $pw)) return 'admin';
   if (defined('BOSS_PASSWORD') && hash_equals(BOSS_PASSWORD, $pw)) return 'boss';
   if (defined('REVYST_PASSWORD') && hash_equals(REVYST_PASSWORD, $pw)) return 'revyst';
   // Satyr: the lowest login (Budget's submit form + Fællesspisning's

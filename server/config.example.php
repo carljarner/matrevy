@@ -23,11 +23,6 @@ define('ADMIN_PASSWORD', 'skift-mig-admin');
 // disable the satyr login.
 // define('SATYR_PASSWORD', 'skift-mig-satyr');
 
-// Legacy: the original manus-tool PIN. If still defined, it is accepted as an
-// admin credential (for old cached clients). Delete this line once everyone
-// uses the new login.
-// define('SHARED_PIN', 'gammel-pin');
-
 // Absolute path on the server for the PRIVATE budget datastore
 // (expense requests, paid ledger, receipt images). This data is deliberately
 // kept OUT of the public GitHub repo — it holds names, phone numbers and

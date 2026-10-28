@@ -172,7 +172,8 @@
   vertical-align: middle;
 }
 
-.ninjas-table thead th {
+/* thead's row and its repeat above Akt 3 (.ninjas-head-repeat). */
+.ninjas-table .ninjas-head-row th {
   font-weight: 600;
   font-size: 0.8rem;
   line-height: 1.25;
@@ -288,7 +289,7 @@ textarea.ninjas-field {
   width: 6.5rem;
 }
 
-.ninjas-mic-table thead .ninjas-mic-head {
+.ninjas-mic-table .ninjas-head-row .ninjas-mic-head {
   color: var(--text);
   text-align: center;
   vertical-align: middle;
@@ -316,7 +317,7 @@ textarea.ninjas-field {
 .ninjas-dragging { opacity: 0.5; }
 
 /* Column drop highlight: an inset left line (never a real border). */
-.ninjas-mic-table thead th.ninjas-drop-target {
+.ninjas-mic-table .ninjas-head-row th.ninjas-drop-target {
   box-shadow: inset 3px 0 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border);
 }
 
@@ -523,6 +524,7 @@ textarea.ninjas-field {
   }
 
   .ninjas-table thead { display: table-header-group; }
+  .ninjas-table .ninjas-head-repeat { display: none; }
   .ninjas-table tr { break-inside: avoid; }
   .ninjas-table tr.ninjas-print-break { break-before: page; page-break-before: always; }
 

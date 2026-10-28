@@ -26,12 +26,6 @@ if (getenv('SATYR_PASSWORD') !== false && getenv('SATYR_PASSWORD') !== '') {
   define('SATYR_PASSWORD', getenv('SATYR_PASSWORD'));
 }
 
-// Legacy manus-tool PIN, accepted as an admin credential when set.
-// Leave the env var unset to disable it.
-if (getenv('SHARED_PIN') !== false && getenv('SHARED_PIN') !== '') {
-  define('SHARED_PIN', getenv('SHARED_PIN'));
-}
-
 define('BUDGET_DATA_DIR', matrevy_env('BUDGET_DATA_DIR', '/data/budget'));
 define('FORMS_DATA_DIR', matrevy_env('FORMS_DATA_DIR', '/data/forms'));
 define('FAELLESSPISNING_DATA_DIR', matrevy_env('FAELLESSPISNING_DATA_DIR', '/data/faellesspisning'));

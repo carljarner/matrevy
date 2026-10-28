@@ -14,7 +14,6 @@ services:
       REVYST_PASSWORD: ${REVYST_PASSWORD}
       BOSS_PASSWORD: ${BOSS_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      SHARED_PIN: ${SHARED_PIN:-}
       SATYR_PASSWORD: ${SATYR_PASSWORD:-}
     volumes:
       - /srv/matrevy/data:/data
