@@ -679,3 +679,85 @@
     max-height: calc(100dvh - 56px - 0.5rem);
   }
 }
+
+/* ── Satyr's per-day summary (no names) ──
+   A horizontally scrolling strip of day cards, after Øveplan's
+   Lokalebooking/Fravær modal (.sched-lok-day in schedule.css). */
+.faelles-days {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  margin-top: 1rem;
+}
+
+.faelles-day {
+  flex: 0 0 10rem;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--input-bg);
+  padding: 0.55rem 0.6rem;
+  min-height: 12rem;
+}
+
+.faelles-day-head {
+  text-align: center;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.faelles-day-title {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faelles-day-date {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.faelles-day-count {
+  text-align: center;
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.faelles-day-count-label {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.faelles-day-prefs-head {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.2rem;
+}
+
+.faelles-day-prefs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.faelles-day-prefs li {
+  font-size: 0.85rem;
+  padding: 0.15rem 0;
+  overflow-wrap: anywhere;
+}
+
+.faelles-day-prefs .faelles-day-none {
+  color: var(--text-muted);
+  font-style: italic;
+}

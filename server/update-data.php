@@ -96,6 +96,9 @@ function password_level($pw) {
   if (defined('SHARED_PIN') && hash_equals(SHARED_PIN, $pw)) return 'admin';
   if (defined('BOSS_PASSWORD') && hash_equals(BOSS_PASSWORD, $pw)) return 'boss';
   if (defined('REVYST_PASSWORD') && hash_equals(REVYST_PASSWORD, $pw)) return 'revyst';
+  // Satyr: the lowest login (Budget's submit form + Fællesspisning's
+  // anonymous summary). Optional, off while SATYR_PASSWORD is unset.
+  if (defined('SATYR_PASSWORD') && SATYR_PASSWORD !== '' && hash_equals(SATYR_PASSWORD, $pw)) return 'satyr';
   return null;
 }
 
@@ -104,7 +107,7 @@ if ($level === null) {
   respond(401, ['error' => 'invalid_password']);
 }
 
-$LEVEL_RANK = ['revyst' => 1, 'boss' => 2, 'admin' => 3];
+$LEVEL_RANK = ['satyr' => 1, 'revyst' => 2, 'boss' => 3, 'admin' => 4];
 
 // Constants referenced by handlers dispatched below (upload/delete, and the
 // archive save validator). They MUST be declared above the dispatch: PHP
@@ -174,9 +177,9 @@ if ($action === 'upload' || $action === 'delete') {
 // These read/write local files under BUDGET_DATA_DIR (never the
 // public repo). Each handler validates + responds/exits.
 $BUDGET_ACTIONS = [
-  'budget_submit'           => 'revyst', // revyster submit reimbursement requests
-  'budget_active_year_info' => 'revyst', // read-only: just the active year number + label, for the submit form's title
-  'budget_active_categories'=> 'revyst', // read-only: active year's expense categories, for the submit form's dropdown
+  'budget_submit'           => 'satyr',  // revyster (and satyrer) submit reimbursement requests
+  'budget_active_year_info' => 'satyr',  // read-only: just the active year number + label, for the submit form's title
+  'budget_active_categories'=> 'satyr',  // read-only: active year's expense categories, for the submit form's dropdown
   'budget_read'             => 'boss',  // boss gets the management view read-only; every write below stays admin
   'budget_receipt'          => 'boss',
   'budget_approve'          => 'admin',
@@ -243,6 +246,7 @@ if (isset($FORMS_ACTIONS[$action])) {
 // see faellesRender's own siteHasLevel('admin') check in
 // faellesspisning.js).
 $FAELLES_ACTIONS = [
+  'faelles_summary'         => 'satyr',  // the sheet without names (satyr's per-day summary) — also lazily syncs
   'faelles_read'            => 'revyst', // {rows, connection, extraDays, hiddenDays, updatedAt} — also lazily syncs a connected form
   'faelles_upsert_row'      => 'revyst', // create (no rowId, boss only) or update (rowId given) one row
   'faelles_delete_row'      => 'boss',   // idempotent — ok even if already gone
@@ -3767,6 +3771,25 @@ function faelles_read($body) {
   respond(200, ['ok' => true, 'rows' => faelles_rows_for_json($doc['rows']), 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
+// Satyr: the same document as faelles_read, but every row stripped to what
+// the per-day summary needs (attendance + Madforbehold). No names, no
+// form source, no connection.
+function faelles_summary($body) {
+  $doc = faelles_load();
+  $doc = faelles_maybe_sync($doc);
+  $rows = array_map(function ($row) {
+    $answers = is_array($row['answers'] ?? null) ? $row['answers'] : [];
+    return [
+      'id' => $row['id'] ?? '',
+      'createdAt' => $row['createdAt'] ?? null,
+      'attendanceMode' => $row['attendanceMode'] ?? null,
+      'dayOverrides' => $row['dayOverrides'] ?? [],
+      'answers' => ['madforbehold' => is_string($answers['madforbehold'] ?? null) ? $answers['madforbehold'] : ''],
+    ];
+  }, $doc['rows']);
+  respond(200, ['ok' => true, 'rows' => faelles_rows_for_json($rows), 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc)]);
+}
+
 // Create (no rowId; boss, checked at dispatch) or update (rowId given;
 // revyst) one row from an ordinary grid edit. `answers` is merged onto the
 // existing row's answers (only overwriting keys actually sent),
@@ -3977,6 +4000,7 @@ function faelles_hide_day($body) {
 function handle_faelles($action, $body) {
   switch ($action) {
     case 'faelles_read':            return faelles_read($body);
+    case 'faelles_summary':         return faelles_summary($body);
     case 'faelles_upsert_row':      return faelles_upsert_row($body);
     case 'faelles_delete_row':      return faelles_delete_row($body);
     case 'faelles_save_connection': return faelles_save_connection($body);

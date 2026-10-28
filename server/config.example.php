@@ -18,6 +18,11 @@ define('REVYST_PASSWORD', 'skift-mig-revyst');
 define('BOSS_PASSWORD', 'skift-mig-boss');
 define('ADMIN_PASSWORD', 'skift-mig-admin');
 
+// Optional fourth password, below revyst: SATYR_PASSWORD only unlocks Budget's
+// submit form and Fællesspisning's summary without names. Leave it out to
+// disable the satyr login.
+// define('SATYR_PASSWORD', 'skift-mig-satyr');
+
 // Legacy: the original manus-tool PIN. If still defined, it is accepted as an
 // admin credential (for old cached clients). Delete this line once everyone
 // uses the new login.

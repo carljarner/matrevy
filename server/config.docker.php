@@ -20,6 +20,12 @@ define('REVYST_PASSWORD', matrevy_env('REVYST_PASSWORD'));
 define('BOSS_PASSWORD', matrevy_env('BOSS_PASSWORD'));
 define('ADMIN_PASSWORD', matrevy_env('ADMIN_PASSWORD'));
 
+// Satyr (below revyst: Budget's submit form + Fællesspisning's summary).
+// Leave the env var unset to disable the satyr login.
+if (getenv('SATYR_PASSWORD') !== false && getenv('SATYR_PASSWORD') !== '') {
+  define('SATYR_PASSWORD', getenv('SATYR_PASSWORD'));
+}
+
 // Legacy manus-tool PIN, accepted as an admin credential when set.
 // Leave the env var unset to disable it.
 if (getenv('SHARED_PIN') !== false && getenv('SHARED_PIN') !== '') {

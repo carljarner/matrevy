@@ -4133,7 +4133,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
     // Boss gets the same view, read-only (budgetReadOnly).
     loadAndRenderAdmin(root);
-  } else if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
+  } else if (typeof siteHasLevel === 'function' && siteHasLevel('satyr')) {
     renderRevystForm(root);
   }
 });

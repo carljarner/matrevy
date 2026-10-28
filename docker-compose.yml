@@ -15,6 +15,7 @@ services:
       BOSS_PASSWORD: ${BOSS_PASSWORD}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       SHARED_PIN: ${SHARED_PIN:-}
+      SATYR_PASSWORD: ${SATYR_PASSWORD:-}
     volumes:
       - /srv/matrevy/data:/data
     # Traefik only routes to a container once its healthcheck has passed,

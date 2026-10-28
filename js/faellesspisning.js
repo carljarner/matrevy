@@ -221,15 +221,32 @@ function faellesRehearsalColumns() {
   const fromExtra = ((faellesState && faellesState.extraDays) || [])
     .filter((d) => inRange(d.date))
     .map((d) => ({ id: d.id, date: d.date, title: d.title || '', extra: true }));
-  return fromCalendar.concat(fromExtra)
-    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
-    .map((c) => {
-      const d = (typeof parseIsoDate === 'function') ? parseIsoDate(c.date) : new Date(c.date);
-      // `date` (raw ISO, kept alongside the display `label`) is what the
-      // opt-out default (faellesIsDayChecked) compares against a row's
-      // own createdAt.
-      return { id: c.id, date: c.date, label: `${d.getDate()}/${d.getMonth() + 1}`, title: c.title, extra: c.extra };
-    });
+  // One meal a day: every source on the same date (several Kalender
+  // events, an extra day) becomes one column. `id` is the first source's
+  // and is where a checkbox writes; `ids` holds all of them, so an override
+  // saved while they were separate columns still counts, and `parts` lets
+  // removing the column hide/delete every source.
+  const byDate = new Map();
+  for (const c of fromCalendar.concat(fromExtra)) {
+    if (!byDate.has(c.date)) byDate.set(c.date, []);
+    byDate.get(c.date).push(c);
+  }
+  return [...byDate.keys()].sort().map((date) => {
+    const parts = byDate.get(date);
+    const d = (typeof parseIsoDate === 'function') ? parseIsoDate(date) : new Date(date);
+    // `date` (raw ISO, kept alongside the display `label`) is what the
+    // opt-out default (faellesIsDayChecked) compares against a row's
+    // own createdAt.
+    return {
+      id: parts[0].id,
+      ids: parts.map((p) => p.id),
+      parts,
+      date,
+      label: `${d.getDate()}/${d.getMonth() + 1}`,
+      title: [...new Set(parts.map((p) => p.title).filter(Boolean))].join(' · '),
+      extra: parts.every((p) => p.extra),
+    };
+  });
 }
 
 // ── Opt-out attendance model ──────────────────────────────────
@@ -277,7 +294,9 @@ function faellesNormalizeRows(rows) {
 
 function faellesIsDayChecked(row, col) {
   const overrides = row.dayOverrides || {};
-  if (Object.prototype.hasOwnProperty.call(overrides, col.id)) return !!overrides[col.id];
+  for (const id of col.ids || [col.id]) {
+    if (Object.prototype.hasOwnProperty.call(overrides, id)) return !!overrides[id];
+  }
   return faellesDayDefault(row, col);
 }
 
@@ -341,6 +360,85 @@ function faellesRender(root) {
   wrap.appendChild(faellesBuildTable(root));
   card.appendChild(wrap);
 
+  root.appendChild(card);
+}
+
+// ── Satyr: per-day summary without names ──────────────────────
+// A satyr gets faelles_summary instead of faelles_read: every row has only
+// its attendance fields and Madforbehold. The same faellesState shape, so
+// faellesRehearsalColumns()/faellesIsDayChecked() work unchanged; shown as
+// one card per day from today on, like Øveplan's Lokalebooking/Fravær strip.
+async function faellesLoadSummary(root) {
+  root.replaceChildren();
+  root.appendChild(el('p', 'faelles-count', 'Indlæser…'));
+  const result = await faellesApi('faelles_summary', {});
+  if (!result.ok) {
+    root.replaceChildren();
+    const card = el('section', 'card');
+    card.appendChild(el('p', 'faelles-error', result.message || 'Kunne ikke indlæse Fællesspisning.'));
+    root.appendChild(card);
+    return;
+  }
+  faellesState = {
+    rows: faellesNormalizeRows(result.data.rows || []),
+    connection: null,
+    extraDays: result.data.extraDays || [],
+    hiddenDays: result.data.hiddenDays || [],
+    attendanceMode: 'out',
+    notice: typeof result.data.notice === 'string' ? result.data.notice : '',
+    subNotice: typeof result.data.subNotice === 'string' ? result.data.subNotice : '',
+    columnWidths: {},
+    updatedAt: null,
+  };
+  faellesRenderSummaryView(root);
+}
+
+function faellesRenderSummaryView(root) {
+  root.replaceChildren();
+  const card = el('section', 'card');
+  card.appendChild(faellesBuildNotice());
+
+  const today = (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
+  const columns = faellesRehearsalColumns().filter((col) => col.date >= today);
+  if (!columns.length) {
+    card.appendChild(el('p', 'faelles-summary-note', 'Der er ingen kommende dage.'));
+    root.appendChild(card);
+    return;
+  }
+
+  const strip = el('div', 'faelles-days');
+  for (const col of columns) {
+    const day = el('div', 'faelles-day');
+    const head = el('div', 'faelles-day-head');
+    if (col.title) head.appendChild(el('div', 'faelles-day-title', col.title));
+    head.title = col.title;
+    const d = parseIsoDate(col.date);
+    const weekday = DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7];
+    head.appendChild(el('div', 'faelles-day-date', `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${col.label}`));
+    day.appendChild(head);
+
+    const attendees = faellesState.rows.filter((r) => faellesIsDayChecked(r, col));
+    day.appendChild(el('div', 'faelles-day-count', String(attendees.length)));
+    day.appendChild(el('div', 'faelles-day-count-label', attendees.length === 1 ? 'tilmeldt' : 'tilmeldte'));
+
+    day.appendChild(el('div', 'faelles-day-prefs-head', 'Madforbehold'));
+    // Same preference written by several people → one line with a count.
+    const prefs = new Map();
+    for (const row of attendees) {
+      const text = (row.answers.madforbehold || '').trim();
+      if (!text) continue;
+      const key = text.toLocaleLowerCase('da');
+      if (prefs.has(key)) prefs.get(key).count++;
+      else prefs.set(key, { text, count: 1 });
+    }
+    const list = el('ul', 'faelles-day-prefs');
+    const sorted = [...prefs.values()].sort((a, b) => a.text.localeCompare(b.text, 'da', { sensitivity: 'base' }));
+    for (const p of sorted) list.appendChild(el('li', '', p.count > 1 ? `${p.text} (${p.count})` : p.text));
+    if (!sorted.length) list.appendChild(el('li', 'faelles-day-none', 'Ingen madforbehold'));
+    day.appendChild(list);
+    strip.appendChild(day);
+  }
+  card.appendChild(strip);
   root.appendChild(card);
 }
 
@@ -682,8 +780,10 @@ function faellesRenderRow(row, columns, canManage) {
     cb.addEventListener('change', () => {
       const isDefault = cb.checked === faellesDayDefault(row, col);
       if (!row.dayOverrides) row.dayOverrides = {};
-      if (isDefault) delete row.dayOverrides[col.id];
-      else row.dayOverrides[col.id] = cb.checked;
+      // A merged date's other ids may still carry an old override; the
+      // column's own id is the only one that should remain.
+      for (const id of col.ids || [col.id]) delete row.dayOverrides[id];
+      if (!isDefault) row.dayOverrides[col.id] = cb.checked;
       faellesCommitRow(row, tr);
     });
     td.appendChild(cb);
@@ -1130,6 +1230,11 @@ async function faellesOpenQuickAddDateModal(root) {
       error.textContent = 'Udfyld både titel og dato.';
       return;
     }
+    // One meal a day: a date already on the sheet would just merge into it.
+    if (faellesRehearsalColumns().some((c) => c.date === date)) {
+      error.textContent = 'Den dato er allerede på arket.';
+      return;
+    }
 
     saveBtn.disabled = true;
     error.textContent = '';
@@ -1173,10 +1278,13 @@ function faellesOpenDeleteDayConfirm(col, root) {
   // Only a calendar-sourced column can be "removed" without actually
   // deleting anything (faelles_hide_day just hides it from this sheet) —
   // an extra column is genuinely deleted, so no such disclaimer applies.
-  if (!col.extra) {
+  const calendarParts = (col.parts || [col]).filter((p) => !p.extra).length;
+  if (calendarParts) {
     const note = document.createElement('p');
     note.className = 'faelles-confirm-note';
-    note.textContent = 'Begivenheden i Kalenderen bliver ikke slettet.';
+    note.textContent = calendarParts === 1
+      ? 'Begivenheden i Kalenderen bliver ikke slettet.'
+      : 'Begivenhederne i Kalenderen bliver ikke slettet.';
     form.appendChild(note);
   }
 
@@ -1186,15 +1294,20 @@ function faellesOpenDeleteDayConfirm(col, root) {
   confirmBtn.addEventListener('click', async () => {
     confirmBtn.disabled = true;
     error.textContent = '';
-    const action = col.extra ? 'faelles_delete_day' : 'faelles_hide_day';
-    const result = await faellesApi(action, { dayId: col.id });
-    if (!result.ok) {
-      confirmBtn.disabled = false;
-      if (result.message) error.textContent = result.message;
-      return;
+    // A merged date is removed source by source (every action is idempotent,
+    // so a retry after a partial failure is safe).
+    for (const part of col.parts || [col]) {
+      const action = part.extra ? 'faelles_delete_day' : 'faelles_hide_day';
+      const result = await faellesApi(action, { dayId: part.id });
+      if (!result.ok) {
+        confirmBtn.disabled = false;
+        if (result.message) error.textContent = result.message;
+        faellesRender(root);
+        return;
+      }
+      if (part.extra) faellesState.extraDays = result.data.extraDays;
+      else faellesState.hiddenDays = result.data.hiddenDays;
     }
-    if (col.extra) faellesState.extraDays = result.data.extraDays;
-    else faellesState.hiddenDays = result.data.hiddenDays;
     close();
     faellesRender(root);
   });
@@ -1215,5 +1328,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
     faellesLoad(root);
+  } else if (typeof siteHasLevel === 'function' && siteHasLevel('satyr')) {
+    faellesLoadSummary(root);
   }
 });

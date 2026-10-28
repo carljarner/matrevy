@@ -20,7 +20,8 @@ const SITE_AUTH_KEY = 'matrevy-auth';
 
 // The one place a page is registered. level:
 //   'public' — always visible
-//   'revyst' — greyed-out in nav until revyst+ login
+//   'satyr'/'revyst' — greyed-out in nav until that login (a logged-in
+//     satyr doesn't see revyst pages at all, see siteNavItemVisibility)
 //   'boss'/'admin' — omitted from nav entirely until that level or above
 // `group` (optional) folds a page into a single nav tab shared with every
 // other page carrying the same group key — see SITE_NAV_GROUP_LABELS and
@@ -33,9 +34,9 @@ const SITE_PAGES = [
   { href: 'arkiv.html',       label: 'Arkiv',       level: 'revyst' },
   { href: 'wiki.html',        label: 'Wiki',        level: 'revyst' },
   { href: 'manus.html',       label: 'Manus',       level: 'revyst' },
-  { href: 'budget.html',      label: 'Budget',      level: 'revyst' },
+  { href: 'budget.html',      label: 'Budget',      level: 'satyr' },
   { href: 'forms.html',       label: 'Formularer',  level: 'revyst' },
-  { href: 'faellesspisning.html', label: 'Fællesspisning', level: 'revyst' },
+  { href: 'faellesspisning.html', label: 'Fællesspisning', level: 'satyr' },
   { href: 'band.html',        label: 'Bandet',      level: 'revyst', group: 'redskaber' },
   { href: 'kostumetinder.html', label: 'Kostumetinder', level: 'revyst', group: 'redskaber' },
   { href: 'ninjas.html',      label: 'Ninjas, Mics & Cues', level: 'revyst', group: 'redskaber' },
@@ -48,7 +49,7 @@ const SITE_PAGES = [
 // Tab label for each `group` key used above.
 const SITE_NAV_GROUP_LABELS = { redskaber: 'Redskaber' };
 
-const SITE_LEVEL_RANK = { public: 0, revyst: 1, boss: 2, admin: 3 };
+const SITE_LEVEL_RANK = { public: 0, satyr: 1, revyst: 2, boss: 3, admin: 4 };
 
 // ── Auth state ───────────────────────────────────────────────
 // Over file:// the login endpoint is unreachable (CORS) and
@@ -65,7 +66,7 @@ function getSiteAuth() {
     const raw = localStorage.getItem(SITE_AUTH_KEY);
     if (!raw) return null;
     const auth = JSON.parse(raw);
-    if (auth && (auth.level === 'revyst' || auth.level === 'boss' || auth.level === 'admin')) {
+    if (auth && (auth.level === 'satyr' || auth.level === 'revyst' || auth.level === 'boss' || auth.level === 'admin')) {
       // A boss/admin can view the site as a lower level (the header's
       // level switch). `level` is what the UI follows; `realLevel` is
       // what the password actually unlocks — writes always send it.
@@ -111,7 +112,9 @@ function siteCurrentPage() {
 // entirely) — see the level comment on SITE_PAGES above.
 function siteNavItemVisibility(page) {
   if (siteHasLevel(page.level)) return 'link';
-  if (SITE_LEVEL_RANK[page.level] <= SITE_LEVEL_RANK.revyst) return 'locked';
+  // Greyed pages advertise what a login unlocks; a satyr is already
+  // logged in and only gets its own pages.
+  if (SITE_LEVEL_RANK[page.level] <= SITE_LEVEL_RANK.revyst && !getSiteAuth()) return 'locked';
   return 'hidden';
 }
 
@@ -295,7 +298,7 @@ const SITE_LEVEL_LABELS = { revyst: 'Revyst', boss: 'Boss', admin: 'Admin' };
 function buildViewLevelSwitch() {
   if (siteIsFileProtocol()) return null;
   const auth = getSiteAuth();
-  if (!auth || auth.realLevel === 'revyst') return null;
+  if (!auth || auth.realLevel === 'satyr' || auth.realLevel === 'revyst') return null;
 
   const wrap = document.createElement('div');
   wrap.className = 'site-view-switch';
@@ -538,7 +541,7 @@ function openLoginModal() {
         return;
       }
       const data = await res.json();
-      if (!data || (data.level !== 'revyst' && data.level !== 'boss' && data.level !== 'admin')) {
+      if (!data || !['satyr', 'revyst', 'boss', 'admin'].includes(data.level)) {
         error.textContent = 'Uventet svar fra serveren.';
         return;
       }
