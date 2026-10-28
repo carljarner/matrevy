@@ -396,7 +396,11 @@ async function faellesLoadSummary(root) {
 function faellesRenderSummaryView(root) {
   root.replaceChildren();
   const card = el('section', 'card');
-  card.appendChild(faellesBuildNotice());
+  // Only the bold notice; the sub line is about the sign-up form, which a
+  // satyr doesn't use.
+  const notice = el('div', 'faelles-notice-wrap');
+  notice.appendChild(faellesBuildNoticeLine('notice', 'faelles-notice', 'Besked over arket'));
+  card.appendChild(notice);
 
   const today = (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
   const columns = faellesRehearsalColumns().filter((col) => col.date >= today);
@@ -406,40 +410,58 @@ function faellesRenderSummaryView(root) {
     return;
   }
 
-  const strip = el('div', 'faelles-days');
-  for (const col of columns) {
-    const day = el('div', 'faelles-day');
-    const head = el('div', 'faelles-day-head');
-    if (col.title) head.appendChild(el('div', 'faelles-day-title', col.title));
-    head.title = col.title;
-    const d = parseIsoDate(col.date);
-    const weekday = DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7];
-    head.appendChild(el('div', 'faelles-day-date', `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${col.label}`));
-    day.appendChild(head);
-
-    const attendees = faellesState.rows.filter((r) => faellesIsDayChecked(r, col));
-    day.appendChild(el('div', 'faelles-day-count', String(attendees.length)));
-    day.appendChild(el('div', 'faelles-day-count-label', attendees.length === 1 ? 'tilmeldt' : 'tilmeldte'));
-
-    day.appendChild(el('div', 'faelles-day-prefs-head', 'Madforbehold'));
-    // Same preference written by several people → one line with a count.
-    const prefs = new Map();
-    for (const row of attendees) {
-      const text = (row.answers.madforbehold || '').trim();
-      if (!text) continue;
-      const key = text.toLocaleLowerCase('da');
-      if (prefs.has(key)) prefs.get(key).count++;
-      else prefs.set(key, { text, count: 1 });
-    }
-    const list = el('ul', 'faelles-day-prefs');
-    const sorted = [...prefs.values()].sort((a, b) => a.text.localeCompare(b.text, 'da', { sensitivity: 'base' }));
-    for (const p of sorted) list.appendChild(el('li', '', p.count > 1 ? `${p.text} (${p.count})` : p.text));
-    if (!sorted.length) list.appendChild(el('li', 'faelles-day-none', 'Ingen madforbehold'));
-    day.appendChild(list);
-    strip.appendChild(day);
-  }
-  card.appendChild(strip);
+  const list = el('div', 'faelles-days');
+  for (const col of columns) list.appendChild(faellesBuildSummaryDay(col));
+  card.appendChild(list);
   root.appendChild(card);
+}
+
+// One day: date + headcount on the left, Madforbehold (one per line) in a
+// wide column on the right.
+function faellesBuildSummaryDay(col) {
+  const day = el('div', 'faelles-day');
+
+  const main = el('div', 'faelles-day-main');
+  const head = el('div', 'faelles-day-head');
+  if (col.title) head.appendChild(el('div', 'faelles-day-title', col.title));
+  head.title = col.title;
+  const d = parseIsoDate(col.date);
+  const weekday = DA_WEEKDAYS_SHORT[(d.getDay() + 6) % 7];
+  head.appendChild(el('div', 'faelles-day-date', `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} ${col.label}`));
+  main.appendChild(head);
+  const attendees = faellesState.rows.filter((r) => faellesIsDayChecked(r, col));
+  main.appendChild(el('div', 'faelles-day-count', String(attendees.length)));
+  main.appendChild(el('div', 'faelles-day-count-label', attendees.length === 1 ? 'tilmeldt' : 'tilmeldte'));
+  day.appendChild(main);
+
+  // Same preference written by several people → one line with a count.
+  const prefs = new Map();
+  let withPrefs = 0;
+  for (const row of attendees) {
+    const text = (row.answers.madforbehold || '').trim();
+    if (!text) continue;
+    withPrefs++;
+    const key = text.toLocaleLowerCase('da');
+    if (prefs.has(key)) prefs.get(key).count++;
+    else prefs.set(key, { text, count: 1 });
+  }
+  const sorted = [...prefs.values()].sort((a, b) => a.text.localeCompare(b.text, 'da', { sensitivity: 'base' }));
+
+  const side = el('div', 'faelles-day-side');
+  const sideHead = el('div', 'faelles-day-prefs-head');
+  side.appendChild(sideHead);
+  day.appendChild(side);
+  if (!sorted.length) {
+    sideHead.textContent = 'Ingen madforbehold';
+    sideHead.classList.add('faelles-day-none');
+    return day;
+  }
+
+  sideHead.textContent = `Madforbehold (${withPrefs})`;
+  const ul = el('ul', 'faelles-day-prefs');
+  for (const p of sorted) ul.appendChild(el('li', '', p.count > 1 ? `${p.text} (${p.count})` : p.text));
+  side.appendChild(ul);
+  return day;
 }
 
 // ── Notice centered above the sheet (boss/admin edit it in place) ──

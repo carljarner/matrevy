@@ -681,25 +681,28 @@
 }
 
 /* ── Satyr's per-day summary (no names) ──
-   A horizontally scrolling strip of day cards, after Øveplan's
-   Lokalebooking/Fravær modal (.sched-lok-day in schedule.css). */
+   A list of horizontal day cards: date + headcount on the left (after
+   Øveplan's Lokalebooking/Fravær day columns, .sched-lok-day in
+   schedule.css), Madforbehold in a wide column on the right. */
 .faelles-days {
   display: flex;
+  flex-direction: column;
   gap: 0.6rem;
-  overflow-x: auto;
-  padding-bottom: 0.5rem;
   margin-top: 1rem;
 }
 
 .faelles-day {
-  flex: 0 0 10rem;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--input-bg);
   padding: 0.55rem 0.6rem;
-  min-height: 12rem;
+}
+
+.faelles-day-main {
+  padding-right: 0.6rem;
+  border-right: 1px solid var(--border);
 }
 
 .faelles-day-head {
@@ -735,29 +738,41 @@
   text-align: center;
   font-size: 0.8rem;
   color: var(--text-muted);
-  margin-bottom: 0.6rem;
+}
+
+.faelles-day-side {
+  min-width: 0;
+  padding: 0.1rem 0 0 0.9rem;
 }
 
 .faelles-day-prefs-head {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-muted);
-  margin-bottom: 0.2rem;
 }
 
-.faelles-day-prefs {
+.card .faelles-day-prefs { /* beats .card ul's indent */
   list-style: none;
-  margin: 0;
+  margin: 0.4rem 0 0;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 1.5rem;
 }
 
 .faelles-day-prefs li {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   padding: 0.15rem 0;
   overflow-wrap: anywhere;
 }
 
-.faelles-day-prefs .faelles-day-none {
-  color: var(--text-muted);
+.faelles-day-prefs-head.faelles-day-none {
+  font-weight: 400;
   font-style: italic;
+}
+
+@media (max-width: 719px) {
+  .faelles-day { grid-template-columns: 6.5rem minmax(0, 1fr); }
+  .faelles-day-side { padding-left: 0.6rem; }
+  .card .faelles-day-prefs { grid-template-columns: minmax(0, 1fr); }
 }
