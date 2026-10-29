@@ -336,6 +336,27 @@ async function faellesLoad(root) {
   faellesRender(root);
 }
 
+// ── Madark / Oversigt toggle (revyst+) ────────────────────────
+// Revyster can switch the sheet card between the table ("Madark") and
+// satyr's per-day overview ("Oversigt"), built from the same faellesState.
+// Per browser in localStorage; every faellesRender keeps the chosen view.
+const FAELLES_VIEW_KEY = 'matrevy-faelles-view';
+let faellesView = (() => {
+  try { return localStorage.getItem(FAELLES_VIEW_KEY) === 'oversigt' ? 'oversigt' : 'ark'; } catch { return 'ark'; }
+})();
+
+function faellesBuildViewToggle(root) {
+  const btn = el('button', 'btn-small faelles-view-toggle', faellesView === 'oversigt' ? 'Madark' : 'Oversigt');
+  btn.type = 'button';
+  btn.addEventListener('click', () => {
+    faellesView = faellesView === 'oversigt' ? 'ark' : 'oversigt';
+    try { localStorage.setItem(FAELLES_VIEW_KEY, faellesView); } catch { /* per-browser convenience only */ }
+    faellesHideFieldTooltip();
+    faellesRender(root);
+  });
+  return btn;
+}
+
 function faellesRender(root) {
   root.replaceChildren();
   if (!faellesState) return;
@@ -344,11 +365,17 @@ function faellesRender(root) {
     root.appendChild(faellesBuildBossBox(root));
   }
 
+  if (faellesView === 'oversigt') {
+    root.appendChild(faellesBuildSummaryCard(root));
+    return;
+  }
+
   const card = el('section', 'card');
 
   const toolbar = el('div', 'faelles-toolbar');
   toolbar.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
   toolbar.appendChild(faellesBuildNotice());
+  toolbar.appendChild(faellesBuildViewToggle(root));
   card.appendChild(toolbar);
 
   card.appendChild(el('div', 'faelles-error'));
@@ -395,25 +422,39 @@ async function faellesLoadSummary(root) {
 
 function faellesRenderSummaryView(root) {
   root.replaceChildren();
+  root.appendChild(faellesBuildSummaryCard(null));
+}
+
+// The overview card. With `toggleRoot` (revyst+, from faellesRender) the
+// notice sits in the sheet's toolbar grid with the Madark button on the
+// right; satyr gets just the notice.
+function faellesBuildSummaryCard(toggleRoot) {
   const card = el('section', 'card');
   // Only the bold notice; the sub line is about the sign-up form, which a
   // satyr doesn't use.
   const notice = el('div', 'faelles-notice-wrap');
   notice.appendChild(faellesBuildNoticeLine('notice', 'faelles-notice', 'Besked over arket'));
-  card.appendChild(notice);
+  if (toggleRoot) {
+    const toolbar = el('div', 'faelles-toolbar faelles-summary-toolbar');
+    toolbar.appendChild(el('div'));
+    toolbar.appendChild(notice);
+    toolbar.appendChild(faellesBuildViewToggle(toggleRoot));
+    card.appendChild(toolbar);
+  } else {
+    card.appendChild(notice);
+  }
 
   const today = (typeof todayIso === 'function') ? todayIso() : new Date().toISOString().slice(0, 10);
   const columns = faellesRehearsalColumns().filter((col) => col.date >= today);
   if (!columns.length) {
     card.appendChild(el('p', 'faelles-summary-note', 'Der er ingen kommende dage.'));
-    root.appendChild(card);
-    return;
+    return card;
   }
 
   const list = el('div', 'faelles-days');
   for (const col of columns) list.appendChild(faellesBuildSummaryDay(col));
   card.appendChild(list);
-  root.appendChild(card);
+  return card;
 }
 
 // One day: date + headcount on the left, Madforbehold (one per line) in a
@@ -445,7 +486,11 @@ function faellesBuildSummaryDay(col) {
     if (prefs.has(key)) prefs.get(key).count++;
     else prefs.set(key, { text, count: 1 });
   }
-  const sorted = [...prefs.values()].sort((a, b) => a.text.localeCompare(b.text, 'da', { sensitivity: 'base' }));
+  // Short preferences first, longer comments last; alphabetical within the
+  // same word count.
+  const wordCount = (text) => text.split(/\s+/).length;
+  const sorted = [...prefs.values()].sort((a, b) =>
+    wordCount(a.text) - wordCount(b.text) || a.text.localeCompare(b.text, 'da', { sensitivity: 'base' }));
 
   const side = el('div', 'faelles-day-side');
   const sideHead = el('div', 'faelles-day-prefs-head');

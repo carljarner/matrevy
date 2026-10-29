@@ -66,9 +66,27 @@
   background: var(--input-bg);
 }
 
+/* Madark / Oversigt toggle pinned to the toolbar's top right corner
+   (revyst+): top-aligned, so it stays put when switching views even though
+   the two toolbars differ in height. */
+.faelles-view-toggle {
+  justify-self: end;
+  align-self: start;
+  /* Same width for both labels, so the button doesn't change size either. */
+  min-width: 5.5rem;
+  text-align: center;
+}
+
+/* The overview's toolbar: .faelles-days brings its own top margin. */
+.faelles-summary-toolbar {
+  margin-bottom: 0;
+}
+
 @media (max-width: 719px) {
   .faelles-toolbar { grid-template-columns: 1fr; }
   .faelles-notice-wrap { order: -1; }
+  /* Toggle first (top right), then the notice, then the count. */
+  .faelles-view-toggle { order: -2; }
 }
 
 .faelles-count {
