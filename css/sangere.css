@@ -476,3 +476,43 @@
     color: var(--text);
   }
 }
+
+/* --- Guide til øvetracks med Moises.ai (below Filer): laid out like
+   koordinator.css's "Guide til Arkivering" (.koord-step-heading). ---- */
+.sang-guide {
+  margin-top: 1.5rem;
+}
+
+.sang-guide-intro {
+  margin: 0.4rem 0 0;
+}
+
+.sang-step-heading {
+  margin: 1.25rem 0 0.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.sang-guide p {
+  margin-top: 0;
+}
+
+.sang-guide-link {
+  color: var(--accent-warm-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (hover: hover) {
+  .sang-guide-link:hover {
+    text-decoration-thickness: 2px;
+  }
+}
+
+.sang-guide-link:focus-visible {
+  outline: none;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}

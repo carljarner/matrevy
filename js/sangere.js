@@ -338,7 +338,7 @@ function sangRender() {
   sangWireDrop(card);
 
   // The usage bar and the upload panel survive re-renders of the list.
-  root.replaceChildren(sangUsageEl(), card, sangUploadPanel());
+  root.replaceChildren(sangUsageEl(), card, sangUploadPanel(), sangBuildGuide());
   sangRenderUsage();
   sangRenderUploads();
 }
@@ -477,6 +477,70 @@ function sangRenderUsage() {
   bar.appendChild(fill);
   node.replaceChildren(bar, el('div', 'sang-usage-text',
     `${sangFormatBytes(used)} af ${sangFormatBytes(sangQuotaBytes)} brugt`));
+}
+
+// ── Guide til øvetracks med Moises.ai ────────────────────────
+// Below Filer, laid out like Koordinator's "Guide til Arkivering"
+// (renderKoordGuide): intro, then one heading + paragraph per step. The
+// whole text lives here; a URL in it becomes a link (sangLinkify).
+const SANG_GUIDE = {
+  title: 'Guide til øvetracks med Moises.ai',
+  intro: 'Sådan laver du øvetracks til sangerne, fx en version uden vokal at synge med på eller en med kun vokalen. '
+    + '(Udkast, teksten kommer snart.)',
+  steps: [
+    {
+      title: '1. Find sangen',
+      text: 'Skaf originalsangen som en lydfil (mp3). Ligger den kun på YouTube eller Spotify, så brug en side, der kan '
+        + 'hente lyden ned som mp3.',
+    },
+    {
+      title: '2. Upload til Moises',
+      text: 'Log ind på https://moises.ai og upload lydfilen.',
+    },
+    {
+      title: '3. Del sangen op',
+      text: 'Vælg hvilke spor Moises skal skille ad (fx vokal og instrumenter), og hent de spor ned, I skal bruge.',
+    },
+    {
+      title: '4. Upload her',
+      text: 'Upload sporene ovenfor med "Upload lyd-filer" i sangens mappe, og giv dem et navn, så det er tydeligt, hvad de er.',
+    },
+  ],
+};
+
+// Text nodes with every http(s) URL as a link opening in a new tab.
+function sangLinkify(text) {
+  const frag = document.createDocumentFragment();
+  const re = /https?:\/\/[^\s]+[^\s.,;:!?)]/g;
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+    const a = el('a', 'sang-guide-link', m[0].replace(/^https?:\/\//, ''));
+    a.href = m[0];
+    a.target = '_blank';
+    a.rel = 'noopener';
+    frag.appendChild(a);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+  return frag;
+}
+
+function sangBuildGuide() {
+  const card = el('section', 'card sang-guide');
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, SANG_GUIDE.title));
+  card.appendChild(head);
+  const intro = el('p', 'sang-guide-intro');
+  intro.appendChild(sangLinkify(SANG_GUIDE.intro));
+  card.appendChild(intro);
+  for (const step of SANG_GUIDE.steps) {
+    card.appendChild(el('h3', 'sang-step-heading', step.title));
+    const p = el('p', null);
+    p.appendChild(sangLinkify(step.text));
+    card.appendChild(p);
+  }
+  return card;
 }
 
 // ── Modals ───────────────────────────────────────────────────
