@@ -496,12 +496,14 @@ $SANGERE_ACTIONS = [
   'sangere_download_url'  => 'revyst',
   'sangere_folder_download_url' => 'revyst',
   'sangere_clear_all'     => 'admin',
+  'sangere_set_guide'     => 'boss',   // {guide: {title, intro, steps:[{title, text}]}} — the page's guide card
 ];
 if (isset($SANGERE_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$SANGERE_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
   $GLOBALS['TEKNIK_STORE'] = 'sangere';
+  if ($action === 'sangere_set_guide') sangere_set_guide($body);
   handle_teknik('teknik_' . substr($action, strlen('sangere_')), $body);
 }
 
@@ -6663,6 +6665,32 @@ function sangere_seed_song_folders() {
   });
 }
 
+// Boss/admin: full replace of Sangere's guide card. Plain text (rendered
+// with textContent; URLs linked client-side). Kept by sangere_clear_all, so
+// it carries over to the next revy.
+function sangere_set_guide($body) {
+  $guide = $body['guide'] ?? null;
+  $str = function ($v, $max) { return is_string($v) && mb_strlen($v) <= $max; };
+  if (!is_array($guide) || !$str($guide['title'] ?? null, 200) || trim($guide['title']) === ''
+      || !$str($guide['intro'] ?? null, 10000) || !is_array($guide['steps'] ?? null)
+      || count($guide['steps']) > 50 || !array_is_list($guide['steps'])) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $steps = [];
+  foreach ($guide['steps'] as $step) {
+    if (!is_array($step) || !$str($step['title'] ?? null, 200) || !$str($step['text'] ?? null, 10000)) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $steps[] = ['title' => $step['title'], 'text' => $step['text']];
+  }
+  $saved = ['title' => $guide['title'], 'intro' => $guide['intro'], 'steps' => $steps];
+  teknik_mutate(function ($doc) use ($saved) {
+    $doc['guide'] = $saved;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'guide' => $saved]);
+}
+
 function teknik_read($body) {
   if (teknik_store_key() === 'sangere') sangere_seed_song_folders();
   $doc = teknik_load();
@@ -6674,6 +6702,8 @@ function teknik_read($body) {
     'uploadsOpen' => teknik_uploads_open(),
     'uploadsPaused' => teknik_uploads_paused(),
     'revyActive' => manus_current_production_folder() !== null,
+    // Sangere's "Guide til øvetracks med Moises.ai" (null = never saved).
+    'guide' => teknik_store_key() === 'sangere' ? ($doc['guide'] ?? null) : null,
     'updatedAt' => $doc['updatedAt'] ?? null,
   ]);
 }

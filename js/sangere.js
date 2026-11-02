@@ -290,10 +290,12 @@ async function sangLoad() {
   sangState = { folders: result.data.folders || [], files: result.data.files || [] };
   if (Number.isInteger(result.data.quotaBytes)) sangQuotaBytes = result.data.quotaBytes;
   sangUploadsOpen = result.data.uploadsOpen !== false;
+  sangGuideSaved = result.data.guide || null;
   // Forget open folders that no longer exist.
   for (const id of [...sangOpenFolders]) if (!sangFolderById(id)) sangOpenFolders.delete(id);
   sangSaveOpenFolders();
   sangRender();
+  if (!sangGuideEditing) sangRenderGuide();
 }
 
 function sangRender() {
@@ -338,7 +340,7 @@ function sangRender() {
   sangWireDrop(card);
 
   // The usage bar and the upload panel survive re-renders of the list.
-  root.replaceChildren(sangUsageEl(), card, sangUploadPanel(), sangBuildGuide());
+  root.replaceChildren(sangUsageEl(), card, sangUploadPanel());
   sangRenderUsage();
   sangRenderUploads();
 }
@@ -481,8 +483,13 @@ function sangRenderUsage() {
 
 // ── Guide til øvetracks med Moises.ai ────────────────────────
 // Below Filer, laid out like Koordinator's "Guide til Arkivering"
-// (renderKoordGuide): intro, then one heading + paragraph per step. The
-// whole text lives here; a URL in it becomes a link (sangLinkify).
+// (renderKoordGuide): intro, then one heading + paragraph per step; a URL in
+// the text becomes a link (sangLinkify). Saved in sangere.json via the boss
+// sangere_set_guide action; SANG_GUIDE is shown until it has been saved once.
+// Boss/admin edit it in place like Forside's Bosser card: the pencil in the
+// card head turns on editing, the check mark saves and leaves it. It lives
+// in its own #sangere-guide container, so sangRender() (folder toggles,
+// finished uploads) never rebuilds it mid-edit.
 const SANG_GUIDE = {
   title: 'Guide til øvetracks med Moises.ai',
   intro: 'Sådan laver du øvetracks til sangerne, fx en version uden vokal at synge med på eller en med kun vokalen. '
@@ -526,20 +533,248 @@ function sangLinkify(text) {
   return frag;
 }
 
+let sangGuideSaved = null; // the saved guide, null = never saved (SANG_GUIDE shown)
+let sangGuideEditing = false;
+let sangGuideDraft = null; // {title, intro, steps:[{title, text}]} while editing
+let sangGuideSaving = false;
+let sangGuideDragStep = null;
+
+function sangGuideEffective() {
+  return sangGuideSaved || SANG_GUIDE;
+}
+
+// The draft as it would be saved: trimmed, fully blank steps dropped.
+function sangGuidePayload() {
+  return {
+    title: sangGuideDraft.title.trim(),
+    intro: sangGuideDraft.intro.trim(),
+    steps: sangGuideDraft.steps
+      .map((st) => ({ title: st.title.trim(), text: st.text.trim() }))
+      .filter((st) => st.title || st.text),
+  };
+}
+
+function sangGuideHasUnsaved() {
+  if (!sangGuideEditing || !sangGuideDraft) return false;
+  const g = sangGuideEffective();
+  return JSON.stringify(sangGuidePayload())
+    !== JSON.stringify({ title: g.title, intro: g.intro, steps: g.steps.map((st) => ({ title: st.title, text: st.text })) });
+}
+
+function sangGuideIcon(size, strokeWidth, paths) {
+  return sangSvg('0 0 16 16', size, strokeWidth, paths);
+}
+
+function sangRenderGuide() {
+  const host = document.getElementById('sangere-guide');
+  if (!host) return;
+  host.replaceChildren(sangGuideEditing ? sangBuildGuideEdit() : sangBuildGuide());
+}
+
+function sangGuideHead(titleNode) {
+  const head = el('div', 'card-head sang-guide-head');
+  head.appendChild(titleNode);
+  if (siteHasLevel('boss')) {
+    const btn = el('button', 'boss-icon-btn');
+    btn.type = 'button';
+    const label = sangGuideEditing ? 'Gem og afslut redigering' : 'Rediger guiden';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    btn.appendChild(sangGuideEditing
+      ? sangGuideIcon(16, 1.6, ['M3 8.5l3.2 3.2L13 5'])
+      : sangGuideIcon(15, 1.3, ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
+    btn.disabled = sangGuideSaving;
+    btn.addEventListener('click', () => {
+      if (sangGuideEditing) { sangGuideSaveAndClose(); return; }
+      const g = sangGuideEffective();
+      sangGuideDraft = { title: g.title, intro: g.intro, steps: g.steps.map((st) => ({ title: st.title, text: st.text })) };
+      sangGuideEditing = true;
+      sangRenderGuide();
+    });
+    head.appendChild(btn);
+  }
+  return head;
+}
+
 function sangBuildGuide() {
+  const guide = sangGuideEffective();
   const card = el('section', 'card sang-guide');
-  const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, SANG_GUIDE.title));
-  card.appendChild(head);
-  const intro = el('p', 'sang-guide-intro');
-  intro.appendChild(sangLinkify(SANG_GUIDE.intro));
-  card.appendChild(intro);
-  for (const step of SANG_GUIDE.steps) {
-    card.appendChild(el('h3', 'sang-step-heading', step.title));
-    const p = el('p', null);
+  card.appendChild(sangGuideHead(el('h2', null, guide.title)));
+  if (guide.intro) {
+    const intro = el('p', 'sang-guide-intro');
+    intro.appendChild(sangLinkify(guide.intro));
+    card.appendChild(intro);
+  }
+  for (const step of guide.steps) {
+    if (step.title) card.appendChild(el('h3', 'sang-step-heading', step.title));
+    const p = el('p', 'sang-guide-text' + (step.title ? '' : ' sang-guide-text-alone'));
     p.appendChild(sangLinkify(step.text));
     card.appendChild(p);
   }
+  return card;
+}
+
+// Check mark: save and leave edit mode. Nothing changed → just leave.
+async function sangGuideSaveAndClose() {
+  if (sangGuideSaving) return;
+  const error = document.querySelector('#sangere-guide .boss-manage-error');
+  const payload = sangGuidePayload();
+  if (!payload.title) {
+    if (error) error.textContent = 'Udfyld titel.';
+    return;
+  }
+  if (sangGuideHasUnsaved()) {
+    sangGuideSaving = true;
+    if (error) error.textContent = '';
+    const btn = document.querySelector('#sangere-guide .boss-icon-btn');
+    if (btn) btn.disabled = true;
+    const result = await sangApi('sangere_set_guide', { guide: payload });
+    sangGuideSaving = false;
+    if (btn) btn.disabled = false;
+    if (!result.ok) {
+      if (error && result.message) error.textContent = result.message;
+      return;
+    }
+    sangGuideSaved = result.data.guide;
+    siteShowToast('Gemt');
+  }
+  sangGuideEditing = false;
+  sangGuideDraft = null;
+  sangRenderGuide();
+}
+
+// A textarea in the inline field style that grows with its text.
+function sangGuideTextarea(value, placeholder, onInput) {
+  const area = el('textarea', 'boss-manage-text-input sang-guide-textarea');
+  area.rows = 1;
+  area.value = value;
+  area.placeholder = placeholder;
+  const grow = () => { area.style.height = 'auto'; area.style.height = area.scrollHeight + 'px'; };
+  area.addEventListener('input', () => { onInput(area.value); grow(); });
+  requestAnimationFrame(grow);
+  return area;
+}
+
+function sangGuideInput(value, placeholder, className, onInput) {
+  const input = el('input', 'boss-manage-text-input ' + className);
+  input.type = 'text';
+  input.value = value;
+  input.placeholder = placeholder;
+  input.addEventListener('input', () => onInput(input.value));
+  return input;
+}
+
+// Shared off-screen drag image (the site-wide recipe).
+let sangGuideGhost = null;
+function sangGuideGetDragImageEl() {
+  if (!sangGuideGhost) {
+    sangGuideGhost = el('div', 'sang-drag-ghost');
+    document.body.appendChild(sangGuideGhost);
+  }
+  return sangGuideGhost;
+}
+
+// A drop target that inserts the dragged step before `beforeStep` (null = last).
+function sangGuideWireDrop(node, beforeStep, rerender) {
+  let depth = 0;
+  node.addEventListener('dragenter', (e) => {
+    if (!sangGuideDragStep) return;
+    e.preventDefault();
+    depth++;
+    node.classList.add('sang-guide-drop-target');
+  });
+  node.addEventListener('dragover', (e) => { if (sangGuideDragStep) e.preventDefault(); });
+  node.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (!depth) node.classList.remove('sang-guide-drop-target');
+  });
+  node.addEventListener('drop', (e) => {
+    if (!sangGuideDragStep) return;
+    e.preventDefault();
+    depth = 0;
+    node.classList.remove('sang-guide-drop-target');
+    const steps = sangGuideDraft.steps;
+    const moving = sangGuideDragStep;
+    sangGuideDragStep = null;
+    if (moving === beforeStep) return;
+    steps.splice(steps.indexOf(moving), 1);
+    const at = beforeStep ? steps.indexOf(beforeStep) : -1;
+    if (at === -1) steps.push(moving);
+    else steps.splice(at, 0, moving);
+    rerender();
+  });
+}
+
+function sangBuildGuideEdit() {
+  const draft = sangGuideDraft;
+  const card = el('section', 'card sang-guide sang-guide-editing');
+  const titleWrap = el('h2', 'sang-guide-title-edit');
+  titleWrap.appendChild(sangGuideInput(draft.title, 'Titel', 'boss-manage-title-input', (v) => { draft.title = v; }));
+  card.appendChild(sangGuideHead(titleWrap));
+
+  const intro = sangGuideTextarea(draft.intro, 'Intro (valgfri)', (v) => { draft.intro = v; });
+  intro.classList.add('sang-guide-intro');
+  card.appendChild(intro);
+
+  const list = el('div', 'sang-guide-steps');
+  card.appendChild(list);
+  const renderSteps = () => {
+    list.replaceChildren();
+    for (const step of draft.steps) {
+      const row = el('div', 'sang-guide-step-row');
+      const handle = el('span', 'boss-manage-drag-handle sang-guide-handle', '⠿');
+      handle.draggable = true;
+      handle.title = 'Træk for at flytte trinnet';
+      handle.addEventListener('dragstart', (e) => {
+        sangGuideDragStep = step;
+        const ghost = sangGuideGetDragImageEl();
+        ghost.textContent = step.title.trim() || 'Trin';
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', ghost.textContent);
+        e.dataTransfer.setDragImage(ghost, 12, 16);
+        row.classList.add('sang-dragging');
+      });
+      handle.addEventListener('dragend', () => {
+        sangGuideDragStep = null;
+        row.classList.remove('sang-dragging');
+      });
+      row.appendChild(handle);
+      const fields = el('div', 'sang-guide-step-fields');
+      fields.appendChild(sangGuideInput(step.title, 'Overskrift', 'sang-guide-step-title', (v) => { step.title = v; }));
+      fields.appendChild(sangGuideTextarea(step.text, 'Tekst', (v) => { step.text = v; }));
+      row.appendChild(fields);
+      const remove = el('button', 'boss-manage-remove-btn', '✕');
+      remove.type = 'button';
+      remove.title = 'Fjern trinnet';
+      remove.setAttribute('aria-label', 'Fjern trinnet');
+      remove.addEventListener('click', () => {
+        draft.steps.splice(draft.steps.indexOf(step), 1);
+        renderSteps();
+      });
+      row.appendChild(remove);
+      sangGuideWireDrop(row, step, renderSteps);
+      list.appendChild(row);
+    }
+    const tail = el('div', 'sang-guide-drop-tail');
+    sangGuideWireDrop(tail, null, renderSteps);
+    list.appendChild(tail);
+  };
+  renderSteps();
+
+  const bar = el('div', 'boss-editbar');
+  const add = el('button', 'boss-manage-add-plus', '+');
+  add.type = 'button';
+  add.title = 'Tilføj trin';
+  add.setAttribute('aria-label', 'Tilføj trin');
+  add.addEventListener('click', () => {
+    draft.steps.push({ title: '', text: '' });
+    renderSteps();
+    const inputs = list.querySelectorAll('.sang-guide-step-title');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
+  bar.appendChild(add);
+  bar.appendChild(el('div', 'boss-manage-error'));
+  card.appendChild(bar);
   return card;
 }
 
@@ -1113,8 +1348,12 @@ async function sangUploadOne(item) {
 }
 
 // ── Init ─────────────────────────────────────────────────────
+function sangHasPending() {
+  return sangUploadsPending() || sangGuideHasUnsaved();
+}
+
 window.addEventListener('beforeunload', (e) => {
-  if (!sangUploadsPending()) return;
+  if (!sangHasPending()) return;
   e.preventDefault();
   e.returnValue = '';
 });
@@ -1130,6 +1369,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel !== 'function' || !siteHasLevel('revyst')) return;
-  if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(sangUploadsPending);
+  if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(sangHasPending);
   sangLoad();
 });
