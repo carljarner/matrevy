@@ -219,6 +219,8 @@
 .prio-1 { background: rgb(var(--prio-1-rgb) / 0.5); color: var(--prio-1-text); }
 .prio-2 { background: rgb(var(--prio-2-rgb) / 0.5); color: var(--prio-2-text); }
 .prio-3 { background: rgb(var(--prio-3-rgb) / 0.5); color: var(--prio-3-text); }
+/* A shown Stjerneark field with nothing selected: a grey 0. */
+.prio-none { background: var(--border); color: var(--text-muted); }
 
 .chip-name { flex: 1; }
 
@@ -548,7 +550,7 @@
 .picker-modal {
   background: var(--surface);
   border-radius: 8px;
-  width: 560px;
+  width: 660px;
   max-width: 95vw;
   max-height: 80vh;
   display: flex;
@@ -561,7 +563,7 @@
    The Scenemøde text editor (just two short inputs) is excluded, keeping
    its original content-hugging height. */
 .picker-modal.picker-modal-fixed-height { height: 80vh; }
-/* The slot time editor only holds two small time fields — the default 560px
+/* The slot time editor only holds two small time fields — the default 660px
    width (sized for the scene list) reads as far too wide for that. */
 .picker-modal.picker-modal-narrow { width: 320px; }
 .picker-modal.picker-modal-narrow .picker-footer .btn-primary { width: auto; padding-left: 2rem; padding-right: 2rem; }
@@ -627,13 +629,31 @@
 .picker-item.picker-selected.picker-placed { color: #000; }
 .picker-item.picker-at-cap { opacity: 0.4; cursor: default; }
 .picker-item.picker-crossed-out { text-decoration: line-through; color: #b0b7be; }
-.picker-pair-row {
-  display: flex;
-  gap: 0.4rem;
+/* One row per scene: the title (Skuespil) wide, then Sang, Dans, Band in
+   fixed columns (empty where the scene has no such part), so they line up. */
+.picker-scene-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) repeat(3, minmax(0, 1fr));
+  gap: 0.3rem;
 }
-.picker-item.picker-item-half {
-  flex: 1 1 0;
-  min-width: 0;
+.picker-scene-row > .picker-item { min-width: 0; }
+.picker-item.picker-item-part { gap: 0.35rem; }
+.picker-item-name { flex: 1; min-width: 0; }
+.picker-item-line { display: flex; align-items: center; min-width: 0; white-space: nowrap; }
+.picker-item-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.picker-item-line > .picker-conflict-tag,
+.picker-item-line > .picker-absent-tag { flex: none; }
+@media (max-width: 719px) {
+  .picker-scene-row { gap: 0.15rem; }
+  .picker-item.picker-item-part {
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.35rem 0.2rem;
+    font-size: 0.75rem;
+  }
+  .picker-item-part .picker-item-name { flex: none; max-width: 100%; }
+  .picker-item-part .picker-item-line { justify-content: center; }
 }
 .picker-conflict-tag {
   display: inline-block;

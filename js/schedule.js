@@ -10,7 +10,7 @@ let state = {
   slots: [],        // [{ label, startMinutes, endMinutes }]
   slotsConfig: null, // { startTime, endTime, segmentMinutes, gapMinutes } from the last buildGrid() — lets a rebuild tell "config unchanged" (preserve state.slots as-is, including manual edits) from "config changed" (regenerate)
   absentees: [],    // [{ name, start, end }, ...] — start/end in minutes-since-midnight
-  // grid[slotIdx][roomIdx] = { sceneId, customCast?, crossedOutCast?, customText?, customName?, pairedSceneId? } | null
+  // grid[slotIdx][roomIdx] = { sceneId, customCast?, crossedOutCast?, customText?, customName?, pairedSceneIds? } | null (an older save has one pairedSceneId)
   grid: [],
   scenes: [],       // schedulable scenes
   allScenes: [],    // all scenes from JSON
@@ -63,15 +63,25 @@ function classifyOrKeep(code, isSong, isDans) {
   return ROLE_CATEGORIES.includes(code) ? code : classifyRoleCode(code, isSong, isDans);
 }
 
-// ── Dance/actor split scenes ───────────────────────────────
-// A scene with a Koreograf-classified cast member (see isDanceSplitCandidate
-// below) is split at load time into two independently-schedulable/placeable
-// entries: the main (acting/singing) part keeps the original id/name; a
-// derived "(Dans)" part carries the dancers/choreographer. Selecting both in
-// the same picker visit re-merges them into one placement (see
-// collapseDanceSplitPairs). Purely a runtime derivation — data/scenes.json
+// ── Scene parts (one per Stjerneark priority) ─────────────
+// Manus's Stjerneark rates a scene on up to four priorities: Skuespil, Sang,
+// Dans and Band. Each one Stjerneark shows becomes its own placeable part
+// here, at load time: the Skuespil part keeps the scene's own id and title,
+// the others get "<id>::sang" / "::dans" / "::band" and "<title> (Sang)" ….
+// Parts of one scene picked together in the picker merge into one placement
+// (collapseScenePartGroups). Purely a runtime derivation; data/scenes.json
 // and cast.json are untouched.
-const DANCE_SPLIT_SUFFIX = '::dans'; // scene ids are "act-number" (e.g. "1-3"); ':' never appears, collision-safe.
+const SCHED_PARTS = [
+  { key: 'skuespil', field: 'prioSkuespil', suffix: '',       label: '' },
+  { key: 'sang',     field: 'prioSang',     suffix: '::sang', label: 'Sang' },
+  { key: 'dans',     field: 'dansPriority', suffix: '::dans', label: 'Dans' },
+  { key: 'band',     field: 'prioBand',     suffix: '::band', label: 'Band' },
+];
+const SCHED_PRIO_FIELDS = SCHED_PARTS.map(p => p.field);
+
+// cast.json's Sangboss (Manus's Cast list), set in loadScenes(). Joins every
+// Sang part by default.
+let schedSangbossName = null;
 
 // A cast entry counts as the dance half if it carries a Dans or Koreograf
 // tag — checked against the full `tags` array, not just `role`, since `role`
@@ -100,47 +110,149 @@ function isDanceSplitCandidate(scene) {
   return !scene.custom && (scene.cast || []).some(isDanceCastRole);
 }
 
-// Returns [mainPart, dancePart], or null if the scene doesn't qualify. The
-// dance half's own priority/repeat come from the scene's dansPriority/
-// dansRepeat fields (Stjerneark's Dans column and Dobbeltsegment; the main
-// half's `priority` is derived there from Skuespil/Sang), never
-// copied from the main half's priority/repeat — a plain `{...scene}` spread
-// would otherwise leave both halves showing the same value.
-function splitDanceScene(scene) {
-  if (!isDanceSplitCandidate(scene)) return null;
-  const mainCast = [];
-  const danceCast = [];
-  for (const c of scene.cast) {
-    // A cast entry with no recognized role (e.g. legacy un-normalized data)
-    // defaults to the main/acting half — the same place it'd be if the
-    // scene had never been split, so nobody silently vanishes.
-    (isDanceCastRole(c) ? danceCast : mainCast).push(c);
+// Which parts a scene has: exactly the fields Stjerneark shows (a shown
+// field is saved, as a number or null; a hidden one isn't). A scene saved
+// before the four columns has only `priority`/`dansPriority`: Skuespil, plus
+// Dans when it has dancers. Skuespil is always there, so every scene keeps
+// its own placeable title.
+function schedScenePartKeys(scene) {
+  if (!SCHED_PRIO_FIELDS.some(f => f in scene)) {
+    return isDanceSplitCandidate(scene) ? ['skuespil', 'dans'] : ['skuespil'];
   }
-  const danceId = scene.id + DANCE_SPLIT_SUFFIX;
-  const mainPart = { ...scene, cast: mainCast, danceCounterpartId: danceId };
-  const dancePart = {
-    ...scene, id: danceId, name: scene.name + ' (Dans)',
-    cast: danceCast, mainCounterpartId: scene.id,
-    priority: scene.dansPriority != null ? scene.dansPriority : 0,
-    repeat: !!scene.dansRepeat,
-  };
-  return [mainPart, dancePart];
+  return SCHED_PARTS.filter(p => p.key === 'skuespil' || p.field in scene).map(p => p.key);
 }
 
-// Replaces every qualifying scene with its [main, dance] pair, preserving
-// relative order so the two stay adjacent — renderPickerList's pairing
-// detection relies on this adjacency.
-function applyDanceSplits(scenes) {
-  const result = [];
-  for (const scene of scenes) {
-    const split = splitDanceScene(scene);
-    if (split) result.push(...split); else result.push(scene);
-  }
-  return result;
+// A part's priority: its Stjerneark value 0-3, or null when nothing is
+// selected (shown as a grey 0, schedPriorityBadge). Skuespil falls back to
+// the old `priority`.
+function schedPartPriority(scene, part) {
+  let v = scene[part.field];
+  if (part.key === 'skuespil' && !('prioSkuespil' in scene)) v = scene.priority;
+  return Number.isInteger(v) && v >= 0 && v <= 3 ? v : null;
 }
 
-function getDanceCounterpartId(scene) {
-  return (scene && (scene.danceCounterpartId || scene.mainCounterpartId)) || null;
+function schedPriorityBadge(priority) {
+  const span = document.createElement('span');
+  span.className = 'chip-priority ' + (priority == null ? 'prio-none' : `prio-${priority}`);
+  span.textContent = priority == null ? '0' : priority;
+  if (priority == null) span.title = 'Ingen prioritet valgt i Stjerneark';
+  return span;
+}
+
+function schedSceneIsSong(scene) {
+  return !!(scene.types && scene.types.includes('sang'));
+}
+
+// Default cast names of the Skuespil part (minus the dancers when there's
+// a Dans part) and the Dans part, never Statist/Ninja. A song's Skuespil
+// part is its singers + instruktør; a sketch's everyone else.
+function schedMainDefaultNames(scene, cast) {
+  const isSong = schedSceneIsSong(scene);
+  const isDans = !!(scene.types && scene.types.includes('dans'));
+  return cast.filter(c => {
+    const category = classifyOrKeep(c.role, isSong, isDans);
+    if (category === 'Statist' || category === 'Ninja') return false;
+    if (isSong) return category === 'Sang/Rap' || category === 'Kor' || category === 'Instruktør';
+    return true;
+  }).map(c => c.name);
+}
+
+function schedDanceDefaultNames(scene, cast) {
+  const isSong = schedSceneIsSong(scene);
+  const isDans = !!(scene.types && scene.types.includes('dans'));
+  return cast.filter(c => {
+    const category = classifyOrKeep(c.role, isSong, isDans);
+    return category === 'Dans' || category === 'Koreograf' || category === 'Instruktør';
+  }).map(c => c.name);
+}
+
+// The scene's instruktører (a tag, or the classified role).
+function schedInstructorNames(scene) {
+  const isSong = schedSceneIsSong(scene);
+  const isDans = !!(scene.types && scene.types.includes('dans'));
+  return (scene.cast || []).filter(c =>
+    (Array.isArray(c.tags) && c.tags.includes('Instruktør'))
+    || classifyOrKeep(c.role, isSong, isDans) === 'Instruktør').map(c => c.name);
+}
+
+// Returns the scene's parts in SCHED_PARTS order, adjacent, or the scene
+// itself for a custom scene. Each part carries its own priority, its
+// default cast (`defaultNames`, read by filteredCastNames) and the ids of
+// every part of the scene (`partIds`). The Skuespil part's `cast` is the
+// non-dance cast when there's a Dans part, the Dans part's the dancers, as
+// before; Sang/Band share the Skuespil part's.
+function splitSceneParts(scene) {
+  if (scene.custom) return [scene];
+  const keys = schedScenePartKeys(scene);
+  const hasDans = keys.includes('dans');
+  const mainCast = hasDans ? scene.cast.filter(c => !isDanceCastRole(c)) : scene.cast;
+  const danceCast = scene.cast.filter(isDanceCastRole);
+  const mainNames = schedMainDefaultNames(scene, mainCast);
+  const instructors = new Set(schedInstructorNames(scene));
+  const unique = names => [...new Set(names)];
+  const parts = SCHED_PARTS.filter(p => keys.includes(p.key));
+  const partIds = parts.map(p => scene.id + p.suffix);
+  return parts.map(p => {
+    let cast = mainCast;
+    let defaultNames = mainNames;
+    if (p.key === 'dans') {
+      cast = danceCast;
+      defaultNames = schedDanceDefaultNames(scene, danceCast);
+    } else if (p.key === 'sang') {
+      defaultNames = unique([...mainNames, ...instructors, ...(schedSangbossName ? [schedSangbossName] : [])]);
+    } else if (p.key === 'band') {
+      defaultNames = mainNames.filter(n => !instructors.has(n) && n !== schedSangbossName);
+    }
+    return {
+      ...scene,
+      id: scene.id + p.suffix,
+      name: p.label ? `${scene.name} (${p.label})` : scene.name,
+      title: scene.name,
+      cast,
+      fullCast: scene.cast,
+      defaultNames,
+      partKey: p.key,
+      partLabel: p.label,
+      baseId: scene.id,
+      partIds,
+      priority: schedPartPriority(scene, p),
+      repeat: !!scene.repeat,
+    };
+  });
+}
+
+function applyScenePartSplits(scenes) {
+  return scenes.flatMap(splitSceneParts);
+}
+
+// The other parts of the same scene (none for a custom scene).
+function schedPartSiblingIds(scene) {
+  return scene && scene.partIds ? scene.partIds.filter(id => id !== scene.id) : [];
+}
+
+// Every scene id a placement covers: its own plus the parts merged into it
+// (`pairedSceneIds`; an older saved placement has one `pairedSceneId`).
+function schedCellSceneIds(cell) {
+  if (!cell) return [];
+  const paired = Array.isArray(cell.pairedSceneIds) ? cell.pairedSceneIds
+    : cell.pairedSceneId ? [cell.pairedSceneId] : [];
+  return [cell.sceneId, ...paired];
+}
+
+// A placement's title: the scene's, plus the parts it holds other than
+// Skuespil ("Titel (Sang + Band)"). Skuespil + Dans together stays just the
+// title, as it always has.
+function schedCellName(cell) {
+  const scene = getSceneById(cell.sceneId);
+  if (!scene) return cell.sceneId;
+  if (scene.id === SCENEMODE_ID && cell.customName) return cell.customName;
+  const ids = schedCellSceneIds(cell);
+  if (ids.length < 2 || !scene.partIds) return scene.name;
+  const parts = ids.map(getSceneById).filter(Boolean);
+  const keys = parts.map(p => p.partKey);
+  if (keys.length === 2 && keys.includes('skuespil') && keys.includes('dans')) return scene.title;
+  const labels = SCHED_PARTS.filter(p => p.label && keys.includes(p.key)).map(p => p.label);
+  return labels.length ? `${scene.title} (${labels.join(' + ')})` : scene.title;
 }
 
 // ── Custom time field ────────────────────────────────────
@@ -599,7 +711,9 @@ async function loadScenes(allowOverride = false) {
   const override = allowOverride ? loadManusOverride() : null;
   const scenesData = schedManusHidden ? [] : (override ? override.scenes : SCENES_DATA);
   const castData   = override ? override.cast   : CAST_DATA;
-  state.allScenes = applyDanceSplits([...CUSTOM_SCENES, ...scenesData]);
+  const sangboss = castData.find(c => c && c.sangboss === true);
+  schedSangbossName = sangboss ? sangboss.name : null;
+  state.allScenes = applyScenePartSplits([...CUSTOM_SCENES, ...scenesData]);
   // Placeholders ("Skuespiller", "Danser 2", …) aren't people: left out of
   // the roster (Andre revyster, Opmærksomhed, Rekvisitten, Fravær) and
   // never counted as a clash (schedIsPlaceholderName). A scene's own cast
@@ -883,7 +997,7 @@ function renderCell(td, si, ri) {
     inner.ondragstart = () => startDrag(assignment.sceneId, si, ri, {
       customCast: assignment.customCast || null,
       crossedOutCast: assignment.crossedOutCast || null,
-      pairedSceneId: assignment.pairedSceneId || null,
+      pairedSceneIds: schedCellSceneIds(assignment).slice(1),
       customText: assignment.customText || null,
       customName: assignment.customName || null,
     });
@@ -902,9 +1016,7 @@ function renderCell(td, si, ri) {
     // Scene name
     const nameEl = document.createElement('div');
     nameEl.className = 'cell-scene-name';
-    nameEl.textContent = scene
-      ? (scene.id === SCENEMODE_ID && assignment.customName ? assignment.customName : scene.name)
-      : assignment.sceneId;
+    nameEl.textContent = schedCellName(assignment);
     inner.appendChild(nameEl);
 
     // Cast list
@@ -944,9 +1056,9 @@ function renderCell(td, si, ri) {
 }
 
 // ── Conflict detection ────────────────────────────────────
-// Cast names actually shown by default for a scene — never Statist/Ninja,
-// and for an unmerged song/dance-half, narrowed further to the roles
-// relevant to that half. This is the set that's genuinely "written down" on
+// Cast names actually shown by default for a scene part (its
+// `defaultNames`, see splitSceneParts) — never Statist/Ninja, and narrowed
+// to the roles relevant to that part. This is the set that's genuinely "written down" on
 // the schedule for a placement that hasn't been hand-edited, so it's the
 // basis for both display (getCellCastNames/getDisplayCastNames below) and
 // overlap detection (getConflicts/getPickerConflictNames) alike — a Statist
@@ -954,19 +1066,8 @@ function renderCell(td, si, ri) {
 // just for existing in the scene's full data/scenes.json cast list.
 function filteredCastNames(scene) {
   if (!scene || scene.custom) return [];
-  const isSong = !!(scene.types && scene.types.includes('sang'));
-  const isDans = !!(scene.types && scene.types.includes('dans'));
-  const isDansHalf = !!scene.mainCounterpartId;
-
-  return scene.cast
-    .filter(c => {
-      const category = classifyOrKeep(c.role, isSong, isDans);
-      if (category === 'Statist' || category === 'Ninja') return false;
-      if (isDansHalf) return category === 'Dans' || category === 'Koreograf' || category === 'Instruktør';
-      if (isSong) return category === 'Sang/Rap' || category === 'Kor' || category === 'Instruktør';
-      return true; // sketch (or a sketch+dans combo's sketch half, placed alone)
-    })
-    .map(c => c.name);
+  if (scene.defaultNames) return scene.defaultNames;
+  return schedMainDefaultNames(scene, scene.cast || []);
 }
 
 // Rekvisitten's cast is picked per-placement (cell.customCast), not fixed on
@@ -1047,7 +1148,7 @@ function castConflictsAt(si, sceneId, excludeRi = -1) {
 }
 
 // ── Drag & drop ───────────────────────────────────────────
-let dragState = null; // { sceneId, fromSlot, fromRoom, customCast, crossedOutCast, pairedSceneId }
+let dragState = null; // { sceneId, fromSlot, fromRoom, customCast, crossedOutCast, pairedSceneIds }
 
 function startDrag(sceneId, fromSlot, fromRoom, extra = {}) {
   dragState = { sceneId, fromSlot: fromSlot ?? null, fromRoom: fromRoom ?? null, ...extra };
@@ -1079,7 +1180,7 @@ function clearAllDropHighlights() {
 function handleDrop(toSlot, toRoom) {
   clearAllDropHighlights();
   if (!dragState) return;
-  const { sceneId, fromSlot, fromRoom, customCast, crossedOutCast, pairedSceneId, customText, customName } = dragState;
+  const { sceneId, fromSlot, fromRoom, customCast, crossedOutCast, pairedSceneIds, customText, customName } = dragState;
   dragState = null;
 
   // Remove chip dragging style
@@ -1098,7 +1199,7 @@ function handleDrop(toSlot, toRoom) {
   const placed = { sceneId };
   if (customCast) placed.customCast = customCast;
   if (crossedOutCast && crossedOutCast.length) placed.crossedOutCast = crossedOutCast;
-  if (pairedSceneId) placed.pairedSceneId = pairedSceneId;
+  if (pairedSceneIds && pairedSceneIds.length) placed.pairedSceneIds = pairedSceneIds;
   if (customText) placed.customText = customText;
   if (customName) placed.customName = customName;
   state.grid[toSlot][toRoom] = placed;
@@ -1479,9 +1580,7 @@ function renderSceneSidebar() {
 
       // Priority badge — read-only, sourced from data/scenes.json (set via
       // Manus's Stjerneark tab, not editable here).
-      const prioSpan = document.createElement('span');
-      prioSpan.className = `chip-priority prio-${scene.priority}`;
-      prioSpan.textContent = scene.priority;
+      const prioSpan = schedPriorityBadge(scene.priority);
 
       const nameSpan = document.createElement('span');
       nameSpan.className = 'chip-name';
@@ -1732,42 +1831,40 @@ function closePicker() {
   slotSplitDefaults = null;
 }
 
-// Collapses any fully-selected dance-split pair into a single merged
-// placement (main part's id + union of both casts); everything else passes
-// through as a plain { sceneId } placement, unchanged from today.
-function collapseDanceSplitPairs(sceneIds) {
-  const idSet = new Set(sceneIds);
-  const consumed = new Set();
-  const placements = [];
+// Parts of the same scene selected together collapse into one placement:
+// the first part's id (in SCHED_PARTS order), the rest in pairedSceneIds,
+// and the union of their default casts. Skuespil + Dans together also takes
+// everyone else in the scene but Statist/Ninja, as that merge always has.
+// Everything else passes through as a plain { sceneId } placement.
+function collapseScenePartGroups(sceneIds) {
+  const groups = new Map(); // baseId (or own id) -> [part, ...]
   for (const id of sceneIds) {
-    if (consumed.has(id)) continue;
     const scene = getSceneById(id);
-    const counterpartId = getDanceCounterpartId(scene);
-    if (counterpartId && idSet.has(counterpartId)) {
-      const mainId  = scene.danceCounterpartId ? id : counterpartId;
-      const danceId = scene.danceCounterpartId ? counterpartId : id;
-      const mainScene  = getSceneById(mainId);
-      const danceScene = getSceneById(danceId);
-      // A merged main+dance placement shows everyone but Statist/Ninja by
-      // default, same as a plain sketch — filtered here so a fresh merge
-      // already satisfies that without a manual cell-editor edit.
-      const isSong = !!(mainScene.types && mainScene.types.includes('sang'));
-      const mergedCast = [...mainScene.cast, ...danceScene.cast]
-        .filter(c => {
-          const category = classifyOrKeep(c.role, isSong, true);
-          return category !== 'Statist' && category !== 'Ninja';
-        })
-        .map(c => c.name);
-      placements.push({
-        sceneId: mainId,
-        customCast: mergedCast,
-        pairedSceneId: danceId,
-      });
-      consumed.add(mainId); consumed.add(danceId);
-    } else {
-      placements.push({ sceneId: id });
-      consumed.add(id);
+    if (!scene) continue;
+    const key = scene.baseId || scene.id;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(scene);
+  }
+  const placements = [];
+  for (const parts of groups.values()) {
+    if (parts.length === 1) { placements.push({ sceneId: parts[0].id }); continue; }
+    parts.sort((x, y) => x.partIds.indexOf(x.id) - y.partIds.indexOf(y.id));
+    const names = parts.flatMap(p => filteredCastNames(p));
+    const keys = parts.map(p => p.partKey);
+    if (keys.includes('skuespil') && keys.includes('dans')) {
+      const main = parts[0];
+      const dans = parts.find(p => p.partKey === 'dans');
+      const isSong = schedSceneIsSong(main);
+      for (const c of [...main.cast, ...dans.cast]) {
+        const category = classifyOrKeep(c.role, isSong, true);
+        if (category !== 'Statist' && category !== 'Ninja') names.push(c.name);
+      }
     }
+    placements.push({
+      sceneId: parts[0].id,
+      customCast: [...new Set(names)],
+      pairedSceneIds: parts.slice(1).map(p => p.id),
+    });
   }
   return placements;
 }
@@ -1778,7 +1875,7 @@ function confirmPicker() {
   if (pickerMode === 'edit-scenemode') { confirmScenemodeTextEditor(); return; }
   if (pickerMode === 'edit-slot-time') { confirmSlotTimeEditor(); return; }
   if (pickerSlot === null || !pickerSelected.size) return;
-  const placements = collapseDanceSplitPairs([...pickerSelected]);
+  const placements = collapseScenePartGroups([...pickerSelected]);
 
   // A single placement goes straight into the room that was clicked, if any.
   if (placements.length === 1 && pickerRoom !== null && !state.grid[pickerSlot][pickerRoom]) {
@@ -1910,32 +2007,32 @@ function openCellEditor(si, ri) {
   // revyster" by default there instead of making the coordinator expand it.
   cellEditorOthersOpen = !!(scene && scene.id === REKVISITTEN_ID);
   document.getElementById('picker-title').textContent =
-    'Rediger' + (scene ? ' (' + scene.name + ')' : '');
+    'Rediger' + (scene ? ' (' + schedCellName(cell) + ')' : '');
   _updatePickerFooter();
   document.getElementById('picker-overlay').style.display = 'flex';
   renderCellEditorList();
 }
 
 // Cast belonging to a scene, each with its classified role category — the
-// "Roller" section. For a scene split into a main and a "(Dans)" part, this
-// always includes BOTH halves' cast, regardless of whether this particular
-// cell holds just one half or the merged placement — they're still one
-// larger scene, so the full cast belongs in "Roller" either way.
+// "Roller" section. Always the whole scene's cast (every part), whichever
+// part(s) this cell holds: they're still one scene. A scene with a Sang
+// part also lists the Sangboss, right after the instruktør(er), so they can
+// be added or crossed out like the rest.
 function getSceneCastWithRoles(scene) {
-  const isSong = !!(scene.types && scene.types.includes('sang'));
+  const isSong = schedSceneIsSong(scene);
   const isDans = !!(scene.types && scene.types.includes('dans'));
-  const all = [...scene.cast];
-  const counterpartId = getDanceCounterpartId(scene);
-  if (counterpartId) {
-    const counterpart = getSceneById(counterpartId);
-    if (counterpart) all.push(...counterpart.cast);
-  }
   const seen = new Set();
   const result = [];
-  for (const c of all) {
+  for (const c of scene.fullCast || scene.cast || []) {
     if (seen.has(c.name)) continue;
     seen.add(c.name);
     result.push({ name: c.name, category: classifyOrKeep(c.role, isSong, isDans) });
+  }
+  const hasSang = (scene.partIds || []).some(id => (getSceneById(id) || {}).partKey === 'sang');
+  if (schedSangbossName && hasSang && !seen.has(schedSangbossName)) {
+    let at = 0;
+    result.forEach((c, i) => { if (c.category === 'Instruktør') at = i + 1; });
+    result.splice(at, 0, { name: schedSangbossName, category: 'Sangboss' });
   }
   return result;
 }
@@ -2370,9 +2467,11 @@ function getPickerConflictNames(si, sceneId) {
     if (!cell) continue;
     getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell)).forEach(n => occupiedCast.add(n));
   }
-  // Cast from other currently-selected scenes in the picker
+  // Cast from other currently-selected scenes in the picker. Other parts of
+  // the same scene don't count: picked together they merge into one cell.
+  const siblings = new Set(schedPartSiblingIds(scene));
   for (const selId of pickerSelected) {
-    if (selId === sceneId) continue;
+    if (selId === sceneId || siblings.has(selId)) continue;
     filteredCastNames(getSceneById(selId)).forEach(n => occupiedCast.add(n));
   }
 
@@ -2387,23 +2486,18 @@ function getPickerAbsentNames(si, sceneId) {
   return filteredCastNames(getSceneById(sceneId)).filter(n => isPersonAbsentAtSlot(n, si));
 }
 
-// A fully-selected dance-split pair collapses into one room at confirm time
-// (see collapseDanceSplitPairs), so it must count as 1 toward the room cap,
-// not 2.
+// Selected parts of the same scene collapse into one room at confirm time
+// (see collapseScenePartGroups), so they count as 1 toward the room cap.
 function _pickerSelectedRoomCount() {
-  let count = 0;
-  const seen = new Set();
+  const scenes = new Set();
   for (const id of pickerSelected) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    const counterpartId = getDanceCounterpartId(getSceneById(id));
-    if (counterpartId && pickerSelected.has(counterpartId)) seen.add(counterpartId);
-    count++;
+    const scene = getSceneById(id);
+    scenes.add(scene && scene.baseId ? scene.baseId : id);
   }
-  return count;
+  return scenes.size;
 }
 
-function buildPickerSceneItem(scene, placedCounts, half) {
+function buildPickerSceneItem(scene, placedCounts) {
   // Custom scenes (Scenemøde, Rekvisitten) can be used in multiple slots per
   // day. A repeat-flagged scene (Manus's Stjerneark ↻ toggle) similarly
   // wants a second placement that day — see sceneMaxPlacements() — so it
@@ -2419,18 +2513,18 @@ function buildPickerSceneItem(scene, placedCounts, half) {
     : [];
   const hasAbsent = absentNames.length > 0;
 
-  const counterpartId = getDanceCounterpartId(scene);
-  const counterpartSelected = !!counterpartId && pickerSelected.has(counterpartId);
-  // Selecting this half either consumes a new room, or (if its counterpart
-  // is already selected) merges into that placement and consumes none — so
-  // it must never be blocked by the room cap in that case.
-  const wouldMerge = !isSelected && counterpartSelected;
+  // Selecting a part either consumes a new room, or (if another part of the
+  // same scene is already selected) merges into that placement and
+  // consumes none, so it must never be blocked by the room cap then.
+  const wouldMerge = !isSelected && schedPartSiblingIds(scene).some(id => pickerSelected.has(id));
+  // Sang/Dans/Band sit in their own narrow columns: just the label.
+  const isSidePart = !!scene.partLabel;
   const max = pickerSlot !== null ? _emptyRoomCount(pickerSlot) : 0;
   // Disable selecting more once we've hit the room cap (unless already selected)
   const atCap = !isSelected && !wouldMerge && _pickerSelectedRoomCount() >= max;
 
   let cls = 'picker-item';
-  if (half) cls += ' picker-item-half';
+  if (isSidePart) cls += ' picker-item-part';
   if (isSelected) cls += ' picker-selected';
   if (isPlaced)   cls += ' picker-placed';
   if (atCap)      cls += ' picker-at-cap';
@@ -2438,27 +2532,32 @@ function buildPickerSceneItem(scene, placedCounts, half) {
   const item = document.createElement('div');
   item.className = cls;
 
-  const prioSpan = document.createElement('span');
-  prioSpan.className = `chip-priority prio-${scene.priority}`;
-  prioSpan.textContent = scene.priority;
-  item.appendChild(prioSpan);
+  item.appendChild(schedPriorityBadge(scene.priority));
 
-  // Name + inline conflict tag
+  // Name + inline conflict tags, on one line that never wraps: a long title
+  // is cut short with "…" so the O/F tags still fit (full name on hover).
   const nameSpan = document.createElement('span');
-  nameSpan.style.flex = '1';
-  nameSpan.textContent = scene.name + (isPlaced ? ' (placeret)' : '');
+  nameSpan.className = 'picker-item-name';
+  const line = document.createElement('span');
+  line.className = 'picker-item-line';
+  const text = document.createElement('span');
+  text.className = 'picker-item-text';
+  text.textContent = isSidePart ? scene.partLabel : scene.name + (isPlaced ? ' (placeret)' : '');
+  item.title = scene.name + (isPlaced ? ' (placeret)' : '');
+  line.appendChild(text);
   if (hasConflict) {
     const tag = document.createElement('span');
     tag.className = 'picker-conflict-tag';
     tag.textContent = 'O';
-    nameSpan.appendChild(tag);
+    line.appendChild(tag);
   }
   if (hasAbsent) {
     const absentTag = document.createElement('span');
     absentTag.className = 'picker-absent-tag';
     absentTag.textContent = 'F';
-    nameSpan.appendChild(absentTag);
+    line.appendChild(absentTag);
   }
+  nameSpan.appendChild(line);
   // If selected AND has conflict, show the names below
   if (isSelected && hasConflict) {
     const conflictEl = document.createElement('div');
@@ -2478,7 +2577,7 @@ function buildPickerSceneItem(scene, placedCounts, half) {
   // Repeat tag (Manus's Stjerneark ↻ toggle) — sits at the far right of the
   // row itself, not glued onto the name like the O/F tags above, since it's
   // a property of the scene rather than of this particular slot/visit.
-  if (scene.repeat) {
+  if (scene.repeat && !isSidePart) {
     const repeatTag = document.createElement('span');
     repeatTag.className = 'picker-repeat-tag';
     repeatTag.textContent = '↻';
@@ -2538,22 +2637,24 @@ function renderPickerList() {
     header.textContent = actLabel;
     container.appendChild(header);
 
-    // Dance-split pairs (main part immediately followed by its "(Dans)"
-    // counterpart, per applyDanceSplits) render as one row split into two
-    // half-width buttons instead of two full-width rows.
+    // A scene's parts (adjacent, per applyScenePartSplits) share one row:
+    // the title (Skuespil) in the wide first column, then Sang, Dans and
+    // Band each in its own column, an empty cell where the scene has none.
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
-      const next = scenes[i + 1];
-      if (scene.danceCounterpartId && next && next.id === scene.danceCounterpartId) {
-        const row = document.createElement('div');
-        row.className = 'picker-pair-row';
-        row.appendChild(buildPickerSceneItem(scene, placedCounts, true));
-        row.appendChild(buildPickerSceneItem(next, placedCounts, true));
-        container.appendChild(row);
-        i++; // consumed the dance-part entry too
+      if (!scene.partIds) {
+        container.appendChild(buildPickerSceneItem(scene, placedCounts));
         continue;
       }
-      container.appendChild(buildPickerSceneItem(scene, placedCounts, false));
+      const parts = scenes.slice(i, i + scene.partIds.length);
+      i += parts.length - 1;
+      const row = document.createElement('div');
+      row.className = 'picker-scene-row';
+      for (const p of SCHED_PARTS) {
+        const part = parts.find(x => x.partKey === p.key);
+        row.appendChild(part ? buildPickerSceneItem(part, placedCounts) : document.createElement('span'));
+      }
+      container.appendChild(row);
     }
   }
 }
@@ -2573,8 +2674,7 @@ function getPlacedSceneCounts() {
   for (const row of state.grid) {
     for (const cell of row) {
       if (!cell) continue;
-      bump(cell.sceneId);
-      if (cell.pairedSceneId) bump(cell.pairedSceneId);
+      schedCellSceneIds(cell).forEach(bump);
     }
   }
   return counts;
