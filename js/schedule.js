@@ -199,7 +199,8 @@ function splitSceneParts(scene) {
       cast = danceCast;
       defaultNames = schedDanceDefaultNames(scene, danceCast);
     } else if (p.key === 'sang') {
-      defaultNames = unique([...mainNames, ...instructors, ...(schedSangbossName ? [schedSangbossName] : [])]);
+      // The singers and the Sangboss; the instruktør isn't there by default.
+      defaultNames = unique([...mainNames.filter(n => !instructors.has(n)), ...(schedSangbossName ? [schedSangbossName] : [])]);
     } else if (p.key === 'band') {
       defaultNames = mainNames.filter(n => !instructors.has(n) && n !== schedSangbossName);
     }
