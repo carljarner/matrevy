@@ -279,7 +279,7 @@ const TEKNIK_KINDS = [
   { key: 'audio', label: 'LYD', exts: ['mp3', 'wav', 'm4a', 'aac', 'aif', 'aiff', 'flac', 'ogg'] },
 ];
 // Mirrors teknik_inline_types(): what opens in a browser tab on click.
-const TEKNIK_INLINE_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'm4v', 'mov', 'mp3', 'm4a', 'wav'];
+const TEKNIK_INLINE_EXTS = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'm4v', 'mov', 'mp3', 'm4a', 'wav', 'aac', 'ogg', 'flac'];
 
 function teknikFileKind(ext) {
   const kind = TEKNIK_KINDS.find((k) => k.exts.includes(ext));

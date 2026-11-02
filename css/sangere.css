@@ -1,0 +1,478 @@
+/* =========================================================
+   Matematikrevyen – Sangere page styles (sangere.html only)
+   Page-scoped copy of teknikken.css (minus the video modal and Boss
+   Box); the file rows borrow band.css's look (badge, icon buttons). Shared shell styles live in style.css. 719px is the
+   site-wide mobile breakpoint.
+   ========================================================= */
+
+/* --- Shared bits --------------------------------------------------- */
+.sang-intro {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 40rem;
+  margin: -0.5rem auto 1.25rem;
+}
+
+.sang-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.sang-error {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.sang-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .sang-remove-btn:hover { color: var(--danger); }
+}
+
+.sang-remove-btn:focus-visible {
+  outline: none;
+  color: var(--danger);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.sang-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+@media (hover: hover) {
+  .sang-icon-btn:hover { color: var(--accent-warm-text); }
+}
+
+.sang-icon-btn:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Delete confirms: same one-liner width formula as band.css. */
+.sang-confirm-modal {
+  width: fit-content;
+  min-width: min(300px, 85vw);
+  max-width: min(420px, 92vw);
+}
+
+.sang-confirm-modal h2 {
+  text-align: center;
+}
+
+.sang-confirm-text {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+
+.sang-name-modal {
+  width: min(380px, 92vw);
+}
+
+/* --- Usage bar: top centre, above the card ------------------------- */
+.sang-usage {
+  max-width: 26rem;
+  margin: 0 auto 1.25rem;
+  text-align: center;
+}
+
+.sang-usage-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--input-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.sang-usage-fill {
+  height: 100%;
+  background: var(--accent-warm);
+  transition: width 0.3s ease;
+}
+
+.sang-usage-full .sang-usage-fill {
+  background: var(--danger);
+}
+
+.sang-usage-text {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* --- Card head: title | + Mappe (centred) | upload buttons ---------- */
+/* 1fr auto 1fr keeps the middle truly centred whatever the sides measure. */
+.sang-card-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.sang-head-center {
+  justify-self: center;
+}
+
+.sang-upload-btns {
+  justify-self: end;
+  display: flex;
+}
+
+/* --- Folder/file tree ---------------------------------------------- */
+.sang-card {
+  transition: box-shadow 0.15s ease;
+}
+
+/* --depth (set per row) indents an open folder's contents. */
+.sang-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.25rem 0.35rem calc(0.25rem + var(--depth, 0) * 1.6rem);
+  box-shadow: inset 0 -1px 0 0 var(--border);
+  border-radius: 4px;
+}
+
+.sang-file-row {
+  cursor: grab;
+}
+
+.sang-row.sang-dragging {
+  opacity: 0.45;
+}
+
+.sang-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0.15rem 0;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+@media (hover: hover) {
+  .sang-row-main:hover .sang-row-name {
+    color: var(--accent-warm-text);
+    text-decoration: underline;
+  }
+}
+
+.sang-row-main:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.sang-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sang-folder-row .sang-row-name {
+  font-weight: 600;
+}
+
+.sang-chevron {
+  flex: none;
+  width: 0.9rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Chevron + icon take the same width as a file's badge, so names line up. */
+.sang-folder-icon {
+  display: inline-flex;
+  flex: none;
+  width: calc(3.6rem - 0.9rem - 0.6rem);
+  justify-content: center;
+  color: var(--accent-warm-text);
+}
+
+.sang-row-meta {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.sang-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: none;
+}
+
+.sang-empty-row {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+  padding-left: calc(4.45rem + var(--depth, 0) * 1.6rem);
+}
+
+.sang-empty {
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.sang-card-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
+/* Drop highlight: a folder row, or the whole card for the top level. */
+.sang-card.sang-drop-target {
+  box-shadow: 0 0 0 2px var(--accent-warm);
+}
+
+.sang-row.sang-drop-target {
+  background: var(--accent-warm-fill);
+  box-shadow: inset 0 0 0 2px var(--accent-warm);
+}
+
+/* Off-screen drag image (the site-wide recipe — never display:none). */
+.sang-drag-ghost {
+  position: fixed;
+  top: -999px;
+  left: -999px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--accent-warm);
+  color: var(--text);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* Type badge — band.css's .band-file-kind, one colour per kind. */
+.sang-kind {
+  flex: none;
+  min-width: 3.6rem;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  color: #fff;
+  background: var(--text-muted);
+}
+
+@@ background: #8250df; }
+@@ background: #c2410c; }
+@@ background: var(--danger); }
+@@ background: var(--success); }
+.sang-kind-audio { background: var(--accent); }
+
+/* --- Upload modal -------------------------------------------------- */
+.sang-upload-modal {
+  width: min(520px, 92vw);
+}
+
+.sang-upload-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.sang-upload-hint {
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.sang-upload-item {
+  margin-bottom: 0.6rem;
+}
+
+.sang-upload-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.3rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.sang-upload-item input {
+  width: 100%;
+}
+
+.sang-upload-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sang-upload-item-size {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.sang-upload-space {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+/* --- Upload panel -------------------------------------------------- */
+.sang-uploads-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sang-upload {
+  padding: 0.45rem 0;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.sang-upload-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.sang-upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sang-upload-where,
+.sang-upload-status {
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.sang-upload-failed .sang-upload-status {
+  color: var(--danger);
+  white-space: normal;
+}
+
+.sang-progress {
+  height: 6px;
+  margin-top: 0.35rem;
+  border-radius: 3px;
+  background: var(--input-bg);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.sang-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent-warm);
+  transition: width 0.2s ease;
+}
+
+.sang-upload-failed .sang-progress-fill {
+  background: var(--danger);
+}
+
+@media (max-width: 719px) {
+  /* Title + Mappe on one line, the upload button full-width below. */
+  .sang-card-head {
+    grid-template-columns: 1fr auto;
+  }
+
+  .sang-head-center {
+    justify-self: end;
+  }
+
+  .sang-upload-btns {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+
+  .sang-upload-btns .btn-small {
+    flex: 1;
+  }
+
+  /* Name + actions on the first line, size/date underneath. */
+  .sang-row {
+    flex-wrap: wrap;
+    row-gap: 0;
+    padding-left: calc(0.25rem + var(--depth, 0) * 1rem);
+  }
+
+  .sang-empty-row {
+    padding-left: calc(4.45rem + var(--depth, 0) * 1rem);
+  }
+
+  .sang-row-main {
+    flex-basis: 0;
+  }
+
+  .sang-row-meta {
+    order: 3;
+    flex-basis: 100%;
+    padding-left: 4.2rem;
+    font-size: 0.8rem;
+  }
+
+  .sang-upload-where {
+    display: none;
+  }
+}
+
+/* Shown under the card head while uploads are closed (no active revy). */
+.sang-closed-notice {
+  margin: 0.5rem 0 0;
+  text-align: center;
+}
+
+.sang-upload-btns .btn-small:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .sang-upload-btns .btn-small:disabled:hover {
+    background: var(--input-bg);
+    border-color: var(--border);
+    color: var(--text);
+  }
+}

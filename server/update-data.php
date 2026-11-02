@@ -477,6 +477,34 @@ if (isset($TEKNIK_ACTIONS[$action])) {
   handle_teknik($action, $body);
 }
 
+// ── Sangere actions (the singers' practice audio) ──
+// Teknikken's store code on its own store (teknik_stores()['sangere']):
+// SANGERE_DATA_DIR, 500 MB, no Afsender, never archived, emptied by
+// Koordinator's "Afslut revyen". Each sangere_x runs teknik_x.
+$SANGERE_ACTIONS = [
+  'sangere_read'          => 'revyst',
+  'sangere_create_folder' => 'revyst',
+  'sangere_rename_folder' => 'revyst',
+  'sangere_delete_folder' => 'revyst',
+  'sangere_rename_file'   => 'revyst',
+  'sangere_delete_file'   => 'revyst',
+  'sangere_move_file'     => 'revyst',
+  'sangere_upload_start'  => 'revyst',
+  'sangere_upload_chunk'  => 'revyst',
+  'sangere_upload_finish' => 'revyst',
+  'sangere_upload_abort'  => 'revyst',
+  'sangere_download_url'  => 'revyst',
+  'sangere_folder_download_url' => 'revyst',
+  'sangere_clear_all'     => 'admin',
+];
+if (isset($SANGERE_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$SANGERE_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  $GLOBALS['TEKNIK_STORE'] = 'sangere';
+  handle_teknik('teknik_' . substr($action, strlen('sangere_')), $body);
+}
+
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
 // posts_create is revyst-level append-only (mirrors budget_submit's shape,
 // against the public data/posts.json instead of the private budget store)
@@ -6460,16 +6488,38 @@ function handle_lokaler($action, $body) {
 // (teknik_serve_download(), dispatched near the top) that the browser
 // downloads natively. Dispatched early, so hoisted functions only.
 
+// The same code also backs Sangere's store (the singers' practice audio):
+// `$GLOBALS['TEKNIK_STORE']` names the store an action works on, set at
+// dispatch ($SANGERE_ACTIONS) or from a signed link's `s` claim.
+function teknik_stores() {
+  return [
+    'teknikken' => ['dir' => 'TEKNIK_DATA_DIR', 'doc' => 'teknikken.json', 'quota' => 5 * 1024 * 1024 * 1024,
+      'title' => 'Teknikken', 'needsUploader' => true, 'pausable' => true],
+    'sangere' => ['dir' => 'SANGERE_DATA_DIR', 'doc' => 'sangere.json', 'quota' => 500 * 1024 * 1024,
+      'title' => 'Sangere', 'needsUploader' => false, 'pausable' => false],
+  ];
+}
+
+function teknik_store_key() {
+  $key = $GLOBALS['TEKNIK_STORE'] ?? 'teknikken';
+  return isset(teknik_stores()[$key]) ? $key : 'teknikken';
+}
+
+function teknik_store() {
+  return teknik_stores()[teknik_store_key()];
+}
+
 function teknik_dir() {
-  if (!defined('TEKNIK_DATA_DIR') || !is_string(TEKNIK_DATA_DIR) || TEKNIK_DATA_DIR === '') {
+  $const = teknik_store()['dir'];
+  if (!defined($const) || !is_string(constant($const)) || constant($const) === '') {
     respond(500, ['error' => 'teknik_not_configured']);
   }
-  return rtrim(TEKNIK_DATA_DIR, '/');
+  return rtrim(constant($const), '/');
 }
 
 // The whole store's cap — every file plus every upload in progress.
 function teknik_quota_bytes() {
-  return 5 * 1024 * 1024 * 1024;
+  return teknik_store()['quota'];
 }
 
 function teknik_max_chunk_bytes() {
@@ -6496,7 +6546,7 @@ function teknik_ensure_dir($dir) {
 }
 
 function teknik_doc_path() {
-  return teknik_dir() . '/teknikken.json';
+  return teknik_dir() . '/' . teknik_store()['doc'];
 }
 
 function teknik_file_path($fileId) {
@@ -6743,6 +6793,7 @@ function teknik_uploads_open() {
 }
 
 function teknik_uploads_paused() {
+  if (!teknik_store()['pausable']) return false;
   [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
   if ($cfgStatus !== 200) return false;
   return (json_decode(base64_decode($cfg['content']), true)['teknikUploadsClosed'] ?? false) === true;
@@ -6785,7 +6836,7 @@ function teknik_upload_start($body) {
   // Who uploaded it: a free-text name (shared passwords, no real identity).
   $uploadedBy = teknik_clean_name($body['uploadedBy'] ?? '');
   $size = $body['size'] ?? null;
-  if ($name === '' || $uploadedBy === '' || mb_strlen($uploadedBy) > 80 || !is_int($size) || $size < 1) {
+  if ($name === '' || ($uploadedBy === '' && teknik_store()['needsUploader']) || mb_strlen($uploadedBy) > 80 || !is_int($size) || $size < 1) {
     respond(400, ['error' => 'invalid_shape']);
   }
   if ($size > teknik_quota_bytes()) respond(413, ['error' => 'quota_exceeded']);
@@ -6939,6 +6990,7 @@ function teknik_inline_types() {
     'png' => 'image/png', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'gif' => 'image/gif', 'webp' => 'image/webp',
     'mp4' => 'video/mp4', 'm4v' => 'video/x-m4v', 'mov' => 'video/quicktime',
     'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'wav' => 'audio/wav',
+    'aac' => 'audio/aac', 'ogg' => 'audio/ogg', 'flac' => 'audio/flac',
   ];
 }
 
@@ -6949,7 +7001,7 @@ function teknik_download_url($body) {
   $file = teknik_find_file(teknik_load(), $fileId);
   if ($file === null || !is_file(teknik_file_path($fileId))) respond(404, ['error' => 'not_found']);
   $inline = !empty($body['inline']) && isset(teknik_inline_types()[$file['ext']]);
-  $token = teknik_sign_claims(['f' => $fileId, 'e' => time() + 600, 'i' => $inline ? 1 : 0]);
+  $token = teknik_sign_claims(['f' => $fileId, 'e' => time() + 600, 'i' => $inline ? 1 : 0, 's' => teknik_store_key()]);
   respond(200, ['ok' => true, 'query' => 'teknik_dl=' . $token, 'inline' => $inline]);
 }
 
@@ -6963,7 +7015,7 @@ function teknik_sign_claims($claims) {
 function teknik_folder_download_url($body) {
   $folderId = teknik_folder_id_from($body['folderId'] ?? null);
   if (!teknik_folder_exists(teknik_load(), $folderId)) respond(404, ['error' => 'not_found']);
-  respond(200, ['ok' => true, 'query' => 'teknik_dl=' . teknik_sign_claims(['d' => $folderId ?? '', 'e' => time() + 600])]);
+  respond(200, ['ok' => true, 'query' => 'teknik_dl=' . teknik_sign_claims(['d' => $folderId ?? '', 'e' => time() + 600, 's' => teknik_store_key()])]);
 }
 
 // GET ?teknik_dl=<token>. Plain-text errors: this is a browser navigation,
@@ -6984,7 +7036,11 @@ function teknik_serve_download($token) {
   if (!hash_equals($mac, $parts[1])) $fail(403, 'Ugyldigt link.');
   $claims = json_decode((string) teknik_b64url_decode($parts[0]), true);
   if (!is_array($claims) || !is_int($claims['e'] ?? null)) $fail(400, 'Ugyldigt link.');
-  if ($claims['e'] < time()) $fail(403, 'Linket er udløbet. Gå tilbage til Teknikken og prøv igen.');
+  // Which store the link is for (signed, so it can't be swapped); none = Teknikken.
+  $store = $claims['s'] ?? 'teknikken';
+  if (!is_string($store) || !isset(teknik_stores()[$store])) $fail(400, 'Ugyldigt link.');
+  $GLOBALS['TEKNIK_STORE'] = $store;
+  if ($claims['e'] < time()) $fail(403, 'Linket er udløbet. Gå tilbage til ' . teknik_store()['title'] . ' og prøv igen.');
   if (isset($claims['d'])) {
     $folderId = $claims['d'] === '' ? null : $claims['d'];
     if ($folderId !== null && !teknik_valid_id($folderId)) $fail(400, 'Ugyldigt link.');
@@ -7090,8 +7146,9 @@ function teknik_zip_entries($doc, $rootId) {
     }
   };
   $root = $rootId === null ? null : teknik_find_folder($doc, $rootId);
-  $walk($rootId, teknik_zip_component($root ? $root['name'] : 'Teknikken') . '/');
-  return [$entries, $root ? $root['name'] : 'Teknikken'];
+  $title = $root ? $root['name'] : teknik_store()['title'];
+  $walk($rootId, teknik_zip_component($title) . '/');
+  return [$entries, $title];
 }
 
 function teknik_find_folder($doc, $folderId) {

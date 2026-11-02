@@ -105,6 +105,11 @@ define('REKVISIT_DATA_DIR', '/absolute/path/to/matrevy-rekvisit-data');
 // teknikken.json + files/<fileId> + uploads/, created on first write.
 define('TEKNIK_DATA_DIR', '/absolute/path/to/matrevy-teknikken-data');
 
+// Absolute path on the server for Sangere's file store (the singers'
+// practice audio, 500 MB in total; same code and layout as Teknikken's,
+// with sangere.json). Never a web-served folder. Must be PHP-writable.
+define('SANGERE_DATA_DIR', '/absolute/path/to/matrevy-sangere-data');
+
 // Absolute path on the server for Koordinator's account logins (Google,
 // YouTube, Spotify: e-mail, password, phone). Secret: never a web-served
 // folder, admin-only actions. Layout: logins.json, created on first save.

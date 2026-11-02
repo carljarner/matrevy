@@ -21,6 +21,7 @@ Plain HTML/CSS/JS with one PHP file as the write API. There's no framework and n
 | Ninjas, Mics & Cues (under "Redskaber") | `ninjas.html` | Revyst; mic plan and cue sheet for the current revy |
 | Rekvisitten (under "Redskaber") | `rekvisitten.html` | Revyst; the prop crew's sheets per revy (Rekvisitter, Hvem hvornår?, Indkøbsliste, Brændimprenering, Regnskab) |
 | Teknikken (under "Redskaber") | `teknikken.html` | Revyst; under udvikling |
+| Sangere (under "Redskaber") | `sangere.html` | Revyst; practice audio for the singers, deleted after the revy |
 | Koordinator | `koordinator.html` | Admin |
 
 There are four levels: public, revyst, boss and admin. Each level beyond public has a shared password, handed out verbally. Logging in happens top right.
@@ -125,7 +126,7 @@ Most upkeep is automatic: Ubuntu installs security updates, Coolify updates itse
 
 ### Backups
 
-`/srv` (all matrevy data, public and private) is backed up every night at 03:30 with **restic** to Backblaze B2. It keeps 7 daily, 4 weekly and 12 monthly snapshots. `/srv/matrevy/data/teknikken` (Teknikken's temporary videos and slides, up to 5 GB in total) is excluded: the nightly job is `/usr/local/bin/backup-srv.sh`, whose line reads `restic backup /srv --tag nightly --exclude /srv/matrevy/data/teknikken`. The credentials are in `/root/.restic-env` on web-1. Keep `RESTIC_PASSWORD` in the password manager, because without it the backups can't be decrypted.
+`/srv` (all matrevy data, public and private) is backed up every night at 03:30 with **restic** to Backblaze B2. It keeps 7 daily, 4 weekly and 12 monthly snapshots. `/srv/matrevy/data/teknikken` (Teknikken's temporary videos and slides, up to 5 GB in total) and `/srv/matrevy/data/sangere` (Sangere's temporary practice audio, up to 500 MB) are excluded: the nightly job is `/usr/local/bin/backup-srv.sh`, whose line reads `restic backup /srv --tag nightly --exclude /srv/matrevy/data/teknikken --exclude /srv/matrevy/data/sangere`. The credentials are in `/root/.restic-env` on web-1. Keep `RESTIC_PASSWORD` in the password manager, because without it the backups can't be decrypted.
 
 Restore a single folder:
 

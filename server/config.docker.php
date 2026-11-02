@@ -35,6 +35,7 @@ define('NINJAS_DATA_DIR', matrevy_env('NINJAS_DATA_DIR', '/data/ninjas'));
 define('LOKALER_DATA_DIR', matrevy_env('LOKALER_DATA_DIR', '/data/lokaler'));
 define('REKVISIT_DATA_DIR', matrevy_env('REKVISIT_DATA_DIR', '/data/rekvisitten'));
 define('TEKNIK_DATA_DIR', matrevy_env('TEKNIK_DATA_DIR', '/data/teknikken'));
+define('SANGERE_DATA_DIR', matrevy_env('SANGERE_DATA_DIR', '/data/sangere'));
 define('KOORD_DATA_DIR', matrevy_env('KOORD_DATA_DIR', '/data/koordinator'));
 
 // Writable public site files (data/, archive/, posts/, wiki/, plus the

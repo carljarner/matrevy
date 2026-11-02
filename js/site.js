@@ -41,6 +41,7 @@ const SITE_PAGES = [
   { href: 'kostumetinder.html', label: 'Kostumetinder', level: 'revyst', group: 'redskaber' },
   { href: 'ninjas.html',      label: 'Ninjas, Mics & Cues', level: 'revyst', group: 'redskaber' },
   { href: 'rekvisitten.html', label: 'Rekvisitten', level: 'revyst', group: 'redskaber' },
+  { href: 'sangere.html',     label: 'Sangere',     level: 'revyst', group: 'redskaber' },
   { href: 'teknikken.html',   label: 'Teknikken',   level: 'revyst', group: 'redskaber' },
   { href: 'schedule.html',    label: 'Øveplan',     level: 'revyst', group: 'redskaber' },
   { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
