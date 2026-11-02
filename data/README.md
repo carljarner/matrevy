@@ -121,8 +121,9 @@ way, via the Manus tab's title/author/melody header field (see CLAUDE.md's Manus
 }
 ```
 
-- Rebuilt by Manus on every save from the names in the scenes' roles (`\role{code}[Name]`); a name no scene uses drops out. Check and rename names from Manus → Rollefordeling → Cast list → Rediger.
+- Rebuilt by Manus on every save from the names in the scenes' roles (`\role{code}[Name]`); a name no scene uses drops out, except the Sangboss. Check and rename names from Manus → Rollefordeling → Cast list → Rediger.
 - `placeholder` (optional): `true` = not a real person (the Cast list's "Revyst" unticked, e.g. "Skuespiller"). It gets no personal manuscript and Øveplan ignores it. When missing, a built-in list decides (Skuespiller, Danser, Sanger, Rapper, Revyst, Statist(er), Ninja, Kor, …, optionally followed by a number); `false` overrides it.
+- `sangboss` (optional): `true` on at most one entry, set from the Cast list's Sangboss line (`manus_set_sangboss`). It stays on the roster even when no scene uses the name, so the Sangboss is in Fravær and Øveplan.
 
 ## Schema: calendar.json
 

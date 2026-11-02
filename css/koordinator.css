@@ -925,31 +925,6 @@
   padding: 0 0.4rem;
 }
 
-/* ▾ beside a form row's name: opens the connect-to-cast menu. */
-.koord-fra-link-btn {
-  flex: none;
-  font: inherit;
-  font-size: 0.75rem;
-  line-height: 1;
-  padding: 0.2rem 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .koord-fra-link-btn:hover {
-    border-color: var(--accent-warm);
-  }
-}
-
-.koord-fra-link-btn.koord-fra-name-unknown {
-  color: var(--danger);
-  border-color: var(--danger);
-}
-
 /* "Læg linjerne sammen?": centered title, Annuller/Læg sammen in the
    bottom corners, one line per overwritten day. */
 .koord-fra-combine-modal h2 {
@@ -1001,10 +976,52 @@
   overflow-wrap: anywhere;
 }
 
-.koord-fra-suggest-pop {
-  max-height: 14rem;
-  overflow-y: auto;
-  min-width: 9rem;
+/* The name cell: the cast list's name, not editable; a click opens the
+   menu of form answers behind the row (the inline field look, so it lines
+   up with the day cells). */
+.koord-fra-name-btn {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.koord-fra-name-btn.koord-fra-name-unknown {
+  color: var(--danger);
+}
+
+@media (hover: hover) {
+  .koord-fra-name-btn:hover { border-color: var(--border); }
+}
+
+.koord-fra-name-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+}
+
+/* "Ikke på rollelisten": above the rows the cast list doesn't have. */
+.koord-fra-divider td {
+  padding: 0.6rem 0.4rem 0.2rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+.koord-fra-link-none {
+  color: var(--text-muted);
 }
 
 .koord-fra-link-pop {

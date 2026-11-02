@@ -2854,7 +2854,6 @@ let fravaerBase = null;           // the rows as this tab last knew them on the 
 let fravaerLastSavedSnapshot = '';
 let koordFraConnection = null;
 let koordFraSaveError = null;
-let koordFraDragItem = null;
 let koordFraRefreshed = false;    // re-read once per page load (imports since the embed)
 
 function koordFraNormalizeRow(r) {
@@ -3307,9 +3306,11 @@ function koordFraOpenLinkMenu(anchor, row) {
   let close = null;
   // One line per submission; a combined row's lines can be taken out again.
   // Oldest first; a row typed by hand counts as oldest.
-  const leaves = koordFraLeaves(row)
-    .sort((x, y) => koordFraLatestResponse(x).localeCompare(koordFraLatestResponse(y)));
+  const fromForm = Boolean((row.sources && row.sources.length) || row.parts);
+  const leaves = fromForm ? koordFraLeaves(row)
+    .sort((x, y) => koordFraLatestResponse(x).localeCompare(koordFraLatestResponse(y))) : [];
   pop.appendChild(el('div', 'koord-fra-link-heading', leaves.length > 1 ? 'Formularer lagt sammen' : 'Formular'));
+  if (!fromForm) pop.appendChild(el('div', 'koord-fra-link-leaf koord-fra-link-none', 'Ingen svar fra formularen'));
   const list = el('div', 'koord-fra-link-leaves');
   leaves.forEach((leaf) => {
     const line = el('div', 'koord-fra-link-leaf');
@@ -3326,6 +3327,12 @@ function koordFraOpenLinkMenu(anchor, row) {
     list.appendChild(line);
   });
   pop.appendChild(list);
+  // Reconnecting is for an answer matched to the wrong person (or to
+  // nobody); a row typed here has nothing to reconnect.
+  if (!fromForm) {
+    close = siteOpenFieldPopup(anchor, pop);
+    return;
+  }
   pop.appendChild(el('div', 'koord-fra-link-heading', 'Forbundet til'));
   function addRow(label, selected, onPick) {
     const btn = el('button', 'site-list-row', label);
@@ -3349,70 +3356,6 @@ function koordFraOpenLinkMenu(anchor, row) {
   close = siteOpenFieldPopup(anchor, pop);
 }
 
-// Cast-name suggestions under a Navn field, in the site's popup style
-// (the native <datalist> can't be styled). Filters as you type; arrow keys
-// + Enter pick. A copy of Ninjas' ninjasWireSuggestions().
-function koordFraWireSuggestions(input, getOptions, onPick) {
-  let active = -1;
-  let rows = [];
-  const norm = (v) => koordFraNameTokens(v).join(' ');
-
-  function close() {
-    if (siteFieldPopupAnchor === input) siteCloseFieldPopup();
-    rows = [];
-    active = -1;
-  }
-
-  function paintActive() {
-    rows.forEach((r, i) => r.classList.toggle('site-list-selected', i === active));
-    if (rows[active]) rows[active].scrollIntoView({ block: 'nearest' });
-  }
-
-  function open() {
-    const typed = norm(input.value);
-    const options = getOptions().filter((opt) => {
-      const n = norm(opt);
-      return n !== typed && (typed === '' || n.includes(typed));
-    });
-    if (!options.length) { close(); return; }
-    const pop = el('div', 'site-field-pop site-dd-pop koord-fra-suggest-pop');
-    // Keep focus in the input, so no blur fires first.
-    pop.addEventListener('mousedown', (e) => e.preventDefault());
-    rows = options.map((opt) => {
-      const row = el('button', 'site-list-row', opt);
-      row.type = 'button';
-      row.tabIndex = -1;
-      row.addEventListener('click', () => pick(opt));
-      pop.appendChild(row);
-      return row;
-    });
-    active = -1;
-    siteOpenFieldPopup(input, pop);
-  }
-
-  function pick(opt) {
-    close();
-    input.value = opt;
-    onPick(opt);
-  }
-
-  input.addEventListener('focus', open);
-  input.addEventListener('input', open);
-  input.addEventListener('blur', close);
-  input.addEventListener('keydown', (e) => {
-    if (!rows.length || e.shiftKey) return; // Shift+arrows move in the grid
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      e.preventDefault();
-      const n = rows.length;
-      active = e.key === 'ArrowDown' ? (active + 1) % n : (active - 1 + n) % n;
-      paintActive();
-    } else if (e.key === 'Enter' && active >= 0) {
-      e.preventDefault();
-      pick(rows[active].textContent);
-    }
-  });
-}
-
 function koordFraTextInput(value, className, onInput) {
   const input = document.createElement('input');
   input.type = 'text';
@@ -3429,37 +3372,51 @@ function koordFraRowHasContent(row) {
   return Boolean((row.name || '').trim()) || Object.keys(row.days || {}).length > 0;
 }
 
-function koordFraWireDrag(rowEl, row, rows) {
-  rowEl.draggable = true;
-  rowEl.addEventListener('dragstart', (e) => {
-    koordFraDragItem = row;
-    e.dataTransfer.effectAllowed = 'move';
-    const ghost = koordMpGetDragImageEl();
-    ghost.replaceChildren(el('div', 'koord-mp-drag-image-line', (row.name || '').trim() || 'Række'));
-    e.dataTransfer.setDragImage(ghost, 12, 16);
-  });
-  rowEl.addEventListener('dragend', () => { koordFraDragItem = null; });
-  koordWireDropHighlight(rowEl, () => {
-    if (koordFraDragItem && koordFraDragItem !== row && rows.includes(koordFraDragItem)) {
-      koordMoveDraftItem(rows, koordFraDragItem, row, renderFraGrid);
-      koordFraUpdateSaveStatus();
-    }
-  });
+// A cast member without a saved row yet gets a row with this id, saved on
+// the first cell typed in. Derived from the name, so two tabs starting the
+// same person's row merge by id instead of making two (FNV-1a).
+function koordFraCastRowId(name) {
+  let h = 0x811c9dc5;
+  for (const ch of koordFraNameKey(name)) {
+    h ^= ch.codePointAt(0);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return 'c' + h.toString(16).padStart(8, '0');
 }
 
-// Structural render — on add/remove/drag/save/range change, never on a
-// keystroke (that would steal focus).
+// The rows to show: one per cast member (Manus's Cast list, the Sangboss
+// included), alphabetically, then saved rows whose name isn't on it (an
+// answer the import couldn't connect, an old row typed by hand).
+function koordFraDisplayRows() {
+  const byName = (a, b) => (a.name || '').localeCompare(b.name || '', 'da', { sensitivity: 'base' });
+  const stored = fravaerDraft.rows;
+  const used = new Set();
+  const cast = koordFraCastNames().slice().sort((a, b) => a.localeCompare(b, 'da', { sensitivity: 'base' }));
+  const castRows = cast.map((name) => {
+    const key = koordFraNameKey(name);
+    const row = stored.find((r) => !used.has(r) && koordFraNameKey(r.name) === key);
+    if (row) { used.add(row); return row; }
+    return { id: koordFraCastRowId(name), name, days: {} };
+  });
+  const others = stored.filter((r) => !used.has(r)).sort(byName);
+  return { castRows, others };
+}
+
+// Structural render — on remove/save/range change, never on a keystroke
+// (that would steal focus).
 function renderFraGrid() {
   const mount = document.getElementById('koord-fra-grid');
   if (!mount || !fravaerDraft) return;
   mount.textContent = '';
   const days = koordLokalerDays();
   const rows = fravaerDraft.rows;
-  const castNames = koordFraCastNames();
-  const castKeys = new Set(castNames.map((n) => n.trim().toLowerCase()));
+  const { castRows, others } = koordFraDisplayRows();
 
   if (!days.length) {
     mount.appendChild(el('p', 'koord-lok-empty', 'Ingen øvedage i kalenderen i den valgte periode.'));
+  }
+  if (!castRows.length && !others.length) {
+    mount.appendChild(el('p', 'koord-lok-empty', 'Ingen på rollelisten endnu. Navnene kommer fra Manus.'));
   }
 
   const wrap = el('div', 'koord-lok-table-wrap');
@@ -3486,69 +3443,31 @@ function renderFraGrid() {
   table.appendChild(thead);
 
   const tbody = el('tbody');
-  rows.forEach((row) => {
+  function addRow(row, onCast) {
     const tr = el('tr', 'koord-lok-tr');
-    koordFraWireDrag(tr, row, rows);
 
+    // The name can't be edited here (it comes from the cast list); the
+    // whole cell opens the menu of form answers behind it.
     const nameTd = el('td', 'koord-lok-td-room');
-    const nameWrap = el('div', 'koord-lok-room-wrap');
-    nameWrap.appendChild(el('span', 'boss-manage-drag-handle', '⠿'));
-    const nameInput = koordFraTextInput(row.name, 'koord-lok-room-input', (v) => {
-      row.name = v;
-      paintName();
+    const nameBtn = el('button', 'koord-fra-name-btn', (row.name || '').trim() || 'Uden navn');
+    nameBtn.type = 'button';
+    if (!onCast) nameBtn.classList.add('koord-fra-name-unknown');
+    const tip = [(row.name || '').trim()];
+    if (!onCast) tip.push('Ikke på rollelisten, så Øveplan kan ikke hente det');
+    const typed = koordFraTypedNames(row);
+    if (typed.length) tip.push(`Skrevet i formularen: ${typed.join(', ')}`);
+    nameBtn.title = tip.filter(Boolean).join('\n');
+    nameBtn.addEventListener('click', () => {
+      siteToggleFieldPopup(nameBtn, () => koordFraOpenLinkMenu(nameBtn, row));
     });
-    nameInput.placeholder = 'Navn';
-    // The name before this edit, so combining can be cancelled.
-    let nameAtFocus = row.name;
-    nameInput.addEventListener('focus', () => { nameAtFocus = row.name; });
-    koordFraWireSuggestions(nameInput, () => castNames, (name) => {
-      row.name = name;
-      paintName();
-      koordFraUpdateSaveStatus();
-      combineIfDuplicate();
-    });
-    // A name Øveplan can't match to the cast roster is tinted, with why.
-    function paintName() {
-      const name = nameInput.value.trim();
-      const unknown = Boolean(name) && castKeys.size > 0 && !castKeys.has(name.toLowerCase());
-      nameInput.classList.toggle('koord-fra-name-unknown', unknown);
-      const parts = [];
-      if (name) parts.push(name);
-      if (unknown) parts.push('Ikke på rollelisten, så Øveplan kan ikke hente det');
-      const typed = koordFraTypedNames(row);
-      if (typed.length) parts.push(`Skrevet i formularen: ${typed.join(', ')}`);
-      nameInput.title = parts.join('\n');
-      if (linkBtn) linkBtn.classList.toggle('koord-fra-name-unknown', unknown);
-    }
-    // Typing a name that another row has merges the two, once on blur.
-    // Once per edit: a picked suggestion is followed by a change event on
-    // blur (the warning modal takes focus), and the grid re-renders after.
-    let combineAsked = false;
-    function combineIfDuplicate() {
-      if (combineAsked || !koordFraSameNameRows(rows, row).length) return;
-      combineAsked = true;
-      koordFraAfterRename(row, nameAtFocus);
-    }
-    nameInput.addEventListener('change', combineIfDuplicate);
-    let linkBtn = null;
-    if ((row.sources && row.sources.length) || row.parts) {
-      linkBtn = el('button', 'koord-fra-link-btn', '▾');
-      linkBtn.type = 'button';
-      linkBtn.title = 'Forbind til en på rollelisten';
-      linkBtn.setAttribute('aria-label', 'Forbind til en på rollelisten');
-      linkBtn.addEventListener('click', () => {
-        siteToggleFieldPopup(linkBtn, () => koordFraOpenLinkMenu(linkBtn, row));
-      });
-    }
-    paintName();
-    nameWrap.appendChild(nameInput);
-    if (linkBtn) nameWrap.appendChild(linkBtn);
-    nameTd.appendChild(nameWrap);
+    nameTd.appendChild(nameBtn);
     tr.appendChild(nameTd);
 
     days.forEach((day) => {
       const td = el('td', 'koord-lok-td-cell');
       const input = koordFraTextInput(row.days[day.date], 'koord-lok-cell-input', (v) => {
+        // A cast member's first cell saves their row.
+        if (!rows.includes(row)) rows.push(row);
         if (v.trim()) row.days[day.date] = v;
         else delete row.days[day.date];
         input.title = v;
@@ -3560,50 +3479,39 @@ function renderFraGrid() {
     });
 
     const removeTd = el('td', 'koord-lok-td-remove');
-    removeTd.appendChild(koordLokRemoveBtn('Fjern linje', () => {
-      const remove = () => {
-        const idx = rows.indexOf(row);
-        if (idx !== -1) rows.splice(idx, 1);
-        koordFraUpdateSaveStatus();
-        renderFraGrid();
-      };
-      if (!koordFraRowHasContent(row)) { remove(); return; }
-      koordMpDeleteConfirm(
-        row.name ? `Fjern "${row.name}"?` : 'Fjern denne linje?',
-        (row.sources && row.sources.length) ? 'Linjen er hentet fra formularen og kommer ikke igen.' : null,
-        remove
-      );
-    }));
+    // A cast member's row would just come back.
+    if (!onCast) {
+      removeTd.appendChild(koordLokRemoveBtn('Fjern linje', () => {
+        const remove = () => {
+          const idx = rows.indexOf(row);
+          if (idx !== -1) rows.splice(idx, 1);
+          koordFraUpdateSaveStatus();
+          renderFraGrid();
+        };
+        if (!koordFraRowHasContent(row)) { remove(); return; }
+        koordMpDeleteConfirm(
+          row.name ? `Fjern "${row.name}"?` : 'Fjern denne linje?',
+          (row.sources && row.sources.length) ? 'Linjen er hentet fra formularen og kommer ikke igen.' : null,
+          remove
+        );
+      }));
+    }
     tr.appendChild(removeTd);
     tbody.appendChild(tr);
-  });
-
-  // Drop-tail row: the only way to drop a row after the last one.
-  const tailTr = el('tr', 'koord-lok-tr koord-lok-drop-tail');
-  const tailTd = el('td');
-  tailTd.colSpan = days.length + 2;
-  tailTr.appendChild(tailTd);
-  koordWireDropHighlight(tailTr, () => {
-    if (koordFraDragItem && rows.includes(koordFraDragItem)) {
-      koordMoveDraftItem(rows, koordFraDragItem, null, renderFraGrid);
-      koordFraUpdateSaveStatus();
-    }
-  });
-  tbody.appendChild(tailTr);
+  }
+  castRows.forEach((row) => addRow(row, true));
+  if (others.length) {
+    const divider = el('tr', 'koord-fra-divider');
+    const td = el('td', null, 'Ikke på rollelisten');
+    td.colSpan = days.length + 2;
+    divider.appendChild(td);
+    tbody.appendChild(divider);
+    others.forEach((row) => addRow(row, false));
+  }
   table.appendChild(tbody);
   koordLokWireGridKeys(table);
   wrap.appendChild(table);
   mount.appendChild(wrap);
-
-  const addRow = el('div', 'koord-lok-add-row');
-  addRow.appendChild(koordLokAddPlus('Tilføj linje', () => {
-    rows.push({ id: koordMpNewId('p'), name: '', days: {} });
-    koordFraUpdateSaveStatus();
-    renderFraGrid();
-    const inputs = mount.querySelectorAll('.koord-lok-room-input');
-    if (inputs.length) inputs[inputs.length - 1].focus();
-  }));
-  mount.appendChild(addRow);
 }
 
 function koordFraPaintConnection() {
@@ -3803,7 +3711,7 @@ function renderFravaerCard(container) {
 
   const topRow = el('div', 'koord-lok-top');
   const hint = el('p', 'koord-lok-hint',
-    'Samme dage som Lokalebooking. Skriv tidsrummet, personen er væk (fx 14:00-16:00, fra 15, til 13 eller hele dagen).');
+    'Samme dage som Lokalebooking, og alle fra Manus\' Cast list (med sangbossen). Skriv tidsrummet, personen er væk (fx 14:00-16:00, fra 15, til 13 eller hele dagen). Klik på et navn for at se formularsvarene bag det.');
   hint.appendChild(document.createElement('br'));
   hint.appendChild(document.createTextNode('Øveplan kan hente det ind under Fraværende revyster.'));
   topRow.appendChild(hint);

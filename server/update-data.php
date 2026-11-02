@@ -545,10 +545,11 @@ if ($action === 'manuscripts_sync_selection') {
 
 // Manus's merge-before-save read, its save-free PDF trigger, removing one
 // pool record ("Fjern"), setting pool submissions' durations, Stjerneark's per-click save and the Program tab's
-// merge read, and the Cast list's Revyst flag (manus_set_cast) — boss-level like the `manus`/`manuscripts`
+// merge read, and the Cast list's Revyst flag (manus_set_cast) and Sangboss
+// (manus_set_sangboss) — boss-level like the `manus`/`manuscripts`
 // resources. Single-purpose actions rather than full-array saves, so a tab
 // with stale data can't overwrite anything through them.
-if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'manus_set_cast', 'program_read', 'resource_read'], true)) {
+if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'manus_set_cast', 'manus_set_sangboss', 'program_read', 'resource_read'], true)) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
@@ -558,6 +559,7 @@ if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status'
   else if ($action === 'manus_pdf_status') manus_pdf_status();
   else if ($action === 'manus_set_stars') manus_set_stars($body);
   else if ($action === 'manus_set_cast') manus_set_cast($body);
+  else if ($action === 'manus_set_sangboss') manus_set_sangboss($body);
   else if ($action === 'program_read') program_read();
   else if ($action === 'manuscripts_set_durations') manuscripts_set_durations($body);
   else manuscripts_remove($body);
@@ -7277,7 +7279,8 @@ function save_manus($payload) {
   }
   foreach ($castList as $c) {
     if (!is_array($c) || !isset($c['name'], $c['index'])
-        || (array_key_exists('placeholder', $c) && !is_bool($c['placeholder']))) {
+        || (array_key_exists('placeholder', $c) && !is_bool($c['placeholder']))
+        || (array_key_exists('sangboss', $c) && !is_bool($c['sangboss']))) {
       respond(400, ['error' => 'invalid_cast_shape']);
     }
   }
@@ -8565,6 +8568,57 @@ function manus_set_cast($body) {
     $cast = $list;
     return $json;
   }, 'Opdater revyst-markering i cast.json via Manus');
+  respond(200, ['ok' => true, 'cast' => $cast]);
+}
+
+// Manus's Cast list: who the Sangboss is (`name`, '' = nobody). The
+// Sangboss is usually in no scene, so the name gets its own data/cast.json
+// entry flagged `sangboss: true`, which Manus's Gem keeps (manusMergeCastRoster)
+// and which puts them in Fravær and Øveplan like anyone else. At most one
+// entry carries the flag; the previous one is dropped when no scene uses it.
+function manus_set_sangboss($body) {
+  $name = $body['name'] ?? null;
+  if (!is_string($name)) respond(400, ['error' => 'invalid_shape']);
+  $name = trim(preg_replace('/\s+/u', ' ', $name));
+  if (mb_strlen($name) > 100 || preg_match('/[\[\]]/', $name)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $used = [];
+  [$status, $current] = github_api('GET', 'contents/data/scenes.json');
+  if ($status === 200) {
+    $scenes = json_decode(base64_decode($current['content']), true);
+    foreach ((is_array($scenes['acts'] ?? null) ? $scenes['acts'] : []) as $act) {
+      foreach ((is_array($act['scenes'] ?? null) ? $act['scenes'] : []) as $scene) {
+        foreach ((is_array($scene['cast'] ?? null) ? $scene['cast'] : []) as $c) {
+          if (is_array($c) && is_string($c['name'] ?? null)) $used[$c['name']] = true;
+        }
+      }
+    }
+  } else {
+    respond(502, ['error' => 'github_read_failed', 'file' => 'data/scenes.json', 'status' => $status]);
+  }
+  $cast = [];
+  update_file('data/cast.json', function ($json) use ($name, $used, &$cast) {
+    $list = [];
+    $found = false;
+    foreach ((is_array($json['cast'] ?? null) ? $json['cast'] : []) as $c) {
+      if (!is_array($c)) continue;
+      $entryName = $c['name'] ?? null;
+      if ($name !== '' && $entryName === $name) {
+        $c['sangboss'] = true;
+        $found = true;
+      } else if (!empty($c['sangboss'])) {
+        if (!isset($used[$entryName])) continue;
+        unset($c['sangboss']);
+      }
+      $list[] = $c;
+    }
+    if ($name !== '' && !$found) $list[] = ['name' => $name, 'sangboss' => true];
+    foreach ($list as $i => $c) $list[$i]['index'] = $i;
+    $json['cast'] = $list;
+    $cast = $list;
+    return $json;
+  }, 'Opdater sangboss i cast.json via Manus');
   respond(200, ['ok' => true, 'cast' => $cast]);
 }
 

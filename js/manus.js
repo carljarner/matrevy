@@ -5063,6 +5063,141 @@ function manusPencilIcon() {
   return svg;
 }
 
+// The Sangboss: one roster entry flagged `sangboss` (usually in no scene),
+// so they count in Fravær and Øveplan. Saved live (manus_set_sangboss),
+// like the Revyst checkbox.
+function manusCastSangbossName() {
+  const entry = (getEffectiveCastData() || []).find(c => c && c.sangboss === true);
+  return entry ? entry.name : '';
+}
+
+function renderCastListSangboss() {
+  const line = document.createElement('div');
+  line.className = 'manus-castlist-sangboss';
+  const label = document.createElement('label');
+  label.className = 'manus-castlist-sangboss-label';
+  label.textContent = 'Sangboss';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'manus-castlist-sangboss-input';
+  input.id = 'manus-castlist-sangboss';
+  input.placeholder = 'Navn';
+  input.maxLength = 100;
+  label.htmlFor = input.id;
+  let saved = manusCastSangbossName();
+  input.value = saved;
+  let busy = false;
+
+  async function commit() {
+    const name = input.value.replace(/\s+/g, ' ').trim();
+    input.value = name;
+    if (name === saved || busy) return;
+    if (/[\[\]]/.test(name)) {
+      siteShowToast('Navnet må ikke indeholde [ eller ].');
+      input.value = saved;
+      return;
+    }
+    busy = true;
+    input.disabled = true;
+    const result = await manusApi('manus_set_sangboss', { name });
+    busy = false;
+    input.disabled = false;
+    if (!result.ok) {
+      if (result.message) siteShowToast(result.message);
+      input.value = saved;
+      return;
+    }
+    saved = name;
+    setManusSavedOverride({ scenes: getEffectiveScenesData(), cast: result.data.cast });
+    siteShowToast(name ? `${name} er sangboss` : 'Ingen sangboss');
+  }
+
+  manusWireNameSuggestions(input,
+    () => manusCastListEntries().filter(i => !i.placeholder).map(i => i.name),
+    commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape' && input.value !== saved) {
+      // Only revert; a second Escape closes the modal.
+      e.preventDefault();
+      e.stopPropagation();
+      input.value = saved;
+    }
+  });
+  input.addEventListener('change', commit);
+
+  line.append(label, input);
+  return line;
+}
+
+// Cast-name suggestions under a text field, in the site's popup style
+// (the native <datalist> can't be styled). Filters as you type; arrow keys
+// + Enter pick. A copy of Ninjas' ninjasWireSuggestions().
+function manusWireNameSuggestions(input, getOptions, onPick) {
+  let active = -1;
+  let rows = [];
+  const norm = (v) => manusCastNormalize(v);
+
+  function close() {
+    if (siteFieldPopupAnchor === input) siteCloseFieldPopup();
+    rows = [];
+    active = -1;
+  }
+
+  function paintActive() {
+    rows.forEach((r, i) => r.classList.toggle('site-list-selected', i === active));
+    if (rows[active]) rows[active].scrollIntoView({ block: 'nearest' });
+  }
+
+  function open() {
+    const typed = norm(input.value);
+    const options = getOptions().filter((opt) => {
+      const n = norm(opt);
+      return n !== typed && (typed === '' || n.includes(typed));
+    });
+    if (!options.length) { close(); return; }
+    const pop = document.createElement('div');
+    pop.className = 'site-field-pop site-dd-pop manus-suggest-pop';
+    // Keep focus in the input, so no blur fires first.
+    pop.addEventListener('mousedown', (e) => e.preventDefault());
+    rows = options.map((opt) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'site-list-row';
+      row.textContent = opt;
+      row.tabIndex = -1;
+      row.addEventListener('click', () => pick(opt));
+      pop.appendChild(row);
+      return row;
+    });
+    active = -1;
+    siteOpenFieldPopup(input, pop);
+  }
+
+  function pick(opt) {
+    close();
+    input.value = opt;
+    onPick(opt);
+  }
+
+  input.addEventListener('focus', open);
+  input.addEventListener('input', open);
+  input.addEventListener('blur', close);
+  input.addEventListener('keydown', (e) => {
+    if (!rows.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const n = rows.length;
+      active = e.key === 'ArrowDown' ? (active + 1) % n : (active - 1 + n) % n;
+      paintActive();
+    } else if (e.key === 'Enter' && active >= 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      pick(rows[active].textContent);
+    }
+  });
+}
+
 function openCastListModal() {
   // The Omdøb dialog stacked on top, if open: Escape (and ✕) closes just
   // that one, like openRoleSceneModal's confirm.
@@ -5078,12 +5213,14 @@ function openCastListModal() {
 
   const intro = document.createElement('p');
   intro.className = 'manus-castlist-intro';
-  intro.textContent = 'Alle navne fra rollerne samlet. Tjek for stavefejl, og slå Revyst fra for navne, der ikke er en rigtig person (fx Skuespiller), så får de ikke eget manus og tælles ikke med i Øveplan.';
+  intro.textContent = 'Alle navne fra rollerne samlet. Tjek for stavefejl, og slå Revyst fra for navne, der ikke er en rigtig person (fx Skuespiller), så får de ikke eget manus og tælles ikke med i Øveplan. Sangbossen kommer med på rollelisten (og dermed i Fravær og Øveplan), selvom de ikke er med i nogen scene.';
   form.appendChild(intro);
 
   const summary = document.createElement('p');
   summary.className = 'manus-castlist-summary';
   form.appendChild(summary);
+
+  form.appendChild(renderCastListSangboss());
 
   const list = document.createElement('div');
   list.className = 'manus-castlist-list';
@@ -6479,7 +6616,8 @@ function manusMergeCastRoster(theirsCast, scenesActs, renames = {}, flags = {}) 
   const seen = new Set();
   const out = [];
   for (const c of entries) {
-    if (!used.has(c.name) || seen.has(c.name)) continue;
+    // The Sangboss is usually in no scene, but stays on the roster.
+    if ((!used.has(c.name) && c.sangboss !== true) || seen.has(c.name)) continue;
     seen.add(c.name);
     out.push(c);
   }
