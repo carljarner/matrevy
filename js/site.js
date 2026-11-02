@@ -18,7 +18,8 @@
 const SITE_API_ENDPOINT = '/update-data.php';
 const SITE_AUTH_KEY = 'matrevy-auth';
 
-// The one place a page is registered. level:
+// The one place a page is registered. `href` is the page file without
+// `.html` (the URL is clean, see sitePageUrl()). level:
 //   'public' — always visible
 //   'satyr'/'revyst' — greyed-out in nav until that login (a logged-in
 //     satyr doesn't see revyst pages at all, see siteNavItemVisibility)
@@ -29,22 +30,22 @@ const SITE_AUTH_KEY = 'matrevy-auth';
 // group; no nav/CSS changes needed per tool. A group's members are always
 // listed alphabetically (Danish collation), whatever their order here.
 const SITE_PAGES = [
-  { href: 'index.html',       label: 'Forside',     level: 'public' },
-  { href: 'kalender.html',    label: 'Kalender',    level: 'public' },
-  { href: 'arkiv.html',       label: 'Arkiv',       level: 'revyst' },
-  { href: 'wiki.html',        label: 'Wiki',        level: 'revyst' },
-  { href: 'manus.html',       label: 'Manus',       level: 'revyst' },
-  { href: 'budget.html',      label: 'Budget',      level: 'satyr' },
-  { href: 'forms.html',       label: 'Formularer',  level: 'revyst' },
-  { href: 'faellesspisning.html', label: 'Fællesspisning', level: 'satyr' },
-  { href: 'band.html',        label: 'Bandet',      level: 'revyst', group: 'redskaber' },
-  { href: 'kostumetinder.html', label: 'Kostumetinder', level: 'revyst', group: 'redskaber' },
-  { href: 'ninjas.html',      label: 'Ninjas, Mics & Cues', level: 'revyst', group: 'redskaber' },
-  { href: 'rekvisitten.html', label: 'Rekvisitten', level: 'revyst', group: 'redskaber' },
-  { href: 'sangere.html',     label: 'Sangere',     level: 'revyst', group: 'redskaber' },
-  { href: 'teknikken.html',   label: 'Teknikken',   level: 'revyst', group: 'redskaber' },
-  { href: 'schedule.html',    label: 'Øveplan',     level: 'revyst', group: 'redskaber' },
-  { href: 'koordinator.html', label: 'Koordinator', level: 'admin' },
+  { href: 'index',           label: 'Forside',     level: 'public' },
+  { href: 'kalender',        label: 'Kalender',    level: 'public' },
+  { href: 'arkiv',           label: 'Arkiv',       level: 'revyst' },
+  { href: 'wiki',            label: 'Wiki',        level: 'revyst' },
+  { href: 'manus',           label: 'Manus',       level: 'revyst' },
+  { href: 'budget',          label: 'Budget',      level: 'satyr' },
+  { href: 'forms',           label: 'Formularer',  level: 'revyst' },
+  { href: 'faellesspisning', label: 'Fællesspisning', level: 'satyr' },
+  { href: 'band',            label: 'Bandet',      level: 'revyst', group: 'redskaber' },
+  { href: 'kostumetinder',   label: 'Kostumetinder', level: 'revyst', group: 'redskaber' },
+  { href: 'ninjas',          label: 'Ninjas, Mics & Cues', level: 'revyst', group: 'redskaber' },
+  { href: 'rekvisitten',     label: 'Rekvisitten', level: 'revyst', group: 'redskaber' },
+  { href: 'sangere',         label: 'Sangere',     level: 'revyst', group: 'redskaber' },
+  { href: 'teknikken',       label: 'Teknikken',   level: 'revyst', group: 'redskaber' },
+  { href: 'schedule',        label: 'Øveplan',     level: 'revyst', group: 'redskaber' },
+  { href: 'koordinator',     label: 'Koordinator', level: 'admin' },
 ];
 
 // Tab label for each `group` key used above.
@@ -104,8 +105,18 @@ function siteLogout() {
 
 // ── Header / nav rendering ───────────────────────────────────
 // z-index ladder: header 100 → mobile menu overlay 150 → login/edit modals 200.
+// The current page as a SITE_PAGES `href`. Accepts clean URLs (`/kalender`,
+// `/`) as well as `.html` ones (file://, or a server without the rewrite).
 function siteCurrentPage() {
-  return location.pathname.split('/').pop() || 'index.html';
+  return location.pathname.split('/').pop().replace(/\.html$/, '') || 'index';
+}
+
+// A page's link. Apache (server/apache-site.conf) and server/dev-router.php
+// map `/kalender` to kalender.html; over file:// there is no server, so the
+// link names the file.
+function sitePageUrl(page) {
+  if (siteIsFileProtocol()) return page.href + '.html';
+  return page.href === 'index' ? '/' : '/' + page.href;
 }
 
 // One page's nav visibility: 'link' (visitor can use it), 'locked'
@@ -154,7 +165,7 @@ function renderNavItem(nav, page, current) {
     return;
   }
   const a = document.createElement('a');
-  a.href = page.href;
+  a.href = sitePageUrl(page);
   a.textContent = page.label;
   if (page.href === current) a.className = 'active';
   nav.appendChild(a);
@@ -204,7 +215,7 @@ function renderDesktopNavGroup(nav, label, visible, current, isCurrent) {
     }
     const a = document.createElement('a');
     a.className = 'site-list-row' + (page.href === current ? ' site-list-selected' : '');
-    a.href = page.href;
+    a.href = sitePageUrl(page);
     a.textContent = page.label;
     dropdown.appendChild(a);
   }
@@ -256,7 +267,7 @@ function renderMobileNavGroup(nav, label, visible, current, isCurrent) {
       continue;
     }
     const a = document.createElement('a');
-    a.href = page.href;
+    a.href = sitePageUrl(page);
     a.textContent = page.label;
     if (page.href === current) a.className = 'active';
     sub.appendChild(a);
@@ -573,7 +584,7 @@ function injectSitePrefetchLinks() {
     if (page.href === current || !siteHasLevel(page.level)) continue;
     const link = document.createElement('link');
     link.rel = 'prefetch';
-    link.href = page.href;
+    link.href = sitePageUrl(page);
     document.head.appendChild(link);
   }
 }

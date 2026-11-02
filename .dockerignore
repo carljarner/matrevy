@@ -13,3 +13,4 @@ calendar.ics
 js/*-data.js
 !js/manus-data.js
 server/config.php
+server/dev-router.php

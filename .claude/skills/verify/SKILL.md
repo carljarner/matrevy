@@ -10,8 +10,12 @@ Static site, no build step. Verification = serve it and drive it in a browser.
 ## Serve
 
 ```bash
-python3 -m http.server 8741 --bind 127.0.0.1   # from the repo root, background it
+php -S 127.0.0.1:8741 server/dev-router.php   # from the repo root, background it
 ```
+
+The router gives the clean page URLs (`/kalender` → `kalender.html`, `.html`
+301s to the clean form) like Apache on web-1. `python3 -m http.server` can't, so
+nav links would 404 there.
 
 `file://` also works (open the .html directly) and is itself a supported mode
 worth testing — `site.js` skips all login UI and grants synthetic admin there.
