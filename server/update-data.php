@@ -6622,7 +6622,49 @@ function teknik_find_file($doc, $fileId) {
   return null;
 }
 
+// Sangere starts with one top-level folder per song in Manus (a scene whose
+// `types` has 'sang', the upload pool's 'pool' act left out), created once per
+// production the first time the store is read while "Revyster kan se manus"
+// (pdfLinksVisibleToRevyst) is on. `songFoldersFor` records the production,
+// so folders deleted afterwards stay deleted and later Manus changes never
+// update them. A song whose name is already a top-level folder is skipped.
+function sangere_seed_song_folders() {
+  $production = manus_current_production_folder();
+  if ($production === null) return;
+  $doc = teknik_load();
+  if (($doc['songFoldersFor'] ?? null) === $production) return;
+  [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
+  if ($cfgStatus !== 200) return;
+  if ((json_decode(base64_decode($cfg['content']), true)['pdfLinksVisibleToRevyst'] ?? false) !== true) return;
+  [$scenesStatus, $scenesFile] = github_api('GET', 'contents/data/scenes.json');
+  if ($scenesStatus !== 200) return;
+  $names = [];
+  foreach (json_decode(base64_decode($scenesFile['content']), true)['acts'] ?? [] as $act) {
+    if (!is_array($act) || ($act['act'] ?? '') === 'pool') continue;
+    foreach ($act['scenes'] ?? [] as $scene) {
+      if (!is_array($scene) || !in_array('sang', (array) ($scene['types'] ?? []), true)) continue;
+      $name = teknik_clean_name($scene['name'] ?? '');
+      if ($name !== '') $names[] = $name;
+    }
+  }
+  teknik_mutate(function ($doc) use ($production, $names) {
+    if (($doc['songFoldersFor'] ?? null) === $production) return $doc; // another request got here first
+    $taken = [];
+    foreach ($doc['folders'] ?? [] as $folder) {
+      if (($folder['parentId'] ?? null) === null) $taken[mb_strtolower($folder['name'])] = true;
+    }
+    foreach ($names as $name) {
+      if (isset($taken[mb_strtolower($name)])) continue;
+      $taken[mb_strtolower($name)] = true;
+      $doc['folders'][] = ['id' => teknik_id(), 'name' => $name, 'parentId' => null, 'createdAt' => date('c')];
+    }
+    $doc['songFoldersFor'] = $production;
+    return $doc;
+  });
+}
+
 function teknik_read($body) {
+  if (teknik_store_key() === 'sangere') sangere_seed_song_folders();
   $doc = teknik_load();
   respond(200, [
     'ok' => true,
