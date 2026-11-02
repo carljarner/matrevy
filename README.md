@@ -126,7 +126,7 @@ Most upkeep is automatic: Ubuntu installs security updates, Coolify updates itse
 
 ### Backups
 
-`/srv` (all matrevy data, public and private) is backed up every night at 03:30 with **restic** to Backblaze B2. It keeps 7 daily, 4 weekly and 12 monthly snapshots. `/srv/matrevy/data/teknikken` (Teknikken's temporary videos and slides, up to 5 GB in total) and `/srv/matrevy/data/sangere` (Sangere's temporary practice audio, up to 500 MB) are excluded: the nightly job is `/usr/local/bin/backup-srv.sh`, whose line reads `restic backup /srv --tag nightly --exclude /srv/matrevy/data/teknikken --exclude /srv/matrevy/data/sangere`. The credentials are in `/root/.restic-env` on web-1. Keep `RESTIC_PASSWORD` in the password manager, because without it the backups can't be decrypted.
+`/srv` (all matrevy data, public and private) is backed up every night at 03:30 with **restic** to Backblaze B2. It keeps 7 daily, 4 weekly and 12 monthly snapshots. `/srv/matrevy/data/teknikken` (Teknikken's temporary videos and slides, up to 5 GB in total) and `/srv/matrevy/data/sangere` (Sangere's temporary practice audio, up to 500 MB) are excluded: the nightly job is `/usr/local/bin/backup-srv`, whose line reads `restic backup /srv --tag nightly --exclude /srv/matrevy/data/teknikken --exclude /srv/matrevy/data/sangere`. The credentials are in `/root/.restic-env` on web-1. Keep `RESTIC_PASSWORD` in the password manager, because without it the backups can't be decrypted.
 
 Restore a single folder:
 

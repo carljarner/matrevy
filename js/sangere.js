@@ -515,8 +515,6 @@ function sangOpenFormModal({ title, name, placeholder, folderLabel, folderId, co
     folderField = siteCreateDropdownField(sangFolderOptions(), folderId || '');
     form.appendChild(siteEditField(folderLabel, folderField));
   }
-  const cancelBtn = sangPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const saveBtn = sangPillBtn(confirmLabel, 'site-btn-success');
   async function onSubmit() {
     const value = input.value.trim();
@@ -535,7 +533,6 @@ function sangOpenFormModal({ title, name, placeholder, folderLabel, folderId, co
     e.preventDefault();
     onSubmit();
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
   input.focus();
   input.select();
@@ -835,8 +832,6 @@ function sangOpenUploadModal(files, folderId) {
   form.appendChild(el('p', 'sang-upload-space',
     `I alt ${sangFormatBytes(total)} · ${sangFormatBytes(free)} ledigt`));
 
-  const cancelBtn = sangPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const uploadBtn = sangPillBtn('Upload', 'site-btn-success');
   if (total > free) {
     error.textContent = sangNotEnoughSpace(total, free);
@@ -866,7 +861,6 @@ function sangOpenUploadModal(files, folderId) {
       else submit();
     });
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(uploadBtn);
   entries[0].input.focus();
 }

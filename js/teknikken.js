@@ -582,8 +582,6 @@ function teknikOpenFormModal({ title, name, placeholder, folderLabel, folderId, 
     folderField = siteCreateDropdownField(teknikFolderOptions(), folderId || '');
     form.appendChild(siteEditField(folderLabel, folderField));
   }
-  const cancelBtn = teknikPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const saveBtn = teknikPillBtn(confirmLabel, 'site-btn-success');
   async function onSubmit() {
     const value = input.value.trim();
@@ -602,7 +600,6 @@ function teknikOpenFormModal({ title, name, placeholder, folderLabel, folderId, 
     e.preventDefault();
     onSubmit();
   });
-  actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
   input.focus();
   input.select();
@@ -935,8 +932,6 @@ function teknikOpenUploadModal(files, folderId) {
   form.appendChild(el('p', 'teknik-upload-space',
     `I alt ${teknikFormatBytes(total)} · ${teknikFormatBytes(free)} ledigt`));
 
-  const cancelBtn = teknikPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const uploadBtn = teknikPillBtn('Upload', 'site-btn-success');
   if (total > free) {
     error.textContent = teknikNotEnoughSpace(total, free);
@@ -967,7 +962,6 @@ function teknikOpenUploadModal(files, folderId) {
   }
   uploadBtn.addEventListener('click', submit);
   teknikWireEnterChain([uploaderInput, ...entries.map((entry) => entry.input)], submit);
-  actions.appendChild(cancelBtn);
   actions.appendChild(uploadBtn);
   if (uploaderInput.value) uploadBtn.focus();
   else uploaderInput.focus();
@@ -1071,8 +1065,6 @@ function teknikOpenVideoUploadModal(folderId, initialVideo) {
   const space = el('p', 'teknik-upload-space');
   form.appendChild(space);
 
-  const cancelBtn = teknikPillBtn('Annuller');
-  cancelBtn.addEventListener('click', close);
   const uploadBtn = teknikPillBtn('Upload', 'site-btn-success');
 
   function total() {
@@ -1104,7 +1096,6 @@ function teknikOpenVideoUploadModal(folderId, initialVideo) {
   }
   uploadBtn.addEventListener('click', submit);
   teknikWireEnterChain([uploaderInput, nameInput], submit);
-  actions.appendChild(cancelBtn);
   actions.appendChild(uploadBtn);
   if (initialVideo) video.pick(initialVideo);
   refreshSpace();
