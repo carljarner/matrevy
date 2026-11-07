@@ -1559,6 +1559,77 @@
 
 .koord-note-item { padding-left: calc(var(--indent, 0) * 1.6rem); }
 
+/* Item reorder (koordNoteItemDragStart): an orange line above the drop
+   spot, or below the last line for "last". */
+.koord-note-item { position: relative; }
+
+.koord-note-item-drop-before::before,
+.koord-note-item-drop-after::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--indent, 0) * 1.6rem);
+  right: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent-warm);
+}
+
+.koord-note-item-drop-before::before { top: calc(-0.05rem - 1.5px); }
+.koord-note-item-drop-after::after { bottom: calc(-0.05rem - 1.5px); }
+
+.koord-note-item-dragging { opacity: 0.4; }
+
+.koord-note-item-drag-active,
+.koord-note-item-drag-active * {
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grabbing !important;
+}
+
+/* The shared ghost label, following the pointer during an item drag. */
+.koord-mp-drag-image.koord-drag-follow {
+  pointer-events: none;
+  z-index: 250;
+}
+
+@media (hover: hover) {
+  .koord-note-check { cursor: grab; }
+}
+
+/* Rearrange mode (touch): every line is a drag handle. */
+.koord-note-item-reordering {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.koord-note-item-reordering .koord-note-check { pointer-events: none; }
+
+.koord-note-item-text {
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.35rem;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.koord-note-item-done .koord-note-item-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.koord-note-reorder { display: none; }
+
+@media (hover: none) {
+  .koord-note-reorder { display: inline-flex; }
+}
+
+.koord-note-reorder-active { color: var(--accent-warm-text); }
+
 .koord-note-item-done .koord-note-item-input {
   text-decoration: line-through;
   color: var(--text-muted);

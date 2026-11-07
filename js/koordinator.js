@@ -4577,7 +4577,7 @@ function koordBuildNote(note) {
   if (collapsed) return card;
 
   if (note.kind === 'text') card.appendChild(koordBuildNoteText(note));
-  else card.appendChild(koordBuildNoteList(note));
+  else card.appendChild(koordBuildNoteList(note, koordNoteReorderKey === note._key));
 
   card.appendChild(koordBuildNoteTools(note));
   return card;
@@ -4597,9 +4597,10 @@ function koordBuildNoteText(note) {
 
 // Every item in its own place (a ticked one is just crossed out), then a
 // "+ Punkt" row that adds one at the end.
-function koordBuildNoteList(note) {
+function koordBuildNoteList(note, reordering) {
   const wrap = el('div', 'koord-note-items');
-  note.items.forEach((item) => wrap.appendChild(koordBuildNoteItem(note, item)));
+  note.items.forEach((item) => wrap.appendChild(koordBuildNoteItem(note, item, reordering)));
+  if (reordering) return wrap;
 
   const add = el('button', 'koord-note-add-item', '+ Punkt');
   add.type = 'button';
@@ -4620,14 +4621,26 @@ function koordFocusNoteItem(note, item, atEnd) {
   if (atEnd) input.setSelectionRange(input.value.length, input.value.length);
 }
 
-function koordBuildNoteItem(note, item) {
-  const row = el('div', 'koord-note-item' + (item.done ? ' koord-note-item-done' : ''));
+function koordBuildNoteItem(note, item, reordering) {
+  const row = el('div', 'koord-note-item' + (item.done ? ' koord-note-item-done' : '') + (reordering ? ' koord-note-item-reordering' : ''));
   row.style.setProperty('--indent', String(item.indent || 0));
   row.dataset.itemId = item.id;
   const box = document.createElement('input');
   box.type = 'checkbox';
   box.className = 'koord-note-check';
   box.checked = item.done;
+  if (reordering) {
+    // Rearrange mode (touch): the whole line drags, nothing in it reacts.
+    box.disabled = true;
+    box.tabIndex = -1;
+    row.appendChild(box);
+    const text = el('span', 'koord-note-item-text', item.text.trim() || 'Punkt');
+    row.appendChild(text);
+    row.addEventListener('pointerdown', (e) => koordNoteItemDragStart(note, item, row, e));
+    return row;
+  }
+  // Holding the checkbox and moving drags the item; a plain click ticks it.
+  box.addEventListener('pointerdown', (e) => koordNoteItemDragStart(note, item, row, e));
   box.setAttribute('aria-label', item.done ? 'Fjern flueben' : 'Sæt flueben');
   box.addEventListener('change', () => {
     item.done = box.checked;
@@ -4683,6 +4696,98 @@ function koordBuildNoteItem(note, item) {
   return row;
 }
 
+// ── Checklist item reorder ─────────────────────────────────────
+// Pointer events rather than native drag and drop: a native drag can't start
+// from a checkbox in every browser and is unreliable on touch. On desktop a
+// drag starts from the checkbox once the held pointer moves (a click still
+// ticks it); in rearrange mode (touch) from anywhere on the line. The drop
+// spot is picked by height within the note, so the whole list is the drop
+// zone and below the last line means "last".
+let koordNoteReorderKey = null; // _key of the note in rearrange mode, if any
+
+function koordNoteItemDragStart(note, item, row, e) {
+  if (e.button !== 0 || !e.isPrimary) return;
+  const source = e.currentTarget;
+  const startX = e.clientX;
+  const startY = e.clientY;
+  const ghost = koordMpGetDragImageEl();
+  let dragging = false;
+  let done = false;
+  let marked = null;
+  let beforeItem = null;
+
+  const card = () => document.querySelector(`[data-note-key="${note._key}"]`);
+  const mark = (rowEl, cls) => {
+    if (marked) marked.el.classList.remove(marked.cls);
+    marked = rowEl ? { el: rowEl, cls } : null;
+    if (marked) rowEl.classList.add(cls);
+  };
+  const placeGhost = (ev) => {
+    ghost.style.left = `${ev.clientX - 12}px`;
+    ghost.style.top = `${ev.clientY - 16}px`;
+  };
+  const onMove = (ev) => {
+    if (!dragging) {
+      if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
+      dragging = true;
+      ghost.replaceChildren(el('div', 'koord-mp-drag-image-line', item.text.trim() || 'Punkt'));
+      ghost.classList.add('koord-drag-follow');
+      row.classList.add('koord-note-item-dragging');
+      document.body.classList.add('koord-note-item-drag-active');
+    }
+    ev.preventDefault();
+    placeGhost(ev);
+    const rows = card() ? [...card().querySelectorAll('.koord-note-item')] : [];
+    const next = rows.find((r) => {
+      const rect = r.getBoundingClientRect();
+      return ev.clientY < rect.top + rect.height / 2;
+    });
+    beforeItem = next ? note.items.find((it) => it.id === next.dataset.itemId) || null : null;
+    if (next) mark(next, 'koord-note-item-drop-before');
+    else mark(rows[rows.length - 1], 'koord-note-item-drop-after');
+  };
+  const finish = (drop) => {
+    if (done) return;
+    done = true;
+    source.removeEventListener('pointermove', onMove);
+    source.removeEventListener('pointerup', onUp);
+    source.removeEventListener('pointercancel', onCancel);
+    source.removeEventListener('lostpointercapture', onCancel);
+    document.removeEventListener('keydown', onKey, true);
+    if (!dragging) return;
+    // The click that ends a drag must not tick the checkbox.
+    const swallow = (ev) => { ev.preventDefault(); ev.stopPropagation(); };
+    window.addEventListener('click', swallow, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', swallow, true), 0);
+    mark(null);
+    ghost.classList.remove('koord-drag-follow');
+    ghost.style.left = '';
+    ghost.style.top = '';
+    row.classList.remove('koord-note-item-dragging');
+    document.body.classList.remove('koord-note-item-drag-active');
+    if (!drop || note._deleted || !note.items.includes(item)) return;
+    const idx = note.items.indexOf(item);
+    if (beforeItem === item || (beforeItem === null && idx === note.items.length - 1)
+      || (beforeItem && note.items.indexOf(beforeItem) === idx + 1)) return; // same spot
+    koordMoveDraftItem(note.items, item, beforeItem, () => koordRerenderNote(note));
+    koordNoteCommit(note);
+  };
+  const onUp = () => finish(true);
+  const onCancel = () => finish(false);
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape' || !dragging) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    finish(false);
+  };
+  source.setPointerCapture(e.pointerId);
+  source.addEventListener('pointermove', onMove);
+  source.addEventListener('pointerup', onUp);
+  source.addEventListener('pointercancel', onCancel);
+  source.addEventListener('lostpointercapture', onCancel); // e.g. a save's reply re-rendered the note
+  document.addEventListener('keydown', onKey, true);
+}
+
 function koordBuildNoteTools(note) {
   const tools = el('div', 'koord-note-tools');
 
@@ -4693,6 +4798,22 @@ function koordBuildNoteTools(note) {
   copyBtn.classList.add('koord-note-copy');
   copyBtn.addEventListener('click', () => openCopyNoteConfirm(note));
   tools.appendChild(copyBtn);
+
+  // Touch only (hidden by CSS where there's a mouse): rearrange mode, where
+  // the checklist's lines drag; the check mark leaves it again.
+  const reordering = koordNoteReorderKey === note._key;
+  if (note.kind === 'list' && (note.items.length > 1 || reordering)) {
+    const reorderBtn = koordLokIconBtn(reordering ? 'Færdig' : 'Flyt punkter', reordering
+      ? koordLokIcon('0 0 16 16', '15', '1.6', ['M3 8.5l3 3 7-7'])
+      : koordLokIcon('0 0 16 16', '15', '1.3', ['M5 13.5v-11', 'M2.5 5L5 2.5 7.5 5', 'M11 2.5v11', 'M8.5 11l2.5 2.5 2.5-2.5']));
+    reorderBtn.classList.add('koord-note-reorder');
+    if (reordering) reorderBtn.classList.add('koord-note-reorder-active');
+    reorderBtn.addEventListener('click', () => {
+      koordNoteReorderKey = reordering ? null : note._key;
+      koordRerenderNote(note);
+    });
+    tools.appendChild(reorderBtn);
+  }
 
   const colorBtn = koordLokIconBtn('Farve', koordLokIcon('0 0 16 16', '15', '1.3', [
     'M8 2a6 6 0 1 0 0 12c1 0 1.4-.6 1.4-1.3 0-.9-.7-1.2-.7-2 0-.7.6-1.2 1.3-1.2H11.5A2.5 2.5 0 0 0 14 7C14 4.2 11.3 2 8 2z',
@@ -4739,6 +4860,7 @@ function koordBuildNoteTools(note) {
       note.text = note.items.map((item) => item.text).filter((line) => line.trim() !== '').join('\n');
       note.items = [];
       note.kind = 'text';
+      if (koordNoteReorderKey === note._key) koordNoteReorderKey = null;
     }
     koordRerenderNote(note);
     koordNoteCommit(note);
