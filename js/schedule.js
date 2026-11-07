@@ -64,7 +64,7 @@ function classifyOrKeep(code, isSong, isDans) {
 }
 
 // ── Scene parts (one per Stjerneark priority) ─────────────
-// Manus's Stjerneark rates a scene on up to four priorities: Skuespil, Sang,
+// Stjerneark rates a scene on up to four priorities: Skuespil, Sang,
 // Dans and Band. Each one Stjerneark shows becomes its own placeable part
 // here, at load time: the Skuespil part keeps the scene's own id and title,
 // the others get "<id>::sang" / "::dans" / "::band" and "<title> (Sang)" ….
@@ -1580,7 +1580,7 @@ function renderSceneSidebar() {
       chip.ondragstart = () => startDrag(scene.id, null, null);
 
       // Priority badge — read-only, sourced from data/scenes.json (set via
-      // Manus's Stjerneark tab, not editable here).
+      // the Stjerneark page, not editable here).
       const prioSpan = schedPriorityBadge(scene.priority);
 
       const nameSpan = document.createElement('span');
@@ -2500,7 +2500,7 @@ function _pickerSelectedRoomCount() {
 
 function buildPickerSceneItem(scene, placedCounts) {
   // Custom scenes (Scenemøde, Rekvisitten) can be used in multiple slots per
-  // day. A repeat-flagged scene (Manus's Stjerneark ↻ toggle) similarly
+  // day. A repeat-flagged scene (Stjerneark's Dobbeltsegment) similarly
   // wants a second placement that day — see sceneMaxPlacements() — so it
   // only dims once it's actually been placed twice, not after the first.
   const isPlaced = !scene.custom && isSceneFullyPlaced(scene, placedCounts);
@@ -2575,7 +2575,7 @@ function buildPickerSceneItem(scene, placedCounts) {
 
   item.appendChild(nameSpan);
 
-  // Repeat tag (Manus's Stjerneark ↻ toggle) — sits at the far right of the
+  // Repeat tag (Stjerneark's Dobbeltsegment) — sits at the far right of the
   // row itself, not glued onto the name like the O/F tags above, since it's
   // a property of the scene rather than of this particular slot/visit.
   if (scene.repeat && !isSidePart) {
@@ -2681,7 +2681,7 @@ function getPlacedSceneCounts() {
   return counts;
 }
 
-// A repeat-flagged scene (Manus's Stjerneark ↻ toggle) genuinely wants a
+// A repeat-flagged scene (Stjerneark's Dobbeltsegment) genuinely wants a
 // second placement that day, so it takes two placements — not one — before
 // it dims as "already placed" in the sidebar/picker.
 function sceneMaxPlacements(scene) {

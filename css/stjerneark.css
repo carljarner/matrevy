@@ -1,0 +1,276 @@
+/* =========================================================
+   Matematikrevyen – Stjerneark page styles (stjerneark.html only)
+   Page-scoped; shared shell styles live in style.css.
+   719px is the site-wide mobile breakpoint.
+   ========================================================= */
+
+.stjerne-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.stjerne-status {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.stjerne-status.stjerne-status-error {
+  color: var(--danger);
+}
+
+/* --- The sheet -----------------------------------------------
+   One table (stjerneRender() in stjerneark.js), like the old spreadsheet:
+   as tall as the table, scrolling only sideways with the title column
+   sticky. separate + inset box-shadow lines, so sticky cells keep their
+   separators. */
+.stjerne-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.stjerne-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  min-width: 100%;
+}
+
+.stjerne-table th,
+.stjerne-table td {
+  box-shadow: inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
+  padding: 0.3rem 0.5rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.stjerne-table thead th {
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  vertical-align: bottom;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Sticky scene-title column. */
+.stjerne-table .stjerne-col-title {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  min-width: 12rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+/* Scene titles stay on one line, cut with "..." (full title on hover). */
+.stjerne-title-text {
+  display: block;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Act heading rows ("Akt 1", …); the label stays put while the sheet
+   scrolls sideways. */
+.stjerne-act-row td {
+  background: var(--surface-2);
+  text-align: left;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.stjerne-act-label {
+  position: sticky;
+  left: 0.5rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.stjerne-prio {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stjerne-check {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--accent-warm-text);
+  cursor: pointer;
+}
+
+.stjerne-col-check { min-width: 6.5rem; }
+
+/* An added-by-hand priority picker's empty state (stjernePrioCell). */
+.stjerne-add {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px dashed var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+@media (hover: hover) {
+  .stjerne-add:hover {
+    opacity: 1;
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+
+.stjerne-add:focus-visible {
+  outline: none;
+  opacity: 1;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+.stjerne-table .stjerne-note-cell {
+  padding: 0.15rem 0.3rem;
+  text-align: left;
+}
+
+/* Kommentar stays one line and widens its column: the input and an
+   invisible copy of its text share one grid cell, so the copy sets the
+   width (stjerneNoteCell in stjerneark.js). */
+.stjerne-note-sizer {
+  display: inline-grid;
+  min-width: 11rem;
+}
+
+.stjerne-note-sizer::after {
+  content: attr(data-value) ' ';
+  visibility: hidden;
+  white-space: pre;
+  grid-area: 1 / 1;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid transparent;
+  font: inherit;
+}
+
+/* Inline field-editing style (CLAUDE.md): transparent at rest, border on
+   hover, warm border + input background while focused. */
+.stjerne-note {
+  grid-area: 1 / 1;
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.2rem 0.3rem;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+}
+
+@media (hover: hover) {
+  .stjerne-note:hover { border-color: var(--border); }
+}
+
+.stjerne-note:focus,
+.stjerne-note:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  background: var(--input-bg);
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Priority (0-3): four always-visible circles, grey until the active one
+   picks up its .stjerne-prio-N color below (or previewed on hover, before
+   clicking) — click to select, no dropdown. */
+.stjerne-prio-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: inherit;
+  line-height: 1;
+  background: #f0f1f2;
+  color: var(--neutral-border);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.stjerne-prio-circle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+}
+
+/* Each value's own color (a fair bit more saturated than a typical pale
+   pastel badge, so it reads clearly at 20px) applies both when it's the
+   active pick (.stjerne-prio-active, permanent) and on hover of *that*
+   circle specifically (a preview of what clicking it would select) — every
+   circle carries its own stjerne-prio-N class permanently (see
+   stjernePrioCell() in stjerneark.js), not just while active, so :hover can
+   target it without any JS involvement. */
+.stjerne-prio-0.stjerne-prio-active { background: rgb(var(--prio-0-rgb)); color: var(--prio-0-text); }
+.stjerne-prio-1.stjerne-prio-active { background: rgb(var(--prio-1-rgb)); color: var(--prio-1-text); }
+.stjerne-prio-2.stjerne-prio-active { background: rgb(var(--prio-2-rgb)); color: var(--prio-2-text); }
+.stjerne-prio-3.stjerne-prio-active { background: rgb(var(--prio-3-rgb)); color: var(--prio-3-text); }
+
+@media (hover: hover) {
+  .stjerne-prio-0:hover { background: rgb(var(--prio-0-rgb)); color: var(--prio-0-text); }
+  .stjerne-prio-1:hover { background: rgb(var(--prio-1-rgb)); color: var(--prio-1-text); }
+  .stjerne-prio-2:hover { background: rgb(var(--prio-2-rgb)); color: var(--prio-2-text); }
+  .stjerne-prio-3:hover { background: rgb(var(--prio-3-rgb)); color: var(--prio-3-text); }
+  /* Right after a click, until the pointer moves (stjernePrioCell). */
+  .stjerne-prio-hover-off .stjerne-prio-circle:not(.stjerne-prio-active):hover {
+    background: #f0f1f2;
+    color: var(--neutral-border);
+  }
+
+/* Read-only (below boss): the circles show the values but can't be
+   clicked, and only the selected one is coloured. */
+.stjerne-prio-readonly .stjerne-prio-circle {
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .stjerne-prio-readonly .stjerne-prio-circle:not(.stjerne-prio-active):hover {
+    background: #f0f1f2;
+    color: var(--neutral-border);
+  }
+}
+
+.stjerne-check:disabled {
+  cursor: default;
+}
+
+.stjerne-note-text {
+  display: inline-block;
+  min-width: 11rem;
+  padding: 0.2rem 0.3rem;
+  white-space: pre;
+}
+
+/* Phone width: a narrower title column, so more of the sheet fits
+   beside it. */
+@media (max-width: 719px) {
+  .stjerne-table .stjerne-col-title { min-width: 8rem; }
+  .stjerne-title-text { max-width: 10rem; }
+}
