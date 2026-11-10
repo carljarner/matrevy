@@ -73,12 +73,12 @@ function faellesPillBtn(label, variant) {
 }
 
 // "+" icon button (add a row, add a date column) — the site-wide
-// .boss-manage-add-plus look (style.css), same as Manus' "add QR-kode"
+// .site-icon-btn site-add-plus look (style.css), same as Manus' "add QR-kode"
 // affordance, rather than a labeled .btn-small pill.
 function faellesAddPlusBtn(title) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'boss-manage-add-plus';
+  btn.className = 'site-icon-btn site-add-plus';
   btn.title = title;
   btn.setAttribute('aria-label', title);
   btn.textContent = '+';
@@ -345,28 +345,37 @@ let faellesView = (() => {
   try { return localStorage.getItem(FAELLES_VIEW_KEY) === 'oversigt' ? 'oversigt' : 'ark'; } catch { return 'ark'; }
 })();
 
+// The shared segmented toggle (.site-segmented, like Kalender's Måned/Liste).
 function faellesBuildViewToggle(root) {
-  const btn = el('button', 'btn-small faelles-view-toggle', faellesView === 'oversigt' ? 'Madark' : 'Oversigt');
-  btn.type = 'button';
-  btn.addEventListener('click', () => {
-    faellesView = faellesView === 'oversigt' ? 'ark' : 'oversigt';
-    try { localStorage.setItem(FAELLES_VIEW_KEY, faellesView); } catch { /* per-browser convenience only */ }
-    faellesHideFieldTooltip();
-    faellesRender(root);
-  });
-  return btn;
+  const wrap = el('div', 'site-segmented faelles-view-toggle');
+  wrap.setAttribute('role', 'group');
+  wrap.setAttribute('aria-label', 'Visning');
+  for (const [view, label] of [['ark', 'Madark'], ['oversigt', 'Oversigt']]) {
+    const btn = el('button', faellesView === view ? 'active' : '', label);
+    btn.type = 'button';
+    btn.setAttribute('aria-pressed', faellesView === view ? 'true' : 'false');
+    btn.addEventListener('click', () => {
+      if (faellesView === view) return;
+      faellesView = view;
+      try { localStorage.setItem(FAELLES_VIEW_KEY, faellesView); } catch { /* per-browser convenience only */ }
+      faellesHideFieldTooltip();
+      faellesRender(root);
+    });
+    wrap.appendChild(btn);
+  }
+  return wrap;
 }
 
 function faellesRender(root) {
   root.replaceChildren();
   if (!faellesState) return;
 
-  if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
-    root.appendChild(faellesBuildBossBox(root));
-  }
+  // The Boss Box is always the last card on the page.
+  const isBoss = typeof siteHasLevel === 'function' && siteHasLevel('boss');
 
   if (faellesView === 'oversigt') {
     root.appendChild(faellesBuildSummaryCard(root));
+    if (isBoss) root.appendChild(faellesBuildBossBox(root));
     return;
   }
 
@@ -384,10 +393,14 @@ function faellesRender(root) {
   // A stray mouseenter can leave the fixed tooltip anchored to a field
   // that's since scrolled out from under it — drop it on any scroll.
   wrap.addEventListener('scroll', faellesHideFieldTooltip);
-  wrap.appendChild(faellesBuildTable(root));
+  const table = faellesBuildTable(root);
+  wrap.appendChild(table);
   card.appendChild(wrap);
 
   root.appendChild(card);
+  if (isBoss) root.appendChild(faellesBuildBossBox(root));
+  // The sheet scrolls with the page; its header row follows it down.
+  siteStickyHead(table.tHead);
 }
 
 // ── Satyr: per-day summary without names ──────────────────────
@@ -529,7 +542,7 @@ function faellesBuildNoticeLine(key, className, label) {
   // line breaks), and the height follows the text (faellesFitNoticeInput).
   const input = document.createElement('textarea');
   input.rows = 1;
-  input.className = `${className} faelles-notice-input`;
+  input.className = `site-inline-field ${className} faelles-notice-input`;
   input.maxLength = 200;
   input.value = faellesState[key];
   input.placeholder = 'Tilføj en besked…';
@@ -573,34 +586,20 @@ window.addEventListener('resize', () => {
   document.querySelectorAll('textarea.faelles-notice-input').forEach(faellesFitNoticeInput);
 });
 
-// ── Boss Box (boss/admin settings above the sheet) ───────────
-// Collapsed on every page load; kept in memory only, so it stays open across
-// faellesRender's re-render after connecting/disconnecting.
-let faellesBossBoxOpen = false;
+// ── Boss Box (boss/admin settings, last on the page) ─────────
+// The shared .site-boss-box. Open on every page load; kept in memory only,
+// so it keeps its state across faellesRender's re-renders.
+let faellesBossBoxOpen = true;
 
 function faellesBuildBossBox(root) {
-  const card = el('section', 'card faelles-boss-card');
-  const body = el('div', 'faelles-boss-body');
-  const heading = el('h2', 'faelles-boss-heading');
-  const toggle = el('button', 'faelles-boss-toggle');
-  toggle.type = 'button';
-  const chevron = el('span', 'faelles-boss-chevron');
-  toggle.appendChild(chevron);
-  toggle.appendChild(document.createTextNode('Boss Box'));
-  heading.appendChild(toggle);
-  card.appendChild(heading);
-  card.appendChild(body);
-  const applyOpen = () => {
-    chevron.textContent = faellesBossBoxOpen ? '▾' : '▸';
-    toggle.setAttribute('aria-expanded', faellesBossBoxOpen ? 'true' : 'false');
-    body.hidden = !faellesBossBoxOpen;
-    card.classList.toggle('open', faellesBossBoxOpen);
-  };
-  toggle.addEventListener('click', () => {
-    faellesBossBoxOpen = !faellesBossBoxOpen;
-    applyOpen();
+  const card = el('section', 'card site-boss-box faelles-boss-card');
+  const body = el('div', 'site-collapse-body');
+  const { heading } = siteCollapseHeading('h2', 'Boss Box', {
+    open: faellesBossBoxOpen,
+    body,
+    onToggle: (open) => { faellesBossBoxOpen = open; },
   });
-  applyOpen();
+  card.append(heading, body);
 
   const connectSection = el('div', 'faelles-boss-section');
   connectSection.appendChild(el('h3', null, 'Forbind til formular'));
@@ -627,7 +626,7 @@ function faellesBuildBossBox(root) {
     { value: 'in', label: 'Ikke tilmeldt nogen dage' },
   ];
   const picker = siteCreateDropdownField(modeOptions, faellesState.attendanceMode);
-  picker.classList.add('faelles-boss-select');
+  picker.classList.add('site-toolbar-control', 'faelles-boss-select');
   picker.setAttribute('aria-label', 'Tilmelding for nye rækker');
   picker.addEventListener('change', async () => {
     const previous = faellesState.attendanceMode;
@@ -659,7 +658,7 @@ function faellesBuildTable(root) {
   // revyst only edits existing rows (rows come in through the connected form).
   const canManage = typeof siteHasLevel === 'function' && siteHasLevel('boss');
 
-  const table = el('table', 'faelles-table');
+  const table = el('table', 'faelles-table site-sheet site-sheet-lines');
   faellesApplyColumnWidths(table);
 
   const thead = el('thead');
@@ -725,7 +724,7 @@ function faellesBuildTable(root) {
     if (canManage) {
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
-      removeBtn.className = 'faelles-col-day-remove';
+      removeBtn.className = 'site-icon-btn site-icon-btn-sm site-icon-btn-danger faelles-col-day-remove';
       removeBtn.title = col.extra ? 'Fjern dato' : 'Fjern dato fra arket';
       removeBtn.setAttribute('aria-label', removeBtn.title);
       removeBtn.textContent = '✕';
@@ -818,6 +817,7 @@ function faellesRenderRow(row, columns, canManage) {
     const td = el('td', `faelles-col-field faelles-col-${f.id}`);
     const input = document.createElement('input');
     input.type = 'text';
+    input.className = 'site-inline-field';
     input.value = row.answers[f.id] || '';
     if (f.required) input.placeholder = 'Påkrævet';
     input.addEventListener('blur', () => {
@@ -860,7 +860,7 @@ function faellesRenderRow(row, columns, canManage) {
   if (canManage) {
     tr.appendChild(el('td')); // filler under the header's "+" add-date column
     const removeTd = el('td');
-    const removeBtn = el('button', 'faelles-remove-btn', '✕');
+    const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger faelles-remove-btn', '✕');
     removeBtn.type = 'button';
     removeBtn.title = 'Fjern række';
     removeBtn.addEventListener('click', () => faellesDeleteRow(row, tr));
@@ -933,10 +933,10 @@ function faellesDeleteRow(row, tr) {
 function faellesOpenDeleteRowConfirm(row, tr) {
   const title = row.answers.navn ? `Slet "${row.answers.navn}"?` : 'Slet denne række?';
   const { modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('faelles-confirm-modal');
+  modal.classList.add('site-confirm-modal');
 
   const info = document.createElement('p');
-  info.className = 'faelles-confirm-note';
+  info.className = 'site-confirm-sub';
   info.textContent = 'Dette kan ikke fortrydes.';
   form.appendChild(info);
 
@@ -1224,17 +1224,17 @@ async function faellesOpenConnectModal(root) {
 // openExpenseDeleteConfirm(root, exp, payload, closeParent).
 function faellesOpenDisconnectConfirm(root, closeParent) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('faelles-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'faelles-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = 'Fjern forbindelsen?';
   form.appendChild(info);
 
   const note = document.createElement('p');
-  note.className = 'faelles-confirm-note';
+  note.className = 'site-confirm-sub';
   note.textContent = 'Rækker der er hentet ind, bliver ikke slettet.';
   form.appendChild(note);
 
@@ -1331,12 +1331,12 @@ async function faellesOpenQuickAddDateModal(root) {
 // the removed id is left alone server-side, same as a deleted row.
 function faellesOpenDeleteDayConfirm(col, root) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('faelles-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'faelles-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = col.extra
     ? `Fjern datoen "${col.title || col.label}"?`
     : `Fjern "${col.title || col.label}" fra arket?`;
@@ -1348,7 +1348,7 @@ function faellesOpenDeleteDayConfirm(col, root) {
   const calendarParts = (col.parts || [col]).filter((p) => !p.extra).length;
   if (calendarParts) {
     const note = document.createElement('p');
-    note.className = 'faelles-confirm-note';
+    note.className = 'site-confirm-sub';
     note.textContent = calendarParts === 1
       ? 'Begivenheden i Kalenderen bliver ikke slettet.'
       : 'Begivenhederne i Kalenderen bliver ikke slettet.';
@@ -1392,6 +1392,8 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     e.returnValue = '';
   });
+  // The sheet scrolls with the page, so a field tooltip goes with any scroll.
+  window.addEventListener('scroll', faellesHideFieldTooltip, { passive: true });
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
     faellesLoad(root);

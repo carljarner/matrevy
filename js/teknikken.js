@@ -50,7 +50,7 @@ function teknikPillBtn(label, variant) {
 }
 
 function teknikRemoveBtn(title) {
-  const btn = el('button', 'teknik-remove-btn', '✕');
+  const btn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -58,7 +58,7 @@ function teknikRemoveBtn(title) {
 }
 
 function teknikIconBtn(icon, title) {
-  const btn = el('button', 'teknik-icon-btn');
+  const btn = el('button', 'site-icon-btn');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -294,7 +294,7 @@ function teknikFileDisplayName(file) {
 // ── Load + render ────────────────────────────────────────────
 async function teknikLoad() {
   const root = teknikRoot();
-  root.replaceChildren(el('p', 'teknik-muted', 'Indlæser…'));
+  root.replaceChildren(el('p', 'site-muted', 'Indlæser…'));
   const result = await teknikApi('teknik_read', {});
   if (!result.ok) {
     const card = el('section', 'card');
@@ -338,13 +338,13 @@ function teknikRender() {
   head.appendChild(uploadBtns);
   card.appendChild(head);
   if (!teknikUploadsOpen) {
-    card.appendChild(el('p', 'teknik-muted teknik-closed-notice', teknikUploadsClosedMessage()));
+    card.appendChild(el('p', 'site-muted teknik-closed-notice', teknikUploadsClosedMessage()));
   }
 
   const list = el('div', 'teknik-list');
   teknikBuildLevel(list, null, 0);
   if (!list.childElementCount) {
-    list.appendChild(el('p', 'teknik-muted teknik-empty', teknikUploadsOpen
+    list.appendChild(el('p', 'site-empty teknik-empty', teknikUploadsOpen
       ? 'Her er ingen filer endnu. Opret en mappe, eller træk filer hertil.'
       : 'Her er ingen filer.'));
   }
@@ -403,10 +403,10 @@ function teknikBuildFolderRow(folder, depth) {
   row.dataset.folderId = folder.id;
   row.dataset.target = folder.id;
 
-  const toggle = el('button', 'teknik-row-main');
+  const toggle = el('button', 'site-collapse teknik-row-main');
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  toggle.appendChild(el('span', 'teknik-chevron', isOpen ? '▾' : '▸'));
+  toggle.appendChild(el('span', 'site-chevron teknik-chevron', '▾'));
   const icon = el('span', 'teknik-folder-icon');
   icon.appendChild(teknikFolderIcon());
   toggle.appendChild(icon);
@@ -503,27 +503,34 @@ function teknikRenderUsage() {
     `${teknikFormatBytes(used)} af ${teknikFormatBytes(teknikQuotaBytes)} brugt`));
 }
 
-// ── Boss Box (boss/admin, bottom of the page) ────────────────
-// One row, label then switch, after Manus's Boss Box
-// (renderAdminToggleColumn): on = uploads open. Off pauses uploads for
-// everyone, bosses included (config.json's teknikUploadsClosed).
-function teknikBuildBossBox() {
-  const section = el('section', 'card teknik-boss-box');
-  const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, 'Boss Box'));
-  section.appendChild(head);
+// ── Boss Box (boss/admin, last on the page) ──────────────────
+// The shared .site-boss-box: one label/switch row (.site-switch). On =
+// uploads open; off pauses uploads for everyone, bosses included
+// (config.json's teknikUploadsClosed). Open on every load; closing it
+// lasts until the page is reloaded.
+let teknikBossBoxOpen = true;
 
-  const col = el('div', 'teknik-boss-toggle-col');
-  const label = el('label', 'teknik-boss-toggle-label', 'Åben for uploads');
+function teknikBuildBossBox() {
+  const section = el('section', 'card site-boss-box');
+  const body = el('div', 'site-collapse-body');
+  const { heading } = siteCollapseHeading('h2', 'Boss Box', {
+    open: teknikBossBoxOpen,
+    body,
+    onToggle: (open) => { teknikBossBoxOpen = open; },
+  });
+  section.append(heading, body);
+
+  const row = el('div', 'site-switch-row');
+  const label = el('label', 'site-switch-label', 'Åben for uploads');
   label.htmlFor = 'teknik-uploads-toggle';
-  const switchLabel = el('label', 'teknik-toggle-switch');
+  const switchLabel = el('label', 'site-switch');
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.id = 'teknik-uploads-toggle';
   // Off and locked while no revy is active (save_config refuses too).
   input.checked = teknikRevyActive && !teknikUploadsPaused;
   input.disabled = !teknikRevyActive;
-  switchLabel.append(input, el('span', 'teknik-toggle-slider'));
+  switchLabel.append(input, el('span', 'site-switch-slider'));
 
   input.addEventListener('change', async () => {
     const next = input.checked;
@@ -541,16 +548,16 @@ function teknikBuildBossBox() {
     siteShowToast('Gemt');
   });
 
-  col.append(label, switchLabel);
-  section.appendChild(col);
+  row.append(label, switchLabel);
+  body.appendChild(row);
   return section;
 }
 
 // ── Modals ───────────────────────────────────────────────────
 function teknikConfirm(title, description, confirmLabel, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('teknik-confirm-modal');
-  if (description) form.appendChild(el('p', 'teknik-confirm-text', description));
+  modal.classList.add('site-confirm-modal');
+  if (description) form.appendChild(el('p', 'site-confirm-sub', description));
   const cancelBtn = teknikPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = teknikPillBtn(confirmLabel, 'site-btn-danger');
@@ -570,7 +577,7 @@ function teknikConfirm(title, description, confirmLabel, onConfirm) {
 // done, or null for a cancelled password prompt.
 function teknikOpenFormModal({ title, name, placeholder, folderLabel, folderId, confirmLabel, submit }) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(title);
-  modal.classList.add('teknik-name-modal');
+  modal.classList.add('site-modal-sm');
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = 190;
@@ -901,7 +908,7 @@ function teknikOpenUploadModal(files, folderId) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(
     valid.length === 1 ? 'Upload fil' : `Upload ${valid.length} filer`
   );
-  modal.classList.add('teknik-upload-modal');
+  modal.classList.add('site-modal-md', 'teknik-upload-modal');
   const uploaderInput = teknikBuildUploaderField();
   form.appendChild(siteEditField('Afsender', uploaderInput));
 
@@ -1011,7 +1018,7 @@ function teknikFilePickField(buttonLabel, accept, check, onPick) {
 // as "<Navn>.<ext>" and "<Navn> (projektfil).zip".
 function teknikOpenVideoUploadModal(folderId, initialVideo) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Upload video');
-  modal.classList.add('teknik-upload-modal');
+  modal.classList.add('site-modal-md', 'teknik-upload-modal');
 
   const uploaderInput = teknikBuildUploaderField();
   form.appendChild(siteEditField('Afsender', uploaderInput));
@@ -1297,7 +1304,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) return;
   if (typeof siteIsFileProtocol === 'function' && siteIsFileProtocol()) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'teknik-muted', 'Teknikken kræver forbindelse til serveren og virker ikke offline.'));
+    card.appendChild(el('p', 'site-muted', 'Teknikken kræver forbindelse til serveren og virker ikke offline.'));
     root.replaceChildren(card);
     return;
   }

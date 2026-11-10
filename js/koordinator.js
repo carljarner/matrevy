@@ -252,7 +252,7 @@ function openArkivYearPicker(anchor) {
 // admin needs already gets created automatically by those two flows.
 function openKoordYearEditor(existing) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger årgang');
-  modal.classList.add('koord-year-edit-modal');
+  modal.classList.add('site-modal-md', 'koord-year-edit-modal');
 
   const group = el('div', 'koord-year-edit-group');
 
@@ -399,7 +399,7 @@ function openKoordYearEditor(existing) {
 // call which this replaces the intent of for Koordinator's own delete path.
 function openDeleteArchiveYearConfirm(entry) {
   const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${entry.name}"?`);
-  modal.classList.add('koord-arkiv-confirm-modal');
+  modal.classList.add('site-confirm-modal');
 
   form.appendChild(el('p', 'koord-arkiv-confirm-text', 'De tilhørende filer bliver ikke slettet.'));
 
@@ -698,8 +698,7 @@ async function koordSaveReadyFlag(key, value) {
 function openReadyConfirmModal(key) {
   const copy = KOORD_READY_CONFIRM[key];
   const { modal, form, error, actions, close } = siteOpenModalWithClose(copy.title);
-  modal.classList.add('koord-arkiv-confirm-modal');
-  modal.classList.add('koord-guide-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   form.appendChild(el('p', 'koord-arkiv-confirm-text', copy.text));
 
   const confirmBtn = koordPillBtn('Klar til arkivering', 'site-btn-warm');
@@ -729,7 +728,7 @@ function openReadyConfirmModal(key) {
 function openCloseYearModal(closingFolder) {
   const { modal, form, error, actions } = siteOpenModalWithClose('Afslut revyen?');
   modal.classList.add('koord-close-year-modal');
-  modal.classList.add('koord-guide-confirm-modal');
+  modal.classList.add('site-confirm-modal');
 
   const intro = el('p', 'koord-modal-intro',
     `Dette gemmer et snapshot af den nuværende produktion ("${closingFolder}") i arkivet, nulstiller Manus (scener, rollebesætning, indsendte manuskripter) og lukker den aktive produktionsmappe. Revyster kan herefter ikke indsende manuskripter eller uploade til Teknikken, før en ny revy startes.`);
@@ -1187,7 +1186,7 @@ function koordMpNextStatus(status) {
 // lose.
 function koordMpDeleteConfirm(title, description, onConfirm) {
   const { modal, form, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('koord-mp-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   if (description) form.appendChild(el('p', 'koord-mp-confirm-text', description));
   const cancelBtn = koordPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -1205,18 +1204,17 @@ function koordMpRowIsEmpty(row) {
     && !row.ansvarA?.trim() && !row.ansvarB?.trim() && !row.status;
 }
 
-// Renders both the desktop flat-tab bar and a mobile dropdown, exact same
-// pattern as manus.js's own renderTabBar/MANUS_MAIN_TABS (duplicated —
-// koordinator.html doesn't load manus.js).
+// The phase tabs: the shared second-level tab bar (.site-tabs-sub), which
+// scrolls sideways on a phone like every other tab bar.
 function renderMpTabBar() {
   const mount = document.getElementById('koord-mp-tab-bar');
   mount.textContent = '';
 
-  const btnBar = el('div', 'koord-mp-tab-btn-bar');
+  const btnBar = el('div', 'site-tabs site-tabs-sub');
   KOORD_MP_TABS.forEach((tab) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'koord-mp-tab-btn' + (tab.key === koordMpActiveTab ? ' active' : '');
+    btn.className = 'site-tab' + (tab.key === koordMpActiveTab ? ' active' : '');
     btn.textContent = tab.label;
     btn.addEventListener('click', () => {
       koordMpActiveTab = tab.key;
@@ -1227,20 +1225,6 @@ function renderMpTabBar() {
     btnBar.appendChild(btn);
   });
   mount.appendChild(btnBar);
-
-  const dropdown = siteCreateDropdownField(
-    KOORD_MP_TABS.map((t) => ({ value: t.key, label: t.label })),
-    koordMpActiveTab
-  );
-  dropdown.classList.add('koord-mp-tab-select-mobile');
-  dropdown.setAttribute('aria-label', 'Vælg fane');
-  dropdown.addEventListener('change', () => {
-    koordMpActiveTab = dropdown.value;
-    localStorage.setItem(KOORD_MP_TAB_KEY, koordMpActiveTab);
-    renderMpTabBar();
-    renderMpGrid();
-  });
-  mount.appendChild(dropdown);
 }
 
 // Called after every edit (cheap, also on every keystroke): queues an
@@ -1264,18 +1248,18 @@ function koordMpPaintSaveStatus() {
 // pre-filled default rooms).
 function koordPaintAutosaveStatus(status, busy, error, dirty) {
   if (!status) return;
-  let text = 'Gemt';
+  let text = 'Gemmes automatisk · Gemt';
   if (busy) text = 'Gemmer…';
   else if (error !== null) text = error ? `Ikke gemt: ${error}` : 'Ikke gemt';
-  else if (dirty) text = '';
+  else if (dirty) text = 'Gemmes automatisk';
   status.textContent = text;
-  status.className = 'koord-mp-save-status' + (!busy && error !== null ? ' dirty' : '');
+  status.className = 'site-save-status koord-mp-save-status' + (!busy && error !== null ? ' error' : '');
 }
 
 function koordMpCreateField(row, key, className) {
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'koord-mp-field ' + className;
+  input.className = 'site-inline-field koord-mp-field ' + className;
   input.value = row[key] || '';
   input.addEventListener('input', () => {
     row[key] = input.value;
@@ -1310,7 +1294,7 @@ function renderMpGroupRow(row, rows) {
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
-  titleInput.className = 'koord-mp-field koord-mp-col-group-title';
+  titleInput.className = 'site-inline-field koord-mp-field koord-mp-col-group-title';
   titleInput.placeholder = 'Overskrift (kan stå tom)';
   titleInput.value = row.title || '';
   titleInput.addEventListener('input', () => {
@@ -1319,7 +1303,7 @@ function renderMpGroupRow(row, rows) {
   });
   rowEl.appendChild(titleInput);
 
-  const removeBtn = el('button', 'koord-mp-col-remove boss-manage-remove-btn', '✕');
+  const removeBtn = el('button', 'koord-mp-col-remove site-icon-btn site-icon-btn-danger', '✕');
   removeBtn.type = 'button';
   removeBtn.title = 'Fjern gruppe';
   removeBtn.addEventListener('click', () => {
@@ -1368,7 +1352,7 @@ function renderMpTaskRow(row, rows) {
   });
   rowEl.appendChild(statusBtn);
 
-  const removeBtn = el('button', 'koord-mp-col-remove boss-manage-remove-btn', '✕');
+  const removeBtn = el('button', 'koord-mp-col-remove site-icon-btn site-icon-btn-danger', '✕');
   removeBtn.type = 'button';
   removeBtn.title = 'Fjern opgave';
   removeBtn.addEventListener('click', () => {
@@ -1409,6 +1393,8 @@ function renderMpGrid() {
   header.appendChild(el('span', 'koord-mp-col-status', 'Status'));
   header.appendChild(el('span', 'koord-mp-col-remove'));
   mount.appendChild(header);
+  // The header row follows the page down the grid.
+  siteStickyHead(header, mount);
 
   rows.forEach((row) => {
     mount.appendChild(row.type === 'group' ? renderMpGroupRow(row, rows) : renderMpTaskRow(row, rows));
@@ -1426,7 +1412,7 @@ function renderMpGrid() {
   });
   mount.appendChild(tailRow);
 
-  // Two plain icon "+" buttons (style.css's site-wide .boss-manage-add-plus,
+  // Two plain icon "+" buttons (style.css's site-wide .site-icon-btn site-add-plus,
   // same as Program's/Wiki's own add-row controls) instead of labelled
   // pills — Tilføj gruppe sits under the Emne column (koord-mp-add-row's own
   // padding-left matches the header row's post-handle offset), Tilføj
@@ -1435,7 +1421,7 @@ function renderMpGrid() {
   const addRow = el('div', 'koord-mp-add-row');
   const addGroupBtn = document.createElement('button');
   addGroupBtn.type = 'button';
-  addGroupBtn.className = 'boss-manage-add-plus koord-mp-add-group-btn';
+  addGroupBtn.className = 'site-icon-btn site-add-plus koord-mp-add-group-btn';
   addGroupBtn.title = 'Tilføj gruppe';
   addGroupBtn.setAttribute('aria-label', 'Tilføj gruppe');
   addGroupBtn.textContent = '+';
@@ -1446,7 +1432,7 @@ function renderMpGrid() {
   });
   const addTaskBtn = document.createElement('button');
   addTaskBtn.type = 'button';
-  addTaskBtn.className = 'boss-manage-add-plus koord-mp-add-task-btn';
+  addTaskBtn.className = 'site-icon-btn site-add-plus koord-mp-add-task-btn';
   addTaskBtn.title = 'Tilføj opgave';
   addTaskBtn.setAttribute('aria-label', 'Tilføj opgave');
   addTaskBtn.textContent = '+';
@@ -1580,7 +1566,7 @@ function koordMpTabsFromPrevious(prevPlan) {
 // posture as adding an Arkiv year.
 function openCreateMasterplanModal() {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Ny plan');
-  modal.classList.add('koord-mp-plan-modal');
+  modal.classList.add('site-modal-sm');
 
   const prevPlan = sortedMasterplanPlans()[0] || null;
 
@@ -1654,7 +1640,7 @@ const KOORD_MP_ADD_VALUE = '__add__';
 // a real, immediate server delete of a whole plan's content.
 function openDeleteMasterplanPlanConfirm(plan) {
   const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${plan.label}"?`);
-  modal.classList.add('koord-mp-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   form.appendChild(el('p', 'koord-mp-confirm-text', 'Planen og alle dens opgaver slettes permanent. Dette kan ikke fortrydes.'));
 
   const cancelBtn = koordPillBtn('Annuller');
@@ -1714,6 +1700,7 @@ function renderMasterplanCard(container) {
   const planOptions = [{ value: KOORD_MP_ADD_VALUE, label: '+ Tilføj' }]
     .concat(sortedMasterplanPlans().map((p) => ({ value: p.id, label: p.label })));
   const planDd = siteCreateDropdownField(planOptions, resolveMasterplanViewId());
+  planDd.classList.add('site-toolbar-control');
   planDd.addEventListener('change', () => {
     const value = planDd.value;
     if (value === KOORD_MP_ADD_VALUE) {
@@ -1747,7 +1734,7 @@ function renderMasterplanCard(container) {
   saveBar.appendChild(deleteBtn);
 
   const saveGroup = el('div', 'koord-mp-save-group');
-  const status = el('span', 'koord-mp-save-status');
+  const status = el('span', 'site-save-status koord-mp-save-status');
   status.id = 'koord-mp-save-status';
   saveGroup.appendChild(status);
   saveBar.appendChild(saveGroup);
@@ -1854,7 +1841,7 @@ function openKoordBudgetEditor() {
   const NEW_VALUE = '__new__';
   const NONE_VALUE = '__none__';
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Rediger budgetår');
-  modal.classList.add('koord-year-edit-modal');
+  modal.classList.add('site-modal-md', 'koord-year-edit-modal');
 
   const group = el('div', 'koord-year-edit-group');
 
@@ -2149,7 +2136,7 @@ function koordLokWireDrag(rowEl, item, list, label, rerender) {
 function koordLokTextInput(value, className, onInput) {
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'koord-mp-field ' + className;
+  input.className = 'site-inline-field koord-mp-field ' + className;
   input.value = value || '';
   input.addEventListener('input', () => {
     onInput(input.value);
@@ -2159,7 +2146,7 @@ function koordLokTextInput(value, className, onInput) {
 }
 
 function koordLokAddPlus(title, onClick) {
-  const btn = el('button', 'boss-manage-add-plus', '+');
+  const btn = el('button', 'site-icon-btn site-add-plus', '+');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -2168,7 +2155,7 @@ function koordLokAddPlus(title, onClick) {
 }
 
 function koordLokRemoveBtn(title, onClick) {
-  const btn = el('button', 'boss-manage-remove-btn', '✕');
+  const btn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   btn.type = 'button';
   btn.title = title;
   btn.addEventListener('click', onClick);
@@ -2214,7 +2201,7 @@ function renderLokGrid() {
   }
 
   const wrap = el('div', 'koord-lok-table-wrap');
-  const table = el('table', 'koord-lok-table');
+  const table = el('table', 'koord-lok-table site-sheet site-sheet-lines');
   const thead = el('thead');
   const headRow = el('tr');
   headRow.appendChild(el('th', 'koord-lok-th-room', 'Lokale'));
@@ -2303,6 +2290,8 @@ function renderLokGrid() {
   koordLokWireGridKeys(table);
   wrap.appendChild(table);
   mount.appendChild(wrap);
+  // The header row follows the page down the sheet.
+  siteStickyHead(table.tHead);
 
   const addRow = el('div', 'koord-lok-add-row');
   addRow.appendChild(koordLokAddPlus('Tilføj lokale', () => {
@@ -2470,7 +2459,7 @@ function koordLokIcon(viewBox, size, strokeWidth, paths) {
 }
 
 function koordLokIconBtn(title, icon) {
-  const btn = el('button', 'koord-lok-icon-btn');
+  const btn = el('button', 'site-icon-btn');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -2596,7 +2585,7 @@ async function koordLokUploadFiles(fileList) {
 
 function openKoordLokRenameModal(file) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Omdøb fil');
-  modal.classList.add('koord-mp-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = 120;
@@ -2721,30 +2710,21 @@ function koordLokWireFileDrop(zone) {
   });
 }
 
-// The card body below `head`, collapsed/expanded by a chevron in the head
-// (state remembered per browser under `storageKey`). Lokalebooking, Fravær.
-function koordCollapsibleBody(card, head, storageKey, label) {
+// The card's heading as the shared collapse row (siteCollapseHeading):
+// the whole head row toggles the body below it, state remembered per
+// browser under `storageKey`. Lokalebooking, Fravær.
+function koordCollapsibleCard(card, title, storageKey) {
   const body = el('div', 'koord-lok-body');
   let collapsed = false;
   try { collapsed = localStorage.getItem(storageKey) === '1'; } catch (e) { /* ignore */ }
-  const toggle = el('button', 'koord-lok-collapse-btn');
-  toggle.type = 'button';
-  function paintCollapsed() {
-    body.hidden = collapsed;
-    card.classList.toggle('koord-lok-collapsed', collapsed);
-    toggle.textContent = collapsed ? '▸' : '▾';
-    toggle.title = collapsed ? 'Vis' : 'Skjul';
-    toggle.setAttribute('aria-label', collapsed ? `Vis ${label}` : `Skjul ${label}`);
-    toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
-  }
-  toggle.addEventListener('click', () => {
-    collapsed = !collapsed;
-    try { localStorage.setItem(storageKey, collapsed ? '1' : '0'); } catch (e) { /* ignore */ }
-    paintCollapsed();
+  const { heading } = siteCollapseHeading('h2', title, {
+    open: !collapsed,
+    body,
+    onToggle: (open) => {
+      try { localStorage.setItem(storageKey, open ? '0' : '1'); } catch (e) { /* ignore */ }
+    },
   });
-  paintCollapsed();
-  head.appendChild(toggle);
-  card.appendChild(body);
+  card.append(heading, body);
   return body;
 }
 
@@ -2752,13 +2732,9 @@ function renderLokalerTab(container) {
   koordLokEnsureDraft();
 
   const card = el('section', 'card koord-lok-card');
-  const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, 'Lokalebooking'));
-  card.appendChild(head);
-
-  // Everything below the head lives in `body`, so the head's chevron
-  // toggle can collapse the whole section (remembered per browser).
-  const body = koordCollapsibleBody(card, head, KOORD_LOK_COLLAPSED_KEY, 'Lokalebooking');
+  // Everything below the heading lives in `body`, so the heading row can
+  // collapse the whole section (remembered per browser).
+  const body = koordCollapsibleCard(card, 'Lokalebooking', KOORD_LOK_COLLAPSED_KEY);
 
   // Hint text left, the Fra/Til period right, on one row (wraps when narrow).
   const topRow = el('div', 'koord-lok-top');
@@ -2821,7 +2797,7 @@ function renderLokalerTab(container) {
 
   const saveBar = el('div', 'koord-mp-save-bar koord-lok-save-bar');
   const saveGroup = el('div', 'koord-mp-save-group');
-  const status = el('span', 'koord-mp-save-status');
+  const status = el('span', 'site-save-status koord-mp-save-status');
   status.id = 'koord-lok-save-status';
   saveGroup.appendChild(status);
   saveBar.appendChild(saveGroup);
@@ -3317,7 +3293,7 @@ function koordFraOpenLinkMenu(anchor, row) {
     const label = el('span', 'koord-fra-link-leaf-name', koordFraLeafLabel(leaf));
     line.appendChild(label);
     if (leaves.length > 1) {
-      const out = el('button', 'koord-fra-link-leaf-remove', '✕');
+      const out = el('button', 'site-icon-btn site-icon-btn-sm site-icon-btn-danger koord-fra-link-leaf-remove', '✕');
       out.type = 'button';
       out.title = 'Tag ud som sin egen linje';
       out.setAttribute('aria-label', `Tag ${koordFraLeafLabel(leaf)} ud som sin egen linje`);
@@ -3359,7 +3335,7 @@ function koordFraOpenLinkMenu(anchor, row) {
 function koordFraTextInput(value, className, onInput) {
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'koord-mp-field ' + className;
+  input.className = 'site-inline-field koord-mp-field ' + className;
   input.value = value || '';
   input.addEventListener('input', () => {
     onInput(input.value);
@@ -3420,7 +3396,7 @@ function renderFraGrid() {
   }
 
   const wrap = el('div', 'koord-lok-table-wrap');
-  const table = el('table', 'koord-lok-table');
+  const table = el('table', 'koord-lok-table site-sheet site-sheet-lines');
   const thead = el('thead');
   const headRow = el('tr');
   headRow.appendChild(el('th', 'koord-lok-th-room', 'Navn'));
@@ -3512,6 +3488,8 @@ function renderFraGrid() {
   koordLokWireGridKeys(table);
   wrap.appendChild(table);
   mount.appendChild(wrap);
+  // The header row follows the page down the sheet.
+  siteStickyHead(table.tHead);
 }
 
 function koordFraPaintConnection() {
@@ -3551,7 +3529,7 @@ function koordFraDateFromLabel(label) {
 
 async function koordFraOpenConnectModal() {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Forbind til formular');
-  modal.classList.add('koord-fra-connect-modal');
+  modal.classList.add('site-modal-md', 'koord-fra-connect-modal');
   const conn = koordFraConnection;
   if (conn) form.appendChild(el('p', 'koord-fra-connect-current', `Forbundet til: ${conn.formTitle || 'formular'}`));
 
@@ -3704,10 +3682,7 @@ async function koordFraOpenConnectModal() {
 function renderFravaerCard(container) {
   koordFraEnsureDraft();
   const card = el('section', 'card koord-lok-card koord-fra-card');
-  const head = el('div', 'card-head');
-  head.appendChild(el('h2', null, 'Fravær'));
-  card.appendChild(head);
-  const body = koordCollapsibleBody(card, head, KOORD_FRA_COLLAPSED_KEY, 'Fravær');
+  const body = koordCollapsibleCard(card, 'Fravær', KOORD_FRA_COLLAPSED_KEY);
 
   const topRow = el('div', 'koord-lok-top');
   const hint = el('p', 'koord-lok-hint',
@@ -3726,7 +3701,7 @@ function renderFravaerCard(container) {
 
   const saveBar = el('div', 'koord-mp-save-bar koord-lok-save-bar');
   const saveGroup = el('div', 'koord-mp-save-group');
-  const status = el('span', 'koord-mp-save-status');
+  const status = el('span', 'site-save-status koord-mp-save-status');
   status.id = 'koord-fra-save-status';
   saveGroup.appendChild(status);
   saveBar.appendChild(saveGroup);
@@ -3742,9 +3717,7 @@ function renderFravaerCard(container) {
 // ── Page render ──────────────────────────────────────────────
 // Four top-level page tabs — Masterplan / Tjeklister & Fællesbeskeder /
 // Lokaler & Fravær / Arkivering — each getting the full page width to work in, styled like
-// Budget's/Formularer's own mode-switch tab bar (.budget-mode-tabs/-tab,
-// duplicated here as .koord-mode-tabs/-tab per the site's per-feature
-// duplication convention — koordinator.html doesn't load budget.css).
+// the shared tab bar (.site-tabs, style.css).
 // Replaces the earlier 2fr/1fr side-by-side layout, which read as
 // cluttered with Masterplan's own grid squeezed into the wide column.
 const KOORD_TABS = [
@@ -3759,9 +3732,9 @@ let koordActiveTab = KOORD_TABS.some((t) => t.key === localStorage.getItem(KOORD
   : KOORD_TABS[0].key;
 
 function renderKoordModeTabs(root) {
-  const tabs = el('div', 'koord-mode-tabs');
+  const tabs = el('div', 'site-tabs');
   KOORD_TABS.forEach((tab) => {
-    const btn = el('button', 'koord-mode-tab' + (tab.key === koordActiveTab ? ' active' : ''), tab.label);
+    const btn = el('button', 'site-tab' + (tab.key === koordActiveTab ? ' active' : ''), tab.label);
     btn.type = 'button';
     btn.addEventListener('click', () => {
       if (tab.key === koordActiveTab) return;
@@ -3893,7 +3866,7 @@ function renderKoordLoginsCard() {
   if (editing) {
     const titleInput = document.createElement('input');
     titleInput.type = 'text';
-    titleInput.className = 'koord-login-input koord-logins-card-title';
+    titleInput.className = 'site-inline-field koord-logins-card-title';
     titleInput.value = koordLoginsTitleDraft;
     titleInput.placeholder = 'Google, YouTube & Spotify';
     titleInput.maxLength = 100;
@@ -3904,16 +3877,13 @@ function renderKoordLoginsCard() {
   } else {
     head.appendChild(el('h2', null, koordLoginsTitle));
   }
-  const toggle = editing
-    ? koordLokIconBtn('Gem og afslut redigering', koordLokIcon('0 0 16 16', '16', '1.6', ['M3 8.5l3.2 3.2L13 5']))
-    : koordLokIconBtn('Rediger', koordLokIcon('0 0 16 16', '15', '1.3', ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
-  toggle.disabled = koordLoginsState !== 'ready' || koordLoginsSaving;
-  toggle.addEventListener('click', () => {
+  const toggle = siteEditToggle(editing, () => {
     if (editing) { koordSaveLogins(); return; }
     koordLoginsDraft = koordLogins.map((account) => Object.assign({}, account));
     koordLoginsTitleDraft = koordLoginsTitle;
     renderKoordLoginsCard();
-  });
+  }, { editLabel: 'Rediger', doneLabel: 'Gem og afslut redigering' });
+  toggle.disabled = koordLoginsState !== 'ready' || koordLoginsSaving;
   head.appendChild(toggle);
   card.appendChild(head);
 
@@ -3932,7 +3902,7 @@ function renderKoordLoginsCard() {
 
   if (editing) {
     const addRow = el('div', 'koord-login-add');
-    const addBtn = el('button', 'boss-manage-add-plus', '+');
+    const addBtn = el('button', 'site-icon-btn site-add-plus', '+');
     addBtn.type = 'button';
     addBtn.title = 'Tilføj login';
     addBtn.setAttribute('aria-label', 'Tilføj login');
@@ -3982,10 +3952,10 @@ function koordBuildLoginSection(account, editing) {
       }
     });
   }
-  const chevron = el('button', 'koord-login-toggle');
+  const chevron = el('button', 'site-collapse koord-login-toggle');
   chevron.type = 'button';
   chevron.setAttribute('aria-expanded', String(isOpen));
-  chevron.appendChild(el('span', 'koord-login-chevron', isOpen ? '▾' : '▸'));
+  chevron.appendChild(el('span', 'site-chevron', '▾'));
   if (!editing) chevron.appendChild(el('span', 'koord-login-title', account.title || 'Uden navn'));
   chevron.setAttribute('aria-label', isOpen ? 'Fold sammen' : 'Fold ud');
   chevron.addEventListener('click', () => {
@@ -3997,7 +3967,7 @@ function koordBuildLoginSection(account, editing) {
   if (editing) {
     const titleInput = document.createElement('input');
     titleInput.type = 'text';
-    titleInput.className = 'koord-login-input koord-login-title-input';
+    titleInput.className = 'site-inline-field koord-login-title-input';
     titleInput.value = account.title || '';
     titleInput.placeholder = 'Navn, fx Instagram';
     titleInput.maxLength = 200;
@@ -4006,6 +3976,7 @@ function koordBuildLoginSection(account, editing) {
     head.appendChild(titleInput);
 
     const remove = koordLokIconBtn('Fjern', koordLokIcon('0 0 16 16', '13', '1.6', ['M4 4l8 8', 'M12 4l-8 8']));
+    remove.classList.add('site-icon-btn-danger');
     remove.disabled = locked;
     remove.addEventListener('click', () => {
       const drop = () => {
@@ -4026,7 +3997,7 @@ function koordBuildLoginSection(account, editing) {
       row.appendChild(el('span', 'koord-login-label', field.label));
       const input = document.createElement('input');
       input.type = field.type;
-      input.className = 'koord-login-input';
+      input.className = 'site-inline-field site-field-labeled koord-login-input';
       input.value = account[field.key] || '';
       input.readOnly = !editing || locked;
       input.maxLength = 200;
@@ -4044,7 +4015,7 @@ function koordBuildLoginSection(account, editing) {
 
 function openRemoveLoginConfirm(account, onConfirm) {
   const { modal, form, actions, close } = siteOpenModalWithClose(`Fjern "${account.title || 'Uden navn'}"?`);
-  modal.classList.add('koord-arkiv-confirm-modal', 'koord-guide-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   form.appendChild(el('p', 'koord-arkiv-confirm-text', 'Login-oplysningerne fjernes, når du gemmer med fluebenet.'));
   const confirmBtn = koordPillBtn('Fjern', 'site-btn-danger');
   confirmBtn.addEventListener('click', () => { close(); onConfirm(); });
@@ -4319,8 +4290,6 @@ function koordSetNotesColumnClosed(card, columnKey, closed) {
   if (closed) koordNotesColsClosed.add(columnKey); else koordNotesColsClosed.delete(columnKey);
   try { localStorage.setItem(KOORD_NOTES_COLS_CLOSED_KEY, JSON.stringify([...koordNotesColsClosed])); } catch (e) { /* this page load only */ }
   card.classList.toggle('koord-notes-card-closed', closed);
-  const chevron = card.querySelector('.koord-notes-col-chevron');
-  chevron.textContent = closed ? '▸' : '▾';
   card.querySelector('.koord-notes-col-head').setAttribute('aria-expanded', String(!closed));
 }
 
@@ -4332,7 +4301,7 @@ function renderTjeklisterCard(container) {
     const head = el('div', 'card-head koord-notes-col-head');
     head.setAttribute('aria-expanded', String(!closed));
     const titleWrap = el('div', 'koord-notes-col-title');
-    titleWrap.appendChild(el('span', 'koord-login-chevron koord-notes-col-chevron', closed ? '▸' : '▾'));
+    titleWrap.appendChild(el('span', 'site-chevron koord-notes-col-chevron', '▾'));
     titleWrap.appendChild(el('h2', null, column.label));
     head.appendChild(titleWrap);
     head.addEventListener('click', (e) => {
@@ -4401,7 +4370,7 @@ function koordCopyNote(source) {
 function openCopyNoteConfirm(note) {
   const isList = note.kind === 'list';
   const { modal, form, actions, close } = siteOpenModalWithClose(`Kopier denne ${isList ? 'tjekliste' : 'note'} til toppen?`);
-  modal.classList.add('koord-arkiv-confirm-modal', 'koord-guide-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const column = KOORD_NOTE_COLUMNS.find((c) => c.key === note.column);
   form.appendChild(el('p', 'koord-arkiv-confirm-text', isList
     ? `Kopien lægges øverst i årets ${column ? column.label : ''}. Alle punkter starter uden flueben.`
@@ -4462,10 +4431,10 @@ function renderKoordNotes() {
       const key = `${column.key}:${archive.folder}`;
       const isOpen = koordNotesArchiveOpen.has(key);
       const section = el('div', 'koord-notes-archive');
-      const toggle = el('button', 'koord-notes-archive-toggle');
+      const toggle = el('button', 'site-collapse koord-notes-archive-toggle');
       toggle.type = 'button';
       toggle.setAttribute('aria-expanded', String(isOpen));
-      toggle.appendChild(el('span', 'koord-login-chevron', isOpen ? '▾' : '▸'));
+      toggle.appendChild(el('span', 'site-chevron', '▾'));
       toggle.appendChild(el('span', null, `${column.label} (${archive.name})`));
       toggle.appendChild(el('span', 'koord-notes-archive-count', String(notes.length)));
       toggle.addEventListener('click', () => {
@@ -4544,18 +4513,18 @@ function koordBuildNote(note) {
 
   const collapsed = koordNoteIsCollapsed(note);
   card.classList.toggle('koord-note-collapsed', collapsed);
-  const chevron = el('button', 'koord-note-collapse');
+  const chevron = el('button', 'site-collapse site-collapse-icon koord-note-collapse');
   chevron.type = 'button';
   chevron.setAttribute('aria-expanded', String(!collapsed));
   chevron.setAttribute('aria-label', collapsed ? 'Fold ud' : 'Fold sammen');
   chevron.title = collapsed ? 'Fold ud' : 'Fold sammen';
-  chevron.appendChild(el('span', 'koord-login-chevron', collapsed ? '▸' : '▾'));
+  chevron.appendChild(el('span', 'site-chevron', '▾'));
   chevron.addEventListener('click', () => koordToggleNoteCollapsed(note));
   head.appendChild(chevron);
 
   const title = document.createElement('input');
   title.type = 'text';
-  title.className = 'koord-note-title';
+  title.className = 'site-inline-field koord-note-title';
   title.value = note.title;
   title.placeholder = 'Titel';
   title.maxLength = 200;
@@ -4585,7 +4554,7 @@ function koordBuildNote(note) {
 
 function koordBuildNoteText(note) {
   const text = document.createElement('textarea');
-  text.className = 'koord-note-text';
+  text.className = 'site-inline-field koord-note-text';
   text.value = note.text;
   text.placeholder = 'Skriv en besked…';
   text.rows = 1;
@@ -4652,7 +4621,7 @@ function koordBuildNoteItem(note, item, reordering) {
 
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'koord-note-item-input';
+  input.className = 'site-inline-field koord-note-item-input';
   input.value = item.text;
   input.maxLength = 500;
   input.placeholder = 'Punkt';
@@ -4686,6 +4655,7 @@ function koordBuildNoteItem(note, item, reordering) {
   row.appendChild(input);
 
   const remove = koordLokIconBtn('Fjern punkt', koordLokIcon('0 0 16 16', '12', '1.6', ['M4 4l8 8', 'M12 4l-8 8']));
+  remove.classList.add('site-icon-btn-danger');
   remove.classList.add('koord-note-item-remove');
   remove.addEventListener('click', () => {
     note.items = note.items.filter((other) => other !== item);
@@ -4868,6 +4838,7 @@ function koordBuildNoteTools(note) {
   tools.appendChild(kindBtn);
 
   const remove = koordLokIconBtn('Slet note', koordLokIcon('0 0 16 16', '13', '1.6', ['M4 4l8 8', 'M12 4l-8 8']));
+  remove.classList.add('site-icon-btn-danger');
   remove.classList.add('koord-note-remove');
   remove.addEventListener('click', () => {
     if (koordNoteHasContent(note)) openRemoveNoteConfirm(note, () => koordDeleteNote(note));
@@ -4879,7 +4850,7 @@ function koordBuildNoteTools(note) {
 
 function openRemoveNoteConfirm(note, onConfirm) {
   const { modal, form, actions, close } = siteOpenModalWithClose(`Slet "${note.title.trim() || 'Uden titel'}"?`);
-  modal.classList.add('koord-arkiv-confirm-modal', 'koord-guide-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   form.appendChild(el('p', 'koord-arkiv-confirm-text', 'Noten slettes for alle koordinatorer.'));
   const confirmBtn = koordPillBtn('Slet', 'site-btn-danger');
   confirmBtn.addEventListener('click', () => { close(); onConfirm(); });

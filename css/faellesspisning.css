@@ -39,42 +39,22 @@
   color: var(--text-muted);
 }
 
-/* Inline field-editing style (boss/admin): invisible border at rest,
-   border on hover, warm border + input background while focused. */
+/* Boss/admin edit the notice in place (.site-inline-field). */
 .faelles-notice-input {
-  font: inherit;
   font-weight: 600;
   display: block;
-  box-sizing: border-box;
-  width: 100%;
   resize: none;
   overflow: hidden;
   line-height: 1.35;
   padding: 0.3rem 0.5rem;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
 }
 
-@media (hover: hover) {
-  .faelles-notice-input:hover { border-color: var(--border); }
-}
-
-.faelles-notice-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  background: var(--input-bg);
-}
-
-/* Madark / Oversigt toggle pinned to the toolbar's top right corner
-   (revyst+): top-aligned, so it stays put when switching views even though
-   the two toolbars differ in height. */
+/* Madark | Oversigt (.site-segmented) pinned to the toolbar's top right
+   corner (revyst+): top-aligned, so it stays put when switching views even
+   though the two toolbars differ in height. */
 .faelles-view-toggle {
   justify-self: end;
   align-self: start;
-  /* Same width for both labels, so the button doesn't change size either. */
-  min-width: 5.5rem;
-  text-align: center;
 }
 
 /* The overview's toolbar: .faelles-days brings its own top margin. */
@@ -94,48 +74,7 @@
   font-size: 0.9rem;
 }
 
-/* --- Boss Box (boss/admin settings above the sheet) ---------------- */
-
-.faelles-boss-card .faelles-boss-heading {
-  margin: 0;
-  font-size: 1.15rem;
-}
-
-/* Whole heading is the collapse toggle (like band.css's .band-folder-head). */
-.faelles-boss-toggle {
-  display: flex;
-  align-items: baseline;
-  gap: 0.5rem;
-  width: 100%;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  border-radius: 6px;
-}
-
-@media (hover: hover) {
-  .faelles-boss-toggle:hover { color: var(--accent-warm-text); }
-}
-
-.faelles-boss-toggle:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-.faelles-boss-chevron {
-  flex: none;
-  width: 0.8rem;
-  color: var(--text-muted);
-}
-
-.faelles-boss-body {
-  margin-top: 0.75rem;
-}
-
+/* --- Boss Box (.site-boss-box, last on the page) ------------------ */
 .faelles-boss-section h3 {
   margin: 0 0 0.35rem;
   font-size: 0.95rem;
@@ -177,16 +116,9 @@
   font-weight: 600;
 }
 
-/* As wide as its text, beside the label (overrides .site-field-btn's
-   width: 100%) — same as band.css's .band-boss-select. */
+/* As wide as its text, beside the label (.site-toolbar-control). */
 .faelles-boss-select {
   flex: 0 0 auto;
-  width: auto;
-  height: 2rem;
-  padding-top: 0;
-  padding-bottom: 0;
-  font-size: 0.85rem;
-  background: var(--surface);
 }
 
 @media (max-width: 719px) {
@@ -204,19 +136,11 @@
 
 /* --- Main grid ---------------------------------------------------- */
 
-/* overflow-x:auto alone forces overflow-y's computed value to 'auto' too
-   (CSS Overflow spec: one axis non-'visible' pulls the other off 'visible'),
-   which silently turns this wrap into its own scroll container — and since
-   it never actually overflows vertically (no height cap), that container's
-   own scrollTop never moves, so a sticky child inside it never "sees" the
-   page scrolling and just scrolls away with the rest of the table (verified
-   empirically, not just per spec). Capping the height and scrolling
-   vertically *within* the wrap (rather than relying on page scroll) is what
-   makes the sticky header actually work — same recipe as wiki.css's chapter
-   list (`max-height: calc(100vh - 96px)`). */
+/* The sheet scrolls with the page (scrolling sideways in this wrap); the
+   header row follows the page down via siteStickyHead() (site-utils.js),
+   like every other long sheet on the site. */
 .faelles-table-wrap {
-  overflow: auto;
-  max-height: calc(100vh - 260px);
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   /* Room for the horizontal scrollbar below the table content — without
      this, an overlay scrollbar (macOS Safari/Chrome with "always show
@@ -225,43 +149,17 @@
   padding-bottom: 1rem;
 }
 
-/* border-spacing:0 (not border-collapse:collapse) + box-shadow instead of a
-   real border-bottom on every cell: WebKit doesn't collapse a sticky cell's
-   border consistently with its non-sticky neighbours under
-   border-collapse:collapse (the sticky Navn column and header row both use
-   position:sticky below) — the row separator line visibly changes width/
-   thickness at the sticky column's edge because of it. box-shadow paints
-   per-cell and isn't part of border collapsing, so every column's line
-   renders identically regardless of which cells are sticky. */
+/* Row/column lines and the header look come from .site-sheet (style.css). */
 .faelles-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
   font-size: 0.85rem;
 }
 
 .faelles-table th,
 .faelles-table td {
-  box-shadow: inset 0 -1px 0 0 var(--border);
   padding: 0.4rem 0.5rem;
   text-align: center;
   white-space: nowrap;
-}
-
-/* Sticky header row (Navn/Madforbehold/date columns) — stays visible while
-   scrolling down a long roster, so a date further down the sheet is always
-   readable. background is required so rows scrolling up don't show through;
-   z-index sits above the sticky Navn column's tbody cells (1) but below the
-   header's own Navn corner cell (which needs to win over both this row and
-   the tbody's sticky column — see .faelles-table thead .faelles-col-navn). */
-.faelles-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: var(--surface);
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.8rem;
 }
 
 /* Navn/Madforbehold columns: left-aligned text. Only Navn stays sticky
@@ -339,9 +237,9 @@
 }
 
 /* Drag grip on a header's right edge (copy of band.css's .band-col-resizer).
-   The header cells are already position:sticky, so they anchor it. Each
-   sticky header is its own stacking context, so the next header would paint
-   over a grip that straddled the edge — it sits just inside instead. */
+   The header cells are positioned (siteStickyHead), so they anchor it. Each
+   one is its own stacking context, so the next header would paint over a
+   grip that straddled the edge — it sits just inside instead. */
 .faelles-col-resizer {
   position: absolute;
   top: 0;
@@ -387,79 +285,22 @@
    in the header — removing a calendar-sourced column only hides it from
    this sheet (the real event is untouched), while an extra column is
    deleted outright; see faellesOpenDeleteDayConfirm in faellesspisning.js. */
-.faelles-col-day-remove {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-  line-height: 1;
-  padding: 0.1rem;
-}
+/* The day columns' ✕ and the rows' ✕ are .site-icon-btn (style.css). */
 
-@media (hover: hover) {
-  .faelles-col-day-remove:hover { color: var(--danger); }
-}
-
-.faelles-col-day-remove:focus-visible {
-  outline: none;
-  color: var(--danger);
-}
-
+/* Cells are .site-inline-field (style.css). */
 .faelles-table .faelles-col-field input[type="text"] {
-  width: 100%;
   min-width: 8rem;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
   padding: 0.2rem 0.35rem;
-  font: inherit;
-  color: var(--text);
 }
 
-@media (hover: hover) {
-  .faelles-table .faelles-col-field input[type="text"]:hover {
-    border-color: var(--border);
-  }
-}
-
-.faelles-table .faelles-col-field input[type="text"]:focus-visible {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  background: var(--input-bg);
-}
-
-/* Day-attendance checkboxes: recolored to the site's own warm accent
-   instead of the browser-default blue, same convention as Forms'
-   checkbox/checkboxes-type fields (css/forms.css). */
+/* Day-attendance checkboxes (amber via the site-wide accent-color). */
 .faelles-table .faelles-col-day input[type="checkbox"] {
   width: 1.1rem;
   height: 1.1rem;
   cursor: pointer;
-  accent-color: var(--accent-warm-text);
 }
 
-.faelles-remove-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.9rem;
-  line-height: 1;
-  padding: 0.2rem 0.35rem;
-}
-
-@media (hover: hover) {
-  .faelles-remove-btn:hover { color: var(--danger); }
-}
-
-.faelles-remove-btn:focus-visible {
-  outline: none;
-  color: var(--danger);
-}
-
-.faelles-add-row td {
+.faelles-table .faelles-add-row td {
   box-shadow: none;
   padding-top: 0.6rem;
 }
@@ -493,7 +334,7 @@
   max-width: 320px;
   background: var(--header);
   color: var(--surface);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.35;
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
@@ -535,7 +376,7 @@
 }
 
 .faelles-prefs-btn:disabled {
-  opacity: 0.5;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 
@@ -548,7 +389,7 @@
 
 .faelles-prefs-btn:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .faelles-summary-note {
@@ -587,11 +428,7 @@
   text-align: right;
 }
 
-/* --- Connect-to-formular modal ---------------------------------------- */
-
-.faelles-connect-modal {
-  width: min(90vw, 30rem);
-}
+/* --- Connect-to-formular modal (default .edit-modal width) ----------- */
 
 /* Sits directly under the modal's own h2 (siteOpenModalWithClose) — shows
    the connected form's own title, however long, now that the toolbar
@@ -612,49 +449,12 @@
   justify-content: center;
 }
 
-/* --- "Fjern række" confirm — replaces the native confirm() dialog,
-   mirrors calendar.css's .cal-confirm-modal/.cal-confirm-text. -------- */
-
-.login-modal .faelles-confirm-text {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
-  text-align: center;
-  margin-bottom: 0.5rem;
-}
-
-/* Secondary explanatory line below the bold confirm question (e.g. "the
-   calendar event itself won't be deleted") — plain, muted, not part of
-   the title-style text above it. */
-.login-modal .faelles-confirm-note {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  text-align: center;
-  margin-bottom: 0.5rem;
-}
-
-/* Shared one-liner delete-confirm width formula — see .post-confirm-modal
-   (style.css) for the full rationale. */
-.faelles-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
-}
-
-/* faellesOpenDeleteRowConfirm keeps a real h2 title ("Slet "X"?") instead
-   of the no-heading pattern above — centered like koordinator.css's own
-   .koord-arkiv-confirm-modal h2, since this is a one-line question, not a
-   left-aligned form. */
-.faelles-confirm-modal h2 {
-  text-align: center;
-}
-
 /* --- Mobile (≤719px, site-wide breakpoint) ---------------------------
    Grid stays a horizontally-scrolled table at every width (see file-top
    comment) — this only shrinks the sticky Navn column, which otherwise eats
    too much of a phone's limited width before the day columns even start. */
 @media (max-width: 719px) {
-  .faelles-table { font-size: 0.78rem; }
+  .faelles-table { font-size: 0.8rem; }
   .faelles-table th,
   .faelles-table td { padding: 0.3rem 0.4rem; }
   .faelles-table .faelles-col-navn input[type="text"] {
@@ -685,17 +485,6 @@
   /* Summary labels ("Samlet antal i dag") may wrap rather than hold the
      column wider than the cap. */
   .faelles-table tbody.faelles-summary th { white-space: normal; }
-}
-
-/* Small or low screens: the sheet's own scroll area is as tall as the
-   window below the sticky 56px site header, so with the date row at the top
-   of the screen the table reaches the bottom (the desktop cap leaves room
-   for the toolbar so the whole card fits without page scrolling). */
-@media (max-width: 719px), (max-height: 800px) {
-  .faelles-table-wrap {
-    max-height: calc(100vh - 56px - 0.5rem);
-    max-height: calc(100dvh - 56px - 0.5rem);
-  }
 }
 
 /* ── Satyr's per-day summary (no names) ──
@@ -731,7 +520,7 @@
 }
 
 .faelles-day-title {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -739,7 +528,7 @@
 }
 
 .faelles-day-date {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text);
 }

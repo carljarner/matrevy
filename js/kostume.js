@@ -40,7 +40,7 @@ function kostumePillBtn(label, variant) {
 }
 
 function kostumeAddPlusBtn(title) {
-  const btn = el('button', 'boss-manage-add-plus', '+');
+  const btn = el('button', 'site-icon-btn site-add-plus', '+');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -48,7 +48,7 @@ function kostumeAddPlusBtn(title) {
 }
 
 function kostumeRemoveBtn(title) {
-  const btn = el('button', 'kostume-remove-btn', '✕');
+  const btn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -213,7 +213,7 @@ function kostumeRenderPicker() {
   const options = kostumeRevyOptions();
   if (!options.length) { mount.replaceChildren(); return; }
   const picker = siteCreateDropdownField(options.map(({ value, label }) => ({ value, label })), kostumeFolder);
-  picker.classList.add('kostume-revy-select');
+  picker.classList.add('site-toolbar-control', 'kostume-revy-select');
   picker.setAttribute('aria-label', 'Vælg revy');
   picker.addEventListener('change', () => {
     if (picker.value === kostumeFolder) return;
@@ -242,12 +242,12 @@ async function kostumeLoad() {
   kostumeUpdateEditNote();
   if (!kostumeFolder) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'kostume-muted', 'Der er ingen revyer endnu.'));
+    card.appendChild(el('p', 'site-muted', 'Der er ingen revyer endnu.'));
     root.replaceChildren(card);
     return;
   }
   const seq = ++kostumeLoadSeq;
-  if (!kostumeState) root.replaceChildren(el('p', 'kostume-muted', 'Indlæser…'));
+  if (!kostumeState) root.replaceChildren(el('p', 'site-muted', 'Indlæser…'));
   const result = await kostumeApi('kostume_read', {});
   // A slower read for a revy you've since switched away from is dropped.
   if (seq !== kostumeLoadSeq) return;
@@ -276,8 +276,11 @@ function kostumeRender() {
   if (!kostumeState) return;
   const card = el('section', 'card');
   const wrap = el('div', 'kostume-table-wrap');
-  wrap.appendChild(kostumeBuildSheetTable());
+  const sheet = kostumeBuildSheetTable();
+  wrap.appendChild(sheet);
   card.appendChild(wrap);
+  // The header row follows the page down a long sheet.
+  siteStickyHead(sheet.tHead);
   if (!kostumeCanEdit()) {
     root.appendChild(card);
     return;
@@ -302,10 +305,18 @@ function kostumeHandleFailure(result) {
 }
 
 // ── The sheet ────────────────────────────────────────────────
+// The drag handle and the first column stay put while the sheet scrolls
+// sideways (.site-sheet-sticky, style.css).
+function kostumeStickyCell(cell, left) {
+  cell.classList.add('site-sheet-sticky');
+  cell.style.left = `${left}px`;
+  return cell;
+}
+
 // Fixed table layout driven by a <colgroup>, so a dragged width is exact
 // and the other columns don't shift to absorb it.
 function kostumeBuildSheetTable() {
-  const table = el('table', 'kostume-table');
+  const table = el('table', 'kostume-table site-sheet site-sheet-lines');
   const colgroup = el('colgroup');
   const cols = {};
   const addCol = (key, width) => {
@@ -326,9 +337,10 @@ function kostumeBuildSheetTable() {
 
   const thead = el('thead');
   const headRow = el('tr');
-  if (canEdit) headRow.appendChild(el('th', 'kostume-col-handle'));
+  if (canEdit) headRow.appendChild(kostumeStickyCell(el('th', 'kostume-col-handle site-sheet-noline'), 0));
   for (const col of columns) {
     const th = el('th', col.status ? 'kostume-col-resizable kostume-col-status' : 'kostume-col-resizable');
+    if (col === columns[0]) kostumeStickyCell(th, canEdit ? KOSTUME_HANDLE_COL_WIDTH : 0);
     if (canEdit) {
       // Clearing the title and pressing Backspace/Delete once more asks to
       // remove the column ("Jeg mangler" excepted).
@@ -341,7 +353,7 @@ function kostumeBuildSheetTable() {
     headRow.appendChild(th);
   }
   if (canEdit) {
-    const addTh = el('th', 'kostume-col-actions');
+    const addTh = el('th', 'kostume-col-actions site-sheet-noline');
     const addColBtn = kostumeAddPlusBtn('Tilføj kolonne');
     addColBtn.addEventListener('click', kostumeOpenAddColumnModal);
     addTh.appendChild(addColBtn);
@@ -363,7 +375,7 @@ function kostumeBuildSheetTable() {
 function kostumeCreateTextInput(row, key, tr, canEdit = true) {
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'kostume-field';
+  input.className = 'site-inline-field kostume-field';
   input.dataset.key = key;
   input.value = row[key] || '';
   if (!canEdit) {
@@ -430,27 +442,30 @@ function kostumeRefreshHints(tbody) {
 function kostumeRenderRow(row, canEdit = true) {
   const tr = el('tr', 'kostume-row');
   tr._row = row;
+  const columns = kostumeSheetColumns();
   if (!canEdit) {
-    for (const col of kostumeSheetColumns()) {
+    for (const col of columns) {
       const td = el('td', col.status ? 'kostume-col-status' : null);
+      if (col === columns[0]) kostumeStickyCell(td, 0);
       td.appendChild(col.status ? kostumeStatusToggle(row, col.key, tr, false) : kostumeCreateTextInput(row, col.key, tr, false));
       tr.appendChild(td);
     }
     return tr;
   }
-  const handleTd = el('td', 'kostume-col-handle');
+  const handleTd = kostumeStickyCell(el('td', 'kostume-col-handle site-sheet-noline'), 0);
   const handle = el('span', 'boss-manage-drag-handle kostume-drag-handle', '⠿');
   handle.title = 'Træk for at flytte';
   handleTd.appendChild(handle);
   tr.appendChild(handleTd);
   kostumeWireRowDrag(tr, handle, row);
 
-  for (const col of kostumeSheetColumns()) {
+  for (const col of columns) {
     const td = el('td', col.status ? 'kostume-col-status' : null);
+    if (col === columns[0]) kostumeStickyCell(td, KOSTUME_HANDLE_COL_WIDTH);
     td.appendChild(col.status ? kostumeStatusToggle(row, col.key, tr) : kostumeCreateTextInput(row, col.key, tr));
     tr.appendChild(td);
   }
-  const actions = el('td', 'kostume-col-actions');
+  const actions = el('td', 'kostume-col-actions site-sheet-noline');
   const removeBtn = kostumeRemoveBtn('Slet række');
   removeBtn.addEventListener('click', () => kostumeDeleteRow(row, tr));
   actions.appendChild(removeBtn);
@@ -525,8 +540,8 @@ function kostumeDeleteRow(row, tr) {
 // open (e.g. on a failed request).
 function kostumeConfirm(title, description, confirmLabel, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('kostume-confirm-modal');
-  if (description) form.appendChild(el('p', 'kostume-confirm-text', description));
+  modal.classList.add('site-confirm-modal');
+  if (description) form.appendChild(el('p', 'site-confirm-sub', description));
   const cancelBtn = kostumePillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = kostumePillBtn(confirmLabel, 'site-btn-danger');
@@ -819,7 +834,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) return;
   if (typeof siteIsFileProtocol === 'function' && siteIsFileProtocol()) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'kostume-muted', 'Kostumetinder kræver forbindelse til serveren og virker ikke offline.'));
+    card.appendChild(el('p', 'site-muted', 'Kostumetinder kræver forbindelse til serveren og virker ikke offline.'));
     root.replaceChildren(card);
     return;
   }

@@ -4,60 +4,40 @@
    719px is the site-wide mobile breakpoint.
    ========================================================= */
 
+/* .site-empty / .site-save-status (style.css). */
 .stjerne-empty {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  text-align: center;
 }
 
 .stjerne-status {
   margin: 0 0 0.75rem;
-  font-size: 0.85rem;
-  color: var(--text-muted);
   text-align: right;
 }
 
-.stjerne-status.stjerne-status-error {
-  color: var(--danger);
-}
-
 /* --- The sheet -----------------------------------------------
-   One table (stjerneRender() in stjerneark.js), like the old spreadsheet:
-   as tall as the table, scrolling only sideways with the title column
-   sticky. separate + inset box-shadow lines, so sticky cells keep their
-   separators. */
+   One table (stjerneRender() in stjerneark.js), like the old spreadsheet,
+   straight in the card like Rekvisitten's: it scrolls with the page (the
+   header row follows it, siteStickyHead) and sideways with the title
+   column sticky. Lines, header look and act rows: .site-sheet. */
 .stjerne-scroll {
   overflow-x: auto;
-  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface);
+  padding-bottom: 0.5rem;
 }
 
 .stjerne-table {
-  border-collapse: separate;
-  border-spacing: 0;
   font-size: 0.85rem;
   min-width: 100%;
 }
 
 .stjerne-table th,
 .stjerne-table td {
-  box-shadow: inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
   padding: 0.3rem 0.5rem;
   text-align: center;
   vertical-align: middle;
 }
 
 .stjerne-table thead th {
-  background: var(--surface);
-  font-weight: 600;
-  font-size: 0.8rem;
-  line-height: 1.25;
-  vertical-align: bottom;
-  color: var(--text-muted);
   white-space: nowrap;
 }
 
@@ -72,6 +52,10 @@
   font-weight: 600;
 }
 
+.stjerne-table thead .stjerne-col-title {
+  z-index: 3;
+}
+
 /* Scene titles stay on one line, cut with "..." (full title on hover). */
 .stjerne-title-text {
   display: block;
@@ -81,10 +65,9 @@
   white-space: nowrap;
 }
 
-/* Act heading rows ("Akt 1", …); the label stays put while the sheet
-   scrolls sideways. */
+/* Act heading rows ("Akt 1", …, .site-sheet-section); the label stays
+   put while the sheet scrolls sideways. */
 .stjerne-act-row td {
-  background: var(--surface-2);
   text-align: left;
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;
@@ -107,7 +90,6 @@
   width: 1rem;
   height: 1rem;
   margin: 0;
-  accent-color: var(--accent-warm-text);
   cursor: pointer;
 }
 
@@ -140,7 +122,7 @@
 .stjerne-add:focus-visible {
   outline: none;
   opacity: 1;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .stjerne-table .stjerne-note-cell {
@@ -166,31 +148,11 @@
   font: inherit;
 }
 
-/* Inline field-editing style (CLAUDE.md): transparent at rest, border on
-   hover, warm border + input background while focused. */
+/* Kommentar is a .site-inline-field (style.css). */
 .stjerne-note {
   grid-area: 1 / 1;
-  width: 100%;
-  min-width: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
   padding: 0.2rem 0.3rem;
-  font: inherit;
-  color: var(--text);
   text-align: left;
-}
-
-@media (hover: hover) {
-  .stjerne-note:hover { border-color: var(--border); }
-}
-
-.stjerne-note:focus,
-.stjerne-note:focus-visible {
-  outline: none;
-  border-color: var(--accent-warm);
-  background: var(--input-bg);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 /* Priority (0-3): four always-visible circles, grey until the active one
@@ -206,7 +168,7 @@
   padding: 0;
   border: none;
   border-radius: 50%;
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 700;
   font-family: inherit;
   line-height: 1;
@@ -218,7 +180,7 @@
 
 .stjerne-prio-circle:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 /* Each value's own color (a fair bit more saturated than a typical pale
@@ -243,6 +205,7 @@
     background: #f0f1f2;
     color: var(--neutral-border);
   }
+}
 
 /* Read-only (below boss): the circles show the values but can't be
    clicked, and only the selected one is coloured. */

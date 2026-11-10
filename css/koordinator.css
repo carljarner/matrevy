@@ -45,56 +45,6 @@
   margin-top: 0;
 }
 
-/* --- Page-level tabs: Masterplan / Tjeklister & Fællesbeskeder /
-   Arkivering, each getting the full page width — styled identically to
-   Budget's/Formularer's own mode-switch tab bar (budget.css's
-   .budget-mode-tabs/.budget-mode-tab), duplicated here since koordinator.html
-   doesn't load budget.css, per the site's per-feature-duplication
-   convention. */
-.koord-mode-tabs {
-  display: flex;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.koord-mode-tab {
-  flex: 1 1 0;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0.6rem 1rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.koord-mode-tab.active {
-  color: var(--accent-warm-text);
-  border-bottom-color: var(--accent-warm-text);
-}
-
-@media (hover: hover) {
-  .koord-mode-tab:not(.active):hover { color: var(--text); }
-}
-
-/* Four tabs on a phone: shrink so the bar never scrolls the page sideways. */
-@media (max-width: 719px) {
-  .koord-mode-tab {
-    min-width: 0;
-    padding: 0.5rem 0.3rem;
-    font-size: 0.8rem;
-  }
-}
-
-.koord-mode-tab:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  border-radius: 4px;
-}
-
 /* --- Arkivering tab: wide Manus card + a narrow right column stacking
    Budget/Arkiv, same 2fr/1fr pattern as style.css's own .dashboard-
    columns — scoped to this one tab, unlike the page-wide layout it
@@ -139,10 +89,7 @@
   font-weight: 600;
 }
 
-/* --- Arkiv year editor modal --------------------------------- */
-.koord-year-edit-modal {
-  width: min(520px, 94vw);
-}
+/* --- Arkiv year editor modal (.site-modal-md) -------------------- */
 
 .koord-year-edit-group {
   background: var(--surface-2);
@@ -207,18 +154,7 @@
   text-decoration: none;
 }
 
-/* --- Delete-year confirm popup: shared one-liner delete-confirm width
-   formula — see .post-confirm-modal (style.css) for the full rationale. */
-.koord-arkiv-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
-}
-
-.koord-arkiv-confirm-modal h2 {
-  text-align: center;
-}
-
+/* Confirm dialogs are .site-confirm-modal (style.css). */
 .koord-arkiv-confirm-text {
   color: var(--text-muted);
   text-align: center;
@@ -246,19 +182,6 @@
   white-space: nowrap;
 }
 
-/* Same compact sizing as budget.css's own .budget-year-field .site-field-btn
-   ("Viser budget for:")/forms.css's .forms-year-filter ("Viser for:") — one
-   shared look for every "which one am I viewing" dropdown site-wide. */
-.koord-mp-plan-picker .site-field-btn {
-  width: auto;
-  min-width: 8rem;
-  padding: 0.2rem 0.6rem;
-  font-size: 0.8rem;
-}
-
-.koord-mp-plan-modal {
-  width: min(420px, 94vw);
-}
 
 /* .card-head is a plain non-wrapping flex row site-wide. It used to be let
    wrap here so "Masterplan" + the plan picker didn't get squeezed together
@@ -275,85 +198,14 @@
   flex-wrap: nowrap;
 }
 
-@media (max-width: 400px) {
+@media (max-width: 420px) {
   .koord-mp-plan-picker-label { display: none; }
 }
 
-/* --- Masterplan (js/koordinator.js's renderMasterplanCard/renderMpGrid) --
-   Tab bar styled like Manus's own flat mode-switch tab bar
-   (manus.css's .manus-tab-btn-bar) — duplicated here since this page
-   doesn't load manus.css. Collapses to a single dropdown on mobile, but
-   much narrower than the site-wide ≤719px breakpoint used everywhere
-   else: with only 5 short-ish labels (the longest, "Efter revyen", is 12
-   characters), a smaller font + tighter padding + nowrap (below) lets the
-   whole row still fit on one line all the way down to a real phone's
-   narrowest realistic width (measured empirically — every current phone
-   viewport, 320px and up, fits with room to spare; only an unrealistic
-   ~300px-or-narrower viewport actually needs the fallback), so the
-   dropdown swap only kicks in at ≤300px instead. */
-.koord-mp-tab-bar {
-  margin-bottom: 1rem;
-}
-
-.koord-mp-tab-btn-bar {
-  display: flex;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--border);
-}
-
-.koord-mp-tab-select-mobile {
-  display: none;
-}
-
-.koord-mp-tab-btn {
-  flex: 1 1 0;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0.6rem 0.75rem;
-  font: inherit;
-  font-weight: 600;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  text-align: center;
-  cursor: pointer;
-  /* nowrap keeps a label to one line — without it, a narrow equal-share
-     flex-basis:0 button wraps its own label mid-word ("Blok" over "4") well
-     before the row as a whole runs out of room; .koord-mp-tab-btn-bar's own
-     flex-wrap:wrap is what still catches a genuinely too-narrow row,
-     dropping the last tab onto its own second line instead. */
-  white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-@media (hover: hover) {
-  .koord-mp-tab-btn:not(.active):hover { color: var(--text); }
-}
-
-.koord-mp-tab-btn:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  border-radius: 4px;
-}
-
-.koord-mp-tab-btn.active {
-  color: var(--accent-warm-text);
-  border-bottom-color: var(--accent-warm-text);
-}
-
-@media (max-width: 719px) {
-  .koord-mp-tab-btn {
-    font-size: 0.72rem;
-    padding: 0.5rem 0.3rem;
-  }
-}
-
-@media (max-width: 300px) {
-  .koord-mp-tab-btn-bar { display: none; }
-  .koord-mp-tab-select-mobile { display: flex; }
-}
-
-/* --- Grid: a flex column of "table-ish" rows rather than a real <table> —
+/* --- Masterplan (renderMasterplanCard/renderMpGrid). Its phase tabs are
+   the shared .site-tabs.site-tabs-sub; the header row follows the page
+   (siteStickyHead).
+   Grid: a flex column of "table-ish" rows rather than a real <table> —
    drag-reorder's drop-line indicator is a plain border-top swap (mirrors
    budget.css's .streg-price-row, itself already a duplicate of this same
    recipe), which is simplest on a plain <div> row. Horizontal scroll only,
@@ -389,8 +241,9 @@
 
 .koord-mp-row-header > span { padding: 0 0.4rem; }
 
+/* A group heading row: the shared section-row fill (.site-sheet-section). */
 .koord-mp-row-group {
-  background: var(--accent-warm-fill);
+  background: var(--surface-2);
   border-radius: 6px;
   font-weight: 600;
 }
@@ -442,7 +295,7 @@
 }
 .koord-mp-drag-image-line + .koord-mp-drag-image-line {
   margin-top: 0.1rem;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -474,32 +327,12 @@
   font-weight: 600;
 }
 
-/* Inline field-editing convention (see CLAUDE.md's site-wide button/field
-   conventions section) — no visible border at rest, a hover border only,
-   a warm focus border + input background while actually editing. */
+/* Cells are .site-inline-field (style.css). */
 .koord-mp-field {
-  width: 100%;
-  min-width: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
   padding: 0.25rem 0.4rem;
-  font: inherit;
   font-size: 0.85rem;
-  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-@media (hover: hover) {
-  .koord-mp-field:hover { border-color: var(--border); }
-}
-
-.koord-mp-field:focus-visible {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  background: var(--input-bg);
 }
 
 /* Status pill — cycles unset/mangler/igang/faerdig on click, same
@@ -512,7 +345,7 @@
   padding: 0.3rem 0.4rem;
   font: inherit;
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   text-align: center;
   cursor: pointer;
 }
@@ -572,27 +405,6 @@
   gap: 0.6rem;
 }
 
-.koord-mp-save-status {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.koord-mp-save-status.dirty {
-  color: var(--accent-warm-text);
-}
-
-/* --- Row-removal confirm popup, mirrors .koord-arkiv-confirm-modal. Shared
-   one-liner delete-confirm width formula — see .post-confirm-modal
-   (style.css) for the full rationale. ---- */
-.koord-mp-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
-}
-
-.koord-mp-confirm-modal h2 {
-  text-align: center;
-}
 
 .koord-mp-confirm-text {
   color: var(--text-muted);
@@ -623,23 +435,20 @@
   padding-bottom: 0.25rem;
 }
 
+/* Row and column lines and the header look come from .site-sheet
+   (style.css); the header row follows the page (siteStickyHead). */
 .koord-lok-table {
-  border-collapse: collapse;
   font-size: 0.85rem;
 }
 
 .koord-lok-table th,
 .koord-lok-table td {
-  border-bottom: 1px solid var(--border);
   padding: 0.2rem 0.15rem;
   vertical-align: middle;
 }
 
 .koord-lok-table th {
-  vertical-align: bottom;
   padding-bottom: 0.45rem;
-  font-weight: 600;
-  color: var(--text-muted);
   text-align: left;
 }
 
@@ -652,6 +461,8 @@
   min-width: 11rem;
   max-width: 11rem;
 }
+
+.koord-lok-table thead .koord-lok-th-room { z-index: 3; }
 
 .koord-lok-th-room { padding-left: 1.55rem; }
 
@@ -668,19 +479,13 @@
 }
 
 .koord-lok-th-title {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 400;
   line-height: 1.3;
   padding: 0 0.4rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Faint column rules so the empty grid still reads as a sheet. */
-.koord-lok-th-day,
-.koord-lok-td-cell {
-  border-left: 1px solid var(--border);
 }
 
 .koord-lok-room-wrap {
@@ -696,18 +501,22 @@
   width: 1.8rem;
 }
 
-.koord-lok-tr {
-  box-shadow: inset 0 2px 0 0 transparent;
+/* Drop highlight: an inset top line on the row's cells. */
+.koord-lok-tr > td {
   transition: box-shadow 0.15s;
 }
 
-.koord-lok-tr.koord-mp-drop-target {
-  box-shadow: inset 0 2px 0 0 var(--accent-warm);
+.koord-lok-table .koord-lok-tr.koord-mp-drop-target > td {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
 }
 
-.koord-lok-drop-tail td {
+.koord-lok-table .koord-lok-drop-tail td {
   height: 0.9rem;
-  border-bottom: none;
+  box-shadow: none;
+}
+
+.koord-lok-table .koord-lok-drop-tail.koord-mp-drop-target td {
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
 }
 
 .koord-lok-add-row {
@@ -765,33 +574,15 @@
   white-space: nowrap;
 }
 
-.koord-lok-icon-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.koord-lok-icon-btn:disabled { opacity: 0.5; cursor: default; }
-
+/* The file actions are .site-icon-btn (style.css). */
 @media (hover: hover) {
   .koord-lok-file-name:hover { color: var(--accent-warm-text); text-decoration: underline; }
-  .koord-lok-icon-btn:hover { color: var(--accent-warm-text); }
 }
 
-.koord-lok-file-name:focus-visible,
-.koord-lok-icon-btn:focus-visible {
+.koord-lok-file-name:focus-visible {
   outline: none;
   color: var(--accent-warm-text);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .koord-lok-upload-bar {
@@ -818,9 +609,6 @@
   text-align: center;
 }
 
-.koord-lok-card .koord-mp-field:focus-visible {
-  background: transparent;
-}
 
 /* Øvrige bookinger | Underskrevne blanketter, side by side under the grid. */
 .koord-lok-columns {
@@ -839,34 +627,7 @@
   }
 }
 
-/* Collapse toggle top-right of the Lokalebooking card head. */
-.koord-lok-collapse-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  font: inherit;
-  font-size: 1rem;
-  line-height: 1;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-@media (hover: hover) {
-  .koord-lok-collapse-btn:hover { color: var(--accent-warm-text); }
-}
-
-.koord-lok-collapse-btn:focus-visible {
-  outline: none;
-  color: var(--accent-warm-text);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
+/* Lokalebooking/Fravær's heading row is the shared .site-collapse toggle. */
 
 .koord-lok-body { margin-top: 0.4rem; }
 
@@ -905,7 +666,7 @@
   width: auto;
   min-width: 0;
   padding: 0.2rem 0.45rem;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   gap: 0.35rem;
 }
 
@@ -917,7 +678,7 @@
 
 /* Third header line: the rehearsal's time from Kalender. */
 .koord-fra-th-time {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 400;
   color: var(--text-muted);
   text-align: center;
@@ -1009,12 +770,13 @@
 .koord-fra-name-btn:focus-visible {
   outline: none;
   border-color: var(--accent-warm);
+  box-shadow: var(--focus-ring);
 }
 
 /* "Ikke på rollelisten": above the rows the cast list doesn't have. */
 .koord-fra-divider td {
   padding: 0.6rem 0.4rem 0.2rem;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
@@ -1033,7 +795,7 @@
 }
 
 .koord-fra-link-heading {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -1058,29 +820,6 @@
   white-space: nowrap;
 }
 
-.koord-fra-link-leaf-remove {
-  flex: none;
-  font: inherit;
-  font-size: 0.8rem;
-  line-height: 1;
-  padding: 0.2rem 0.3rem;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  .koord-fra-link-leaf-remove:hover {
-    color: var(--danger);
-    background: var(--danger-bg);
-  }
-}
-
-.koord-fra-link-leaf-remove:focus-visible {
-  color: var(--danger);
-}
 
 .koord-fra-connection {
   display: flex;
@@ -1100,9 +839,6 @@
 }
 
 /* Connect modal: delete left, Forbind right (centred when alone). */
-.koord-fra-connect-modal {
-  width: min(560px, 94vw);
-}
 
 .koord-fra-connect-modal .login-actions {
   justify-content: space-between;
@@ -1153,7 +889,7 @@
   width: auto;
   min-width: 0;
   padding: 0.2rem 0.45rem;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .koord-fra-reimport {
@@ -1214,7 +950,7 @@
 }
 
 .koord-guide-box:disabled {
-  opacity: 0.5;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 @media (hover: hover) {
@@ -1237,14 +973,6 @@
 }
 
 
-
-/* Arkivering guide's two "are you sure" modals (Klar til arkivering,
-   Afslut revyen?): a bit narrower than the 480px they'd otherwise get. */
-.login-modal.koord-guide-confirm-modal {
-  width: min(400px, 92vw);
-  min-width: 0;
-  max-width: none;
-}
 
 /* --- Arkivering's "Google, YouTube & Spotify" card: label | value rows.
    Read-only fields look like plain text; in edit mode (pencil → check
@@ -1283,32 +1011,19 @@
   min-height: 1.9rem;
 }
 
+/* An account's row is a .site-collapse toggle (style.css). */
 .koord-login-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
   flex: 1;
-  min-width: 0;
+  gap: 0.4rem;
   padding: 0.2rem 0;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  font: inherit;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
 }
 
 /* In edit mode the title is an input beside it, so only the chevron. */
 .koord-logins-editing .koord-login-toggle {
   flex: none;
-}
-
-.koord-login-chevron {
-  width: 0.8rem;
-  color: var(--text-muted);
+  width: auto;
 }
 
 .koord-login-title {
@@ -1317,25 +1032,19 @@
   white-space: nowrap;
 }
 
-@media (hover: hover) {
-  .koord-login-toggle:hover .koord-login-chevron { color: var(--accent-warm-text); }
-}
-
-.koord-login-toggle:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-/* The card's heading in edit mode, sized like the card-head h2. */
-.koord-login-input.koord-logins-card-title {
+/* The card's heading in edit mode, sized like the card-head h2
+   (.site-inline-field). */
+.koord-logins-card-title {
   flex: 1;
+  padding: 0.2rem 0.4rem;
   font-size: 1.1rem;
   font-weight: 600;
   margin-right: 0.25rem;
 }
 
-.koord-login-input.koord-login-title-input {
+.koord-login-title-input {
   flex: 1;
+  padding: 0.2rem 0.4rem;
   font-size: 1rem;
   font-weight: 600;
 }
@@ -1366,33 +1075,15 @@
   color: var(--text-muted);
 }
 
+/* Label | value rows: .site-inline-field.site-field-labeled, read-only
+   (plain, selectable text) until the pencil turns on edit mode. */
 .koord-login-input {
-  width: 100%;
-  min-width: 0;
-  font: inherit;
   font-size: 0.9rem;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
   padding: 0.2rem 0.4rem;
 }
 
 .koord-login-input:read-only {
   cursor: text;
-}
-
-.koord-login-input:focus {
-  outline: none;
-}
-
-.koord-logins-editing .koord-login-input {
-  border-color: var(--border);
-}
-
-.koord-logins-editing .koord-login-input:focus {
-  border-color: var(--accent-warm);
-  background: var(--input-bg);
 }
 
 /* Arkivering guide's one-line intro under the card title, above the first
@@ -1432,7 +1123,8 @@
 
 @media (max-width: 719px) {
   .koord-notes-col-head { cursor: pointer; user-select: none; }
-  .koord-notes-col-chevron { display: inline; }
+  .koord-notes-col-chevron { display: inline-block; }
+  .koord-notes-col-head[aria-expanded="false"] .koord-notes-col-chevron { transform: rotate(-90deg); }
   .koord-notes-card-closed .koord-notes-list { display: none; }
 }
 
@@ -1471,8 +1163,8 @@
   left: 0;
   right: 0;
   top: calc(-0.375rem - 1.5px);
-  height: 3px;
-  border-radius: 2px;
+  height: 2px;
+  border-radius: 1px;
   background: var(--accent-warm);
 }
 
@@ -1486,7 +1178,7 @@
 .koord-note-drop-tail:empty { min-height: 0.6rem; }
 
 .koord-note-drop-tail.koord-mp-drop-target {
-  box-shadow: inset 0 3px 0 0 var(--accent-warm);
+  box-shadow: inset 0 2px 0 0 var(--accent-warm);
 }
 
 .koord-note-head {
@@ -1497,17 +1189,10 @@
 
 .koord-note-handle { padding: 0 0.1rem; }
 
-/* Inline field style: borderless until hovered, warm border while focused. */
+/* .site-inline-field (style.css). */
 .koord-note-title,
 .koord-note-text,
 .koord-note-item-input {
-  width: 100%;
-  min-width: 0;
-  font: inherit;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 5px;
   padding: 0.2rem 0.35rem;
 }
 
@@ -1524,19 +1209,6 @@
   min-height: 2rem;
 }
 
-.koord-note-title:focus,
-.koord-note-text:focus,
-.koord-note-item-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  background: var(--input-bg);
-}
-
-@media (hover: hover) {
-  .koord-note-title:hover,
-  .koord-note-text:hover,
-  .koord-note-item-input:hover { border-color: var(--border); }
-}
 
 .koord-note-items {
   display: flex;
@@ -1569,8 +1241,8 @@
   position: absolute;
   left: calc(var(--indent, 0) * 1.6rem);
   right: 0;
-  height: 3px;
-  border-radius: 2px;
+  height: 2px;
+  border-radius: 1px;
   background: var(--accent-warm);
 }
 
@@ -1649,29 +1321,14 @@
   cursor: pointer;
 }
 
-.koord-note-collapse {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.4rem;
-  height: 1.4rem;
-  padding: 0;
-  background: none;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-}
-
+/* The note's fold is a .site-collapse.site-collapse-icon toggle. */
 @media (hover: hover) {
   .koord-note-add-item:hover { color: var(--accent-warm-text); }
-  .koord-note-collapse:hover .koord-login-chevron { color: var(--accent-warm-text); }
 }
 
-.koord-note-add-item:focus-visible,
-.koord-note-collapse:focus-visible {
+.koord-note-add-item:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .koord-note-collapsed { padding-bottom: 0.55rem; }
@@ -1692,8 +1349,6 @@
   .koord-note:focus-within .koord-note-tools,
   .koord-note-item:hover .koord-note-item-remove,
   .koord-note-item:focus-within .koord-note-item-remove { opacity: 1; }
-  .koord-note-remove:hover,
-  .koord-note-item-remove:hover { color: var(--danger); }
 }
 
 .koord-note-color-pop {
@@ -1730,21 +1385,12 @@
   padding-top: 0.5rem;
 }
 
+/* A closed revy's notes: a .site-collapse row (style.css). */
 .koord-notes-archive-toggle {
-  display: flex;
-  align-items: center;
   gap: 0.4rem;
-  width: 100%;
-  background: none;
-  border: none;
-  border-radius: 5px;
   padding: 0.25rem 0.2rem;
-  font: inherit;
   font-weight: 600;
   font-size: 0.95rem;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
 }
 
 .koord-notes-archive-count {
@@ -1754,15 +1400,6 @@
   color: var(--text-muted);
 }
 
-@media (hover: hover) {
-  .koord-notes-archive-toggle:hover,
-  .koord-notes-archive-toggle:hover .koord-login-chevron { color: var(--accent-warm-text); }
-}
-
-.koord-notes-archive-toggle:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
 
 .koord-notes-archive-list {
   display: flex;

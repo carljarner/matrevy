@@ -284,14 +284,12 @@ function renderChapterReadView(chapter, canEdit) {
   head.appendChild(heading);
 
   if (canEdit) {
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className = 'btn-small';
-    editBtn.textContent = 'Rediger';
-    editBtn.addEventListener('click', () => {
+    // The shared pencil (siteEditToggle); the editor below leaves via its
+    // own Annuller/Slet/Gem bar.
+    const editBtn = siteEditToggle(false, () => {
       wikiEditingChapterId = chapter.id;
       renderWiki();
-    });
+    }, { editLabel: 'Rediger kapitel' });
     head.appendChild(editBtn);
   }
 
@@ -327,7 +325,7 @@ function renderChapterEditView(chapter) {
   head.className = 'card-head wiki-content-head';
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
-  titleInput.className = 'wiki-edit-title-input';
+  titleInput.className = 'site-inline-field wiki-edit-title-input';
   titleInput.value = chapter.title;
   head.appendChild(titleInput);
   wrap.appendChild(head);
@@ -383,7 +381,7 @@ function renderChapterEditView(chapter) {
 
       const remove = document.createElement('button');
       remove.type = 'button';
-      remove.className = 'wiki-edit-attachment-remove';
+      remove.className = 'site-icon-btn site-icon-btn-danger wiki-edit-attachment-remove';
       remove.textContent = '✕';
       remove.title = 'Fjern vedhæftning';
       remove.setAttribute('aria-label', remove.title);
@@ -991,7 +989,7 @@ function wikiChapterContentKey(c) {
 function wikiConfirmOverwrite(title) {
   return new Promise((resolve) => {
     const { overlay, modal, form, actions, close } = siteOpenEditModal('');
-    modal.classList.add('wiki-confirm-modal');
+    modal.classList.add('site-confirm-modal');
     const heading = modal.querySelector('h2');
     if (heading) heading.remove();
     let settled = false;
@@ -1004,11 +1002,11 @@ function wikiConfirmOverwrite(title) {
     overlay.addEventListener('click', () => { if (!overlay.isConnected) finish(false); });
 
     const info = document.createElement('p');
-    info.className = 'wiki-confirm-text';
+    info.className = 'site-confirm-text';
     info.textContent = `"${title}" er ændret af en anden`;
     form.appendChild(info);
     const sub = document.createElement('p');
-    sub.className = 'wiki-confirm-sub';
+    sub.className = 'site-confirm-sub';
     sub.textContent = 'Nogen har gemt kapitlet, siden du begyndte at redigere. Gemmer du, erstattes deres version af din.';
     form.appendChild(sub);
 
@@ -1037,17 +1035,17 @@ function wikiPillBtn(label, variant) {
 // centered line, narrower than the edit view it sits on top of).
 function openDeleteChapterConfirm(existing) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('wiki-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'wiki-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = `Slet "${existing.title}"?`;
   form.appendChild(info);
 
   const sub = document.createElement('p');
-  sub.className = 'wiki-confirm-sub';
+  sub.className = 'site-confirm-sub';
   sub.textContent = 'Dette kan ikke fortrydes.';
   form.appendChild(sub);
 
@@ -1299,7 +1297,7 @@ function openManageChaptersModal() {
       // while still surfacing the wikiShowLockToast() explanation.
       const publishBtn = document.createElement('button');
       publishBtn.type = 'button';
-      publishBtn.className = 'wiki-manage-publish-toggle';
+      publishBtn.className = 'site-icon-btn wiki-manage-publish-toggle';
       if (!canPublish) publishBtn.classList.add('wiki-manage-publish-toggle-readonly');
       function syncPublishBtn() {
         publishBtn.textContent = '';
@@ -1341,7 +1339,7 @@ function openManageChaptersModal() {
   addTriggerWrap.className = 'wiki-manage-add-trigger-wrap';
   const addTrigger = document.createElement('button');
   addTrigger.type = 'button';
-  addTrigger.className = 'boss-manage-add-plus';
+  addTrigger.className = 'site-icon-btn site-add-plus';
   addTrigger.textContent = '+';
   addTrigger.title = 'Tilføj kapitel';
   addTrigger.setAttribute('aria-label', 'Tilføj kapitel');

@@ -298,7 +298,7 @@ function createPostHeaderElement(post, { showPin = false } = {}) {
   if (showPin && siteHasLevel('boss')) {
     const pinBtn = document.createElement('button');
     pinBtn.type = 'button';
-    pinBtn.className = 'post-pin-btn' + (post.pinned ? ' pinned' : '');
+    pinBtn.className = 'site-icon-btn post-pin-btn' + (post.pinned ? ' site-icon-on' : '');
     const label = post.pinned ? 'Frigør opslag' : 'Fastgør opslag';
     pinBtn.setAttribute('aria-label', label);
     pinBtn.title = label;
@@ -883,8 +883,8 @@ function openPostDetail(post) {
       if (siteHasLevel('boss')) {
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
-        delBtn.className = 'message-delete';
-        delBtn.textContent = '×';
+        delBtn.className = 'site-icon-btn site-icon-btn-danger message-delete';
+        delBtn.textContent = '✕';
         delBtn.setAttribute('aria-label', 'Slet kommentar');
         delBtn.title = 'Slet kommentar';
         delBtn.addEventListener('click', () => deleteComment(post, c, close));
@@ -1001,17 +1001,17 @@ async function postComment(post, author, text) {
 // otherwise stack a second, out-of-date detail overlay on top of it).
 function deleteComment(post, comment, closeDetailModal) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('post-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'post-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = 'Slet kommentar?';
   form.appendChild(info);
 
   const sub = document.createElement('p');
-  sub.className = 'post-confirm-sub';
+  sub.className = 'site-confirm-sub';
   sub.textContent = 'Dette kan ikke fortrydes.';
   form.appendChild(sub);
 
@@ -1230,17 +1230,17 @@ function openPostEditModal(existing) {
 // openDeleteConfirm(ev, onDeleted).
 function deletePost(post, onDeleted) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('post-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'post-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = 'Slet opslag?';
   form.appendChild(info);
 
   const sub = document.createElement('p');
-  sub.className = 'post-confirm-sub';
+  sub.className = 'site-confirm-sub';
   sub.textContent = 'Dette kan ikke fortrydes.';
   form.appendChild(sub);
 

@@ -36,49 +36,9 @@
   gap: 0.5rem;
 }
 
+/* The picker is a .site-toolbar-control (style.css). */
 .rekvisit-revy-select {
   min-width: 10rem;
-  height: 2rem;
-  padding-top: 0;
-  padding-bottom: 0;
-  font-size: 0.85rem;
-  background: var(--surface);
-}
-
-/* --- Page tabs — copy of ninjas.css's .ninjas-mode-tabs ------------ */
-.rekvisit-mode-tabs {
-  display: flex;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.rekvisit-mode-tab {
-  flex: 1 1 0;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0.6rem 1rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.rekvisit-mode-tab.active {
-  color: var(--accent-warm-text);
-  border-bottom-color: var(--accent-warm-text);
-}
-
-@media (hover: hover) {
-  .rekvisit-mode-tab:not(.active):hover { color: var(--text); }
-}
-
-.rekvisit-mode-tab:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  border-radius: 4px;
 }
 
 /* --- Card head: notes + Samlet status ----------------------------- */
@@ -94,7 +54,7 @@
   margin: 0;
 }
 
-/* Boss/admin edit the note in place (inline field style from .rekvisit-field). */
+/* Boss/admin edit the note in place (.site-inline-field). */
 .rekvisit-field.rekvisit-note-input {
   flex: 1 1 20rem;
   resize: none;
@@ -110,53 +70,9 @@
 }
 
 /* --- Shared bits --------------------------------------------------- */
-.rekvisit-muted {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
 .rekvisit-error {
   color: var(--danger);
   font-size: 0.9rem;
-}
-
-.rekvisit-remove-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  padding: 0.25rem;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .rekvisit-remove-btn:hover { color: var(--danger); }
-}
-
-.rekvisit-remove-btn:focus-visible {
-  outline: none;
-  color: var(--danger);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-/* Delete confirms: the shared one-liner confirm width formula. */
-.rekvisit-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(420px, 92vw);
-}
-
-.rekvisit-confirm-modal h2 {
-  text-align: center;
-}
-
-.rekvisit-confirm-text {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin: 0 0 0.5rem;
 }
 
 /* --- The sheet ----------------------------------------------------- */
@@ -166,22 +82,18 @@
   padding-bottom: 0.5rem;
 }
 
-/* separate + inset box-shadow row lines (not border-collapse borders),
-   so the drop highlight below can't eat the row separators. Fixed layout,
-   widths from its <colgroup> (set in rekvisit.js, draggable per column). */
+/* Lines between rows and columns, the header look, the sticky first
+   column and the header rows that follow the page all come from
+   .site-sheet (style.css). Fixed layout, widths from its <colgroup>
+   (set in rekvisit.js, draggable per column). */
 .rekvisit-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
   font-size: 0.85rem;
   table-layout: fixed;
 }
 
-/* A line under every row and between every column (not after the drag
-   handle or before the actions column, which belong to their neighbour). */
 .rekvisit-table th,
 .rekvisit-table td {
-  box-shadow: inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
   padding: 0.25rem 0.3rem;
   text-align: left;
   vertical-align: middle;
@@ -189,33 +101,6 @@
 
 .rekvisit-table td {
   overflow: hidden;
-}
-
-.rekvisit-table .rekvisit-col-handle,
-.rekvisit-table .rekvisit-col-actions {
-  box-shadow: inset 0 -1px 0 0 var(--border);
-}
-
-/* Header rows follow the page: rekvisitSyncStickyHead() shifts each cell
-   down with a transform, so they need a solid background and to sit
-   above the body cells (the sticky first column included). */
-.rekvisit-table thead th {
-  position: relative;
-  z-index: 2;
-  background: var(--surface);
-}
-
-.rekvisit-table thead th.rekvisit-col-sticky {
-  position: sticky;
-  z-index: 3;
-}
-
-/* First column (+ handle) pinned while scrolling sideways, like
-   Fællesspisning's Navn; rekvisit.js sets each cell's `left`. */
-.rekvisit-table .rekvisit-col-sticky {
-  position: sticky;
-  z-index: 1;
-  background: var(--surface);
 }
 
 /* Rekvisitter: who fills in which columns — a band above the titles and
@@ -245,7 +130,7 @@
   min-width: 4rem;
   padding: 0 0.35rem;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius);
   cursor: text;
   overflow-wrap: break-word;
 }
@@ -261,12 +146,7 @@
 }
 
 .rekvisit-table thead th {
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.78rem;
-  line-height: 1.25;
   padding: 0.25rem 0.3rem 0.4rem;
-  vertical-align: bottom;
 }
 
 .rekvisit-table .rekvisit-col-handle {
@@ -314,7 +194,7 @@
   background: var(--accent-warm);
 }
 
-.rekvisit-col-actions .boss-manage-add-plus {
+.rekvisit-col-actions .site-add-plus {
   display: inline-flex;
   vertical-align: middle;
 }
@@ -323,43 +203,16 @@
   user-select: none;
 }
 
-/* Inline field-editing style (CLAUDE.md): transparent at rest, border on
-   hover, warm border while focused. */
-.rekvisit-field {
-  width: 100%;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  padding: 0.25rem 0.35rem;
-  font: inherit;
-  color: var(--text);
-}
-
-.rekvisit-field::placeholder {
-  color: var(--text-muted);
-  opacity: 0.7;
-}
-
-@media (hover: hover) {
-  .rekvisit-field:hover { border-color: var(--border); }
-}
-
-.rekvisit-field:focus-visible,
-.rekvisit-field:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-/* Column titles are editable, styled like plain header labels. */
+/* Cells are .site-inline-field (style.css). Column titles are editable,
+   styled like plain header labels. */
 .rekvisit-head-input {
   color: var(--text-muted);
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.25;
   padding: 0.25rem 0.35rem;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--radius);
   cursor: text;
   overflow-wrap: break-word;
 }
@@ -372,7 +225,7 @@
   outline: none;
   color: var(--text);
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 /* Drop highlight: an inset top line (never a real border on a table row). */
@@ -381,8 +234,7 @@
   box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
 }
 
-.rekvisit-table tr.rekvisit-drop-target > td.rekvisit-col-handle,
-.rekvisit-table tr.rekvisit-drop-target > td.rekvisit-col-actions {
+.rekvisit-table tr.rekvisit-drop-target > td.site-sheet-noline {
   box-shadow: inset 0 2px 0 0 var(--accent-warm), inset 0 -1px 0 0 var(--border);
 }
 
@@ -434,22 +286,13 @@
   cursor: default;
 }
 
-@media (hover: hover) {
-  .rekvisit-field[readonly]:hover { border-color: transparent; }
-}
-
-.rekvisit-field[readonly]:focus {
-  border-color: transparent;
-  box-shadow: none;
-}
-
 .rekvisit-table .rekvisit-col-amount,
 .rekvisit-table .rekvisit-col-amount .rekvisit-field {
   text-align: right;
 }
 
 /* --- Footer row (sums, Til stede) ---------------------------------- */
-.rekvisit-footer-row td {
+.rekvisit-table .rekvisit-footer-row td {
   font-weight: 600;
   padding: 0.45rem 0.65rem;
   box-shadow: inset 0 1px 0 0 var(--text-muted), inset -1px 0 0 0 var(--border);
@@ -477,17 +320,12 @@
 
 .rekvisit-day-weekday {
   font-weight: 400;
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
 }
 
 .rekvisit-day-label {
   color: var(--text);
   cursor: default;
-}
-
-.rekvisit-day-remove {
-  font-size: 0.72rem;
-  padding: 0.1rem 0.25rem;
 }
 
 .rekvisit-table td.rekvisit-col-day .rekvisit-field {
@@ -522,7 +360,7 @@
   padding: 0.3rem 0.4rem;
   font: inherit;
   font-weight: 600;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   text-align: center;
   cursor: pointer;
 }
@@ -539,8 +377,8 @@
 
 .rekvisit-pill-warm { background: var(--accent-warm-text); color: #fff; }
 /* Brændimprægneret: "-" (not yet) light red, "En side" light green. */
-.rekvisit-pill-todo { background: #f6d4cf; color: #8e2a1f; }
-.rekvisit-pill-light-done { background: #d3ebd4; color: #2e6b34; }
+.rekvisit-pill-todo { background: var(--danger-tint); color: var(--danger-tint-text); }
+.rekvisit-pill-light-done { background: var(--success-tint); color: var(--success-tint-text); }
 .rekvisit-pill-done { background: var(--success); color: #fff; }
 .rekvisit-pill-dropped { background: var(--danger); color: #fff; }
 .rekvisit-pill-muted {
@@ -551,7 +389,7 @@
 
 .rekvisit-pill:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 /* --- Rekvisitter's Status: draggable progress bar ------------------ */
@@ -559,8 +397,8 @@
   position: relative;
   height: 1.5rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--input-bg);
+  border-radius: var(--radius);
+  background: var(--progress-track);
   overflow: hidden;
   cursor: ew-resize;
   touch-action: pan-y; /* horizontal drags set the value, vertical ones scroll */
@@ -582,7 +420,7 @@
   display: block;
   text-align: center;
   line-height: 1.5rem;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text);
 }
@@ -591,7 +429,7 @@
 
 .rekvisit-progress:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 /* "Samlet status" top right of Rekvisitter's card. */
@@ -613,10 +451,6 @@
   width: 180px;
 }
 
-/* Add-column / add-day modal: the shared field width. */
-.rekvisit-column-modal {
-  width: min(360px, 92vw);
-}
 
 @media (max-width: 719px) {
   .rekvisit-edit-note {
@@ -633,16 +467,5 @@
     display: flex;
     justify-content: center;
     margin-top: 0.75rem;
-  }
-
-  .rekvisit-mode-tabs {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .rekvisit-mode-tab {
-    flex: 0 0 auto;
-    padding: 0.55rem 0.75rem;
-    font-size: 0.88rem;
   }
 }

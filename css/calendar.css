@@ -13,52 +13,8 @@
   margin-bottom: 1rem;
 }
 
-.cal-view-toggle {
-  display: flex;
-}
-
-.cal-view-toggle button {
-  display: inline-flex;
-  align-items: center;
-  /* Matches #cal-subscribe/.cal-month-nav button's rendered height. */
-  height: 24px;
-  background: var(--input-bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 0 0.9rem;
-  font-size: 0.85rem;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.cal-view-toggle button:first-child {
-  border-radius: 6px 0 0 6px;
-}
-
-.cal-view-toggle button:last-child {
-  border-radius: 0 6px 6px 0;
-  border-left: none;
-}
-
-.cal-view-toggle button.active {
-  background: var(--accent-warm-text);
-  border-color: var(--accent-warm-text);
-  color: #ffffff;
-}
-
-@media (hover: hover) {
-  .cal-view-toggle button:not(.active):hover {
-    background: var(--accent-warm-fill);
-    border-color: var(--accent-warm);
-    color: var(--accent-warm-text);
-  }
-}
-
-.cal-view-toggle button:focus-visible {
-  outline: 2px solid var(--accent-warm);
-  outline-offset: -2px;
-}
+/* Måned | Liste is the shared .site-segmented toggle (style.css); its
+   24px height matches #cal-subscribe/.cal-month-nav's buttons. */
 
 .cal-month-nav {
   display: flex;
@@ -142,7 +98,7 @@
   padding: 0.25rem 0.3rem;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
 }
 
 .cal-day-blank {
@@ -175,9 +131,9 @@
   border-radius: 3px;
   padding: 0.1rem 0.3rem;
   margin-bottom: 0.15rem;
-  font-size: 0.74rem;
+  font-size: var(--fs-xs);
   font-family: inherit;
-  color: var(--header);
+  color: var(--text);
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
@@ -200,17 +156,17 @@
 }
 
 /* --- Category colors (chip border + list dot + pastel chip bg) */
-.cal-cat-manus          { border-left-color: var(--success); } /* Manus — green */
-.cal-cat-ove            { border-left-color: #d4a017; } /* Øvning — yellow */
-.cal-cat-forestilling   { border-left-color: var(--danger); } /* Forestilling — red */
-.cal-cat-deadline       { border-left-color: #3b82d4; } /* Deadline — blue */
-.cal-cat-andet          { border-left-color: #8e44ad; } /* Andet — purple */
+.cal-cat-manus          { border-left-color: var(--cat-green); } /* Manus — green */
+.cal-cat-ove            { border-left-color: var(--cat-yellow); } /* Øvning — yellow */
+.cal-cat-forestilling   { border-left-color: var(--cat-red); } /* Forestilling — red */
+.cal-cat-deadline       { border-left-color: var(--cat-blue); } /* Deadline — blue */
+.cal-cat-andet          { border-left-color: var(--cat-purple); } /* Andet — purple */
 
-.cal-chip.cal-cat-manus         { background: #e6f4ea; }
-.cal-chip.cal-cat-ove           { background: #fdf1d6; }
-.cal-chip.cal-cat-forestilling  { background: #fbeae8; }
-.cal-chip.cal-cat-deadline      { background: #e8f0fb; }
-.cal-chip.cal-cat-andet         { background: #f2e8f6; }
+.cal-chip.cal-cat-manus         { background: var(--cat-green-bg); }
+.cal-chip.cal-cat-ove           { background: var(--cat-yellow-bg); }
+.cal-chip.cal-cat-forestilling  { background: var(--cat-red-bg); }
+.cal-chip.cal-cat-deadline      { background: var(--cat-blue-bg); }
+.cal-chip.cal-cat-andet         { background: var(--cat-purple-bg); }
 
 .cal-dot {
   display: inline-block;
@@ -221,11 +177,11 @@
   background: var(--text-muted);
 }
 
-.cal-dot.cal-cat-manus         { background: var(--success); }
-.cal-dot.cal-cat-ove           { background: #d4a017; }
-.cal-dot.cal-cat-forestilling  { background: var(--danger); }
-.cal-dot.cal-cat-deadline      { background: #3b82d4; }
-.cal-dot.cal-cat-andet         { background: #8e44ad; }
+.cal-dot.cal-cat-manus         { background: var(--cat-green); }
+.cal-dot.cal-cat-ove           { background: var(--cat-yellow); }
+.cal-dot.cal-cat-forestilling  { background: var(--cat-red); }
+.cal-dot.cal-cat-deadline      { background: var(--cat-blue); }
+.cal-dot.cal-cat-andet         { background: var(--cat-purple); }
 
 /* --- List view --------------------------------------------- */
 .cal-list-month {
@@ -245,7 +201,7 @@
   gap: 0.6rem;
   padding: 0.35rem 0;
   border-bottom: 1px solid var(--border);
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   flex-wrap: wrap;
 }
 
@@ -301,34 +257,7 @@
   gap: 0.35rem;
 }
 
-/* Icon-only "Rediger" button — replaces a text .btn-small in the list view
-   so a long list doesn't read as a wall of repeated buttons. */
-.cal-list-edit-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-@media (hover: hover) {
-  .cal-list-edit-btn:hover {
-    background: var(--accent-warm-fill);
-    color: var(--accent-warm-text);
-  }
-}
-
-.cal-list-edit-btn:focus-visible {
-  outline: none;
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
-}
+/* The list view's icon-only "Rediger" is a .site-icon-btn (style.css). */
 
 /* --- Colour legend ------------------------------------------ */
 #cal-legend {
@@ -338,7 +267,7 @@
   gap: 0.6rem 1.75rem;
   margin-top: 0.9rem;
   padding-top: 0.75rem;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
@@ -346,37 +275,6 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-}
-
-/* Reads as the modal's title, since openDeleteConfirm drops the usual h2
-   heading in favor of this one line (see calendar.js). Scoped under
-   .login-modal (not just .cal-confirm-text) so its specificity beats
-   style.css's ".login-modal p" rule, which would otherwise win the
-   font-size/margin-bottom tie-break. */
-.login-modal .cal-confirm-text {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
-  text-align: center;
-  margin-bottom: 0.5rem;
-}
-
-/* The explanatory line below the title. */
-.login-modal .cal-confirm-sub {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  text-align: center;
-  margin-bottom: 0.75rem;
-}
-
-/* Shared one-liner delete-confirm width formula — see .post-confirm-modal
-   (style.css) for the full rationale. Sits on top of the 480px editor (see
-   openDeleteConfirm in calendar.js — it no longer closes the editor
-   first). */
-.cal-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
 }
 
 /* --- Category picker popup --------------------------------------
@@ -505,7 +403,7 @@
 
 .gantt-month {
   padding: 0.2rem 0.4rem;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-muted);
   border-left: 1px solid var(--border);
@@ -597,7 +495,7 @@ button.gantt-bar:focus-visible {
   max-width: 320px;
   background: var(--header);
   color: var(--surface);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.35;
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
@@ -620,12 +518,12 @@ button.gantt-bar:focus-visible {
 
 /* Bar colours, chosen per bar (GANTT_COLORS in calendar.js) — same hues as
    the calendar categories above, plus teal. */
-.gantt-color-green  { background: #e6f4ea; border-color: var(--success); }
-.gantt-color-blue   { background: #e8f0fb; border-color: #3b82d4; }
-.gantt-color-yellow { background: #fdf1d6; border-color: #d4a017; }
-.gantt-color-purple { background: #f2e8f6; border-color: #8e44ad; }
-.gantt-color-red    { background: #fbeae8; border-color: var(--danger); }
-.gantt-color-teal   { background: #e3f4f2; border-color: #16a085; }
+.gantt-color-green  { background: var(--cat-green-bg); border-color: var(--cat-green); }
+.gantt-color-blue   { background: var(--cat-blue-bg); border-color: var(--cat-blue); }
+.gantt-color-yellow { background: var(--cat-yellow-bg); border-color: var(--cat-yellow); }
+.gantt-color-purple { background: var(--cat-purple-bg); border-color: var(--cat-purple); }
+.gantt-color-red    { background: var(--cat-red-bg); border-color: var(--cat-red); }
+.gantt-color-teal   { background: var(--cat-teal-bg); border-color: var(--cat-teal); }
 
 /* Colour picker in the bar editor. */
 .gantt-swatches {
@@ -652,30 +550,17 @@ button.gantt-bar:focus-visible {
 }
 
 .gantt-swatch:focus-visible {
-  box-shadow: 0 0 0 3px var(--accent-warm-ring);
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 /* --- Gantt edit mode ----------------------------------------- */
+/* The year and row labels are .site-inline-field (style.css). */
 .gantt-year-input {
   width: 5.5rem;
   padding: 0.2rem 0.4rem;
-  font: inherit;
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .gantt-year-input:hover { border-color: var(--border); }
-}
-
-.gantt-year-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  background: var(--input-bg);
 }
 
 .gantt-drag-handle {
@@ -691,28 +576,7 @@ button.gantt-bar:focus-visible {
 
 .gantt-label-input {
   flex: 1;
-  min-width: 0;
   padding: 0.2rem 0.35rem;
-  font: inherit;
-  color: var(--text);
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .gantt-label-input:hover { border-color: var(--border); }
-}
-
-.gantt-label-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  background: var(--input-bg);
-}
-
-.gantt-label .boss-edit-remove {
-  padding: 0.25rem 0.3rem;
-  font-size: 0.95rem;
 }
 
 /* Drop-target highlight: an orange line in the gap above the row (same
@@ -724,8 +588,8 @@ button.gantt-bar:focus-visible {
   left: 0;
   right: 0;
   top: -2px;
-  height: 3px;
-  border-radius: 2px;
+  height: 2px;
+  border-radius: 1px;
   background: transparent;
   transition: background-color 0.15s;
   pointer-events: none;
@@ -767,22 +631,16 @@ button.gantt-bar:focus-visible {
 .gantt-hint {
   margin-top: 0.4rem;
   text-align: center;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-}
-
-/* Auto-save status under an edit-mode Gantt/Revyugen (calPaintSaveStatus);
-   same look as Koordinator's .koord-mp-save-status. */
-.gantt-save-status {
-  margin-top: 0.5rem;
-  min-height: 1.2em;
-  text-align: right;
   font-size: 0.8rem;
   color: var(--text-muted);
 }
 
-.gantt-save-status-error {
-  color: var(--accent-warm-text);
+/* Auto-save status under an edit-mode Gantt/Revyugen (calPaintSaveStatus):
+   the shared .site-save-status, right-aligned under the chart. */
+.gantt-save-status {
+  margin-top: 0.5rem;
+  min-height: 1.2em;
+  text-align: right;
 }
 
 .login-modal .gantt-editor-section {
@@ -823,17 +681,17 @@ button.gantt-bar:focus-visible {
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.4rem 1.25rem;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
 /* Solid category dots — the same hexes as Kalender's own
    .cal-dot.cal-cat-* rules. */
-.cal-dot.revyugen-dot-blue   { background: #3b82d4; }
-.cal-dot.revyugen-dot-green  { background: var(--success); }
-.cal-dot.revyugen-dot-yellow { background: #d4a017; }
-.cal-dot.revyugen-dot-red    { background: var(--danger); }
-.cal-dot.revyugen-dot-purple { background: #8e44ad; }
+.cal-dot.revyugen-dot-blue   { background: var(--cat-blue); }
+.cal-dot.revyugen-dot-green  { background: var(--cat-green); }
+.cal-dot.revyugen-dot-yellow { background: var(--cat-yellow); }
+.cal-dot.revyugen-dot-red    { background: var(--cat-red); }
+.cal-dot.revyugen-dot-purple { background: var(--cat-purple); }
 
 .revyugen-settings {
   display: flex;
@@ -861,9 +719,9 @@ button.gantt-bar:focus-visible {
   width: auto;
   padding: 0.25rem 0.5rem;
   font-size: 0.85rem;
-  border-radius: 4px;
 }
 
+/* A labelled field beside the date pickers: boxed like them. */
 .revyugen-hour-input {
   width: 3.5rem;
   padding: 0.25rem 0.4rem;
@@ -871,12 +729,18 @@ button.gantt-bar:focus-visible {
   color: var(--text);
   background: var(--input-bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (hover: hover) {
+  .revyugen-hour-input:hover { border-color: var(--accent-warm); }
 }
 
 .revyugen-hour-input:focus {
   outline: none;
   border-color: var(--accent-warm);
+  box-shadow: var(--focus-ring);
 }
 
 .revyugen-scroll {
@@ -922,7 +786,7 @@ button.gantt-bar:focus-visible {
   top: calc(var(--revyugen-at) * var(--revyugen-hour));
   right: 0.45rem;
   transform: translateY(-50%);
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -971,10 +835,10 @@ button.gantt-bar:focus-visible {
   border-radius: 3px;
   background: var(--surface-2);
   font: inherit;
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   line-height: 1.25;
   text-align: left;
-  color: var(--header);
+  color: var(--text);
   overflow: hidden;
   z-index: 1;
 }
@@ -982,11 +846,11 @@ button.gantt-bar:focus-visible {
 /* Block colours — exactly Kalender's .cal-cat-* / .cal-chip.cal-cat-*
    pairs. Compound selectors so they win over .revyugen-block's own
    border/background regardless of rule order. */
-.revyugen-block.revyugen-color-blue   { background: #e8f0fb; border-left-color: #3b82d4; }
-.revyugen-block.revyugen-color-green  { background: #e6f4ea; border-left-color: var(--success); }
-.revyugen-block.revyugen-color-yellow { background: #fdf1d6; border-left-color: #d4a017; }
-.revyugen-block.revyugen-color-red    { background: #fbeae8; border-left-color: var(--danger); }
-.revyugen-block.revyugen-color-purple { background: #f2e8f6; border-left-color: #8e44ad; }
+.revyugen-block.revyugen-color-blue   { background: var(--cat-blue-bg); border-left-color: var(--cat-blue); }
+.revyugen-block.revyugen-color-green  { background: var(--cat-green-bg); border-left-color: var(--cat-green); }
+.revyugen-block.revyugen-color-yellow { background: var(--cat-yellow-bg); border-left-color: var(--cat-yellow); }
+.revyugen-block.revyugen-color-red    { background: var(--cat-red-bg); border-left-color: var(--cat-red); }
+.revyugen-block.revyugen-color-purple { background: var(--cat-purple-bg); border-left-color: var(--cat-purple); }
 
 .revyugen-block-title,
 .revyugen-block-text {

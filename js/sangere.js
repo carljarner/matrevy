@@ -47,7 +47,7 @@ function sangPillBtn(label, variant) {
 }
 
 function sangRemoveBtn(title) {
-  const btn = el('button', 'sang-remove-btn', '✕');
+  const btn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -55,7 +55,7 @@ function sangRemoveBtn(title) {
 }
 
 function sangIconBtn(icon, title) {
-  const btn = el('button', 'sang-icon-btn');
+  const btn = el('button', 'site-icon-btn');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -279,7 +279,7 @@ function sangFileDisplayName(file) {
 // ── Load + render ────────────────────────────────────────────
 async function sangLoad() {
   const root = sangRoot();
-  root.replaceChildren(el('p', 'sang-muted', 'Indlæser…'));
+  root.replaceChildren(el('p', 'site-muted', 'Indlæser…'));
   const result = await sangApi('sangere_read', {});
   if (!result.ok) {
     const card = el('section', 'card');
@@ -318,13 +318,13 @@ function sangRender() {
   head.appendChild(uploadBtns);
   card.appendChild(head);
   if (!sangUploadsOpen) {
-    card.appendChild(el('p', 'sang-muted sang-closed-notice', SANG_CLOSED_TEXT));
+    card.appendChild(el('p', 'site-muted sang-closed-notice', SANG_CLOSED_TEXT));
   }
 
   const list = el('div', 'sang-list');
   sangBuildLevel(list, null, 0);
   if (!list.childElementCount) {
-    list.appendChild(el('p', 'sang-muted sang-empty', sangUploadsOpen
+    list.appendChild(el('p', 'site-empty sang-empty', sangUploadsOpen
       ? 'Her er ingen lydfiler endnu. Opret en mappe, eller træk lydfiler hertil.'
       : 'Her er ingen filer.'));
   }
@@ -382,10 +382,10 @@ function sangBuildFolderRow(folder, depth) {
   row.dataset.folderId = folder.id;
   row.dataset.target = folder.id;
 
-  const toggle = el('button', 'sang-row-main');
+  const toggle = el('button', 'site-collapse sang-row-main');
   toggle.type = 'button';
   toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  toggle.appendChild(el('span', 'sang-chevron', isOpen ? '▾' : '▸'));
+  toggle.appendChild(el('span', 'site-chevron sang-chevron', '▾'));
   const icon = el('span', 'sang-folder-icon');
   icon.appendChild(sangFolderIcon());
   toggle.appendChild(icon);
@@ -522,7 +522,7 @@ function sangLinkify(text) {
   let last = 0;
   for (const m of text.matchAll(re)) {
     if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
-    const a = el('a', 'sang-guide-link', m[0].replace(/^https?:\/\//, ''));
+    const a = el('a', 'site-link sang-guide-link', m[0].replace(/^https?:\/\//, ''));
     a.href = m[0];
     a.target = '_blank';
     a.rel = 'noopener';
@@ -561,10 +561,6 @@ function sangGuideHasUnsaved() {
     !== JSON.stringify({ title: g.title, intro: g.intro, steps: g.steps.map((st) => ({ title: st.title, text: st.text })) });
 }
 
-function sangGuideIcon(size, strokeWidth, paths) {
-  return sangSvg('0 0 16 16', size, strokeWidth, paths);
-}
-
 function sangRenderGuide() {
   const host = document.getElementById('sangere-guide');
   if (!host) return;
@@ -575,22 +571,14 @@ function sangGuideHead(titleNode) {
   const head = el('div', 'card-head sang-guide-head');
   head.appendChild(titleNode);
   if (siteHasLevel('boss')) {
-    const btn = el('button', 'boss-icon-btn');
-    btn.type = 'button';
-    const label = sangGuideEditing ? 'Gem og afslut redigering' : 'Rediger guiden';
-    btn.title = label;
-    btn.setAttribute('aria-label', label);
-    btn.appendChild(sangGuideEditing
-      ? sangGuideIcon(16, 1.6, ['M3 8.5l3.2 3.2L13 5'])
-      : sangGuideIcon(15, 1.3, ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
-    btn.disabled = sangGuideSaving;
-    btn.addEventListener('click', () => {
+    const btn = siteEditToggle(sangGuideEditing, () => {
       if (sangGuideEditing) { sangGuideSaveAndClose(); return; }
       const g = sangGuideEffective();
       sangGuideDraft = { title: g.title, intro: g.intro, steps: g.steps.map((st) => ({ title: st.title, text: st.text })) };
       sangGuideEditing = true;
       sangRenderGuide();
-    });
+    }, { editLabel: 'Rediger guiden', doneLabel: 'Gem og afslut redigering' });
+    btn.disabled = sangGuideSaving;
     head.appendChild(btn);
   }
   return head;
@@ -626,7 +614,7 @@ async function sangGuideSaveAndClose() {
   if (sangGuideHasUnsaved()) {
     sangGuideSaving = true;
     if (error) error.textContent = '';
-    const btn = document.querySelector('#sangere-guide .boss-icon-btn');
+    const btn = document.querySelector('#sangere-guide .sang-guide-head .site-icon-btn');
     if (btn) btn.disabled = true;
     const result = await sangApi('sangere_set_guide', { guide: payload });
     sangGuideSaving = false;
@@ -645,7 +633,7 @@ async function sangGuideSaveAndClose() {
 
 // A textarea in the inline field style that grows with its text.
 function sangGuideTextarea(value, placeholder, onInput) {
-  const area = el('textarea', 'boss-manage-text-input sang-guide-textarea');
+  const area = el('textarea', 'site-inline-field boss-manage-text-input sang-guide-textarea');
   area.rows = 1;
   area.value = value;
   area.placeholder = placeholder;
@@ -656,7 +644,7 @@ function sangGuideTextarea(value, placeholder, onInput) {
 }
 
 function sangGuideInput(value, placeholder, className, onInput) {
-  const input = el('input', 'boss-manage-text-input ' + className);
+  const input = el('input', 'site-inline-field boss-manage-text-input ' + className);
   input.type = 'text';
   input.value = value;
   input.placeholder = placeholder;
@@ -743,7 +731,7 @@ function sangBuildGuideEdit() {
       fields.appendChild(sangGuideInput(step.title, 'Overskrift', 'sang-guide-step-title', (v) => { step.title = v; }));
       fields.appendChild(sangGuideTextarea(step.text, 'Tekst', (v) => { step.text = v; }));
       row.appendChild(fields);
-      const remove = el('button', 'boss-manage-remove-btn', '✕');
+      const remove = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
       remove.type = 'button';
       remove.title = 'Fjern trinnet';
       remove.setAttribute('aria-label', 'Fjern trinnet');
@@ -762,7 +750,7 @@ function sangBuildGuideEdit() {
   renderSteps();
 
   const bar = el('div', 'boss-editbar');
-  const add = el('button', 'boss-manage-add-plus', '+');
+  const add = el('button', 'site-icon-btn site-add-plus', '+');
   add.type = 'button';
   add.title = 'Tilføj trin';
   add.setAttribute('aria-label', 'Tilføj trin');
@@ -781,8 +769,8 @@ function sangBuildGuideEdit() {
 // ── Modals ───────────────────────────────────────────────────
 function sangConfirm(title, description, confirmLabel, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('sang-confirm-modal');
-  if (description) form.appendChild(el('p', 'sang-confirm-text', description));
+  modal.classList.add('site-confirm-modal');
+  if (description) form.appendChild(el('p', 'site-confirm-sub', description));
   const cancelBtn = sangPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = sangPillBtn(confirmLabel, 'site-btn-danger');
@@ -802,7 +790,7 @@ function sangConfirm(title, description, confirmLabel, onConfirm) {
 // done, or null for a cancelled password prompt.
 function sangOpenFormModal({ title, name, placeholder, folderLabel, folderId, confirmLabel, submit }) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(title);
-  modal.classList.add('sang-name-modal');
+  modal.classList.add('site-modal-sm');
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = 190;
@@ -1102,7 +1090,7 @@ function sangOpenUploadModal(files, folderId) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(
     valid.length === 1 ? 'Upload lydfil' : `Upload ${valid.length} lydfiler`
   );
-  modal.classList.add('sang-upload-modal');
+  modal.classList.add('site-modal-md', 'sang-upload-modal');
   form.appendChild(el('p', 'sang-upload-hint', 'Skriv det navn, filen skal stå med på siden.'));
 
   const list = el('ul', 'sang-upload-list');
@@ -1363,7 +1351,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) return;
   if (typeof siteIsFileProtocol === 'function' && siteIsFileProtocol()) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'sang-muted', 'Sangere kræver forbindelse til serveren og virker ikke offline.'));
+    card.appendChild(el('p', 'site-muted', 'Sangere kræver forbindelse til serveren og virker ikke offline.'));
     root.replaceChildren(card);
     return;
   }

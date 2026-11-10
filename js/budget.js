@@ -393,7 +393,7 @@ function renderRevystForm(root) {
 // there's no image-vs-PDF branching needed here unlike the old inline
 // thumbnail this replaces.
 function budgetReceiptIconBtn(file) {
-  const btn = el('button', 'budget-icon-btn');
+  const btn = el('button', 'site-icon-btn budget-icon-btn');
   btn.type = 'button';
   btn.setAttribute('aria-label', 'Se kvittering');
   btn.appendChild(budgetPictureIcon());
@@ -710,6 +710,7 @@ function renderYearToolbar(container) {
     .sort((a, b) => b.year - a.year || String(b.createdAt).localeCompare(String(a.createdAt)))
     .map((y) => ({ value: y.budgetId, label: y.label }));
   const yearSelect = siteCreateDropdownField(yearOptions, budgetViewId);
+  yearSelect.classList.add('site-toolbar-control');
   yearSelect.addEventListener('change', () => {
     const id = yearSelect.value;
     if (id && id !== budgetViewId) {
@@ -766,11 +767,11 @@ function openDeleteYearWarning(root) {
 
 function openDeleteYearConfirm(root, id) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('budget-confirm-narrow');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-confirm-text', 'Er du sikker?'));
+  form.appendChild(el('p', 'site-confirm-text', 'Er du sikker?'));
 
   const cancelBtn = budgetPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -868,7 +869,7 @@ function budgetRefreshSheetStatus() {
   if (!budgetSheet) return;
   const dirty = budgetIsSheetDirty();
   budgetSheet.status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
-  budgetSheet.status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
+  budgetSheet.status.className = dirty ? 'site-save-status dirty' : 'site-save-status';
 }
 
 function nowHhmm() {
@@ -898,7 +899,7 @@ function buildBudgetSheetCard() {
   const card = el('section', 'card budget-sheet-card');
   const head = el('div', 'card-head');
   head.appendChild(el('h2', null, 'Budget'));
-  const status = el('span', 'budget-save-status', 'Gemt');
+  const status = el('span', 'site-save-status', 'Gemt');
   if (!budgetReadOnly()) head.appendChild(status);
   card.appendChild(head);
 
@@ -994,7 +995,7 @@ function buildNormalSheetSection(card) {
       parentPlannedDisplays[c.key] = display;
       pTd.appendChild(display);
     } else {
-      const inp = el('input', 'budget-plan-input');
+      const inp = el('input', 'site-inline-field budget-plan-input');
       inp.type = 'text';
       inp.inputMode = 'decimal';
       inp.placeholder = '0';
@@ -1024,7 +1025,7 @@ function buildNormalSheetSection(card) {
       subTr.appendChild(el('td', 'budget-subrow-label', sub.label));
 
       const subPTd = el('td', 'budget-td-num');
-      const subInp = el('input', 'budget-plan-input');
+      const subInp = el('input', 'site-inline-field budget-plan-input');
       subInp.type = 'text';
       subInp.inputMode = 'decimal';
       subInp.placeholder = '0';
@@ -1100,7 +1101,7 @@ function buildIncomeRow(def, stored, incomeRows) {
   const row = el('div', 'budget-income-row');
   row.appendChild(el('span', 'budget-income-name', def.label));
 
-  const amountInput = el('input', 'budget-income-amount');
+  const amountInput = el('input', 'site-inline-field budget-income-amount');
   amountInput.type = 'text';
   amountInput.inputMode = 'decimal';
   amountInput.placeholder = '0';
@@ -1198,23 +1199,23 @@ async function saveBudgetSheet() {
   // for the duration of its own save.
   if (budgetSheet.saveBtn) budgetSheet.saveBtn.disabled = true;
   budgetSheet.status.textContent = 'Gemmer …';
-  budgetSheet.status.className = 'budget-save-status';
+  budgetSheet.status.className = 'site-save-status';
   const result = await budgetApi('budget_save_sheet', payload);
   if (budgetSheet.saveBtn) budgetSheet.saveBtn.disabled = false;
   if (result.ok) {
     budgetSheetSnapshot = JSON.stringify(payload);
     budgetState.budget = { planned: payload.planned, income: payload.income };
     budgetSheet.status.textContent = 'Gemt kl. ' + nowHhmm();
-    budgetSheet.status.className = 'budget-save-status';
+    budgetSheet.status.className = 'site-save-status';
     // Same bottom-of-page confirmation banner as Manus's "Manus gemt" toast.
     siteShowToast('Budget gemt');
   } else if (result.message) {
     budgetSheet.status.textContent = result.message;
-    budgetSheet.status.className = 'budget-save-status error';
+    budgetSheet.status.className = 'site-save-status error';
   } else {
     // Cancelled password prompt — leave dirty, no scary message.
     budgetSheet.status.textContent = 'Ikke gemt';
-    budgetSheet.status.className = 'budget-save-status dirty';
+    budgetSheet.status.className = 'site-save-status dirty';
   }
   return result;
 }
@@ -1374,7 +1375,7 @@ function buildCategoryEditSection(card, status) {
     const replacer = (k, v) => (k === '_expanded' ? undefined : v);
     const dirty = JSON.stringify({ expense: draftExpense, income: draftIncome }, replacer) !== categorySnapshot;
     status.textContent = dirty ? 'Ikke gemt' : 'Gemt';
-    status.className = dirty ? 'budget-save-status dirty' : 'budget-save-status';
+    status.className = dirty ? 'site-save-status dirty' : 'site-save-status';
   }
 
   const tableWrap = el('div', 'budget-table-wrap');
@@ -1426,13 +1427,13 @@ function buildCategoryEditSection(card, status) {
           }
         });
 
-        const input = el('input', 'budget-manage-text-input');
+        const input = el('input', 'site-inline-field budget-manage-text-input');
         input.type = 'text';
         input.value = sub.label;
         input.addEventListener('input', () => { sub.label = input.value; refreshCategoryDirtyStatus(); });
         row.appendChild(input);
 
-        const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
+        const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger budget-manage-remove-btn', '✕');
         removeBtn.type = 'button';
         removeBtn.title = 'Fjern underkategori';
         removeBtn.addEventListener('click', () => {
@@ -1467,7 +1468,7 @@ function buildCategoryEditSection(card, status) {
     renderSubList();
     wrapTd.appendChild(list);
 
-    const addBtn = el('button', 'budget-manage-add-plus', '+');
+    const addBtn = el('button', 'site-icon-btn site-add-plus site-add-center', '+');
     addBtn.type = 'button';
     addBtn.title = 'Tilføj underkategori';
     addBtn.addEventListener('click', () => {
@@ -1516,8 +1517,9 @@ function buildCategoryEditSection(card, status) {
       // never carry subcategories (it already has its own separate
       // drink-type breakdown via Stregregnskab).
       if (item.key !== budgetStregCategoryKey()) {
-        const chevronBtn = el('button',
-          'budget-group-chevron budget-manage-subcat-toggle' + (item._expanded ? '' : ' budget-subcat-collapsed'), '▾');
+        const chevronBtn = el('button', 'site-collapse site-collapse-icon budget-manage-subcat-toggle');
+        chevronBtn.appendChild(el('span', 'site-chevron', '▾'));
+        chevronBtn.setAttribute('aria-expanded', item._expanded ? 'true' : 'false');
         chevronBtn.type = 'button';
         chevronBtn.title = 'Underkategorier';
         chevronBtn.addEventListener('click', (e) => {
@@ -1527,7 +1529,7 @@ function buildCategoryEditSection(card, status) {
         });
         nameRow.appendChild(chevronBtn);
       }
-      const nameInput = el('input', 'budget-manage-text-input');
+      const nameInput = el('input', 'site-inline-field budget-manage-text-input');
       nameInput.type = 'text';
       nameInput.value = item.label;
       nameInput.addEventListener('input', () => { item.label = nameInput.value; refreshCategoryDirtyStatus(); });
@@ -1536,7 +1538,7 @@ function buildCategoryEditSection(card, status) {
       tr.appendChild(nameTd);
 
       const bilagTd = el('td');
-      const bilagInput = el('input', 'budget-manage-text-input budget-manage-bilag-input');
+      const bilagInput = el('input', 'site-inline-field budget-manage-text-input budget-manage-bilag-input');
       bilagInput.type = 'text';
       bilagInput.maxLength = 20;
       bilagInput.value = item.abbrev;
@@ -1568,7 +1570,7 @@ function buildCategoryEditSection(card, status) {
       tr.appendChild(restTd);
 
       const removeTd = el('td', 'budget-td-remove');
-      const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
+      const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger budget-manage-remove-btn', '✕');
       removeBtn.type = 'button';
       removeBtn.title = 'Fjern kategori';
       removeBtn.addEventListener('click', () => {
@@ -1612,7 +1614,7 @@ function buildCategoryEditSection(card, status) {
   }
   renderExpenseRows();
 
-  const expenseAddBtn = el('button', 'budget-manage-add-plus', '+');
+  const expenseAddBtn = el('button', 'site-icon-btn site-add-plus site-add-center', '+');
   expenseAddBtn.type = 'button';
   expenseAddBtn.title = 'Tilføj kategori';
   expenseAddBtn.addEventListener('click', () => {
@@ -1636,7 +1638,7 @@ function buildCategoryEditSection(card, status) {
     draftIncome.forEach((item) => {
       const row = el('div', 'budget-manage-row');
 
-      const nameInput = el('input', 'budget-manage-text-input');
+      const nameInput = el('input', 'site-inline-field budget-manage-text-input');
       nameInput.type = 'text';
       nameInput.value = item.label;
       nameInput.addEventListener('input', () => { item.label = nameInput.value; refreshCategoryDirtyStatus(); });
@@ -1646,7 +1648,7 @@ function buildCategoryEditSection(card, status) {
       const amount = stored && stored.amount != null ? Number(stored.amount) || 0 : 0;
       row.appendChild(el('span', 'budget-income-amount-readonly', formatKr(amount)));
 
-      const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
+      const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger budget-manage-remove-btn', '✕');
       removeBtn.type = 'button';
       removeBtn.title = 'Fjern indtægt';
       removeBtn.addEventListener('click', () => {
@@ -1667,7 +1669,7 @@ function buildCategoryEditSection(card, status) {
   }
   renderIncomeRows();
 
-  const incomeAddBtn = el('button', 'budget-manage-add-plus', '+');
+  const incomeAddBtn = el('button', 'site-icon-btn site-add-plus site-add-center', '+');
   incomeAddBtn.type = 'button';
   incomeAddBtn.title = 'Tilføj indtægt';
   incomeAddBtn.addEventListener('click', () => {
@@ -1692,11 +1694,11 @@ function buildCategoryEditSection(card, status) {
 // what actually persists it).
 function budgetOpenDeleteSubcategoryConfirm(sub, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('budget-confirm-narrow');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-confirm-text',
+  form.appendChild(el('p', 'site-confirm-text',
     sub.label ? `Fjern "${sub.label}"?` : 'Fjern denne underkategori?'));
   form.appendChild(el('p', 'budget-intro', 'Dette kan ikke fortrydes.'));
 
@@ -1723,32 +1725,32 @@ async function saveCategoryEdits(saveBtn, status, categoryDrafts) {
   const { draftExpense, draftIncome } = categoryDrafts;
   if (draftExpense.length === 0) {
     status.textContent = 'Der skal være mindst én udgiftskategori.';
-    status.className = 'budget-save-status error';
+    status.className = 'site-save-status error';
     return;
   }
   if (draftIncome.length === 0) {
     status.textContent = 'Der skal være mindst én indtægt.';
-    status.className = 'budget-save-status error';
+    status.className = 'site-save-status error';
     return;
   }
   if (draftExpense.some((c) => !c.label.trim() || !c.abbrev.trim())) {
     status.textContent = 'Udfyld navn og bilagskode for hver kategori.';
-    status.className = 'budget-save-status error';
+    status.className = 'site-save-status error';
     return;
   }
   if (draftExpense.some((c) => (c.subcategories || []).some((s) => !s.label.trim()))) {
     status.textContent = 'Udfyld navn for hver underkategori.';
-    status.className = 'budget-save-status error';
+    status.className = 'site-save-status error';
     return;
   }
   if (draftIncome.some((c) => !c.label.trim())) {
     status.textContent = 'Udfyld navn for hver indtægt.';
-    status.className = 'budget-save-status error';
+    status.className = 'site-save-status error';
     return;
   }
   saveBtn.disabled = true;
   status.textContent = 'Gemmer …';
-  status.className = 'budget-save-status';
+  status.className = 'site-save-status';
   const result = await budgetApi('budget_categories_save', {
     budgetId: budgetViewId,
     expense: draftExpense.map((c) => ({
@@ -1766,7 +1768,7 @@ async function saveCategoryEdits(saveBtn, status, categoryDrafts) {
   } else {
     saveBtn.disabled = false;
     status.textContent = result.message || 'Kunne ikke gemme kategorierne.';
-    status.className = 'budget-save-status error';
+    status.className = 'site-save-status error';
   }
 }
 
@@ -1910,23 +1912,23 @@ function buildPendingRowContent(root, req) {
   if (budgetReadOnly()) return wrap;
 
   const actions = el('div', 'budget-item-actions');
-  const approveBtn = el('button', 'budget-icon-btn budget-act-approve');
+  const approveBtn = el('button', 'site-icon-btn budget-icon-btn budget-act-approve');
   approveBtn.type = 'button';
   budgetWireIconTooltip(approveBtn, 'Godkend');
   approveBtn.disabled = isOrphan || breakdownIncomplete;
   approveBtn.appendChild(budgetCheckIcon());
   approveBtn.addEventListener('click', () => openApproveModal(root, req));
-  const editBtn = el('button', 'budget-icon-btn budget-act-edit');
+  const editBtn = el('button', 'site-icon-btn budget-icon-btn budget-act-edit');
   editBtn.type = 'button';
   budgetWireIconTooltip(editBtn, 'Rediger');
   editBtn.appendChild(budgetPencilIcon());
   editBtn.addEventListener('click', () => openRequestEditModal(root, req));
-  const splitBtn = el('button', 'budget-icon-btn budget-act-edit');
+  const splitBtn = el('button', 'site-icon-btn budget-icon-btn budget-act-edit');
   splitBtn.type = 'button';
   budgetWireIconTooltip(splitBtn, 'Split');
   splitBtn.appendChild(budgetSplitIcon());
   splitBtn.addEventListener('click', () => openSplitRequestModal(root, req));
-  const rejectBtn = el('button', 'budget-icon-btn budget-act-reject');
+  const rejectBtn = el('button', 'site-icon-btn budget-icon-btn budget-act-reject');
   rejectBtn.type = 'button';
   budgetWireIconTooltip(rejectBtn, 'Afvis');
   rejectBtn.appendChild(budgetXIcon());
@@ -1953,11 +1955,15 @@ function buildPendingGroup(root, members, { defaultOpen = false } = {}) {
   const group = el('div', 'budget-group' + (defaultOpen ? '' : ' budget-group-collapsed'));
 
   const header = el('div', 'budget-group-header');
-  const summary = el('button', 'budget-group-summary');
+  const summary = el('button', 'site-collapse budget-group-summary');
   summary.type = 'button';
-  summary.appendChild(el('span', 'budget-group-chevron', '▾'));
+  summary.setAttribute('aria-expanded', defaultOpen ? 'true' : 'false');
+  summary.appendChild(el('span', 'site-chevron', '▾'));
   summary.appendChild(el('span', 'budget-group-title', `${members[0].name} · ${members[0].phone}`));
-  summary.addEventListener('click', () => group.classList.toggle('budget-group-collapsed'));
+  summary.addEventListener('click', () => {
+    const collapsed = group.classList.toggle('budget-group-collapsed');
+    summary.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  });
   header.appendChild(summary);
 
   const approveAllBtn = el('button', 'btn-small budget-act-approve', 'Godkend alle');
@@ -2000,7 +2006,7 @@ function budgetPillBtn(label, variant) {
 // the submitter, and the expense date is the submission date.
 function openApproveModal(root, req) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Godkend udlæg');
-  modal.classList.add('budget-confirm-modal', 'budget-confirm-narrow');
+  modal.classList.add('budget-confirm-modal', 'site-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro',
     `${budgetCategoryLabel(req.category, budgetState.categories.expense)} · ${formatKr(req.amount)} · ${req.name} · ${req.phone}`));
@@ -2044,7 +2050,7 @@ function openApproveModal(root, req) {
 // than the stale pre-batch one.
 function openApproveAllModal(root, members) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Godkend alle udlæg');
-  modal.classList.add('budget-confirm-modal', 'budget-confirm-narrow');
+  modal.classList.add('budget-confirm-modal', 'site-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro', `${members[0].name} · ${members[0].phone}`));
 
@@ -2314,7 +2320,7 @@ function openSplitRequestModal(root, req) {
 
 function rejectRequest(root, req) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(`Afvis ${req.name} (${formatKr(req.amount)})?`);
-  modal.classList.add('budget-confirm-modal', 'budget-confirm-narrow');
+  modal.classList.add('budget-confirm-modal', 'site-confirm-modal');
 
   form.appendChild(el('p', 'budget-intro', 'Kvitteringen slettes.'));
 
@@ -2409,7 +2415,7 @@ function renderPaidTable(wrap) {
     const actionsTd = el('td', 'budget-td-actions');
     const actionsWrap = el('span', 'budget-action-icons');
     if (e.receiptFile) {
-      const viewBtn = el('button', 'budget-icon-btn');
+      const viewBtn = el('button', 'site-icon-btn budget-icon-btn');
       viewBtn.type = 'button';
       viewBtn.setAttribute('aria-label', 'Se kvittering');
       viewBtn.appendChild(budgetPictureIcon());
@@ -2422,7 +2428,7 @@ function renderPaidTable(wrap) {
       actionsWrap.appendChild(viewBtn);
     }
     if (!budgetReadOnly()) {
-      const editBtn = el('button', 'budget-icon-btn');
+      const editBtn = el('button', 'site-icon-btn budget-icon-btn');
       editBtn.type = 'button';
       editBtn.setAttribute('aria-label', 'Rediger udgift');
       editBtn.appendChild(budgetPencilIcon());
@@ -2461,7 +2467,7 @@ function renderPaidTable(wrap) {
       // .budget-icon-btn automatically instead of hardcoding a pixel value.
       const actionsTd = el('td');
       const actionsWrap = el('span', 'budget-action-icons');
-      const placeholder = el('span', 'budget-icon-btn');
+      const placeholder = el('span', 'site-icon-btn budget-icon-btn');
       placeholder.style.visibility = 'hidden';
       actionsWrap.appendChild(placeholder);
       actionsTd.appendChild(actionsWrap);
@@ -2929,11 +2935,11 @@ function openExpenseEditModal(root, exp) {
 // can be restored (or permanently removed) later from the same edit modal.
 function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('budget-confirm-narrow');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-confirm-text', 'Slet udgiften?'));
+  form.appendChild(el('p', 'site-confirm-text', 'Slet udgiften?'));
   form.appendChild(el('p', 'budget-intro',
     'Kvitteringen bevares, og udgiften kan gendannes.'));
 
@@ -2965,11 +2971,11 @@ function openExpenseDeleteConfirm(root, exp, payload, closeParent) {
 // a bilag number, so a gap in the sequence is expected, not a bug.
 function openExpenseRemoveConfirm(root, exp, closeParent) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('budget-confirm-narrow');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'budget-confirm-text', 'Fjern udgiften permanent?'));
+  form.appendChild(el('p', 'site-confirm-text', 'Fjern udgiften permanent?'));
   form.appendChild(el('p', 'budget-intro',
     'Kvitteringen slettes, og dette kan ikke fortrydes.'));
 
@@ -3021,12 +3027,12 @@ function openExpenseRemoveConfirm(root, exp, closeParent) {
 // convention, since budget.html doesn't load forms.css). Replaces the
 // small toggle card that used to sit in the right column.
 function renderBudgetModeTabs(container) {
-  const tabs = el('div', 'budget-mode-tabs');
-  const budgetTab = el('button', 'budget-mode-tab' + (budgetStregMode ? '' : ' active'), 'Budget');
+  const tabs = el('div', 'site-tabs');
+  const budgetTab = el('button', 'site-tab' + (budgetStregMode ? '' : ' active'), 'Budget');
   budgetTab.type = 'button';
   budgetTab.addEventListener('click', () => { if (budgetStregMode) budgetSwitchMode(false); });
   tabs.appendChild(budgetTab);
-  const stregTab = el('button', 'budget-mode-tab' + (budgetStregMode ? ' active' : ''), 'Stregregnskab');
+  const stregTab = el('button', 'site-tab' + (budgetStregMode ? ' active' : ''), 'Stregregnskab');
   stregTab.type = 'button';
   stregTab.addEventListener('click', () => { if (!budgetStregMode) budgetSwitchMode(true); });
   tabs.appendChild(stregTab);
@@ -3057,14 +3063,14 @@ let stregSaveStatusEl = null;
 function stregPaintSaveStatus() {
   if (!stregSaveStatusEl) return;
   if (stregSavesPending > 0) {
-    stregSaveStatusEl.textContent = 'Gemmer …';
-    stregSaveStatusEl.className = 'budget-save-status';
+    stregSaveStatusEl.textContent = 'Gemmer…';
+    stregSaveStatusEl.className = 'site-save-status';
   } else if (stregSaveError) {
     stregSaveStatusEl.textContent = stregSaveError;
-    stregSaveStatusEl.className = 'budget-save-status error';
+    stregSaveStatusEl.className = 'site-save-status error';
   } else {
     stregSaveStatusEl.textContent = 'Gemmes automatisk';
-    stregSaveStatusEl.className = 'budget-save-status';
+    stregSaveStatusEl.className = 'site-save-status';
   }
 }
 
@@ -3190,8 +3196,11 @@ function buildStregSheetCard() {
   if (!budgetReadOnly()) head.appendChild(connectBtn);
 
   const wrap = el('div', 'streg-table-wrap');
-  wrap.appendChild(stregBuildTable(draft));
+  const sheet = stregBuildTable(draft);
+  wrap.appendChild(sheet);
   card.appendChild(wrap);
+  // The header row follows the page down a long sheet.
+  siteStickyHead(sheet.tHead);
 
   const actions = el('div', 'budget-save-bar');
 
@@ -3207,7 +3216,7 @@ function buildStregSheetCard() {
   actions.appendChild(printBtn);
 
   const saveGroup = el('div', 'streg-save-group');
-  stregSaveStatusEl = el('span', 'budget-save-status');
+  stregSaveStatusEl = el('span', 'site-save-status');
   if (!budgetReadOnly()) saveGroup.appendChild(stregSaveStatusEl);
   actions.appendChild(saveGroup);
   stregPaintSaveStatus();
@@ -3260,7 +3269,7 @@ function budgetWireIconTooltip(btn, label) {
 function stregAddPlusBtn(title, onClick) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'boss-manage-add-plus';
+  btn.className = 'site-icon-btn site-add-plus';
   btn.title = title;
   btn.setAttribute('aria-label', title);
   btn.textContent = '+';
@@ -3282,7 +3291,7 @@ function stregBuildTable(rows) {
     });
   }
 
-  const table = el('table', 'streg-table');
+  const table = el('table', 'streg-table site-sheet site-sheet-lines');
 
   const thead = el('thead');
   const headRow = el('tr');
@@ -3357,6 +3366,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
 
   const navnInput = document.createElement('input');
   navnInput.type = 'text';
+  navnInput.className = 'site-inline-field';
   navnInput.value = row.navn || '';
   navnInput.placeholder = 'Påkrævet';
   navnInput.addEventListener('input', () => {
@@ -3402,6 +3412,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
     const val = (row.counts || {})[c.key];
     const input = document.createElement('input');
     input.type = 'number';
+    input.className = 'site-inline-field';
     input.min = '0';
     input.step = '1';
     input.inputMode = 'numeric';
@@ -3436,7 +3447,7 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
   if (budgetReadOnly()) return tr;
 
   const removeTd = el('td');
-  const removeBtn = el('button', 'streg-remove-btn', '✕');
+  const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger streg-remove-btn', '✕');
   removeBtn.type = 'button';
   removeBtn.title = 'Fjern række';
   removeBtn.addEventListener('click', () => {
@@ -3464,11 +3475,11 @@ function stregRenderRow(row, betalingCells, recomputeAll, rows) {
 // in-flight commit of the row has landed (so a just-created row has its id).
 function stregOpenDeleteGridRowConfirm(row, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('streg-confirm-modal');
+  modal.classList.add('site-confirm-modal', 'streg-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'streg-confirm-text',
+  form.appendChild(el('p', 'site-confirm-text',
     row.navn ? `Fjern "${row.navn}"?` : 'Fjern denne række?'));
   form.appendChild(el('p', 'budget-intro', 'Dette kan ikke fortrydes.'));
 
@@ -3545,11 +3556,11 @@ function stregCommitRow(row, patch) {
 // stregregnskab in one call.
 function stregOpenResetConfirm() {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('streg-confirm-modal');
+  modal.classList.add('site-confirm-modal', 'streg-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'streg-confirm-text', 'Nulstil stregregnskabet?'));
+  form.appendChild(el('p', 'site-confirm-text', 'Nulstil stregregnskabet?'));
   let text = 'Dette kan ikke fortrydes.';
   form.appendChild(el('p', 'budget-intro', text));
 
@@ -3821,11 +3832,11 @@ function stregFormFieldOptions(definition) {
 
 function stregOpenDisconnectConfirm(closeParent) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('streg-confirm-modal');
+  modal.classList.add('site-confirm-modal', 'streg-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'streg-confirm-text', 'Fjern forbindelsen til formularen?'));
+  form.appendChild(el('p', 'site-confirm-text', 'Fjern forbindelsen til formularen?'));
   form.appendChild(el('p', 'budget-intro', 'Rækker der er hentet ind, bliver ikke slettet.'));
 
   const cancelBtn = budgetPillBtn('Annuller');
@@ -3998,7 +4009,7 @@ function buildStregPricesCard() {
         }
       });
 
-      const labelInput = el('input', 'budget-manage-text-input streg-price-label-input');
+      const labelInput = el('input', 'site-inline-field budget-manage-text-input streg-price-label-input');
       labelInput.type = 'text';
       labelInput.value = item.label;
       labelInput.placeholder = 'Navn';
@@ -4019,7 +4030,7 @@ function buildStregPricesCard() {
       stregPriceUnitCells.set(item, perUnitSpan);
       row.appendChild(perUnitSpan);
 
-      const removeBtn = el('button', 'budget-manage-remove-btn', '✕');
+      const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger budget-manage-remove-btn', '✕');
       removeBtn.type = 'button';
       removeBtn.title = 'Fjern kategori';
       removeBtn.addEventListener('click', () => {
@@ -4069,7 +4080,7 @@ function buildStregPricesCard() {
   }
   renderList();
 
-  const addBtn = el('button', 'budget-manage-add-plus', '+');
+  const addBtn = el('button', 'site-icon-btn site-add-plus site-add-center', '+');
   addBtn.type = 'button';
   addBtn.title = 'Tilføj kategori';
   addBtn.addEventListener('click', () => {
@@ -4099,11 +4110,11 @@ function buildStregPricesCard() {
 // modal open with an inline error instead of silently losing the action.
 function stregOpenDeleteCategoryConfirm(item, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('streg-confirm-modal');
+  modal.classList.add('site-confirm-modal', 'streg-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
-  form.appendChild(el('p', 'streg-confirm-text',
+  form.appendChild(el('p', 'site-confirm-text',
     item.label ? `Fjern "${item.label}"?` : 'Fjern denne kategori?'));
   form.appendChild(el('p', 'budget-intro', 'Dette kan ikke fortrydes.'));
 

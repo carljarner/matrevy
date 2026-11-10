@@ -803,7 +803,7 @@ function formsFillInHasAnyAnswer(inputs) {
 // same modal chrome as every other confirm dialog on the site.
 function formsOpenLeaveWarning(onLeave) {
   const { modal, form, actions, close } = siteOpenModalWithClose('Forlad siden?');
-  modal.classList.add('forms-center-modal', 'forms-leave-modal');
+  modal.classList.add('forms-center-modal', 'site-confirm-modal');
   form.appendChild(el('p', 'forms-intro', 'Dine ændringer gemmes ikke.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -821,7 +821,7 @@ async function renderFormFillIn(root, formId) {
   // is still loading — it just reads as "nothing entered yet" then.
   const inputs = []; // { field, input, page }
   const card = el('section', 'card forms-form forms-fillin-wide');
-  const backBtn = el('button', 'forms-back-btn', '←');
+  const backBtn = el('button', 'site-icon-btn forms-back-btn', '←');
   backBtn.type = 'button';
   backBtn.title = 'Tilbage til formularer';
   backBtn.setAttribute('aria-label', 'Tilbage til formularer');
@@ -1073,16 +1073,16 @@ function renderAdminView(root, screen) {
   // different form) never leaves a stale one running.
   if (formsStatsNavCleanup) { formsStatsNavCleanup(); formsStatsNavCleanup = null; }
   root.replaceChildren();
-  const tabs = el('div', 'forms-admin-tabs');
+  const tabs = el('div', 'site-tabs');
   // "Se svar"/"Se statistik" are views onto one form from within Oversigt,
   // not separate tabs — the Oversigt tab stays active and visible while
   // viewing them, so there's always a way back to the list without a
   // dedicated back button.
   const overviewActive = screen.name === 'overview' || screen.name === 'responses' || screen.name === 'stats';
-  const overviewTab = el('button', 'forms-admin-tab' + (overviewActive ? ' active' : ''), 'Oversigt');
+  const overviewTab = el('button', 'site-tab' + (overviewActive ? ' active' : ''), 'Oversigt');
   overviewTab.type = 'button';
   overviewTab.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'overview' })));
-  const builderTab = el('button', 'forms-admin-tab' + (screen.name === 'builder' ? ' active' : ''),
+  const builderTab = el('button', 'site-tab' + (screen.name === 'builder' ? ' active' : ''),
     screen.name === 'builder' && screen.existingDefinition ? 'Rediger formular' : 'Ny formular');
   builderTab.type = 'button';
   builderTab.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'builder' })));
@@ -1317,7 +1317,7 @@ async function formsRenderOverviewScreen(root) {
     ? storedYear : String(currentYear);
   const yearDd = siteCreateDropdownField(
     years.map((y) => ({ value: String(y), label: formsRevyNameForYear(y) })), initialYear);
-  yearDd.classList.add('forms-year-filter');
+  yearDd.classList.add('site-toolbar-control', 'forms-year-filter');
   // Same label + compact site-field-btn look as budget.css's own
   // "Viser budget for:"/koordinator.css's "Viser plan for:" — one shared
   // convention for every "which one am I viewing" dropdown site-wide.
@@ -1414,21 +1414,21 @@ async function formsRenderOverviewScreen(root) {
       // through to a screen that then has to refuse them.
       const restricted = f.visibility === 'admin' && !siteHasLevel('admin');
       const actionsCell = el('td', 'forms-row-actions');
-      const statsBtn = el('button', 'forms-row-icon-btn');
+      const statsBtn = el('button', 'site-icon-btn forms-row-icon-btn');
       statsBtn.type = 'button';
       statsBtn.setAttribute('aria-label', restricted ? 'Statistik (kun koordinatorer)' : 'Statistik');
       statsBtn.setAttribute('data-tooltip', restricted ? 'Kun koordinatorer' : 'Statistik');
       statsBtn.appendChild(formsChartIcon());
       if (restricted) statsBtn.disabled = true;
       else statsBtn.addEventListener('click', () => renderAdminView(root, { name: 'stats', formId: f.id }));
-      const respBtn = el('button', 'forms-row-icon-btn');
+      const respBtn = el('button', 'site-icon-btn forms-row-icon-btn');
       respBtn.type = 'button';
       respBtn.setAttribute('aria-label', restricted ? 'Svar (kun koordinatorer)' : 'Svar');
       respBtn.setAttribute('data-tooltip', restricted ? 'Kun koordinatorer' : 'Svar');
       respBtn.appendChild(formsPaperIcon());
       if (restricted) respBtn.disabled = true;
       else respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
-      const editBtn = el('button', 'forms-row-icon-btn');
+      const editBtn = el('button', 'site-icon-btn forms-row-icon-btn');
       editBtn.type = 'button';
       editBtn.setAttribute('aria-label', 'Rediger');
       editBtn.setAttribute('data-tooltip', 'Rediger');
@@ -1476,7 +1476,7 @@ async function formsRenderOverviewScreen(root) {
 
 function formsOpenDeleteConfirm(root, f) {
   const { modal, form, error, actions, close } = siteOpenEditModal(`Slet "${f.title}"?`);
-  modal.classList.add('forms-center-modal', 'forms-narrow-modal');
+  modal.classList.add('forms-center-modal', 'site-confirm-modal');
   form.appendChild(el('p', 'forms-intro', f.responseCount > 0
     ? `Inklusiv alle ${f.responseCount} svar? Dette kan ikke fortrydes.`
     : 'Dette kan ikke fortrydes.'));
@@ -1591,7 +1591,7 @@ function formsRenderFieldRow(field, idx, draftFields, listEl, onChange, draftSec
   });
   topRow.appendChild(typeDd);
 
-  const removeBtn = el('button', 'boss-edit-remove', '✕');
+  const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   removeBtn.type = 'button';
   removeBtn.title = 'Slet spørgsmål';
   removeBtn.setAttribute('aria-label', 'Slet spørgsmål');
@@ -1675,7 +1675,7 @@ function formsRenderFieldDependencyControl(field, draftSections, sectionIdx, fie
     // Same icon-button chrome as Oversigt's own Rediger row action
     // (.forms-row-icon-btn, formsPencilIcon) rather than a bespoke text
     // link — "in style with the rest of the page".
-    const editBtn = el('button', 'forms-row-icon-btn');
+    const editBtn = el('button', 'site-icon-btn forms-row-icon-btn');
     editBtn.type = 'button';
     editBtn.setAttribute('aria-label', 'Rediger afhængighed');
     editBtn.setAttribute('data-tooltip', 'Rediger afhængighed');
@@ -1845,7 +1845,7 @@ function formsRenderManualOptionsList(options, onChange, rerender) {
       opt.value = textInput.value;
       onChange();
     });
-    const rm = el('button', 'boss-edit-remove', '✕');
+    const rm = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
     rm.type = 'button';
     rm.addEventListener('click', () => { options.splice(i, 1); rerender(); onChange(); });
     optRow.appendChild(textInput);
@@ -1938,7 +1938,7 @@ function formsRenderGridConfig(field, onChange) {
       input.placeholder = 'Række';
       input.value = r.label || '';
       input.addEventListener('input', () => { r.label = input.value; onChange(); });
-      const rm = el('button', 'boss-edit-remove', '✕');
+      const rm = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
       rm.type = 'button';
       rm.addEventListener('click', () => { field.rows.splice(i, 1); renderRows(); onChange(); });
       rRow.appendChild(input);
@@ -2129,7 +2129,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     // Deleting the whole form now lives here (top-right of its own edit
     // view) rather than as a row action in Oversigt — an X in the same
     // style as every other remove control on the page.
-    const deleteBtn = el('button', 'boss-edit-remove forms-builder-delete', '✕');
+    const deleteBtn = el('button', 'site-icon-btn site-icon-btn-danger forms-builder-delete', '✕');
     deleteBtn.type = 'button';
     deleteBtn.title = 'Slet formular';
     deleteBtn.setAttribute('aria-label', 'Slet formular');
@@ -2367,15 +2367,14 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   // a section rebuilds every block from scratch — a plain local `let`
   // would silently re-open every other section whenever one changed.
   const head = el('div', 'forms-section-head');
-  const toggleBtn = el('button', 'forms-section-toggle');
+  const toggleBtn = el('button', 'site-collapse forms-section-toggle');
   toggleBtn.type = 'button';
-  const chevron = el('span', 'forms-section-chevron', '▾');
-  toggleBtn.appendChild(chevron);
+  toggleBtn.appendChild(el('span', 'site-chevron', '▾'));
   const labelSpan = el('span', null, formsSectionHeaderLabel(section, idx));
   toggleBtn.appendChild(labelSpan);
   head.appendChild(toggleBtn);
 
-  const removeBtn = el('button', 'boss-edit-remove', '✕');
+  const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   removeBtn.type = 'button';
   removeBtn.title = 'Slet sektion';
   removeBtn.setAttribute('aria-label', 'Slet sektion');
@@ -2414,11 +2413,11 @@ function formsRenderSectionBlock(section, idx, draftSections, onChange, rerender
   bodyEl.style.display = section.collapsed ? 'none' : '';
   block.appendChild(bodyEl);
 
-  chevron.textContent = section.collapsed ? '▸' : '▾';
+  toggleBtn.setAttribute('aria-expanded', section.collapsed ? 'false' : 'true');
   toggleBtn.addEventListener('click', () => {
     section.collapsed = !section.collapsed;
     bodyEl.style.display = section.collapsed ? 'none' : '';
-    chevron.textContent = section.collapsed ? '▸' : '▾';
+    toggleBtn.setAttribute('aria-expanded', section.collapsed ? 'false' : 'true');
   });
 
   const titleInput = el('input');
@@ -2459,7 +2458,7 @@ function formsSectionIsEmpty(section) {
 
 function formsOpenDeleteSectionConfirm(title, onConfirm) {
   const { modal, form, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('forms-center-modal', 'forms-section-delete-modal');
+  modal.classList.add('forms-center-modal', 'site-confirm-modal');
   form.appendChild(el('p', 'forms-intro', 'Dette kan ikke fortrydes.'));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -2471,7 +2470,7 @@ function formsOpenDeleteSectionConfirm(title, onConfirm) {
 
 function formsOpenDeleteResponseConfirm(submittedAtLabel, onConfirm) {
   const { modal, form, actions, close } = siteOpenEditModal('Slet svar?');
-  modal.classList.add('forms-center-modal', 'forms-response-delete-modal');
+  modal.classList.add('forms-center-modal', 'site-confirm-modal');
   form.appendChild(el('p', 'forms-intro', `Dette kan ikke fortrydes.`));
   const cancelBtn = formsPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
@@ -2550,7 +2549,7 @@ function formsOpenTemplateMenuPopup(anchor, templates, result, onUse) {
       useBtn.appendChild(el('div', 'forms-template-menu-title', t.title));
       if (t.description) useBtn.appendChild(el('div', 'forms-template-menu-desc', t.description));
       useBtn.addEventListener('click', () => { close(); onUse(t); });
-      const delBtn = el('button', 'boss-edit-remove', '✕');
+      const delBtn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
       delBtn.type = 'button';
       delBtn.title = 'Slet skabelon';
       delBtn.addEventListener('click', () => { close(); formsOpenDeleteTemplateConfirm(t); });
@@ -2875,7 +2874,7 @@ async function formsRenderResponsesScreen(root, formId) {
   for (const r of responses) {
     const row = el('tr');
     const viewCell = el('td', 'forms-response-action-cell');
-    const viewBtn = el('button', 'forms-row-icon-btn');
+    const viewBtn = el('button', 'site-icon-btn forms-row-icon-btn');
     viewBtn.type = 'button';
     viewBtn.setAttribute('aria-label', 'Se svar');
     viewBtn.appendChild(formsEyeIcon());
@@ -2895,7 +2894,7 @@ async function formsRenderResponsesScreen(root, formId) {
       row.appendChild(formsResponseCell('td', c.get(r.answers)));
     }
     const deleteCell = el('td', 'forms-response-action-cell');
-    const deleteBtn = el('button', 'boss-edit-remove', '✕');
+    const deleteBtn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
     deleteBtn.type = 'button';
     deleteBtn.title = 'Slet svar';
     deleteBtn.setAttribute('aria-label', 'Slet svar');
@@ -2913,6 +2912,8 @@ async function formsRenderResponsesScreen(root, formId) {
   table.appendChild(tbody);
   wrap.appendChild(table);
   body.appendChild(wrap);
+  // The table scrolls with the page; its header row follows it down.
+  siteStickyHead(thead);
 
   const conditionsCard = formsBuildResponseConditionsCard(definition, rowEls);
   if (conditionsCard) listView.insertBefore(conditionsCard, card);
@@ -2938,27 +2939,12 @@ function formsBuildResponseConditionsCard(definition, rowEls) {
     FORMS_DEPENDENCY_CONTROL_TYPES.includes(f.type) && formsDependencyOptionsForField(f).length > 0);
   if (eligible.length === 0) return null;
 
-  let open = false;
+  // The shared collapsible card (siteCollapseHeading); closed on every visit.
   const card = el('section', 'card forms-conditions-card');
-  const heading = el('h2', 'forms-conditions-heading');
-  const toggle = el('button', 'forms-conditions-toggle');
-  toggle.type = 'button';
-  const chevron = el('span', 'forms-conditions-chevron');
   const label = el('span');
-  toggle.appendChild(chevron);
-  toggle.appendChild(label);
-  heading.appendChild(toggle);
-  card.appendChild(heading);
-  const body = el('div', 'forms-conditions-body');
-  card.appendChild(body);
-
-  const applyOpen = () => {
-    chevron.textContent = open ? '▾' : '▸';
-    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-    body.hidden = !open;
-    card.classList.toggle('open', open);
-  };
-  toggle.addEventListener('click', () => { open = !open; applyOpen(); });
+  const body = el('div', 'site-collapse-body forms-conditions-body');
+  const { heading } = siteCollapseHeading('h2', label, { open: false, body });
+  card.append(heading, body);
 
   const footer = el('div', 'forms-conditions-footer');
   const status = el('span', 'forms-conditions-status');
@@ -2987,7 +2973,6 @@ function formsBuildResponseConditionsCard(definition, rowEls) {
     status.textContent = filters.length > 0 ? `Viser ${shown} af ${rowEls.length} svar` : '';
     resetBtn.hidden = editor.count() === 0;
   }
-  applyOpen();
   applyFilter();
   return card;
 }
@@ -3001,7 +2986,7 @@ function formsBuildResponseConditionsCard(definition, rowEls) {
 // (sticky, like Statistik's section nav); at <=719px it sits above the card.
 function formsRenderResponseDetail(definition, response, onBack) {
   const layout = el('div', 'forms-response-detail-layout');
-  const backBtn = el('button', 'forms-back-btn forms-response-detail-back', '←');
+  const backBtn = el('button', 'site-icon-btn forms-back-btn forms-response-detail-back', '←');
   backBtn.type = 'button';
   backBtn.title = 'Tilbage til svar';
   backBtn.setAttribute('aria-label', 'Tilbage til svar');
@@ -3217,7 +3202,7 @@ function formsOpenExportModal(definition, responses) {
   }
 
   const { modal, form, actions, close } = siteOpenModalWithClose('Eksportér CSV');
-  modal.classList.add('forms-export-modal');
+  modal.classList.add('site-modal-xl');
 
   // ── Kolonner: kanban-style click-to-toggle grid ──
   const colsHead = el('div', 'card-head');
@@ -3353,7 +3338,7 @@ function formsCreateConditionEditor({ allFields, getEligible, onChange }) {
     const head = el('div', 'card-head');
     const titleEl = el('strong', null, '');
     head.appendChild(titleEl);
-    const removeBtn = el('button', 'boss-edit-remove', '✕');
+    const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
     removeBtn.type = 'button';
     removeBtn.title = 'Fjern betingelse';
     removeBtn.setAttribute('aria-label', 'Fjern betingelse');
@@ -3895,6 +3880,9 @@ function formsStatsComments(values) {
 document.addEventListener('DOMContentLoaded', () => {
   const root = document.getElementById('forms-root');
   if (!root) return;
+  // Svar's table scrolls with the page, so a fixed cell tooltip goes with
+  // any page scroll.
+  window.addEventListener('scroll', formsHideResponseTooltip, { passive: true });
   // The page gate (site.js) already hides <main> for public visitors.
   if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
     renderAdminView(root);

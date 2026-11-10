@@ -156,7 +156,7 @@
 .arkiv-add-tile:focus-visible {
   background: var(--surface-2);
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
   outline: none;
 }
 
@@ -201,8 +201,8 @@
   background: rgba(0, 0, 0, 0.75);
 }
 
+/* Width: .site-modal-md (style.css). */
 .arkiv-detail-modal {
-  width: min(560px, 92vw);
   max-height: 85vh;
   overflow-y: auto;
   padding: 0;
@@ -311,14 +311,12 @@
 
 /* --- Modern edit form (archive-scoped; other pages' edit modals
    use the shared .edit-modal chrome unchanged) ---------------- */
+/* Width: .site-modal-md; h2 at the shared modal-title size. */
 .arkiv-edit-modal {
-  width: min(560px, 94vw);
   padding: 1.5rem 1.5rem 1.25rem;
 }
 
 .arkiv-edit-modal h2 {
-  font-size: 1.25rem;
-  font-weight: 700;
   margin-bottom: 1rem;
 }
 

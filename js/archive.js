@@ -243,7 +243,7 @@ function openYearDetail(entry) {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
   const modal = document.createElement('div');
-  modal.className = 'login-modal arkiv-detail-modal';
+  modal.className = 'login-modal site-modal-md arkiv-detail-modal';
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -349,7 +349,7 @@ async function deleteYear(entry) {
 // ── Editor modal ─────────────────────────────────────────────
 function openYearEditor(existing) {
   const { modal, form, error, actions, close } = siteOpenEditModal(existing ? 'Rediger årgang' : 'Tilføj årgang');
-  modal.classList.add('arkiv-edit-modal');
+  modal.classList.add('site-modal-md', 'arkiv-edit-modal');
 
   // All fields live in one metadata card (individual-file tracking was removed —
   // sketches/songs/andet now live in the repo, linked from the overlay's GitHub button).

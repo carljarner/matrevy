@@ -118,7 +118,7 @@
 }
 
 .budget-msg {
-  font-size: 0.88rem;
+  font-size: var(--fs-sm);
   margin: 0.75rem 0;
   min-height: 1.2em;
 }
@@ -140,19 +140,21 @@
   font-weight: 600;
 }
 
+/* The category tag (bilag abbreviation): amber like a post's title tag,
+   blue being reserved for Login. */
 .budget-badge {
-  background: #eef4fc;
-  color: #2f6cb3;
+  background: var(--accent-warm-fill);
+  color: var(--accent-warm-text);
   border-radius: 6px;
   padding: 0.1rem 0.5rem;
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .budget-amount {
   font-weight: 600;
-  color: var(--header);
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -171,9 +173,7 @@
 .budget-form .edit-field textarea,
 .budget-approve-modal .edit-field input,
 .budget-approve-modal .edit-field select,
-.budget-approve-modal .edit-field textarea,
-.budget-sheet-table .budget-plan-input,
-.budget-income-amount {
+.budget-approve-modal .edit-field textarea {
   border-color: var(--border);
   background: var(--input-bg);
   color: var(--text);
@@ -184,27 +184,10 @@
 .budget-form .edit-field textarea:focus,
 .budget-approve-modal .edit-field input:focus,
 .budget-approve-modal .edit-field select:focus,
-.budget-approve-modal .edit-field textarea:focus,
-.budget-sheet-table .budget-plan-input:focus,
-.budget-income-amount:focus {
+.budget-approve-modal .edit-field textarea:focus {
   outline: none;
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-/* Warm hue on hover too (the focus glow is the ring; hover is just the
-   orange border). Gated per the site-wide hover convention. */
-@media (hover: hover) {
-  .budget-form .edit-field input:hover,
-  .budget-form .edit-field select:hover,
-  .budget-form .edit-field textarea:hover,
-  .budget-approve-modal .edit-field input:hover,
-  .budget-approve-modal .edit-field select:hover,
-  .budget-approve-modal .edit-field textarea:hover,
-  .budget-sheet-table .budget-plan-input:hover,
-  .budget-income-amount:hover {
-    border-color: var(--accent-warm);
-  }
+  box-shadow: var(--focus-ring);
 }
 
 /* --- Pending list ----------------------------------------- */
@@ -252,26 +235,13 @@
   flex-wrap: nowrap;
 }
 
-/* Godkend/Rediger/Split/Afvis as plain icon buttons — reuses the paid-
-   ledger's own .budget-icon-btn chrome (see its own comment below) instead
-   of a second, slightly different icon-button family. Each still hover-
-   tints in its own muted theme-matched shade, same colors as before. */
-#budget-root .budget-item-actions .budget-icon-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
+/* Godkend/Rediger/Split/Afvis are plain icon buttons (.site-icon-btn);
+   each hover recolours it in its own meaning: green, amber, red. */
 @media (hover: hover) {
-  #budget-root .budget-act-approve:not(:disabled):hover {
-    background: #e5f2e8;
+  #budget-root .budget-act-approve.site-icon-btn:not(:disabled):hover {
     color: var(--success);
   }
-  #budget-root .budget-act-edit:not(:disabled):hover {
-    background: var(--accent-warm-fill);
-    color: var(--accent-warm-text);
-  }
-  #budget-root .budget-act-reject:not(:disabled):hover {
-    background: #f6e3df;
+  #budget-root .budget-act-reject.site-icon-btn:not(:disabled):hover {
     color: var(--danger);
   }
 }
@@ -302,34 +272,15 @@
    separate from "Godkend alle" (a sibling button in the same header) so
    toggling the section and batch-approving it are two distinct click
    targets rather than one competing for the whole header. */
+/* A .site-collapse row filling the header beside "Godkend alle". */
 .budget-group-summary {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-  color: inherit;
-  min-width: 0;
-}
-
-.budget-group-chevron {
-  color: var(--text-muted);
-  font-size: 0.75rem;
-  transition: transform 0.15s;
-  flex: 0 0 auto;
-}
-
-.budget-group-collapsed .budget-group-chevron {
-  transform: rotate(-90deg);
+  flex: 1;
 }
 
 .budget-group-title {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--header);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -361,7 +312,7 @@
 
 .budget-approve-all-line {
   font-size: 0.9rem;
-  color: var(--header);
+  color: var(--text);
   padding: 0.3rem 0;
   border-bottom: 1px solid var(--border);
 }
@@ -372,7 +323,7 @@
 
 .budget-approve-all-total {
   font-weight: 600;
-  color: var(--header);
+  color: var(--text);
   margin-top: 0.5rem;
 }
 
@@ -417,7 +368,7 @@
   flex: 1;
   min-width: 0;
   font-size: 0.9rem;
-  color: var(--header);
+  color: var(--text);
 }
 
 .budget-streg-breakdown-row input,
@@ -437,7 +388,7 @@
 .budget-sub-breakdown-row input:focus {
   outline: none;
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .budget-streg-breakdown-sum,
@@ -588,35 +539,6 @@ tr.budget-row-filler td {
   gap: 0.35rem;
 }
 
-/* Icon-only Se/Rediger buttons — matches calendar.js's list-view
-   .cal-list-edit-btn pencil convention. */
-.budget-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-@media (hover: hover) {
-  .budget-icon-btn:hover {
-    background: var(--accent-warm-fill);
-    color: var(--accent-warm-text);
-  }
-}
-
-.budget-icon-btn:focus-visible {
-  outline: none;
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
-}
-
 /* A soft-deleted expense: still shown, crossed out, excluded from Brugt. */
 .budget-row-deleted td {
   text-decoration: line-through;
@@ -628,52 +550,14 @@ tr.budget-row-filler td {
 /* Godkend/Godkend alle/Split/Afvis are plain confirm dialogs — center
    their title and explanatory line. Scoped to exclude .budget-approve-modal
    (Rediger's own edit-form share of .budget-confirm-modal), which keeps its
-   usual left-aligned title/fields. */
+   usual left-aligned title/fields. The narrow ones are .site-confirm-modal. */
 .budget-confirm-modal:not(.budget-approve-modal) h2,
-.budget-confirm-modal:not(.budget-approve-modal) .budget-intro {
-  text-align: center;
-}
-
-/* Shared one-liner delete-confirm width formula — see .post-confirm-modal
-   (style.css) for the full rationale. Used by these confirm dialogs —
-   Godkend/Godkend alle/Afvis/Split plus the "are you sure?" ones below.
-   Kept distinct from the .budget-confirm-modal marker class, which is also
-   applied to this page's wider edit forms and must stay unstyled. */
-.budget-confirm-narrow {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
-}
-
-/* Reads as the modal's title, since these confirms drop the usual h2
-   heading in favor of this one line — mirrors Kalender's .cal-confirm-text
-   (calendar.css). Scoped under .login-modal so its specificity beats the
-   plain ".login-modal p" rule, which would otherwise win the
-   font-size/margin-bottom tie-break. */
-.login-modal .budget-confirm-text {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
-  text-align: center;
-  margin-bottom: 0.5rem;
-}
-
-/* The explanatory line below the title, in these narrow confirm dialogs
-   only — .budget-intro is reused elsewhere (e.g. Rediger udlæg's Kategori
-   description) as a normal left-aligned line, so the centering is scoped to
-   .budget-confirm-narrow rather than changing .budget-intro itself. */
-.budget-confirm-narrow .budget-intro {
+.budget-confirm-modal:not(.budget-approve-modal) .budget-intro,
+.site-confirm-modal .budget-intro {
   text-align: center;
 }
 
 /* --- Budget sheet ----------------------------------------- */
-.budget-save-status {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.budget-save-status.dirty { color: var(--accent-warm-text); }
-.budget-save-status.error { color: var(--danger); }
 
 .budget-sheet-table, .budget-sheet-table-editing { min-width: 460px; }
 
@@ -725,24 +609,29 @@ tr.budget-row-filler td {
   text-align: center;
 }
 
+/* Planlagt / income amounts are .site-inline-field (style.css). */
 .budget-sheet-table .budget-plan-input,
 .budget-income-amount {
-  width: 100%;
   padding: 0.3rem 0.45rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
   font-size: 0.85rem;
-  font-family: inherit;
 }
 
+/* Centred under "Planlagt", like Brugt/Rest; rows centre vertically so the
+   field's text lines up with the plain text beside it. */
 .budget-sheet-table .budget-plan-input {
+  display: block;
   max-width: 120px;
-  text-align: right;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.budget-sheet-table td {
+  vertical-align: middle;
 }
 
 .budget-sheet-table tfoot .budget-sheet-total td {
   font-weight: 600;
-  color: var(--header);
+  color: var(--text);
   border-top: 2px solid var(--border);
 }
 
@@ -919,33 +808,13 @@ tr.budget-row-filler td {
   box-shadow: var(--modal-shadow);
 }
 
+/* Category edit mode: .site-inline-field, with a negative margin so the
+   text sits where the read-mode text sits. A locked field (below) opts
+   back out of the hover border. */
 .budget-manage-text-input {
-  width: 100%;
   padding: 0.15rem 0.3rem;
   margin: -0.15rem -0.3rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
   font-size: 0.85rem;
-  font-family: inherit;
-  color: var(--text);
-  outline: none;
-}
-
-/* Border-on-hover, white background while actively editing — same recipe
-   as Fællesspisning's own field styling (faellesspisning.css); a locked
-   field (below) explicitly opts back out of the hover border. */
-@media (hover: hover) {
-  .budget-manage-text-input:hover {
-    border-color: var(--border);
-  }
-}
-
-.budget-manage-text-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  background: var(--input-bg);
 }
 
 .budget-manage-bilag-input {
@@ -961,62 +830,6 @@ tr.budget-row-filler td {
   .budget-manage-input-locked:hover {
     border-color: transparent;
   }
-}
-
-.budget-manage-remove-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 0.2rem;
-  border-radius: 6px;
-  color: var(--text-muted);
-  width: 1.8rem;
-  height: 1.8rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-@media (hover: hover) {
-  .budget-manage-remove-btn:hover { color: var(--danger); }
-}
-
-.budget-manage-remove-btn:focus-visible {
-  outline: none;
-  color: var(--danger);
-  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
-}
-
-/* The "+" that grows either list — a small plain glyph sitting right below
-   the last row/entry rather than a separate add-row form. */
-.budget-manage-add-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  margin: 0.3rem auto 0;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-@media (hover: hover) {
-  .budget-manage-add-plus:hover { color: var(--accent-warm-text); }
-}
-
-.budget-manage-add-plus:focus-visible {
-  outline: none;
-  color: var(--accent-warm-text);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 /* Indtægter rows while editing: name input + read-only amount + delete —
@@ -1053,11 +866,7 @@ tr.budget-row-filler td {
    name input (not a whole extra table column, which would ripple into
    every one of this table's own nth-child column rules above) — expanding
    it reveals an indented sub-list in a full-width row directly below,
-   closed by default. Reuses .budget-group-chevron's shared look (color/
-   size/rotate-transition) but rotation is driven by a plain modifier class
-   here rather than an ancestor .budget-group-collapsed, since a category
-   row isn't nested inside one bigger collapsible container the way a
-   pending-request group's own rows are. */
+   closed by default. The chevron is a small .site-collapse-icon toggle. */
 .budget-manage-name-row {
   display: flex;
   align-items: center;
@@ -1069,25 +878,6 @@ tr.budget-row-filler td {
   min-width: 0;
 }
 
-.budget-manage-subcat-toggle {
-  display: inline-flex;
-  align-items: center;
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  flex: 0 0 auto;
-}
-
-.budget-manage-subcat-toggle:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  border-radius: 4px;
-}
-
-.budget-subcat-collapsed {
-  transform: rotate(-90deg);
-}
 
 /* The wrap row's single <td> spans every column (colSpan=5 in JS), so it's
    simultaneously :first-child and :last-child — re-qualified with the
@@ -1172,45 +962,7 @@ tr.budget-row-filler td {
 
 /* --- Stregregnskab (bar tally accounting) -------------------------- */
 
-/* Page-wide Budget/Stregregnskab switcher sitting above .budget-columns —
-   styled identically to Formularer's own Oversigt/Ny-formular tab bar
-   (forms.css's .forms-admin-tabs/.forms-admin-tab), duplicated here rather
-   than shared since budget.html doesn't load forms.css, per the site's
-   per-feature-duplication convention. */
-.budget-mode-tabs {
-  display: flex;
-  margin-bottom: 1.25rem;
-  border-bottom: 1px solid var(--border);
-}
 
-.budget-mode-tab {
-  flex: 1 1 0;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 0.6rem 1rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  font-family: inherit;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.budget-mode-tab.active {
-  color: var(--accent-warm-text);
-  border-bottom-color: var(--accent-warm-text);
-}
-
-@media (hover: hover) {
-  .budget-mode-tab:not(.active):hover { color: var(--text); }
-}
-
-.budget-mode-tab:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  border-radius: 4px;
-}
 
 /* Names × drink-category grid (replaces the Budget card while active) —
    structurally mirrors faellesspisning.css's own table: a sticky Navn
@@ -1225,47 +977,27 @@ tr.budget-row-filler td {
    :disabled rule of its own (unlike the .site-btn-* family), so it'd
    otherwise render with no visual difference from an enabled button. */
 .streg-sheet-card .card-head .btn-small:disabled {
-  opacity: 0.6;
+  opacity: var(--disabled-opacity);
   cursor: default;
 }
 
-/* No vertical scroll/cap by product decision — the grid just grows to fit
-   every row (see js/budget.js's own comment on budgetSyncPendingColumnHeight).
-   Horizontal scroll only, for a wide category list. */
 .streg-table-wrap {
   overflow-x: auto;
   padding-bottom: 1rem;
 }
 
-/* border-spacing:0 (not border-collapse:collapse) + box-shadow instead of a
-   real border-bottom on every cell — same fix as faellesspisning.css's own
-   table (not loaded on this page): WebKit doesn't collapse a sticky cell's
-   border consistently with its non-sticky neighbours under
-   border-collapse:collapse (the sticky Navn column and header row both use
-   position:sticky below), so the row separator line visibly changed width/
-   thickness at the sticky column's edge. box-shadow paints per-cell and
-   isn't part of border collapsing, so every column's line renders
-   identically regardless of which cells are sticky. */
+/* Lines and header look come from .site-sheet (style.css); the header row
+   follows the page down (siteStickyHead). */
 .streg-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
   font-size: 0.85rem;
 }
 
 .streg-table th,
 .streg-table td {
-  box-shadow: inset 0 -1px 0 0 var(--border);
   padding: 0.4rem 0.5rem;
   text-align: center;
   white-space: nowrap;
-}
-
-.streg-table thead th {
-  background: var(--surface);
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 0.8rem;
 }
 
 .streg-table .streg-col-navn {
@@ -1278,7 +1010,7 @@ tr.budget-row-filler td {
 }
 
 .streg-table thead .streg-col-navn {
-  z-index: 2;
+  z-index: 3;
 }
 
 /* Body cells wrap the checkbox+input pair in their own inner flex row
@@ -1293,12 +1025,9 @@ tr.budget-row-filler td {
   gap: 0.4rem;
 }
 
-/* "har betalt" marker (js/budget.js's own stregRenderRow) — same site-wide
-   checkbox convention as Forms'/Fællesspisning's own (accent-color instead
-   of the browser-default blue). */
+/* "har betalt" marker (js/budget.js's own stregRenderRow). */
 .streg-paid-checkbox {
   flex: none;
-  accent-color: var(--accent-warm-text);
   cursor: pointer;
 }
 
@@ -1310,28 +1039,9 @@ tr.budget-row-filler td {
    .faelles-field-tooltip treatment of its Madforbehold field). */
 .streg-table .streg-col-navn input[type="text"] {
   flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
   padding: 0.2rem 0.35rem;
-  font: inherit;
-  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-@media (hover: hover) {
-  .streg-table .streg-col-navn input[type="text"]:hover {
-    border-color: var(--border);
-  }
-}
-
-.streg-table .streg-col-navn input[type="text"]:focus-visible {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  background: var(--input-bg);
 }
 
 /* Tally-count columns: a floor wide enough for a two-digit count plus its
@@ -1341,33 +1051,16 @@ tr.budget-row-filler td {
   min-width: 3.75rem;
 }
 
+/* Cells are .site-inline-field (style.css). */
 .streg-table .streg-col-count input[type="number"] {
   width: 3.2rem;
   text-align: center;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 4px;
   padding: 0.2rem 0.1rem;
-  font: inherit;
-  color: var(--text);
-}
-
-@media (hover: hover) {
-  .streg-table .streg-col-count input[type="number"]:hover {
-    border-color: var(--border);
-  }
-}
-
-.streg-table .streg-col-count input[type="number"]:focus-visible {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  background: var(--input-bg);
 }
 
 .streg-table .streg-col-betaling {
   font-weight: 600;
-  color: var(--header);
+  color: var(--text);
   white-space: nowrap;
 }
 
@@ -1391,7 +1084,7 @@ tr.budget-row-filler td {
   max-width: 320px;
   background: var(--header);
   color: var(--surface);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.35;
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
@@ -1401,26 +1094,7 @@ tr.budget-row-filler td {
   pointer-events: none;
 }
 
-.streg-remove-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.9rem;
-  line-height: 1;
-  padding: 0.2rem 0.35rem;
-}
-
-@media (hover: hover) {
-  .streg-remove-btn:hover { color: var(--danger); }
-}
-
-.streg-remove-btn:focus-visible {
-  outline: none;
-  color: var(--danger);
-}
-
-.streg-add-row td {
+.streg-table .streg-add-row td {
   box-shadow: none;
   padding-top: 0.6rem;
 }
@@ -1436,7 +1110,7 @@ tr.budget-row-filler td {
    which otherwise eats too much of a phone's limited width before the
    drink-tally columns even start. */
 @media (max-width: 719px) {
-  .streg-table { font-size: 0.78rem; }
+  .streg-table { font-size: 0.8rem; }
   .streg-table th,
   .streg-table td { padding: 0.3rem 0.4rem; }
   .streg-table .streg-col-navn { max-width: 6rem; }
@@ -1444,10 +1118,6 @@ tr.budget-row-filler td {
 
 /* --- Connect-to-formular modal + "Er du sikker?" confirms, mirroring
    faellesspisning.css's own (not loaded on this page). ---------------- */
-.streg-connect-modal {
-  width: min(90vw, 30rem);
-}
-
 /* Sits directly under the modal's own h2 (siteOpenModalWithClose) — shows
    the connected form's own title, however long, now that the toolbar
    button itself just says "Forbind"/"Forbundet" regardless of connection
@@ -1465,29 +1135,6 @@ tr.budget-row-filler td {
    single-button case centered instead of space-between pinning it left. */
 .streg-connect-modal .login-actions:has(> :only-child) {
   justify-content: center;
-}
-
-.login-modal .streg-confirm-text {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
-  text-align: center;
-  margin-bottom: 0.5rem;
-}
-
-/* Shared one-liner delete-confirm width formula — see .post-confirm-modal
-   (style.css) for the full rationale. */
-.streg-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
-}
-
-/* .budget-intro (Nulstil's own explanatory line below .streg-confirm-text)
-   is left-aligned by default everywhere else it's used — center it here to
-   match this modal's own narrow, single-column, all-centered layout. */
-.streg-confirm-modal .budget-intro {
-  text-align: center;
 }
 
 /* --- Priser card (replaces Afventende udlæg while active) -----------
@@ -1540,28 +1187,6 @@ tr.budget-row-filler td {
   min-width: 0;
 }
 
-.streg-price-input {
-  flex: 0 0 6rem;
-  width: 6rem;
-  text-align: right;
-  border: 1px solid var(--border);
-  background: var(--input-bg);
-  color: var(--text);
-  border-radius: 4px;
-  padding: 0.2rem 0.4rem;
-  font: inherit;
-}
-
-.streg-price-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-@media (hover: hover) {
-  .streg-price-input:hover { border-color: var(--accent-warm); }
-}
-
 /* Read-only derived value (see stregComputeIndkobByKey) — same column
    width as the old .streg-price-input it replaces, styled like
    .streg-price-per-unit next to it since both are now plain computed
@@ -1588,7 +1213,7 @@ tr.budget-row-filler td {
   display: flex;
   justify-content: space-between;
   font-weight: 600;
-  color: var(--header);
+  color: var(--text);
   margin-top: 0.75rem;
   padding-top: 0.6rem;
   border-top: 1px solid var(--border);
@@ -1692,7 +1317,7 @@ tr.budget-row-filler td {
 
   .budget-table td:not(:first-child)::before {
     color: var(--text-muted);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: normal;
     text-align: left;
   }

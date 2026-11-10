@@ -48,7 +48,7 @@ function ninjasPillBtn(label, variant) {
 }
 
 function ninjasAddPlusBtn(title) {
-  const btn = el('button', 'boss-manage-add-plus', '+');
+  const btn = el('button', 'site-icon-btn site-add-plus', '+');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -226,7 +226,7 @@ function ninjasRenderPicker() {
   const options = ninjasRevyOptions();
   if (!options.length) { mount.replaceChildren(); return; }
   const picker = siteCreateDropdownField(options.map(({ value, label }) => ({ value, label })), ninjasFolder);
-  picker.classList.add('ninjas-revy-select');
+  picker.classList.add('site-toolbar-control', 'ninjas-revy-select');
   picker.setAttribute('aria-label', 'Vælg revy');
   picker.addEventListener('change', () => {
     if (picker.value === ninjasFolder) return;
@@ -402,7 +402,7 @@ function ninjasRoot() {
 
 function ninjasMessageCard(text, isError) {
   const card = el('section', 'card');
-  card.appendChild(el('p', isError ? 'ninjas-error' : 'ninjas-muted', text));
+  card.appendChild(el('p', isError ? 'ninjas-error' : 'site-muted', text));
   return card;
 }
 
@@ -424,7 +424,7 @@ async function ninjasLoad() {
   } else {
     root.replaceChildren();
     ninjasRenderTabs(root);
-    root.appendChild(el('p', 'ninjas-muted', 'Indlæser…'));
+    root.appendChild(el('p', 'site-muted', 'Indlæser…'));
   }
   const seq = ++ninjasLoadSeq;
   const folder = ninjasFolder;
@@ -466,7 +466,7 @@ function ninjasRender() {
   if (ninjasActiveTab === 'ninjaplan') {
     const card = el('section', 'card');
     card.appendChild(el('h2', null, 'Ninjaplan'));
-    card.appendChild(el('p', 'ninjas-muted', 'Ninjaplanen kommer snart.'));
+    card.appendChild(el('p', 'site-muted', 'Ninjaplanen kommer snart.'));
     root.appendChild(card);
   } else if (!ninjasManusVisible()) {
     root.appendChild(ninjasMessageCard(ninjasConfig().pdfLinksVisibleToRevyst ? 'Rollerne er ikke frigivet endnu.' : 'Manus er ikke frigivet endnu.'));
@@ -485,12 +485,11 @@ function ninjasRender() {
   for (const ta of root.querySelectorAll('.ninjas-autogrow')) ninjasAutogrow(ta);
 }
 
-// Styled like Bandet's page tabs (.band-mode-tabs, duplicated as
-// .ninjas-mode-tabs in ninjas.css).
+// The shared tab bar (.site-tabs, style.css).
 function ninjasRenderTabs(root) {
-  const tabs = el('div', 'ninjas-mode-tabs');
+  const tabs = el('div', 'site-tabs ninjas-mode-tabs');
   for (const tab of NINJAS_TABS) {
-    const btn = el('button', 'ninjas-mode-tab' + (tab.key === ninjasActiveTab ? ' active' : ''), tab.label);
+    const btn = el('button', 'site-tab' + (tab.key === ninjasActiveTab ? ' active' : ''), tab.label);
     btn.type = 'button';
     btn.addEventListener('click', () => {
       if (tab.key === ninjasActiveTab) return;
@@ -510,19 +509,18 @@ function ninjasRenderTabs(root) {
 }
 
 // A sheet card's head: its title, a Print button top-centre, and its own
-// Rediger/Færdig toggle in the top-right corner.
+// edit toggle (pencil → check, siteEditToggle) in the top-right corner.
 function ninjasCardHead(title) {
   const head = el('div', 'ninjas-card-head');
   head.appendChild(el('h2', null, title));
-  const print = el('button', 'btn-small ninjas-print-btn', 'Print');
+  const print = el('button', 'btn-small site-toolbar-control ninjas-print-btn', 'Print');
   print.type = 'button';
   print.addEventListener('click', ninjasPrint);
   head.appendChild(print);
   if (!ninjasCanEdit()) return head; // an older year below boss
-  const editing = ninjasIsEditing();
-  const btn = el('button', 'btn-small ninjas-edit-btn' + (editing ? ' ninjas-edit-active' : ''), editing ? 'Færdig' : 'Rediger');
-  btn.type = 'button';
-  btn.addEventListener('click', ninjasToggleEditing);
+  const btn = siteEditToggle(ninjasIsEditing(), ninjasToggleEditing,
+    { editLabel: `Rediger ${title}`, doneLabel: 'Færdig' });
+  btn.classList.add('ninjas-edit-btn');
   head.appendChild(btn);
   return head;
 }
@@ -692,19 +690,11 @@ function ninjasWireSuggestions(input, getOptions, onPick) {
 // ── Act heading row (both sheets) ────────────────────────────
 // Printouts start a new page at Akt 3 (Akt 1-2 on page one, Akt 3 and
 // Ekstranumre on page two — see .ninjas-print-break in ninjas.css). On
-// screen the column titles are repeated just above it instead
-// (ninjasRepeatHeadRow), hidden in print where thead repeats anyway.
+// screen the header row follows the page instead (siteStickyHead).
 const NINJAS_PRINT_BREAK_ACT = '3';
 
-function ninjasRepeatHeadRow(buildHeadRow, groups, group) {
-  if (group.act !== NINJAS_PRINT_BREAK_ACT || group === groups[0]) return null;
-  const tr = buildHeadRow();
-  tr.classList.add('ninjas-head-repeat');
-  return tr;
-}
-
 function ninjasActRow(group, colSpan) {
-  const tr = el('tr', 'ninjas-act-row' + (group.act === NINJAS_PRINT_BREAK_ACT ? ' ninjas-print-break' : ''));
+  const tr = el('tr', 'ninjas-act-row site-sheet-section' + (group.act === NINJAS_PRINT_BREAK_ACT ? ' ninjas-print-break' : ''));
   const td = el('td');
   td.colSpan = colSpan;
   const inner = el('div', 'ninjas-act-inner');
@@ -742,7 +732,7 @@ function ninjasBuildMicCard(groups) {
   const card = el('section', 'card ninjas-sheet-card');
   card.appendChild(ninjasCardHead('Mikrofonplan'));
   const wrap = el('div', 'ninjas-table-wrap');
-  const table = el('table', 'ninjas-table ninjas-mic-table' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
+  const table = el('table', 'ninjas-table ninjas-mic-table site-sheet site-sheet-lines' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
   const mics = ninjasDoc.mics;
 
   const buildHeadRow = () => {
@@ -766,16 +756,16 @@ function ninjasBuildMicCard(groups) {
   const colSpan = 1 + mics.length + (ninjasIsEditing() ? 1 : 0);
   const tbody = el('tbody');
   for (const group of groups) {
-    const repeat = ninjasRepeatHeadRow(buildHeadRow, groups, group);
-    if (repeat) tbody.appendChild(repeat);
     tbody.appendChild(ninjasActRow(group, colSpan));
     for (const row of group.rows) tbody.appendChild(ninjasMicRow(group, row));
   }
   table.appendChild(tbody);
   wrap.appendChild(table);
   card.appendChild(wrap);
+  // The header row follows the page down the sheet.
+  siteStickyHead(table.tHead);
   if (!mics.length) {
-    card.appendChild(el('p', 'ninjas-muted', ninjasIsEditing()
+    card.appendChild(el('p', 'site-muted', ninjasIsEditing()
       ? 'Ingen mikrofoner endnu. Tilføj en med +.'
       : 'Ingen mikrofoner endnu. Tryk Rediger for at tilføje.'));
   }
@@ -873,7 +863,7 @@ function ninjasMicRow(group, row) {
       tr.appendChild(td);
       continue;
     }
-    const input = el('input', 'ninjas-field');
+    const input = el('input', 'site-inline-field ninjas-field');
     input.type = 'text';
     input.maxLength = 200;
     input.value = ninjasGetLocal(cellId);
@@ -949,7 +939,7 @@ function ninjasBuildSwatches(initial) {
 
 function ninjasOpenMicModal(mic) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(mic ? 'Rediger mikrofon' : 'Ny mikrofon');
-  modal.classList.add('ninjas-modal');
+  modal.classList.add('site-modal-sm');
   const name = el('input');
   name.type = 'text';
   name.maxLength = 60;
@@ -1006,8 +996,8 @@ function ninjasOpenMicModal(mic) {
 
 function ninjasConfirm(title, description, confirmLabel, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('ninjas-confirm-modal');
-  if (description) form.appendChild(el('p', 'ninjas-confirm-text', description));
+  modal.classList.add('site-confirm-modal');
+  if (description) form.appendChild(el('p', 'site-confirm-sub', description));
   const cancelBtn = ninjasPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = ninjasPillBtn(confirmLabel, 'site-btn-danger');
@@ -1027,7 +1017,7 @@ function ninjasBuildCuesCard(groups) {
   const card = el('section', 'card ninjas-sheet-card');
   card.appendChild(ninjasCardHead('Cues'));
   const wrap = el('div', 'ninjas-table-wrap');
-  const table = el('table', 'ninjas-table ninjas-cue-table' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
+  const table = el('table', 'ninjas-table ninjas-cue-table site-sheet site-sheet-lines' + (ninjasIsEditing() ? ' ninjas-editing' : ''));
 
   const buildHeadRow = () => {
     const headRow = el('tr', 'ninjas-head-row');
@@ -1041,14 +1031,14 @@ function ninjasBuildCuesCard(groups) {
 
   const tbody = el('tbody');
   for (const group of groups) {
-    const repeat = ninjasRepeatHeadRow(buildHeadRow, groups, group);
-    if (repeat) tbody.appendChild(repeat);
     tbody.appendChild(ninjasActRow(group, 1 + NINJAS_CUE_COLUMNS.length));
     for (const row of group.rows) tbody.appendChild(ninjasCueRow(group, row));
   }
   table.appendChild(tbody);
   wrap.appendChild(table);
   card.appendChild(wrap);
+  // The header row follows the page down the sheet.
+  siteStickyHead(table.tHead);
   return card;
 }
 
@@ -1071,7 +1061,7 @@ function ninjasCueRow(group, row) {
       tr.appendChild(td);
       continue;
     }
-    const ta = el('textarea', 'ninjas-field ninjas-autogrow');
+    const ta = el('textarea', 'site-inline-field ninjas-field ninjas-autogrow');
     ta.rows = 1;
     ta.maxLength = 1000;
     ta.value = ninjasGetLocal(cellId);
@@ -1093,7 +1083,7 @@ function ninjasCueRow(group, row) {
 // row null = a new extra row in this act.
 function ninjasOpenExtraRowModal(group, row) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(row ? 'Rediger ekstra række' : `Ny række i ${group.label}`);
-  modal.classList.add('ninjas-modal');
+  modal.classList.add('site-modal-sm');
   const title = el('input');
   title.type = 'text';
   title.maxLength = 120;
@@ -1111,7 +1101,7 @@ function ninjasOpenExtraRowModal(group, row) {
   const placement = siteCreateDropdownField(options, options.some((o) => o.value === initial) ? initial : '', 'Vælg');
   form.appendChild(siteEditField('Titel', title));
   form.appendChild(siteEditField('Placering', placement));
-  form.appendChild(el('p', 'ninjas-muted ninjas-modal-note', 'Ekstra rækker kommer ikke fra Manus og vises både i Mikrofonplan og Cues.'));
+  form.appendChild(el('p', 'site-muted ninjas-modal-note', 'Ekstra rækker kommer ikke fra Manus og vises både i Mikrofonplan og Cues.'));
 
   actions.classList.add('ninjas-modal-actions');
   if (row) {

@@ -36,38 +36,6 @@ function getEffectiveBosses() {
   return bossesOverride || BOSSES_DATA;
 }
 
-// ── Pencil / check-mark toggle (copy of koordinator.js's
-// koordLokIcon/koordLokIconBtn, which isn't loaded here) ─────────
-function bossesIcon(size, strokeWidth, paths) {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 16 16');
-  svg.setAttribute('width', size);
-  svg.setAttribute('height', size);
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', strokeWidth);
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  svg.setAttribute('aria-hidden', 'true');
-  paths.forEach((d) => {
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', d);
-    svg.appendChild(path);
-  });
-  return svg;
-}
-
-function bossesIconBtn(title, icon) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'boss-icon-btn';
-  btn.title = title;
-  btn.setAttribute('aria-label', title);
-  btn.appendChild(icon);
-  return btn;
-}
-
 // The draft as it would be saved: trimmed, fully blank rows dropped.
 function bossesDraftPayload() {
   return {
@@ -117,15 +85,12 @@ function renderBossesAdminSlot() {
   if (!adminSlot) return;
   adminSlot.textContent = '';
   if (!siteHasLevel('admin')) return;
-  const btn = bossesEditMode
-    ? bossesIconBtn('Gem og afslut redigering', bossesIcon('16', '1.6', ['M3 8.5l3.2 3.2L13 5']))
-    : bossesIconBtn('Rediger', bossesIcon('15', '1.3', ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
-  btn.disabled = bossesSaving;
-  btn.addEventListener('click', () => {
+  const btn = siteEditToggle(bossesEditMode, () => {
     if (bossesEditMode) { bossesSaveAndClose(); return; }
     bossesEditMode = true;
     renderBosses();
-  });
+  }, { editLabel: 'Rediger', doneLabel: 'Gem og afslut redigering' });
+  btn.disabled = bossesSaving;
   adminSlot.appendChild(btn);
 }
 
@@ -262,7 +227,7 @@ function renderBossesEdit(data) {
     titleEl.textContent = '';
     const titleInput = document.createElement('input');
     titleInput.type = 'text';
-    titleInput.className = 'boss-manage-text-input boss-manage-title-input';
+    titleInput.className = 'site-inline-field boss-manage-text-input boss-manage-title-input';
     titleInput.value = draft.title;
     titleInput.addEventListener('input', () => { draft.title = titleInput.value; });
     titleEl.appendChild(titleInput);
@@ -333,7 +298,7 @@ function renderBossesEdit(data) {
 
       const roleInput = document.createElement('input');
       roleInput.type = 'text';
-      roleInput.className = 'boss-manage-text-input boss-manage-role-input';
+      roleInput.className = 'site-inline-field boss-manage-text-input boss-manage-role-input';
       roleInput.placeholder = 'Rolle';
       roleInput.value = r.role;
       roleInput.addEventListener('input', () => { r.role = roleInput.value; });
@@ -341,7 +306,7 @@ function renderBossesEdit(data) {
 
       const namesInput = document.createElement('input');
       namesInput.type = 'text';
-      namesInput.className = 'boss-manage-text-input boss-manage-name-input';
+      namesInput.className = 'site-inline-field boss-manage-text-input boss-manage-name-input';
       namesInput.placeholder = 'Navn(e)';
       namesInput.value = r.names;
       namesInput.addEventListener('input', () => { r.names = namesInput.value; });
@@ -351,7 +316,7 @@ function renderBossesEdit(data) {
 
       const rmBtn = document.createElement('button');
       rmBtn.type = 'button';
-      rmBtn.className = 'boss-manage-remove-btn';
+      rmBtn.className = 'site-icon-btn site-icon-btn-danger';
       rmBtn.textContent = '✕';
       rmBtn.title = 'Fjern';
       rmBtn.setAttribute('aria-label', 'Fjern');
@@ -373,7 +338,7 @@ function renderBossesEdit(data) {
 
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'boss-manage-add-plus';
+    addBtn.className = 'site-icon-btn site-add-plus';
     addBtn.title = 'Tilføj';
     addBtn.setAttribute('aria-label', 'Tilføj');
     addBtn.textContent = '+';

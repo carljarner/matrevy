@@ -508,7 +508,7 @@ function renderPdfRow(item, displayTitle = item.title) {
   if (siteHasLevel('boss')) {
     const remove = document.createElement('button');
     remove.type = 'button';
-    remove.className = 'manus-pdf-remove';
+    remove.className = 'site-icon-btn site-icon-btn-danger manus-pdf-remove';
     remove.textContent = '✕';
     remove.setAttribute('aria-label', `Fjern ${item.title}`);
     remove.title = 'Fjern upload';
@@ -536,10 +536,10 @@ function renderColumn(type, { items = getEffectiveManuscripts().filter(s => s.ty
 
   const header = document.createElement('button');
   header.type = 'button';
-  header.className = 'manus-col-header';
+  header.className = 'site-collapse manus-col-header';
   header.setAttribute('aria-expanded', String(expanded));
   const chevron = document.createElement('span');
-  chevron.className = 'manus-chevron';
+  chevron.className = 'site-chevron';
   chevron.textContent = '▾';
   header.appendChild(chevron);
   header.addEventListener('click', () => {
@@ -948,17 +948,17 @@ function openUpdateModal() {
 // open on failure), it never touches the server directly.
 function openManuscriptUpdateConfirm(onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('manus-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const line1 = document.createElement('p');
-  line1.className = 'manus-confirm-text';
+  line1.className = 'site-confirm-text';
   line1.textContent = 'Er du sikker?';
   form.appendChild(line1);
 
   const line2 = document.createElement('p');
-  line2.className = 'manus-confirm-sub';
+  line2.className = 'site-confirm-sub';
   line2.textContent = 'Dette vil erstatte de allerede uploadede filer, der hører til den scene.';
   form.appendChild(line2);
 
@@ -1208,7 +1208,7 @@ function openPointEntryModal(type) {
   const { modal, form, actions, close } = siteOpenModalWithClose(
     `Indtast point (${MANUS_TYPE_COLUMN_LABEL[type]})`
   );
-  modal.classList.add('manus-points-modal');
+  modal.classList.add('site-modal-xl', 'manus-points-modal');
   // Both views put their own button row in `form` (see the sheet-navigator
   // and results button row below) — the shared bottom `actions` bar is
   // unused here, and left visible it added its own margin-top below the
@@ -1394,11 +1394,11 @@ function openPointEntryModal(type) {
     // Budget/Stregregnskab bar (.budget-mode-tabs, duplicated as
     // .manus-points-view-tabs per the per-feature-duplication convention).
     const tabs = document.createElement('div');
-    tabs.className = 'manus-points-view-tabs';
+    tabs.className = 'site-tabs site-tabs-sub manus-points-view-tabs';
     for (const [key, label] of [['table', 'Tabel'], ['boxplot', 'Boxplot']]) {
       const tab = document.createElement('button');
       tab.type = 'button';
-      tab.className = 'manus-points-view-tab';
+      tab.className = 'site-tab';
       tab.classList.toggle('active', resultsView === key);
       tab.textContent = label;
       tab.addEventListener('click', () => {
@@ -1663,12 +1663,12 @@ function buildPointsBoxplot(rows) {
 // `bucket` closure reference stays correct after a reset.
 function openResetPointsConfirm(bucket, store, onReset) {
   const { modal, form, actions, close } = siteOpenEditModal('');
-  modal.classList.add('manus-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'manus-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = 'Er du sikker?';
   form.appendChild(info);
 
@@ -1931,18 +1931,18 @@ function manusBuildAktShapeSvg(shape, colors, { emptyFill = '#ffffff', full = fa
 // titles (`names`) below the explanation.
 function manusAktOpenConfirm(subText, confirmLabel, onConfirm, names = []) {
   const { modal, form, actions, close } = siteOpenEditModal('');
-  modal.classList.add('manus-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'manus-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = 'Er du sikker?';
   form.appendChild(info);
 
   if (subText) {
     const sub = document.createElement('p');
-    sub.className = 'manus-confirm-sub';
+    sub.className = 'site-confirm-sub';
     sub.textContent = subText;
     form.appendChild(sub);
   }
@@ -1993,7 +1993,7 @@ function openAktTagModal(type) {
   const { modal, form, actions, close } = siteOpenModalWithClose(
     `Aktfordeling (${MANUS_TYPE_COLUMN_LABEL[type]})`
   );
-  modal.classList.add('manus-akt-modal');
+  modal.classList.add('site-modal-xl', 'manus-akt-modal');
   actions.style.display = 'none';
 
   function persist() {
@@ -2017,11 +2017,11 @@ function openAktTagModal(type) {
     // Two pages, same tab-bar look as Indtast point's Tabel/Boxplot toggle:
     // first pick the scenes, then tag only the picked ones.
     const tabs = document.createElement('div');
-    tabs.className = 'manus-points-view-tabs';
+    tabs.className = 'site-tabs site-tabs-sub manus-points-view-tabs';
     for (const [key, label] of [['scenes', 'Scener'], ['labels', 'Kategorier'], ['tags', 'Stil & Tema']]) {
       const tab = document.createElement('button');
       tab.type = 'button';
-      tab.className = 'manus-points-view-tab';
+      tab.className = 'site-tab';
       tab.classList.toggle('active', page === key);
       tab.textContent = label;
       tab.addEventListener('click', () => {
@@ -2140,7 +2140,7 @@ function openAktTagModal(type) {
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
-      removeBtn.className = 'manus-select-remove';
+      removeBtn.className = 'site-icon-btn site-icon-btn-danger manus-select-remove';
       removeBtn.textContent = '✕';
       removeBtn.setAttribute('aria-label', 'Fjern etiket');
       removeBtn.addEventListener('click', () => {
@@ -2192,7 +2192,7 @@ function openAktTagModal(type) {
     addWrap.className = 'manus-akt-label-add';
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'boss-manage-add-plus';
+    addBtn.className = 'site-icon-btn site-add-plus';
     addBtn.textContent = '+';
     addBtn.setAttribute('aria-label', isStyle ? 'Tilføj stil' : 'Tilføj tema');
     addBtn.addEventListener('click', () => {
@@ -3051,7 +3051,7 @@ function renderRoleTagLine(entry) {
       const rm = document.createElement('button');
       rm.type = 'button';
       rm.className = 'manus-role-tag-remove';
-      rm.textContent = '×';
+      rm.textContent = '✕';
       rm.setAttribute('aria-label', `Fjern ${tag}`);
       rm.addEventListener('click', () => {
         entry.tags = entry.tags.filter(t => t !== tag);
@@ -3467,7 +3467,7 @@ function renderDraftRowCard(row) {
   if (row.lane !== 'pool') {
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
-    removeBtn.className = 'manus-akt-row-remove';
+    removeBtn.className = 'site-icon-btn site-icon-btn-danger manus-akt-row-remove';
     removeBtn.textContent = '✕';
     removeBtn.title = 'Flyt tilbage til "Ikke placeret"';
     removeBtn.setAttribute('aria-label', removeBtn.title);
@@ -3532,10 +3532,10 @@ function renderSelectColumnCard(rows, { label, stateKey, defaultExpanded, emptyT
 
   const header = document.createElement('button');
   header.type = 'button';
-  header.className = 'manus-col-header';
+  header.className = 'site-collapse manus-col-header';
   header.setAttribute('aria-expanded', String(expanded));
   const chevron = document.createElement('span');
-  chevron.className = 'manus-chevron';
+  chevron.className = 'site-chevron';
   chevron.textContent = '▾';
   header.appendChild(chevron);
   header.addEventListener('click', () => {
@@ -3580,7 +3580,7 @@ function renderSelectColumnCard(rows, { label, stateKey, defaultExpanded, emptyT
 // placed scene also disappears from its act (effective on the next Gem).
 function openManuscriptDeleteWarning(row) {
   const { modal, form, actions, close } = siteOpenModalWithClose('Slet scene?');
-  modal.classList.add('manus-delete-warning-modal');
+  modal.classList.add('site-modal-sm', 'manus-delete-warning-modal');
   // Annuller below already offers a way out — the X reads as a redundant
   // second "cancel" affordance, so this modal drops it and centers the
   // title in the space it would have sat in.
@@ -3612,12 +3612,12 @@ function openManuscriptDeleteWarning(row) {
 
 function openManuscriptDeleteConfirm(row) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('manus-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'manus-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = 'Er du sikker?';
   form.appendChild(info);
 
@@ -3752,7 +3752,7 @@ function renderSelectRow(row, { interactive = false, selected = row.selected ===
   if (siteHasLevel('admin') && manusRowPdfPath(row)) {
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
-    removeBtn.className = 'manus-select-remove';
+    removeBtn.className = 'site-icon-btn site-icon-btn-danger manus-select-remove';
     removeBtn.textContent = '✕';
     removeBtn.title = 'Slet permanent';
     removeBtn.setAttribute('aria-label', `Slet ${manusRowTitle(row)} permanent`);
@@ -3798,7 +3798,7 @@ function renderVideoBandsangRow(row) {
   // skips that sentence for it; see manusRowIsManualMedia there).
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
-  removeBtn.className = 'manus-select-remove';
+  removeBtn.className = 'site-icon-btn site-icon-btn-danger manus-select-remove';
   removeBtn.textContent = '✕';
   removeBtn.title = 'Slet';
   removeBtn.setAttribute('aria-label', `Slet ${manusRowTitle(row)}`);
@@ -4007,7 +4007,7 @@ function openCustomPrintModal(type) {
   const { modal, form, actions } = siteOpenModalWithClose(
     `Custom print (${MANUS_TYPE_COLUMN_LABEL[type]})`
   );
-  modal.classList.add('manus-akt-modal');
+  modal.classList.add('site-modal-xl', 'manus-akt-modal');
   actions.style.display = 'none';
 
   const persist = () => saveCustomPrintStore(store);
@@ -4037,11 +4037,11 @@ function openCustomPrintModal(type) {
     form.textContent = '';
 
     const tabs = document.createElement('div');
-    tabs.className = 'manus-points-view-tabs';
+    tabs.className = 'site-tabs site-tabs-sub manus-points-view-tabs';
     for (const [key, label] of [['scenes', 'Scener'], ['counts', 'Antal']]) {
       const tab = document.createElement('button');
       tab.type = 'button';
-      tab.className = 'manus-points-view-tab';
+      tab.className = 'site-tab';
       tab.classList.toggle('active', page === key);
       tab.textContent = label;
       tab.addEventListener('click', () => {
@@ -4475,7 +4475,7 @@ function renderMediaColumn() {
 // unaffected until Gem commits the whole batch at once.
 function openSelectScenesOverlay() {
   const { modal, form, actions, close } = siteOpenModalWithClose('Vælg scener');
-  modal.classList.add('manus-select-overlay-modal');
+  modal.classList.add('site-modal-xl', 'manus-select-overlay-modal');
 
   const pending = new Map();
   for (const row of manusDraft.rows) {
@@ -4769,7 +4769,7 @@ function openRoleSceneModal(row, badge) {
     },
     onClose() { if (closeConfirm) closeConfirm(); },
   });
-  modal.classList.add('manus-role-modal');
+  modal.classList.add('site-modal-md', 'manus-role-modal');
 
   let summaryEl = renderRoleTagsList(row);
   form.appendChild(summaryEl);
@@ -5067,7 +5067,7 @@ function renderCastListSangboss() {
   label.textContent = 'Sangboss';
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'manus-castlist-sangboss-input';
+  input.className = 'site-inline-field site-field-labeled manus-castlist-sangboss-input';
   input.id = 'manus-castlist-sangboss';
   input.placeholder = 'Navn';
   input.maxLength = 100;
@@ -5197,7 +5197,7 @@ function openCastListModal() {
     },
     onClose() { renderAll(); },
   });
-  modal.classList.add('manus-castlist-modal');
+  modal.classList.add('site-modal-lg', 'manus-castlist-modal');
 
   const intro = document.createElement('p');
   intro.className = 'manus-castlist-intro';
@@ -5345,7 +5345,7 @@ function openCastListModal() {
       actions.className = 'manus-castlist-actions';
       const renameBtn = document.createElement('button');
       renameBtn.type = 'button';
-      renameBtn.className = 'manus-castlist-edit-btn';
+      renameBtn.className = 'site-icon-btn manus-castlist-edit-btn';
       renameBtn.title = 'Omdøb';
       renameBtn.setAttribute('aria-label', `Omdøb ${item.name}`);
       renameBtn.appendChild(manusPencilIcon());
@@ -5420,7 +5420,7 @@ function manusApplyHeaderText(row, text) {
 
 function openScriptSceneModal(row) {
   const { modal, form } = siteOpenModalWithClose(manusRowTitle(row));
-  modal.classList.add('manus-script-modal');
+  modal.classList.add('site-modal-lg', 'manus-script-modal');
   const headingEl = modal.querySelector('h2');
 
   const headerTextarea = document.createElement('textarea');
@@ -5505,7 +5505,7 @@ function manusApplyMediaRolesText(row, text) {
 function openVideoBandsangModal(row, { isNew = false } = {}) {
   const title0 = isNew ? (row.manualType === 'bandsang' ? 'Ny bandsang' : 'Ny video') : manusRowTitle(row);
   const { modal, form, error, actions, close } = siteOpenModalWithClose(title0);
-  modal.classList.add('manus-script-modal');
+  modal.classList.add('site-modal-lg', 'manus-script-modal');
 
   const headerTextarea = document.createElement('textarea');
   headerTextarea.className = 'manus-script-textarea manus-script-header-textarea';
@@ -5603,7 +5603,7 @@ function manusAutosaveStatusText(tab) {
 
 function manusAutosaveStatusEl(tab) {
   const el = document.createElement('p');
-  el.className = 'manus-autosave-status';
+  el.className = 'site-save-status manus-autosave-status';
   el.dataset.manusAutosave = tab;
   manusPaintAutosaveStatus(tab, el);
   return el;
@@ -5612,7 +5612,7 @@ function manusAutosaveStatusEl(tab) {
 function manusPaintAutosaveStatus(tab, el = document.querySelector(`[data-manus-autosave="${tab}"]`)) {
   if (!el) return;
   el.textContent = manusAutosaveStatusText(tab);
-  el.classList.toggle('manus-autosave-error', manusAutosaveState[tab].state === 'error');
+  el.classList.toggle('error', manusAutosaveState[tab].state === 'error');
 }
 
 function manusSetAutosaveStatus(tab, state, message) {
@@ -5821,7 +5821,7 @@ function programWireRowDrag(rowEl, id, arr, onMoved) {
 function programRemoveBtn(title, onClick) {
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'manus-select-remove';
+  btn.className = 'site-icon-btn site-icon-btn-danger manus-select-remove';
   btn.textContent = '✕';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -5944,7 +5944,7 @@ function renderProgramQrSection() {
   addRow.className = 'manus-program-qr-add';
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'boss-manage-add-plus';
+  addBtn.className = 'site-icon-btn site-add-plus';
   addBtn.title = 'Tilføj QR-kode';
   addBtn.setAttribute('aria-label', 'Tilføj QR-kode');
   addBtn.textContent = '+';
@@ -6013,34 +6013,23 @@ function manusSetActiveTab(key) {
   renderActiveTabPanel();
 }
 
-// Renders both the desktop flat-tab bar (styled like Budget's/Formularer's
-// own, see manus.css) and a mobile dropdown built from the same
-// MANUS_MAIN_TABS list — CSS (≤719px) shows only one of the two, since five
-// tabs get too squeezed to read on a phone-width screen.
+// The shared tab bar (.site-tabs, style.css); on a phone it scrolls
+// sideways like every other tab bar.
 function renderTabBar() {
   const mount = document.getElementById('manus-tab-bar');
   mount.textContent = '';
 
   const btnBar = document.createElement('div');
-  btnBar.className = 'manus-tab-btn-bar';
+  btnBar.className = 'site-tabs';
   for (const tab of MANUS_MAIN_TABS) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'manus-tab-btn' + (tab.key === manusActiveTab ? ' active' : '');
+    btn.className = 'site-tab' + (tab.key === manusActiveTab ? ' active' : '');
     btn.textContent = tab.label;
     btn.addEventListener('click', () => manusSetActiveTab(tab.key));
     btnBar.appendChild(btn);
   }
   mount.appendChild(btnBar);
-
-  const dropdown = siteCreateDropdownField(
-    MANUS_MAIN_TABS.map(tab => ({ value: tab.key, label: tab.label })),
-    manusActiveTab
-  );
-  dropdown.classList.add('manus-tab-select-mobile');
-  dropdown.setAttribute('aria-label', 'Vælg fane');
-  dropdown.addEventListener('change', () => manusSetActiveTab(dropdown.value));
-  mount.appendChild(dropdown);
 }
 
 function renderActiveTabPanel() {
@@ -6323,7 +6312,7 @@ function manusMergeCastRoster(theirsCast, scenesActs, renames = {}, flags = {}) 
 function manusAskConflicts(conflicts, choices) {
   return new Promise((resolve) => {
     const { overlay, modal, form, actions, close } = siteOpenEditModal('Ændret af en anden');
-    modal.classList.add('manus-conflict-modal');
+    modal.classList.add('site-modal-md', 'manus-conflict-modal');
     let settled = false;
     const finish = (value) => {
       if (settled) return;
@@ -6896,7 +6885,7 @@ function manusOpenPdfErrorModal(status) {
   const errors = Array.isArray(status && status.errors) ? status.errors : [];
   const groups = manusGroupPdfErrors(errors);
   const { modal, form, actions, close } = siteOpenModalWithClose("PDF'erne kunne ikke genereres");
-  modal.classList.add('manus-pdf-error-modal');
+  modal.classList.add('site-modal-lg', 'manus-pdf-error-modal');
 
   const intro = document.createElement('p');
   intro.className = 'manus-pdf-error-intro';
@@ -7092,7 +7081,7 @@ function renderMainViewActions() {
   buttons.className = 'manus-main-view-buttons';
 
   const status = document.createElement('span');
-  status.className = 'manus-save-status';
+  status.className = 'site-save-status manus-save-status';
   buttons.appendChild(status);
 
   const saveBtn = document.createElement('button');
@@ -7493,24 +7482,25 @@ function renderPoolLayoutVisibility() {
 // `confirm(next)` (optional) asks first: a Promise of true/false, where
 // false puts the switch back without saving. `locked` shows it off and
 // disabled (no active revy, see renderAdminSettings).
+// One Boss Box setting: label left, the shared switch (.site-switch) right.
 function renderAdminToggleColumn(container, { id, label: labelText, checked, confirm, onChange, savedText, locked }) {
   const col = document.createElement('div');
-  col.className = 'manus-admin-toggle-col';
+  col.className = 'site-switch-row';
 
   const label = document.createElement('label');
-  label.className = 'manus-admin-toggle-label';
+  label.className = 'site-switch-label';
   label.htmlFor = id;
   label.textContent = labelText;
 
   const switchLabel = document.createElement('label');
-  switchLabel.className = 'manus-toggle-switch';
+  switchLabel.className = 'site-switch';
   const input = document.createElement('input');
   input.type = 'checkbox';
   input.id = id;
   input.checked = locked ? false : checked;
   input.disabled = !!locked;
   const slider = document.createElement('span');
-  slider.className = 'manus-toggle-slider';
+  slider.className = 'site-switch-slider';
   switchLabel.appendChild(input);
   switchLabel.appendChild(slider);
 
@@ -7536,6 +7526,9 @@ function renderAdminToggleColumn(container, { id, label: labelText, checked, con
   container.appendChild(col);
 }
 
+// Open on every load; closing it lasts until the page is reloaded.
+let manusBossBoxOpen = true;
+
 function renderAdminSettings() {
   const section = document.getElementById('manus-admin-settings');
   if (!siteHasLevel('boss')) {
@@ -7544,13 +7537,17 @@ function renderAdminSettings() {
   }
   section.style.display = '';
   section.textContent = '';
+  section.classList.add('site-boss-box');
 
-  const head = document.createElement('div');
-  head.className = 'card-head';
-  const h2 = document.createElement('h2');
-  h2.textContent = 'Boss Box';
-  head.appendChild(h2);
-  section.appendChild(head);
+  // The shared Boss Box: a collapsible bare h2, open on every load.
+  const body = document.createElement('div');
+  body.className = 'site-collapse-body';
+  const { heading } = siteCollapseHeading('h2', 'Boss Box', {
+    open: manusBossBoxOpen,
+    body,
+    onToggle: (open) => { manusBossBoxOpen = open; },
+  });
+  section.append(heading, body);
 
   // After Koordinator's "Afslut revyen" every toggle is off and stays
   // locked until "Start ny revy" (save_config refuses with no_production).
@@ -7559,11 +7556,11 @@ function renderAdminSettings() {
     const note = document.createElement('p');
     note.className = 'manus-admin-locked-note';
     note.textContent = 'Revyen er afsluttet. Start en ny revy i Koordinator for at åbne igen.';
-    section.appendChild(note);
+    body.appendChild(note);
   }
 
   const columns = document.createElement('div');
-  columns.className = 'manus-admin-toggle-columns';
+  columns.className = 'manus-admin-toggles';
 
   // On (uploads open) by default — flipping one off blocks a plain
   // revyst-level visitor from uploading/updating that type further up this
@@ -7635,7 +7632,7 @@ function renderAdminSettings() {
     savedText: 'Gemt',
   });
 
-  section.appendChild(columns);
+  body.appendChild(columns);
 }
 
 // "Revyster kan se manus" publishes more than the PDF links: Arkiv's Manus
@@ -7745,7 +7742,7 @@ function confirmLeaveDirtyPage(href) {
   // Same narrower-centered shape as openManuscriptDeleteWarning's step 1
   // (manus.css .manus-delete-warning-modal/-text) — a real heading plus one
   // line of body text, rather than the plain 480px .edit-modal default.
-  modal.classList.add('manus-delete-warning-modal');
+  modal.classList.add('site-modal-sm', 'manus-delete-warning-modal');
 
   const info = document.createElement('p');
   info.className = 'manus-delete-warning-text';

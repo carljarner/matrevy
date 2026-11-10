@@ -14,79 +14,9 @@
   margin: -0.5rem auto 1.25rem;
 }
 
-.sang-muted {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-
 .sang-error {
   color: var(--danger);
   font-size: 0.9rem;
-}
-
-.sang-remove-btn {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  line-height: 1;
-  padding: 0.25rem;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .sang-remove-btn:hover { color: var(--danger); }
-}
-
-.sang-remove-btn:focus-visible {
-  outline: none;
-  color: var(--danger);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-.sang-icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .sang-icon-btn:hover { color: var(--accent-warm-text); }
-}
-
-.sang-icon-btn:focus-visible {
-  outline: none;
-  color: var(--accent-warm-text);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-/* Delete confirms: same one-liner width formula as band.css. */
-.sang-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(420px, 92vw);
-}
-
-.sang-confirm-modal h2 {
-  text-align: center;
-}
-
-.sang-confirm-text {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin: 0 0 0.5rem;
-}
-
-.sang-name-modal {
-  width: min(380px, 92vw);
 }
 
 /* --- Usage bar: top centre, above the card ------------------------- */
@@ -99,7 +29,7 @@
 .sang-usage-bar {
   height: 10px;
   border-radius: 5px;
-  background: var(--input-bg);
+  background: var(--progress-track);
   box-shadow: inset 0 0 0 1px var(--border);
   overflow: hidden;
 }
@@ -178,8 +108,10 @@
   border-radius: 3px;
 }
 
+/* A file's name opens it (a link-like hover); a folder row is a
+   .site-collapse toggle, where only the chevron reacts. */
 @media (hover: hover) {
-  .sang-row-main:hover .sang-row-name {
+  .sang-file-row .sang-row-main:hover .sang-row-name {
     color: var(--accent-warm-text);
     text-decoration: underline;
   }
@@ -187,7 +119,7 @@
 
 .sang-row-main:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .sang-row-name {
@@ -200,11 +132,9 @@
   font-weight: 600;
 }
 
+/* .site-chevron, a hair wider so the folder names line up with files. */
 .sang-chevron {
-  flex: none;
   width: 0.9rem;
-  color: var(--text-muted);
-  font-size: 0.85rem;
 }
 
 /* Chevron + icon take the same width as a file's badge, so names line up. */
@@ -277,7 +207,7 @@
   flex: none;
   min-width: 3.6rem;
   text-align: center;
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   padding: 0.15rem 0.4rem;
@@ -286,16 +216,10 @@
   background: var(--text-muted);
 }
 
-@@ background: #8250df; }
-@@ background: #c2410c; }
-@@ background: var(--danger); }
-@@ background: var(--success); }
-.sang-kind-audio { background: var(--accent); }
+.sang-kind-audio { background: var(--cat-blue); }
 
 /* --- Upload modal -------------------------------------------------- */
-.sang-upload-modal {
-  width: min(520px, 92vw);
-}
+
 
 .sang-upload-list {
   list-style: none;
@@ -396,7 +320,7 @@
   height: 6px;
   margin-top: 0.35rem;
   border-radius: 3px;
-  background: var(--input-bg);
+  background: var(--progress-track);
   box-shadow: inset 0 0 0 1px var(--border);
   overflow: hidden;
 }
@@ -464,19 +388,6 @@
   text-align: center;
 }
 
-.sang-upload-btns .btn-small:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
-@media (hover: hover) {
-  .sang-upload-btns .btn-small:disabled:hover {
-    background: var(--input-bg);
-    border-color: var(--border);
-    color: var(--text);
-  }
-}
-
 /* --- Guide til øvetracks med Moises.ai (below Filer): laid out like
    koordinator.css's "Guide til Arkivering" (.koord-step-heading). ---- */
 .sang-guide {
@@ -499,22 +410,11 @@
   margin-top: 0;
 }
 
-.sang-guide-link {
-  color: var(--accent-warm-text);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-@media (hover: hover) {
-  .sang-guide-link:hover {
-    text-decoration-thickness: 2px;
-  }
-}
-
+/* Links in the guide are the shared content link (.site-link). */
 .sang-guide-link:focus-visible {
   outline: none;
   border-radius: 2px;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 /* Paragraphs keep the line breaks typed in the editor. */

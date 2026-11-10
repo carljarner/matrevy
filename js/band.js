@@ -56,7 +56,7 @@ function bandPillBtn(label, variant) {
 }
 
 function bandAddPlusBtn(title) {
-  const btn = el('button', 'boss-manage-add-plus', '+');
+  const btn = el('button', 'site-icon-btn site-add-plus', '+');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -64,7 +64,7 @@ function bandAddPlusBtn(title) {
 }
 
 function bandRemoveBtn(title) {
-  const btn = el('button', 'band-remove-btn', '✕');
+  const btn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -72,7 +72,7 @@ function bandRemoveBtn(title) {
 }
 
 function bandIconBtn(icon, title) {
-  const btn = el('button', 'band-icon-btn');
+  const btn = el('button', 'site-icon-btn');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -281,7 +281,7 @@ function bandRenderPicker(root) {
   // Creating/editing an extra instance is boss-level.
   if (bandIsBoss()) choices.push({ value: BAND_NEW_INSTANCE, label: '+ Opret ny' });
   const picker = siteCreateDropdownField(choices, bandFolder);
-  picker.classList.add('band-revy-select');
+  picker.classList.add('site-toolbar-control', 'band-revy-select');
   picker.setAttribute('aria-label', 'Vælg revy');
   picker.addEventListener('change', () => {
     if (picker.value === BAND_NEW_INSTANCE) {
@@ -295,7 +295,7 @@ function bandRenderPicker(root) {
   const children = [];
   const instance = bandInstances.find((i) => i.folder === bandFolder);
   if (instance && bandIsBoss()) {
-    const editBtn = bandBtn('Rediger');
+    const editBtn = bandBtn('Rediger', 'site-toolbar-control');
     editBtn.title = `Omdøb eller slet "${instance.name}"`;
     editBtn.addEventListener('click', () => bandOpenInstanceModal(instance, root));
     children.push(editBtn);
@@ -469,7 +469,7 @@ function bandRowHasContent(row) {
 
 // ── Load + render ────────────────────────────────────────────
 async function bandLoad(root) {
-  root.replaceChildren(el('p', 'band-muted', 'Indlæser…'));
+  root.replaceChildren(el('p', 'site-muted', 'Indlæser…'));
   if (bandActiveTab === 'arkiv') {
     const archive = await bandApi('band_archive_read', {});
     if (!archive.ok) {
@@ -517,12 +517,11 @@ function bandRender(root) {
   else bandRenderOversigt(root);
 }
 
-// Styled like Koordinator's page tabs (.koord-mode-tabs, duplicated as
-// .band-mode-tabs in band.css).
+// The shared tab bar (.site-tabs, style.css).
 function bandRenderTabs(root) {
-  const tabs = el('div', 'band-mode-tabs');
+  const tabs = el('div', 'site-tabs');
   for (const tab of BAND_TABS) {
-    const btn = el('button', 'band-mode-tab' + (tab.key === bandActiveTab ? ' active' : ''), tab.label);
+    const btn = el('button', 'site-tab' + (tab.key === bandActiveTab ? ' active' : ''), tab.label);
     btn.type = 'button';
     btn.addEventListener('click', () => {
       if (tab.key === bandActiveTab) return;
@@ -557,13 +556,16 @@ function bandRenderOversigt(root) {
   card.appendChild(el('h2', 'band-card-title', 'Sangoversigt'));
   const editable = bandCanEdit();
   if (!editable) {
-    card.appendChild(el('p', 'band-muted band-readonly-note',
+    card.appendChild(el('p', 'site-muted band-readonly-note',
       'Kun til visning. Gamle setlister kan kun redigeres af bosser.'));
   }
 
   const wrap = el('div', 'band-table-wrap');
-  wrap.appendChild(bandBuildSheetTable(root));
+  const sheet = bandBuildSheetTable(root);
+  wrap.appendChild(sheet);
   card.appendChild(wrap);
+  // The header row follows the page down a long sheet.
+  siteStickyHead(sheet.tHead);
 
   // New songs come from each section's own "+"; this one adds a section.
   if (editable) {
@@ -583,17 +585,27 @@ function bandRenderOversigt(root) {
 
 // ── Boss-indstillinger ───────────────────────────────────────
 // Which revy/instance ordinary revyster can edit; the rest are view-only.
+// The shared Boss Box (.site-boss-box): last on the page, a collapsible
+// bare h2, open on every load.
+let bandBossBoxOpen = true;
+
 function bandBuildBossSettingsCard() {
-  const card = el('section', 'card band-boss-card');
-  card.appendChild(el('h2', null, 'Boss Box'));
-  card.appendChild(el('p', 'band-muted band-boss-hint',
+  const card = el('section', 'card site-boss-box band-boss-card');
+  const body = el('div', 'site-collapse-body');
+  const { heading } = siteCollapseHeading('h2', 'Boss Box', {
+    open: bandBossBoxOpen,
+    body,
+    onToggle: (open) => { bandBossBoxOpen = open; },
+  });
+  card.append(heading, body);
+  body.appendChild(el('p', 'site-boss-hint',
     'Revyster kan kun redigere den aktive mappe'));
   const options = bandRevyOptions();
   if (bandActiveFolder && !options.some((o) => o.value === bandActiveFolder)) {
     options.unshift({ value: bandActiveFolder, label: bandActiveFolder });
   }
   const picker = siteCreateDropdownField(options.map(({ value, label }) => ({ value, label })), bandActiveFolder, 'Ingen valgt');
-  picker.classList.add('band-boss-select');
+  picker.classList.add('site-toolbar-control', 'band-boss-select');
   picker.setAttribute('aria-label', 'Aktiv mappe');
   picker.addEventListener('change', async () => {
     const previous = bandActiveFolder;
@@ -613,16 +625,24 @@ function bandBuildBossSettingsCard() {
   const label = el('label', 'band-boss-label', 'Aktiv mappe');
   field.appendChild(label);
   field.appendChild(picker);
-  card.appendChild(field);
-  card.appendChild(el('p', 'band-muted band-boss-note',
+  body.appendChild(field);
+  body.appendChild(el('p', 'site-muted band-boss-note',
     'MatRevy mapperne oprettes automatisk og følger Arkivet. For at oprette en mappe til Galla eller andre arrangementer bruges "+ Opret ny", som findes i menuen i øverste højre hjørne af siden. Mapper, der oprettes på den måde, kan (i modsætning til revy-mapperne) redigeres og slettes løbende.'));
   return card;
+}
+
+// The drag handle and the first column stay put while the sheet scrolls
+// sideways (.site-sheet-sticky, style.css).
+function bandStickyCell(cell, left) {
+  cell.classList.add('site-sheet-sticky');
+  cell.style.left = `${left}px`;
+  return cell;
 }
 
 // Fixed table layout driven by a <colgroup>, so a dragged width is exact
 // and the other columns don't shift to absorb it.
 function bandBuildSheetTable(root) {
-  const table = el('table', 'band-table band-sheet-table');
+  const table = el('table', 'band-table band-sheet-table site-sheet site-sheet-lines');
   const colgroup = el('colgroup');
   const cols = {};
   const addCol = (key, width) => {
@@ -640,9 +660,10 @@ function bandBuildSheetTable(root) {
 
   const thead = el('thead');
   const headRow = el('tr');
-  headRow.appendChild(el('th', 'band-col-handle'));
+  headRow.appendChild(bandStickyCell(el('th', 'band-col-handle site-sheet-noline'), 0));
   for (const col of columns) {
     const th = el('th', col.status ? 'band-col-status band-col-resizable' : 'band-col-resizable');
+    if (col === columns[0]) bandStickyCell(th, BAND_HANDLE_COL_WIDTH);
     // Clearing the title and pressing Backspace/Delete once more asks to
     // remove the column (Title excepted).
     const onDeleteEmpty = col.key === BAND_LOCKED_COLUMN ? null : () => bandRemoveColumn(col);
@@ -650,7 +671,7 @@ function bandBuildSheetTable(root) {
     if (bandCanEdit()) th.appendChild(bandColumnResizer(col, cols[col.key], table));
     headRow.appendChild(th);
   }
-  const addTh = el('th', 'band-col-actions');
+  const addTh = el('th', 'band-col-actions site-sheet-noline');
   if (bandCanEdit()) {
     const addColBtn = bandAddPlusBtn('Tilføj kolonne');
     addColBtn.addEventListener('click', bandOpenAddColumnModal);
@@ -953,7 +974,7 @@ async function bandMoveRow(item, target) {
 }
 
 function bandRenderHandleCell(tr, row) {
-  const td = el('td', 'band-col-handle');
+  const td = bandStickyCell(el('td', 'band-col-handle site-sheet-noline'), 0);
   if (!bandCanEdit()) { tr.appendChild(td); return; }
   const handle = el('span', 'boss-manage-drag-handle band-drag-handle', '⠿');
   handle.title = 'Træk for at flytte';
@@ -965,7 +986,7 @@ function bandRenderHandleCell(tr, row) {
 function bandCreateTextInput(row, key, tr, className) {
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'band-field' + (className ? ' ' + className : '');
+  input.className = 'site-inline-field band-field' + (className ? ' ' + className : '');
   input.value = row[key] || '';
   input.readOnly = !bandCanEdit();
   input.addEventListener('blur', () => {
@@ -982,7 +1003,8 @@ function bandCreateTextInput(row, key, tr, className) {
 function bandRenderSongRow(row) {
   const tr = el('tr', 'band-song-row');
   bandRenderHandleCell(tr, row);
-  for (const col of bandSheetColumns()) {
+  const columns = bandSheetColumns();
+  for (const col of columns) {
     if (col.status) {
       const td = el('td', 'band-col-status');
       td.appendChild(bandStatusPill(row, col.key, tr));
@@ -990,10 +1012,11 @@ function bandRenderSongRow(row) {
       continue;
     }
     const td = el('td');
+    if (col === columns[0]) bandStickyCell(td, BAND_HANDLE_COL_WIDTH);
     td.appendChild(bandCreateTextInput(row, col.key, tr));
     tr.appendChild(td);
   }
-  const actions = el('td', 'band-col-actions');
+  const actions = el('td', 'band-col-actions site-sheet-noline');
   if (bandCanEdit()) {
     const removeBtn = bandRemoveBtn('Slet sang');
     removeBtn.addEventListener('click', () => bandDeleteRow(row, tr));
@@ -1004,7 +1027,7 @@ function bandRenderSongRow(row) {
 }
 
 function bandRenderSectionRow(row) {
-  const tr = el('tr', 'band-section-row');
+  const tr = el('tr', 'band-section-row site-sheet-section');
   bandRenderHandleCell(tr, row);
   const td = el('td', 'band-section-cell');
   td.colSpan = bandSheetColumns().length;
@@ -1012,7 +1035,7 @@ function bandRenderSectionRow(row) {
   input.placeholder = 'Sektionsnavn';
   td.appendChild(input);
   tr.appendChild(td);
-  const actions = el('td', 'band-col-actions');
+  const actions = el('td', 'band-col-actions site-sheet-noline');
   if (bandCanEdit()) {
     const addBtn = bandAddPlusBtn('Tilføj sang i denne sektion');
     addBtn.addEventListener('click', () => {
@@ -1148,8 +1171,8 @@ function bandDeleteRow(row, tr) {
 // open (e.g. on a failed request).
 function bandConfirm(title, description, confirmLabel, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('band-confirm-modal');
-  if (description) form.appendChild(el('p', 'band-confirm-text', description));
+  modal.classList.add('site-confirm-modal');
+  if (description) form.appendChild(el('p', 'site-confirm-sub', description));
   const cancelBtn = bandPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = bandPillBtn(confirmLabel, 'site-btn-danger');
@@ -1170,16 +1193,16 @@ function bandBuildInstrumentsCard() {
   const card = el('section', 'card band-instruments-card');
   card.appendChild(el('h2', null, 'Bandmedlemmer'));
 
-  const table = el('table', 'band-table band-instruments-table');
+  const table = el('table', 'band-table band-instruments-table site-sheet site-sheet-lines');
   const thead = el('thead');
   const headRow = el('tr');
-  headRow.appendChild(el('th', 'band-col-handle'));
+  headRow.appendChild(el('th', 'band-col-handle site-sheet-noline'));
   for (const [key, fallback] of [['instrumentNavn', 'Navn'], ['instrumentName', 'Instrument(er)'], ['instrumentStemme', 'Stemmer']]) {
     const th = el('th', 'band-col-mid');
     th.appendChild(bandColumnTitleInput(key, fallback));
     headRow.appendChild(th);
   }
-  headRow.appendChild(el('th', 'band-col-actions'));
+  headRow.appendChild(el('th', 'band-col-actions site-sheet-noline'));
   thead.appendChild(headRow);
   table.appendChild(thead);
   const tbody = el('tbody');
@@ -1187,7 +1210,7 @@ function bandBuildInstrumentsCard() {
 
   function addRow(item) {
     const tr = el('tr');
-    const handleTd = el('td', 'band-col-handle');
+    const handleTd = el('td', 'band-col-handle site-sheet-noline');
     tr.appendChild(handleTd);
     if (editable) {
       const handle = el('span', 'boss-manage-drag-handle band-drag-handle', '⠿');
@@ -1199,7 +1222,7 @@ function bandBuildInstrumentsCard() {
       const td = el('td', 'band-col-mid');
       const input = document.createElement('input');
       input.type = 'text';
-      input.className = 'band-field';
+      input.className = 'site-inline-field band-field';
       input.value = item[key] || '';
       input.readOnly = !editable;
       input.addEventListener('blur', () => {
@@ -1211,7 +1234,7 @@ function bandBuildInstrumentsCard() {
       td.appendChild(input);
       tr.appendChild(td);
     }
-    const actions = el('td', 'band-col-actions');
+    const actions = el('td', 'band-col-actions site-sheet-noline');
     if (editable) {
       const removeBtn = bandRemoveBtn('Fjern bandmedlem');
       removeBtn.addEventListener('click', () => {
@@ -1317,7 +1340,7 @@ function bandRenderNoder(root) {
     head.appendChild(newFolderBtn);
   }
   card.appendChild(head);
-  card.appendChild(el('p', 'band-muted band-noder-hint',
+  card.appendChild(el('p', 'site-muted band-noder-hint',
     'Hver sang i Oversigt har sin egen mappe.'));
 
   // Each section's folders sit in their own 3-column grid.
@@ -1351,7 +1374,7 @@ function bandRenderNoder(root) {
       a.dataset.label.localeCompare(b.dataset.label, 'da', { sensitivity: 'base', numeric: true }));
     g.replaceChildren(...sorted);
   }
-  if (!hasSongs) list.appendChild(el('p', 'band-muted', 'Ingen mapper endnu.'));
+  if (!hasSongs) list.appendChild(el('p', 'site-muted', 'Ingen mapper endnu.'));
   card.appendChild(list);
   root.appendChild(card);
 }
@@ -1363,10 +1386,10 @@ function bandBuildFolder(row) {
   const isOpen = bandOpenFolders.has(row.id);
   if (isOpen) folder.classList.add('open');
 
-  const headBtn = el('button', 'band-folder-head');
+  const headBtn = el('button', 'site-collapse band-folder-head');
   headBtn.type = 'button';
   headBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  headBtn.appendChild(el('span', 'band-folder-chevron', isOpen ? '▾' : '▸'));
+  headBtn.appendChild(el('span', 'site-chevron', '▾'));
   // Revy title, with the original song's title smaller underneath (an
   // extra instance shows only the title, see bandSongLabel).
   const titles = el('span', 'band-folder-titles');
@@ -1410,7 +1433,7 @@ function bandBuildFolder(row) {
 
   const body = el('div', 'band-folder-body');
   const files = row.files || [];
-  if (!files.length) body.appendChild(el('p', 'band-muted', 'Ingen filer endnu.'));
+  if (!files.length) body.appendChild(el('p', 'site-muted', 'Ingen filer endnu.'));
   for (const file of bandSortedFiles(files)) body.appendChild(bandBuildFileRow(row, file));
   if (!editable) {
     folder.appendChild(body);
@@ -1432,7 +1455,7 @@ function bandBuildFolder(row) {
   uploadBtn.addEventListener('click', () => input.click());
   uploadBar.appendChild(uploadBtn);
   uploadBar.appendChild(input);
-  if (row._uploadStatus) uploadBar.appendChild(el('span', 'band-muted', row._uploadStatus));
+  if (row._uploadStatus) uploadBar.appendChild(el('span', 'site-muted', row._uploadStatus));
   body.appendChild(uploadBar);
 
   folder.appendChild(body);
@@ -1845,19 +1868,19 @@ function bandRenderArkiv(root) {
     head.appendChild(el('span')); // keeps the search box centered
   }
   card.appendChild(head);
-  card.appendChild(el('p', 'band-muted band-noder-hint', bandCanEdit(BAND_ARCHIVE_FOLDER)
+  card.appendChild(el('p', 'site-muted band-noder-hint', bandCanEdit(BAND_ARCHIVE_FOLDER)
     ? 'Alle sange fra alle revyer, efter originaltitel. Filer uploadet her gemmes kun i arkivet.'
     : 'Alle sange fra alle revyer, efter originaltitel. Kun bosser kan redigere arkivet.'));
 
   const cards = Array.from(bandArchiveCards.values())
     .sort((a, b) => a.title.localeCompare(b.title, 'da', { sensitivity: 'base', numeric: true }));
   if (!cards.length) {
-    card.appendChild(el('p', 'band-muted', 'Ingen sange endnu.'));
+    card.appendChild(el('p', 'site-muted', 'Ingen sange endnu.'));
   } else {
     const grid = el('div', 'band-folder-grid band-arkiv-grid');
     for (const c of cards) grid.appendChild(bandBuildArkivCard(c));
     card.appendChild(grid);
-    const empty = el('p', 'band-muted band-arkiv-empty', 'Ingen sange matcher søgningen.');
+    const empty = el('p', 'site-muted band-arkiv-empty', 'Ingen sange matcher søgningen.');
     empty.hidden = cards.some(bandArkivMatches);
     card.appendChild(empty);
   }
@@ -1897,10 +1920,10 @@ function bandBuildArkivCard(card) {
   const isOpen = bandArkivOpen.has(card.key);
   if (isOpen) node.classList.add('open');
 
-  const headBtn = el('button', 'band-folder-head');
+  const headBtn = el('button', 'site-collapse band-folder-head');
   headBtn.type = 'button';
   headBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  headBtn.appendChild(el('span', 'band-folder-chevron', isOpen ? '▾' : '▸'));
+  headBtn.appendChild(el('span', 'site-chevron', '▾'));
   const titles = el('span', 'band-folder-titles');
   titles.appendChild(el('span', 'band-folder-name', card.title));
   headBtn.appendChild(titles);
@@ -1947,7 +1970,7 @@ function bandBuildArkivCard(card) {
       groupHead.appendChild(removeBtn);
     }
     body.appendChild(groupHead);
-    if (!(row.files || []).length) body.appendChild(el('p', 'band-muted band-arkiv-source-empty', 'Ingen filer.'));
+    if (!(row.files || []).length) body.appendChild(el('p', 'site-muted band-arkiv-source-empty', 'Ingen filer.'));
     for (const file of bandSortedFiles(row.files || [])) body.appendChild(bandBuildFileRow(row, file));
   }
   if (!editable) {
@@ -1971,7 +1994,7 @@ function bandBuildArkivCard(card) {
   uploadBar.appendChild(uploadBtn);
   uploadBar.appendChild(input);
   const busy = card.sources.find((r) => r._uploadStatus);
-  if (busy) uploadBar.appendChild(el('span', 'band-muted', busy._uploadStatus));
+  if (busy) uploadBar.appendChild(el('span', 'site-muted', busy._uploadStatus));
   body.appendChild(uploadBar);
 
   node.appendChild(body);
@@ -2053,7 +2076,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) return;
   if (typeof siteIsFileProtocol === 'function' && siteIsFileProtocol()) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'band-muted', 'Bandet kræver forbindelse til serveren og virker ikke offline.'));
+    card.appendChild(el('p', 'site-muted', 'Bandet kræver forbindelse til serveren og virker ikke offline.'));
     root.replaceChildren(card);
     return;
   }
@@ -2067,13 +2090,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function bandInit(root) {
-  root.replaceChildren(el('p', 'band-muted', 'Indlæser…'));
+  root.replaceChildren(el('p', 'site-muted', 'Indlæser…'));
   await bandLoadInstances(); // failure just means no extra instances in the picker
   bandFolder = bandInitialFolder(bandRevyOptions());
   bandRenderPicker(root);
   if (!bandFolder) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'band-muted', 'Der er ingen revyer endnu. Opret en med "+ Opret ny" i menuen.'));
+    card.appendChild(el('p', 'site-muted', 'Der er ingen revyer endnu. Opret en med "+ Opret ny" i menuen.'));
     root.replaceChildren(card);
     return;
   }

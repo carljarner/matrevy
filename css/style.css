@@ -2,10 +2,38 @@
    Matematikrevyen – Shared Stylesheet
    ========================================================= */
 
-/* Preview: classic LaTeX (Computer Modern) font, site-wide.
-   Loaded here (not per-page) since style.css is already shared
-   on every page. */
-@import url("https://cdn.jsdelivr.net/gh/vsalvino/computer-modern@main/fonts/serif.css");
+/* Classic LaTeX (Computer Modern Unicode Serif) font, site-wide. The four
+   woff2 files are vendored in fonts/computer-modern/ (SIL OFL, licence
+   beside them), so the site doesn't depend on a CDN and file:// works
+   offline with the same font. */
+@font-face {
+  font-family: "Computer Modern Serif";
+  font-style: normal;
+  font-weight: normal;
+  font-display: swap;
+  src: url("../fonts/computer-modern/CMUSerif-Roman.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Computer Modern Serif";
+  font-style: normal;
+  font-weight: bold;
+  font-display: swap;
+  src: url("../fonts/computer-modern/CMUSerif-Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Computer Modern Serif";
+  font-style: italic;
+  font-weight: normal;
+  font-display: swap;
+  src: url("../fonts/computer-modern/CMUSerif-Italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Computer Modern Serif";
+  font-style: italic;
+  font-weight: bold;
+  font-display: swap;
+  src: url("../fonts/computer-modern/CMUSerif-BoldItalic.woff2") format("woff2");
+}
 
 /* --- Palette ---------------------------------------------
    Warm honey/walnut wood theme. Defined here (loaded on every
@@ -27,12 +55,50 @@
   --accent-warm-ring: rgba(216, 184, 120, 0.35); /* focus glow      */
   --input-bg: #fdf8ec; /* warm cream — form-control background site-wide */
 
-  --text-muted: #57606a;     /* muted meta/secondary text */
+  --text-muted: #635340;     /* muted meta/secondary text (warm grey, ≥5:1 on every surface) */
   --danger: #c0392b;         /* danger text/border */
   --success: #1a7f37;        /* success/confirm text */
   --neutral-border: #9ca3af; /* neutral hover border / disabled icon */
   --danger-bg: #fbf1f0;      /* pale danger background (matches .btn-small-danger:hover) */
   --modal-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); /* standard overlay-modal shadow */
+
+  /* Hover shades of the four solid .site-btn-* colours. */
+  --accent-hover: #2f6cb3;
+  --danger-hover: #a5311f;
+  --warm-hover: #7a5200;
+  --success-hover: #146a2c;
+
+  /* Shapes, focus, elevation. One radius for every control and field
+     (buttons, inputs, pickers, icon buttons), one for cards/popups. */
+  --radius: 6px;
+  --radius-card: 8px;
+  --radius-pill: 999px;
+  --focus-ring: 0 0 0 2px var(--accent-warm-ring); /* the one focus indicator */
+  --disabled-opacity: 0.5;
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.18);   /* field popups, menus */
+  --shadow-toast: 0 4px 14px rgba(0, 0, 0, 0.22); /* toast, stale banner */
+  --row-hover: #f2e7d2;  /* hover tone of a clickable list row */
+  --progress-track: var(--input-bg);
+
+  /* Font-size steps for the shared components (style.css). */
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.85rem;
+  --fs-md: 0.95rem;
+  --fs-lg: 1.1rem;
+
+  /* Category colours: Kalender's categories, Gantt bars and Revyugen
+     blocks all draw from this one set (a strong colour + its pale fill). */
+  --cat-blue: #3b82d4;    --cat-blue-bg: #e8f0fb;
+  --cat-green: #1a7f37;   --cat-green-bg: #e6f4ea;
+  --cat-yellow: #d4a017;  --cat-yellow-bg: #fdf1d6;
+  --cat-red: #c0392b;     --cat-red-bg: #fbeae8;
+  --cat-purple: #8e44ad;  --cat-purple-bg: #f2e8f6;
+  --cat-teal: #16a085;    --cat-teal-bg: #e3f4f2;
+
+  /* Soft status tints (a light pill with dark text), e.g. Rekvisitten's
+     "-" and "En side" brændimprægnering states. */
+  --danger-tint: #f6d4cf;  --danger-tint-text: #8e2a1f;
+  --success-tint: #d3ebd4; --success-tint-text: #2e6b34;
 
   /* Priority palette shared by Stjerneark (manus.css) and the Rekvisitten
      sidebar (schedule.css) — one source of truth for what used to be two
@@ -116,8 +182,52 @@ body {
   :where(:not(html, body)):hover {
     scrollbar-color: var(--accent-warm) transparent;
   }
+  /* Safari: amber while the scroll box is hovered, like Chrome/Firefox. */
+  :where(:not(html, body)):hover::-webkit-scrollbar-thumb,
   :where(*)::-webkit-scrollbar-thumb:hover {
     background: var(--accent-warm);
+  }
+}
+
+/* --- Form-control defaults ---------------------------------
+   Zero specificity (:where), so any class rule wins. These are what a
+   brand-new control gets without any page CSS: the site font, the warm
+   text colour, amber checkboxes/radios and a muted placeholder. Only
+   font-family (not the `font` shorthand): the shorthand would also hand
+   every button the body's 1.6 line-height. */
+:where(button, input, select, textarea) {
+  font-family: inherit;
+}
+
+:where(input, select, textarea) {
+  color: var(--text);
+}
+
+:where(input[type="checkbox"], input[type="radio"]) {
+  accent-color: var(--accent-warm-text);
+}
+
+::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* --- Content links ------------------------------------------
+   Links inside text (auto-linked URLs in Posts/Wiki/Sangere, …): amber
+   and underlined, the same colour once visited. Classed links (nav,
+   cards, buttons) style themselves. */
+:where(a:not([class])),
+.site-link {
+  color: var(--accent-warm-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: break-word;
+}
+
+@media (hover: hover) {
+  :where(a:not([class])):hover,
+  .site-link:hover {
+    color: var(--warm-hover);
   }
 }
 
@@ -292,7 +402,7 @@ body {
 
 @media (hover: hover) {
   .site-gate-login:hover {
-    background: #2f6cb3;
+    background: var(--accent-hover);
   }
 }
 
@@ -411,12 +521,12 @@ body {
 }
 
 @media (hover: hover) {
-  .site-btn-primary:hover { background: #2f6cb3; }
+  .site-btn-primary:hover { background: var(--accent-hover); }
 }
-.site-btn-primary:disabled { opacity: 0.6; cursor: default; }
+.site-btn-primary:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .site-btn-primary:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 212, 0.35);
+  box-shadow: var(--focus-ring);
 }
 
 /* Solid-red sibling of .site-btn-primary — same tier/shape, for a
@@ -434,12 +544,12 @@ body {
 }
 
 @media (hover: hover) {
-  .site-btn-danger:hover { background: #a5311f; }
+  .site-btn-danger:hover { background: var(--danger-hover); }
 }
-.site-btn-danger:disabled { opacity: 0.6; cursor: default; }
+.site-btn-danger:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .site-btn-danger:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.35);
+  box-shadow: var(--focus-ring);
 }
 
 /* Solid-warm sibling of .site-btn-primary/-danger — same tier/shape, for a
@@ -457,17 +567,18 @@ body {
 }
 
 @media (hover: hover) {
-  .site-btn-warm:hover { background: #7a5200; }
+  .site-btn-warm:hover { background: var(--warm-hover); }
 }
-.site-btn-warm:disabled { opacity: 0.6; cursor: default; }
+.site-btn-warm:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .site-btn-warm:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 /* Solid-green sibling of .site-btn-primary/-danger/-warm — same tier/
-   shape, for a positive-but-not-the-main-save action, e.g. Formularer's
-   "Skabelon" beside "Annuller"/"Gem". */
+   shape. Green is every positive/confirm/save action ("Gem", "Indsend",
+   "Betalt", "Forbind"); blue (.site-btn-primary) is reserved for Login
+   and Formularer's "Skabelon". */
 .site-btn-success {
   border-radius: 6px;
   padding: 0.45rem 0.7rem;
@@ -480,22 +591,19 @@ body {
 }
 
 @media (hover: hover) {
-  .site-btn-success:hover { background: #146a2c; }
+  .site-btn-success:hover { background: var(--success-hover); }
 }
-.site-btn-success:disabled { opacity: 0.6; cursor: default; }
+.site-btn-success:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .site-btn-success:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(26, 127, 55, 0.35);
+  box-shadow: var(--focus-ring);
 }
 
-/* --- Overlay pill buttons (site-wide second-level standard) -----
-   Every button inside a .login-overlay/.login-modal (login, editor,
-   and confirm-dialog forms) except the blue .site-btn-primary. Idle
-   shape/colour matches the oval look Budget/Kalender each grew on
-   their own; the hover/focus-visible treatment is modelled on
-   .arkiv-action-btn's link pills (archive.css): a neutral background
-   + border + soft shadow, with each colour variant only overriding
-   border-color to match its own text colour. */
+/* --- Oval pill buttons (Arkiv's detail overlay only) -----------
+   Kept solely for Arkiv's link actions (.arkiv-action-btn, archive.css):
+   idle white/cream oval with a thin border, hover/focus-visible only
+   changing border-color. Every other modal uses the square .site-btn-*
+   family above. */
 .site-pill-btn {
   display: inline-flex;
   align-items: center;
@@ -514,7 +622,7 @@ body {
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.site-pill-btn:disabled { opacity: 0.6; cursor: default; }
+.site-pill-btn:disabled { opacity: var(--disabled-opacity); cursor: default; }
 .site-pill-primary { color: var(--success); }
 .site-pill-danger  { color: var(--danger); }
 .site-pill-warm    { color: var(--accent-warm-text); }
@@ -522,7 +630,7 @@ body {
 .site-pill-btn:focus-visible {
   background: var(--surface-2);
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
   outline: none;
 }
 .site-pill-primary:focus-visible { border-color: var(--success); }
@@ -607,6 +715,7 @@ body {
 
 .site-menu-close:focus-visible {
   outline: 2px solid var(--accent-warm);
+  outline-offset: 2px;
 }
 
 .site-header-collapsed .site-menu-btn {
@@ -805,39 +914,12 @@ body.site-menu-open {
 }
 
 /* --- Bosses inline edit mode (bosses.js renderBossesEdit) --------------
-   Deliberately kept as close to the normal-mode card's own look as
-   possible, mirroring budget.js's own Rediger toggle
-   (buildCategoryEditSection): text edited in place — transparent fields
-   that read as plain text until focused (.boss-manage-text-input, same
-   recipe as budget.css's .budget-manage-text-input) rather than a
-   separate overlay form. Rows are draggable via the row itself (no
-   dedicated handle column), deletion is a plain unboxed "✕", and the
-   list grows via a small "+" below the last row. */
+   Text edited in place in the card itself (.site-inline-field), not a
+   separate form. Rows drag via the row, ✕ removes, a "+" below adds.
+   The negative margin keeps the text where the read-mode text sits. */
 .boss-manage-text-input {
-  width: 100%;
   padding: 0.15rem 0.3rem;
   margin: -0.15rem -0.3rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  font-family: inherit;
-  color: inherit;
-  outline: none;
-}
-
-/* Border-on-hover, white background while actively editing — same recipe
-   as Fællesspisning's own field styling (faellesspisning.css). */
-@media (hover: hover) {
-  .boss-manage-text-input:hover {
-    border-color: var(--border);
-  }
-}
-
-.boss-manage-text-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-  background: var(--input-bg);
 }
 
 .boss-manage-title-input {
@@ -922,33 +1004,6 @@ body.site-menu-open {
   font-size: 0.72rem;
 }
 
-.boss-manage-remove-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 0.2rem;
-  border-radius: 6px;
-  color: var(--text-muted);
-  width: 1.6rem;
-  height: 1.6rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-@media (hover: hover) {
-  .boss-manage-remove-btn:hover { color: var(--danger); }
-}
-
-.boss-manage-remove-btn:focus-visible {
-  outline: none;
-  color: var(--danger);
-  box-shadow: 0 0 0 2px rgba(192, 57, 43, 0.25);
-}
-
 /* Purely-visual grab affordance, leading (leftmost) in the row (see
    bosses.js) — same glyph/sizing recipe and now same leading position as
    manus.css's .manus-akt-drag-handle and wiki.css's .wiki-manage-drag-handle. */
@@ -982,69 +1037,13 @@ body.site-menu-open {
 }
 
 /* Below the list in edit mode: a centred "+", the error (if any) under
-   it. Saving is the card head's check mark (.boss-icon-btn). */
+   it. Saving is the card head's check mark (.site-icon-btn). */
 .boss-editbar {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.25rem;
   margin-top: 0.5rem;
-}
-
-/* Bosser's pencil / check-mark toggle in the card head (a copy of
-   koordinator.css's .koord-lok-icon-btn, used by the logins card). */
-.boss-icon-btn {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.6rem;
-  height: 1.6rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-.boss-icon-btn:disabled { opacity: 0.5; cursor: default; }
-
-@media (hover: hover) {
-  .boss-icon-btn:hover { color: var(--accent-warm-text); }
-}
-
-.boss-icon-btn:focus-visible {
-  outline: none;
-  color: var(--accent-warm-text);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
-}
-
-.boss-manage-add-plus {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 1.6rem;
-  height: 1.6rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  font-size: 1.05rem;
-  line-height: 1;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-
-@media (hover: hover) {
-  .boss-manage-add-plus:hover { color: var(--accent-warm-text); }
-}
-
-.boss-manage-add-plus:focus-visible {
-  outline: none;
-  color: var(--accent-warm-text);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .boss-manage-error {
@@ -1054,34 +1053,6 @@ body.site-menu-open {
 }
 
 .boss-manage-error:empty { display: none; }
-
-/* Shared icon-only "remove" button (✕) — used by Formularer's field/section
-   delete buttons (js/forms.js). Not Bosser-specific despite the name. */
-.boss-edit-remove {
-  flex-shrink: 0;
-  background: none;
-  border: none;
-  padding: 0.5rem 0.35rem;
-  line-height: 1;
-  font-size: 1.1rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .boss-edit-remove:hover { background: var(--surface-2); color: var(--danger); }
-}
-
-.boss-edit-remove:focus-visible {
-  outline: 2px solid var(--accent-warm);
-  outline-offset: 2px;
-}
-
-.boss-edit-remove:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 
 /* --- Edit modal (site-utils.js siteOpenEditModal) --------- */
 .edit-modal {
@@ -1141,7 +1112,7 @@ body.site-menu-open {
   font-size: 0.95rem;
   font-family: inherit;
   background: var(--input-bg);
-  color: var(--header);
+  color: var(--text);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -1154,7 +1125,7 @@ body.site-menu-open {
 .site-field-btn:focus-visible {
   outline: none;
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .site-field-placeholder {
@@ -1197,7 +1168,7 @@ body.site-menu-open {
 
 .site-field-combo:focus-within {
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .site-field-input {
@@ -1212,7 +1183,7 @@ body.site-menu-open {
   padding: 0.5rem 0.6rem;
   font-size: 0.95rem;
   font-family: inherit;
-  color: var(--header);
+  color: var(--text);
   box-shadow: none;
 }
 
@@ -1263,8 +1234,8 @@ body.site-menu-open {
   z-index: 210;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-pop);
   padding: 0.6rem;
 }
 
@@ -1463,7 +1434,7 @@ body.site-menu-open {
   font-size: 0.95rem;
   font-family: inherit;
   background: var(--input-bg);
-  color: var(--header);
+  color: var(--text);
 }
 
 .edit-field textarea {
@@ -1471,15 +1442,25 @@ body.site-menu-open {
   resize: vertical;
 }
 
-/* Warm focus is the site-wide standard for text fields (Øveplan styles its
-   own fields in schedule.css). */
+/* Boxed fields (modals and forms): an amber border on hover, like the
+   pickers (.site-field-btn), and the amber border + ring while focused
+   (Øveplan styles its own fields in schedule.css). */
+@media (hover: hover) {
+  .edit-field input:not([type="checkbox"]):not([type="radio"]):not(:disabled):hover,
+  .edit-field select:not(:disabled):hover,
+  .edit-field textarea:not(:disabled):hover,
+  .login-modal input[type="password"]:hover {
+    border-color: var(--accent-warm);
+  }
+}
+
 .edit-field input:focus,
 .edit-field select:focus,
 .edit-field textarea:focus,
 .login-modal input[type="password"]:focus {
   outline: none;
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .edit-field-row {
@@ -1541,7 +1522,22 @@ body.site-menu-open {
 .btn-small:focus-visible {
   outline: none;
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
+}
+
+.btn-small:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .btn-small:disabled:hover {
+    background: var(--input-bg);
+    border-color: var(--border);
+  }
+  .btn-small:not(.btn-small-danger):disabled:hover {
+    color: var(--text);
+  }
 }
 
 /* Native file input's "Choose file" button, styled to match .btn-small
@@ -1581,7 +1577,7 @@ body.site-menu-open {
 .btn-small-danger:focus-visible {
   outline: none;
   border-color: var(--danger);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--focus-ring);
 }
 
 /* --- Messages -------------------------------------------- */
@@ -1637,7 +1633,7 @@ body.site-menu-open {
 .message-author {
   font-weight: 700;
   font-size: 0.85rem;
-  color: #000;
+  color: var(--text);
 }
 
 .message-text {
@@ -1646,22 +1642,11 @@ body.site-menu-open {
   white-space: pre-wrap;
 }
 
+/* A comment's ✕ (.site-icon-btn), pinned top right of the row. */
 .message-delete {
   position: absolute;
   top: 0;
   right: 0;
-  background: none;
-  border: none;
-  padding: 0.15rem 0.35rem;
-  line-height: 1;
-  font-size: 1.1rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-@media (hover: hover) {
-  .message-delete:hover { background: var(--surface-2); color: var(--danger); }
 }
 
 /* --- Post feed section breaks (Forside) -------------------- */
@@ -1748,38 +1733,6 @@ body.site-menu-open {
   color: var(--text-muted);
 }
 
-/* Boss/admin-only pin toggle, right-aligned on each entry. */
-.post-pin-btn {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  padding: 0.3rem;
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s, box-shadow 0.15s;
-}
-
-@media (hover: hover) {
-  .post-pin-btn:hover {
-    background: var(--surface-2);
-    color: var(--accent-warm-text);
-    box-shadow: 0 0 8px 2px rgba(154, 103, 0, 0.45);
-  }
-}
-
-.post-pin-btn:focus-visible {
-  outline: none;
-  color: var(--accent-warm-text);
-  box-shadow: 0 0 8px 2px rgba(154, 103, 0, 0.45);
-}
-
-.post-pin-btn.pinned {
-  color: var(--accent-warm-text);
-}
 
 /* --- Post detail modal (Forside boards) ------------------- */
 .post-detail-cover {
@@ -1810,17 +1763,13 @@ body.site-menu-open {
 
 .post-detail-text p {
   margin: 0;
-  color: #000;
+  color: var(--text);
 }
 
 .post-detail-text p + p {
   margin-top: 0.6rem;
 }
 
-.post-detail-text a {
-  color: var(--accent);
-  word-break: break-word;
-}
 
 /* Rich-text elements a post body can now contain (see js/posts.js's
    POST_ALLOWED_TAGS) — kept on this bubble's dark-on-warm palette rather
@@ -1828,7 +1777,7 @@ body.site-menu-open {
    rules this is otherwise mirrored from. */
 .post-detail-text h2,
 .post-detail-text h3 {
-  color: #000;
+  color: var(--text);
   margin: 0.8rem 0 0.4rem;
 }
 
@@ -1851,7 +1800,7 @@ body.site-menu-open {
 .post-detail-text ol {
   margin: 0 0 0.6rem 1.25rem;
   padding: 0;
-  color: #000;
+  color: var(--text);
 }
 
 /* Word/Docs-style nested numbering, matching wiki.css's convention. */
@@ -1927,7 +1876,7 @@ body.site-menu-open {
 .post-edit-body:focus {
   outline: none;
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .post-edit-body p {
@@ -2014,40 +1963,383 @@ body.site-menu-open {
   margin-top: 0.4rem;
 }
 
-/* Canonical definition of the site-wide "one-liner delete confirm" width
-   formula — every other feature's own *-confirm-modal class (Kalender's
-   .cal-confirm-modal, Wiki's .wiki-confirm-modal, Manus's
-   .manus-confirm-modal, Fællesspisning's .faelles-confirm-modal, Budget's
-   .budget-confirm-narrow/.streg-confirm-modal, Formularer's
-   .forms-leave-modal/.forms-narrow-modal/.forms-section-delete-modal/
-   .forms-response-delete-modal, Koordinator's .koord-arkiv-confirm-modal/
-   .koord-mp-confirm-modal) duplicates this exact declaration rather than
-   sharing a class, per this codebase's per-feature-duplication convention.
-   fit-content shrink-wraps the modal to its widest actual line of content —
-   this title if it's short, same title once it's long, or an explanatory
-   note line below it if that happens to run longer than the title — so a
-   short "Slet opslag?" still renders at this floor while a modal whose
-   title/note is long (e.g. a quoted event/form name) grows just enough to
-   keep that line on one row, up to the .edit-modal's own 480px ceiling
-   (beyond which it wraps rather than overflows). No white-space: nowrap
-   needed: block shrink-to-fit sizing already avoids an unnecessary wrap
-   under max-width on its own. Deliberately excludes the handful of
-   two-step "warning" delete confirms whose dynamic content lives in a
-   longer wrappable body paragraph, not the title (Manus/Budget/Formularer's
-   own step-1 warnings) — those keep the plain 480px .edit-modal default. */
-.post-confirm-modal {
+/* =========================================================
+   Shared components. Every page (except Øveplan) uses these instead of
+   its own copy, so a new feature gets the site look by using the class.
+   CLAUDE.md's "Site-wide components" lists when to use which.
+   ========================================================= */
+
+/* --- Collapsible header row (.site-collapse + .site-chevron) ----------
+   The whole header row is one <button class="site-collapse"
+   aria-expanded="…">, usually inside the card's h2/h3 so it keeps the
+   heading's size. Chevron on the left: one ▾ that rotates while
+   collapsed (no glyph swapping). Hover only recolours the chevron; the
+   title never changes colour. Other controls in the same row sit outside
+   the button. .site-collapse-icon is the same toggle as a small
+   chevron-only button (e.g. a note's fold). */
+.site-collapse {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.site-collapse.site-collapse-icon {
+  flex: none;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.site-collapse:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.site-chevron {
+  flex: none;
+  display: inline-block;
+  width: 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  line-height: 1;
+  text-align: center;
+  color: var(--text-muted);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.site-collapse[aria-expanded="false"] .site-chevron {
+  transform: rotate(-90deg);
+}
+
+@media (hover: hover) {
+  .site-collapse:hover .site-chevron {
+    color: var(--accent-warm-text);
+  }
+}
+
+/* A collapsible card's heading: h2 > button.site-collapse
+   (siteCollapseHeading() in site-utils.js builds it). */
+.page-content h2.site-collapse-heading,
+.site-collapse-heading {
+  margin: 0;
+}
+
+.site-collapse-title {
+  min-width: 0;
+}
+
+.site-collapse-body {
+  margin-top: 0.75rem;
+}
+
+/* --- Boss Box (.site-boss-box) ----------------------------------------
+   Boss/admin settings: always the last card on the page, only as wide as
+   its content, a bare h2 that is the collapse toggle, open on load. */
+.site-boss-box {
+  width: fit-content;
+  min-width: min(100%, 17rem);
+  max-width: 100%;
+}
+
+.site-boss-box .site-boss-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+/* One setting per row: label left, control right. */
+.site-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.site-switch-row + .site-switch-row {
+  margin-top: 0.6rem;
+}
+
+.site-switch-label {
+  cursor: pointer;
+}
+
+/* --- Toggle switch (.site-switch) ----------------------------------------
+   <label class="site-switch"><input type="checkbox"><span
+   class="site-switch-slider"></span></label>. Off = cream, on = green. */
+.site-switch {
+  position: relative;
+  flex: none;
+  display: inline-block;
+  width: 2.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.site-switch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.site-switch-slider {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-pill);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  pointer-events: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.site-switch-slider::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.site-switch input:checked + .site-switch-slider {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.site-switch input:checked + .site-switch-slider::before {
+  transform: translateX(1rem);
+}
+
+.site-switch input:focus-visible + .site-switch-slider {
+  box-shadow: var(--focus-ring);
+}
+
+.site-switch input:disabled,
+.site-switch:has(input:disabled) {
+  cursor: default;
+}
+
+.site-switch input:disabled + .site-switch-slider {
+  opacity: var(--disabled-opacity);
+}
+
+/* --- Segmented toggle (.site-segmented) ---------------------------------
+   Two or three joined buttons, the chosen one solid amber (Kalender's
+   Måned/Liste, Fællesspisning's Madark/Oversigt). */
+.site-segmented {
+  display: inline-flex;
+}
+
+.site-segmented > button {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 0.9rem;
+  background: var(--input-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.site-segmented > button + button {
+  border-left: none;
+}
+
+.site-segmented > button:first-child {
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.site-segmented > button:last-child {
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.site-segmented > button.active {
+  background: var(--accent-warm-text);
+  border-color: var(--accent-warm-text);
+  color: #ffffff;
+}
+
+@media (hover: hover) {
+  .site-segmented > button:not(.active):hover {
+    background: var(--accent-warm-fill);
+    border-color: var(--accent-warm);
+    color: var(--accent-warm-text);
+  }
+}
+
+.site-segmented > button:focus-visible {
+  outline: 2px solid var(--accent-warm);
+  outline-offset: -2px;
+}
+
+/* --- Inline field (.site-inline-field) -----------------------------------
+   Sheet cells and in-place titles/text with no label of their own: reads
+   as plain text, a border on hover, the amber border + ring while typing.
+   The background stays transparent. Add .site-field-labeled when the
+   field sits next to its own label on the page: it also turns cream
+   while focused. Fields in modals and forms are the boxed .edit-field
+   style instead. A page may override width/padding/font-size. */
+.site-inline-field {
+  width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.35rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  font: inherit;
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .site-inline-field:hover {
+    border-color: var(--border);
+  }
+}
+
+.site-inline-field:focus,
+.site-inline-field:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: var(--focus-ring);
+}
+
+.site-inline-field.site-field-labeled:focus,
+.site-inline-field.site-field-labeled:focus-visible {
+  background: var(--input-bg);
+}
+
+/* Read-only (an older year, below boss): plain text, no affordances. */
+@media (hover: hover) {
+  .site-inline-field[readonly]:hover,
+  .site-inline-field.site-inline-readonly:hover {
+    border-color: transparent;
+  }
+}
+
+.site-inline-field[readonly]:focus,
+.site-inline-field[readonly]:focus-visible,
+.site-inline-field.site-inline-readonly:focus {
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* --- Icon buttons (.site-icon-btn, -danger, -sm) -------------------------
+   Pencil/check, download, rename, ✕, "+": a 1.8rem square, muted glyph,
+   hover recolours it (amber; red for -danger), focus rings it. -sm for a
+   ✕ inside a dense header or chip. .site-icon-on keeps it amber (a pinned
+   post, an active edit mode). */
+.site-icon-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  /* Glyph icons (✕, +) read best in the system sans, not the text serif. */
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.site-icon-btn-sm {
+  width: 1.3rem;
+  height: 1.3rem;
+  font-size: var(--fs-xs);
+}
+
+.site-icon-btn.site-icon-on {
+  color: var(--accent-warm-text);
+}
+
+.site-icon-btn:disabled {
+  opacity: var(--disabled-opacity);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .site-icon-btn:not(:disabled):hover {
+    color: var(--accent-warm-text);
+  }
+  .site-icon-btn.site-icon-btn-danger:not(:disabled):hover {
+    color: var(--danger);
+  }
+}
+
+.site-icon-btn:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: var(--focus-ring);
+}
+
+.site-icon-btn.site-icon-btn-danger:focus-visible {
+  color: var(--danger);
+}
+
+.site-icon-btn svg {
+  display: block;
+  flex: none;
+}
+
+/* The "+" that grows a list. */
+.site-icon-btn.site-add-plus {
+  display: flex;
+  font-size: 1.05rem;
+}
+
+.site-icon-btn.site-add-center {
+  margin: 0.3rem auto 0;
+}
+
+/* --- Modals: sizes + the one-line confirm ----------------------------------
+   Default .edit-modal is 480px; these are the other sizes. A one-line
+   "Slet …?" confirm shrink-wraps to its widest line between 300 and 480px. */
+.login-modal.site-modal-sm { width: min(400px, 94vw); }
+.login-modal.site-modal-md { width: min(560px, 94vw); }
+.login-modal.site-modal-lg { width: min(760px, 94vw); }
+.login-modal.site-modal-xl { width: min(1040px, 96vw); }
+
+.login-modal.site-confirm-modal {
   width: fit-content;
   min-width: min(300px, 85vw);
   max-width: min(480px, 92vw);
 }
 
-/* Reads as the modal's title, since deletePost/deleteComment drop the usual
-   h2 heading in favor of this one line — mirrors Kalender's
-   .cal-confirm-text (calendar.css). Scoped under .login-modal (not just
-   .post-confirm-text) so its specificity beats the plain ".login-modal p"
-   rule above, which would otherwise win the font-size/margin-bottom
-   tie-break. */
-.login-modal .post-confirm-text {
+/* A confirm built on siteOpenEditModal keeps its h2 as the title. */
+.login-modal.site-confirm-modal h2 {
+  text-align: center;
+}
+
+.login-modal .site-confirm-text {
   font-size: 1.05rem;
   font-weight: 600;
   color: var(--text);
@@ -2055,13 +2347,208 @@ body.site-menu-open {
   margin-bottom: 0.5rem;
 }
 
-/* The explanatory line below the title, in these same two dialogs. */
-.login-modal .post-confirm-sub {
+.login-modal .site-confirm-sub {
   color: var(--text-muted);
   font-size: 0.9rem;
   text-align: center;
   margin-bottom: 0.75rem;
 }
+
+/* --- Tabs (.site-tabs > .site-tab.active) --------------------------------
+   Flat tab bar with an amber underline on the chosen tab. .site-tabs-sub
+   is the smaller second-level bar (Masterplan's phases). On a phone the
+   bar scrolls sideways instead of squeezing the labels. */
+.site-tabs {
+  display: flex;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.site-tab {
+  flex: 1 1 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.6rem 1rem;
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.site-tabs-sub .site-tab {
+  padding: 0.6rem 0.75rem;
+  font-size: var(--fs-sm);
+}
+
+.site-tab.active {
+  color: var(--accent-warm-text);
+  border-bottom-color: var(--accent-warm-text);
+}
+
+@media (hover: hover) {
+  .site-tab:not(.active):hover {
+    color: var(--text);
+  }
+}
+
+.site-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius);
+}
+
+@media (max-width: 719px) {
+  .site-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .site-tab {
+    flex: 1 0 auto;
+    padding: 0.55rem 0.75rem;
+    font-size: var(--fs-sm);
+  }
+}
+
+/* --- Sheets (.site-sheet) ---------------------------------------------------
+   Spreadsheet-style editable tables: a line under every row and (with
+   .site-sheet-lines) between columns, muted 0.8rem headers, --surface-2
+   section/act rows. Inset box-shadow lines, never borders, so sticky
+   cells keep their lines and a drop highlight can't eat them. Long
+   sheets scroll with the page and siteStickyHead() (site-utils.js)
+   keeps the header row under the site header. */
+.site-sheet {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.site-sheet th,
+.site-sheet td {
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.site-sheet.site-sheet-lines th,
+.site-sheet.site-sheet-lines td {
+  box-shadow: inset 0 -1px 0 0 var(--border), inset -1px 0 0 0 var(--border);
+}
+
+/* A drag handle / trailing actions column (.site-sheet-noline) belongs
+   to its neighbour: no line on either side of it. */
+.site-sheet.site-sheet-lines .site-sheet-noline,
+.site-sheet.site-sheet-lines th:last-child,
+.site-sheet.site-sheet-lines td:last-child,
+.site-sheet.site-sheet-lines th:has(+ .site-sheet-noline),
+.site-sheet.site-sheet-lines td:has(+ .site-sheet-noline) {
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.site-sheet thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  vertical-align: bottom;
+  background: var(--surface);
+}
+
+.site-sheet .site-sheet-section > td,
+.site-sheet .site-sheet-section > th {
+  background: var(--surface-2);
+}
+
+/* The first column (and a drag handle before it) stays put while the
+   sheet scrolls sideways; the page sets each cell's `left`. */
+.site-sheet .site-sheet-sticky {
+  position: sticky;
+  z-index: 1;
+  background: var(--surface);
+}
+
+.site-sheet thead .site-sheet-sticky {
+  z-index: 3;
+}
+
+/* siteStickyHead(): header cells shifted down with a transform need a
+   solid background and to sit above the body (incl. a sticky column). */
+:where(thead.site-sticky-head th) {
+  position: relative;
+  z-index: 2;
+  background: var(--surface);
+}
+
+:where(.site-sticky-head:not(thead)) {
+  position: relative;
+  z-index: 2;
+  background: var(--surface);
+}
+
+/* --- Toolbar controls (.site-toolbar-control) --------------------------------
+   One size for the pickers and buttons in a page's toolbar or title row
+   (the revy picker, "Rediger", "Print", a year filter): 2rem tall,
+   0.85rem, the cream control fill. Goes on a .site-field-btn or .btn-small. */
+.site-field-btn.site-toolbar-control,
+.btn-small.site-toolbar-control {
+  width: auto;
+  height: 2rem;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: var(--fs-sm);
+  background: var(--input-bg);
+}
+
+.site-field-btn.site-toolbar-control {
+  min-width: 8rem;
+}
+
+@media (hover: hover) {
+  .btn-small.site-toolbar-control:not(.btn-small-danger):hover {
+    background: var(--accent-warm-fill);
+  }
+}
+
+/* --- Muted / hint / empty text --------------------------------------------- */
+.site-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.site-hint {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.site-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* --- Save status line (.site-save-status) -------------------------------
+   "Gemmer…" / "Gemmes automatisk · Gemt" (auto-save) or "Ikke gemt" /
+   "Gemt" (a Gem button): muted, amber while there's something unsaved,
+   red for an error. */
+.site-save-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.site-save-status.dirty {
+  color: var(--accent-warm-text);
+}
+
+.site-save-status.error {
+  color: var(--danger);
+}
+
+/* --- Selected states ---------------------------------------------------------
+   Orange = chosen, in two strengths: solid amber + white text for a
+   segmented toggle or a picker's chosen row (.site-segmented,
+   .site-list-selected, .site-dp-selected); a light amber fill + amber
+   text for a picked row in a longer list (Manus's Vælg scener, …). */
 
 /* --- Footer ---------------------------------------------- */
 .site-footer {
@@ -2084,7 +2571,7 @@ body.site-menu-open {
   padding: 0.65rem 1.2rem;
   border-radius: 8px;
   font-size: 0.9rem;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  box-shadow: var(--shadow-toast);
   opacity: 0;
   transition: opacity 0.2s ease, transform 0.2s ease;
   z-index: 300;
@@ -2115,7 +2602,7 @@ body.site-menu-open {
   background: var(--accent-warm-fill);
   color: var(--accent-warm-text);
   font-size: 0.9rem;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-toast);
   z-index: 120;
 }
 .site-stale-text { flex: 1 1 auto; }
@@ -2135,7 +2622,7 @@ body.site-menu-open {
 @media (hover: hover) {
   .site-stale-close:hover { opacity: 1; }
 }
-.site-stale-close:focus-visible { opacity: 1; outline: 2px solid var(--accent-warm-ring); }
+.site-stale-close:focus-visible { opacity: 1; outline: none; box-shadow: var(--focus-ring); }
 @media print {
   .site-stale-banner { display: none !important; }
 }

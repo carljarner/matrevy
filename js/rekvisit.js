@@ -43,7 +43,7 @@ function rekvisitPillBtn(label, variant) {
 }
 
 function rekvisitAddPlusBtn(title) {
-  const btn = el('button', 'boss-manage-add-plus', '+');
+  const btn = el('button', 'site-icon-btn site-add-plus', '+');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -51,7 +51,7 @@ function rekvisitAddPlusBtn(title) {
 }
 
 function rekvisitRemoveBtn(title) {
-  const btn = el('button', 'rekvisit-remove-btn', '✕');
+  const btn = el('button', 'site-icon-btn site-icon-btn-danger', '✕');
   btn.type = 'button';
   btn.title = title;
   btn.setAttribute('aria-label', title);
@@ -285,7 +285,7 @@ function rekvisitRenderPicker() {
   const options = rekvisitRevyOptions();
   if (!options.length) { mount.replaceChildren(); return; }
   const picker = siteCreateDropdownField(options.map(({ value, label }) => ({ value, label })), rekvisitFolder);
-  picker.classList.add('rekvisit-revy-select');
+  picker.classList.add('site-toolbar-control', 'rekvisit-revy-select');
   picker.setAttribute('aria-label', 'Vælg revy');
   picker.addEventListener('change', () => {
     if (picker.value === rekvisitFolder) return;
@@ -314,12 +314,12 @@ async function rekvisitLoad() {
   rekvisitUpdateEditNote();
   if (!rekvisitFolder) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'rekvisit-muted', 'Der er ingen revyer endnu.'));
+    card.appendChild(el('p', 'site-muted', 'Der er ingen revyer endnu.'));
     root.replaceChildren(card);
     return;
   }
   const seq = ++rekvisitLoadSeq;
-  if (!rekvisitSheets) root.replaceChildren(el('p', 'rekvisit-muted', 'Indlæser…'));
+  if (!rekvisitSheets) root.replaceChildren(el('p', 'site-muted', 'Indlæser…'));
   const result = await rekvisitApi('rekvisit_read', {});
   // A slower read for a revy you've since switched away from is dropped.
   if (seq !== rekvisitLoadSeq) return;
@@ -360,12 +360,13 @@ function rekvisitRender() {
   const head = el('div', 'rekvisit-card-head');
   const note = rekvisitBuildNote();
   if (note) head.appendChild(note);
-  if (!canEdit) head.appendChild(el('p', 'rekvisit-muted rekvisit-note', 'Tidligere år kan kun redigeres af bosser.'));
+  if (!canEdit) head.appendChild(el('p', 'site-muted rekvisit-note', 'Tidligere år kan kun redigeres af bosser.'));
   if (def.totalProgress) head.appendChild(rekvisitBuildTotalProgress());
   if (head.childNodes.length) card.appendChild(head);
 
   const wrap = el('div', 'rekvisit-table-wrap');
-  wrap.appendChild(rekvisitBuildSheetTable(canEdit));
+  const sheet = rekvisitBuildSheetTable(canEdit);
+  wrap.appendChild(sheet);
   card.appendChild(wrap);
   if (def.rows && canEdit) {
     const addRow = rekvisitAddPlusBtn('Tilføj række');
@@ -375,15 +376,15 @@ function rekvisitRender() {
   }
   root.appendChild(card);
   rekvisitRefreshTotalProgress();
-  rekvisitSyncStickyHead();
+  // The header rows follow the page down a long sheet.
+  siteStickyHead(sheet.tHead);
 }
 
-// Styled like Ninjas' page tabs (.ninjas-mode-tabs, duplicated as
-// .rekvisit-mode-tabs in rekvisit.css).
+// The shared tab bar (.site-tabs, style.css).
 function rekvisitRenderTabs(root) {
-  const tabs = el('div', 'rekvisit-mode-tabs');
+  const tabs = el('div', 'site-tabs');
   for (const tab of REKVISIT_TABS) {
-    const btn = el('button', 'rekvisit-mode-tab' + (tab.key === rekvisitActiveTab ? ' active' : ''), tab.label);
+    const btn = el('button', 'site-tab' + (tab.key === rekvisitActiveTab ? ' active' : ''), tab.label);
     btn.type = 'button';
     btn.addEventListener('click', () => {
       if (tab.key === rekvisitActiveTab) return;
@@ -542,7 +543,7 @@ function rekvisitPaintDayCell(td, text) {
 
 function rekvisitOpenAddDayModal() {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Tilføj dag');
-  modal.classList.add('rekvisit-column-modal');
+  modal.classList.add('site-modal-sm');
   const dateField = siteCreateDateField(todayIso());
   form.appendChild(siteEditField('Dato', dateField));
   const titleInput = document.createElement('input');
@@ -659,10 +660,10 @@ function rekvisitBuildNote() {
   const tab = rekvisitActiveTab;
   if (!(typeof siteHasLevel === 'function' && siteHasLevel('boss'))) {
     const text = rekvisitNoteText(tab);
-    return text ? el('p', 'rekvisit-muted rekvisit-note', text) : null;
+    return text ? el('p', 'site-muted rekvisit-note', text) : null;
   }
   const input = document.createElement('textarea');
-  input.className = 'rekvisit-field rekvisit-muted rekvisit-note rekvisit-note-input';
+  input.className = 'site-inline-field rekvisit-field site-muted rekvisit-note rekvisit-note-input';
   input.rows = 1;
   input.maxLength = 300;
   input.value = rekvisitNoteText(tab);
@@ -697,7 +698,7 @@ function rekvisitBuildNote() {
 // and the other columns don't shift to absorb it.
 function rekvisitBuildSheetTable(canEdit) {
   const def = rekvisitDef();
-  const table = el('table', 'rekvisit-table');
+  const table = el('table', 'rekvisit-table site-sheet site-sheet-lines');
   const colgroup = el('colgroup');
   const cols = {};
   const addCol = (key, width) => {
@@ -718,7 +719,7 @@ function rekvisitBuildSheetTable(canEdit) {
   const thead = el('thead');
   if (def.groups) thead.appendChild(rekvisitBuildGroupRow(columns, withHandle, withActions));
   const headRow = el('tr');
-  if (withHandle) headRow.appendChild(rekvisitStickyCell(el('th', 'rekvisit-col-handle'), 0));
+  if (withHandle) headRow.appendChild(rekvisitStickyCell(el('th', 'rekvisit-col-handle site-sheet-noline'), 0));
   for (const col of columns) {
     const th = el('th', rekvisitCellClass(col, 'rekvisit-col-resizable'));
     rekvisitMaybeSticky(th, col, columns, withHandle);
@@ -736,7 +737,7 @@ function rekvisitBuildSheetTable(canEdit) {
     headRow.appendChild(th);
   }
   if (withActions) {
-    const addTh = el('th', 'rekvisit-col-actions');
+    const addTh = el('th', 'rekvisit-col-actions site-sheet-noline');
     if (def.days) {
       const addDay = rekvisitAddPlusBtn('Tilføj dag');
       addDay.addEventListener('click', rekvisitOpenAddDayModal);
@@ -760,7 +761,7 @@ function rekvisitBuildSheetTable(canEdit) {
   table.appendChild(tbody);
   if (!rows.length && !def.rows) {
     const tr = el('tr');
-    const td = el('td', 'rekvisit-muted rekvisit-empty', 'Ingen rekvisitter endnu.');
+    const td = el('td', 'site-muted rekvisit-empty', 'Ingen rekvisitter endnu.');
     td.colSpan = columns.length;
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -785,40 +786,12 @@ function rekvisitBuildSheetTable(canEdit) {
   return table;
 }
 
-// ── Header rows that follow the page ─────────────────────────
-// The wrap scrolls sideways (overflow-x), which would make CSS sticky
-// stick to the wrap rather than the page; so the header cells are shifted
-// down with a transform instead, keeping them just under the site header
-// while the table is on screen. No fixed height, no inner vertical scroll.
-let rekvisitStickyFrame = 0;
-
-function rekvisitSyncStickyHead() {
-  rekvisitStickyFrame = 0;
-  const table = document.querySelector('.rekvisit-table');
-  const thead = table && table.tHead;
-  if (!thead) return;
-  const cells = thead.querySelectorAll('th');
-  const header = document.querySelector('.site-header');
-  const top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
-  // Measured without the current shift.
-  const tableRect = table.getBoundingClientRect();
-  const headHeight = thead.getBoundingClientRect().height;
-  const foot = table.tFoot ? table.tFoot.getBoundingClientRect().height : 0;
-  const max = Math.max(0, tableRect.height - headHeight - foot);
-  const offset = Math.round(Math.min(max, Math.max(0, top - tableRect.top)));
-  const transform = offset ? `translateY(${offset}px)` : '';
-  for (const th of cells) th.style.transform = transform;
-  thead.classList.toggle('rekvisit-head-floating', offset > 0);
-}
-
-function rekvisitScheduleStickyHead() {
-  if (!rekvisitStickyFrame) rekvisitStickyFrame = requestAnimationFrame(rekvisitSyncStickyHead);
-}
-
-// The first column (and the drag handle before it) stays put while the
-// sheet scrolls sideways, like Fællesspisning's Navn.
+// ── Sticky cells ─────────────────────────────────────────────
+// The header rows follow the page (siteStickyHead() in site-utils.js);
+// the first column (and the drag handle before it) stays put while the
+// sheet scrolls sideways (.site-sheet-sticky).
 function rekvisitStickyCell(cell, left) {
-  cell.classList.add('rekvisit-col-sticky');
+  cell.classList.add('site-sheet-sticky');
   cell.style.left = `${left}px`;
   return cell;
 }
@@ -908,7 +881,7 @@ function rekvisitDayHead(col, canEdit) {
   wrap.appendChild(label);
   if (canEdit) {
     const remove = rekvisitRemoveBtn(`Fjern ${col.label}`);
-    remove.classList.add('rekvisit-day-remove');
+    remove.classList.add('site-icon-btn-sm');
     remove.addEventListener('click', () => rekvisitRemoveDay(col));
     wrap.appendChild(remove);
   }
@@ -920,7 +893,7 @@ function rekvisitDayHead(col, canEdit) {
 function rekvisitCreateTextInput(row, key, tr, canEdit, dayDate) {
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'rekvisit-field';
+  input.className = 'site-inline-field rekvisit-field';
   input.dataset.key = key;
   const read = () => (dayDate ? (row.days[dayDate] || '') : (row[key] || ''));
   input.value = read();
@@ -1118,7 +1091,7 @@ function rekvisitRenderRow(row, columns, canEdit) {
   const tr = el('tr', 'rekvisit-row');
   tr._row = row;
   if (def.rows && canEdit) {
-    const handleTd = rekvisitStickyCell(el('td', 'rekvisit-col-handle'), 0);
+    const handleTd = rekvisitStickyCell(el('td', 'rekvisit-col-handle site-sheet-noline'), 0);
     const handle = el('span', 'boss-manage-drag-handle rekvisit-drag-handle', '⠿');
     handle.title = 'Træk for at flytte';
     handleTd.appendChild(handle);
@@ -1146,7 +1119,7 @@ function rekvisitRenderRow(row, columns, canEdit) {
     tr.appendChild(td);
   }
   if (canEdit && (def.rows || def.custom || def.days)) {
-    const actions = el('td', 'rekvisit-col-actions');
+    const actions = el('td', 'rekvisit-col-actions site-sheet-noline');
     if (def.rows) {
       const removeBtn = rekvisitRemoveBtn('Slet række');
       removeBtn.addEventListener('click', () => rekvisitDeleteRow(row, tr));
@@ -1232,8 +1205,8 @@ function rekvisitDeleteRow(row, tr) {
 // open (e.g. on a failed request).
 function rekvisitConfirm(title, description, confirmLabel, onConfirm) {
   const { modal, form, error, actions, close } = siteOpenEditModal(title);
-  modal.classList.add('rekvisit-confirm-modal');
-  if (description) form.appendChild(el('p', 'rekvisit-confirm-text', description));
+  modal.classList.add('site-confirm-modal');
+  if (description) form.appendChild(el('p', 'site-confirm-sub', description));
   const cancelBtn = rekvisitPillBtn('Annuller');
   cancelBtn.addEventListener('click', close);
   const confirmBtn = rekvisitPillBtn(confirmLabel, 'site-btn-danger');
@@ -1432,7 +1405,7 @@ function rekvisitRemoveColumn(col) {
 function rekvisitOpenAddColumnModal() {
   const doc = rekvisitTabDoc();
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Tilføj kolonne');
-  modal.classList.add('rekvisit-column-modal');
+  modal.classList.add('site-modal-sm');
   const hidden = rekvisitDef().columns.filter((c) => doc.hiddenColumns.includes(c.key));
 
   let pick = null;
@@ -1535,7 +1508,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) return;
   if (typeof siteIsFileProtocol === 'function' && siteIsFileProtocol()) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'rekvisit-muted', 'Rekvisitten kræver forbindelse til serveren og virker ikke offline.'));
+    card.appendChild(el('p', 'site-muted', 'Rekvisitten kræver forbindelse til serveren og virker ikke offline.'));
     root.replaceChildren(card);
     return;
   }
@@ -1547,7 +1520,5 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rekvisitPending > 0) { e.preventDefault(); e.returnValue = ''; }
   });
   if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(() => rekvisitPending > 0);
-  window.addEventListener('scroll', rekvisitScheduleStickyHead, { passive: true });
-  window.addEventListener('resize', rekvisitScheduleStickyHead);
   rekvisitLoad();
 });

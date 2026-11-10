@@ -1043,3 +1043,131 @@ function siteCreateDropdownField(options, initialValue, placeholder) {
   });
   return btn;
 }
+
+// ── Sticky sheet header ──────────────────────────────────────
+// A long sheet scrolls with the page, and its header row follows it down
+// so the column titles stay under the site header. The sheet's wrapper
+// scrolls sideways (overflow-x), which rules out CSS `position: sticky;
+// top`, so each header cell is shifted with a transform instead (once per
+// animation frame on scroll/resize), clamped to the sheet's own height.
+// `head` is a <thead> (its <th> cells move) or any other element, e.g. a
+// div grid's header row (moves as a whole); `container` is what it may not
+// leave (default: its table, else its parent). Call it after every render;
+// heads that left the page are dropped on the next sync.
+const siteStickyHeads = new Map();
+let siteStickyFrame = 0;
+let siteStickyWired = false;
+
+function siteStickyHead(head, container) {
+  if (!head) return;
+  head.classList.add('site-sticky-head');
+  siteStickyHeads.set(head, container || head.closest('table') || head.parentElement);
+  if (!siteStickyWired) {
+    siteStickyWired = true;
+    window.addEventListener('scroll', siteScheduleStickyHeads, { passive: true });
+    window.addEventListener('resize', siteScheduleStickyHeads);
+  }
+  siteScheduleStickyHeads();
+}
+
+function siteScheduleStickyHeads() {
+  if (!siteStickyFrame) siteStickyFrame = requestAnimationFrame(siteSyncStickyHeads);
+}
+
+function siteSyncStickyHeads() {
+  siteStickyFrame = 0;
+  const header = document.querySelector('.site-header');
+  const top = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
+  for (const [head, container] of siteStickyHeads) {
+    if (!head.isConnected) { siteStickyHeads.delete(head); continue; }
+    const cells = head.tagName === 'THEAD' ? head.querySelectorAll('th') : [head];
+    // Measured without the current shift.
+    const box = container.getBoundingClientRect();
+    const headHeight = head.getBoundingClientRect().height;
+    const foot = container.tFoot ? container.tFoot.getBoundingClientRect().height : 0;
+    const max = Math.max(0, box.height - headHeight - foot);
+    const offset = Math.round(Math.min(max, Math.max(0, top - box.top)));
+    const transform = offset ? `translateY(${offset}px)` : '';
+    for (const cell of cells) cell.style.transform = transform;
+    head.classList.toggle('site-sticky-floating', offset > 0);
+  }
+}
+
+// ── Collapsible header row ───────────────────────────────────
+// The shared .site-collapse toggle (style.css): <tag class=
+// "site-collapse-heading"><button class="site-collapse" aria-expanded>
+// <span class="site-chevron">▾</span><span>title</span></button></tag>.
+// The whole row is the click target; the chevron rotates via
+// aria-expanded. `body` (optional) is hidden while collapsed;
+// onToggle(open) runs after each click (e.g. to remember the state).
+// `title` may be a string or a node (e.g. a title with a count beside it).
+function siteCollapseHeading(tag, title, { open = true, body = null, onToggle = null, className = '' } = {}) {
+  const heading = document.createElement(tag);
+  heading.className = 'site-collapse-heading' + (className ? ` ${className}` : '');
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'site-collapse';
+  const chevron = document.createElement('span');
+  chevron.className = 'site-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.textContent = '▾';
+  const label = document.createElement('span');
+  label.className = 'site-collapse-title';
+  if (typeof title === 'string') label.textContent = title;
+  else if (title) label.appendChild(title);
+  button.append(chevron, label);
+  heading.appendChild(button);
+  let isOpen = open;
+  const apply = () => {
+    button.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    if (body) body.hidden = !isOpen;
+  };
+  button.addEventListener('click', () => {
+    isOpen = !isOpen;
+    apply();
+    if (onToggle) onToggle(isOpen);
+  });
+  apply();
+  return { heading, button };
+}
+
+// ── Edit-mode toggle (pencil → check) ────────────────────────
+// The card-head button that turns a card's in-place editing on and off
+// (CLAUDE.md "Site-wide components"): a pencil while reading, an amber
+// check mark while editing. `editing` picks the icon; onClick decides
+// what a click does (enter edit mode, or save and leave it). Labels are
+// the tooltip/aria-label.
+function siteIcon(size, strokeWidth, paths) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', strokeWidth);
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of paths) {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
+}
+
+function siteEditToggle(editing, onClick, { editLabel = 'Rediger', doneLabel = 'Færdig' } = {}) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-icon-btn site-edit-toggle' + (editing ? ' site-icon-on' : '');
+  const label = editing ? doneLabel : editLabel;
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.setAttribute('aria-pressed', editing ? 'true' : 'false');
+  btn.appendChild(editing
+    ? siteIcon('16', '1.6', ['M3 8.5l3.2 3.2L13 5'])
+    : siteIcon('15', '1.3', ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']));
+  btn.addEventListener('click', onClick);
+  return btn;
+}

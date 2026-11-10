@@ -283,7 +283,7 @@ function renderListView(container) {
       actionsWrap.className = 'cal-list-actions';
       const editBtn = document.createElement('button');
       editBtn.type = 'button';
-      editBtn.className = 'cal-list-edit-btn';
+      editBtn.className = 'site-icon-btn cal-list-edit-btn';
       editBtn.setAttribute('aria-label', 'Rediger begivenhed');
       editBtn.appendChild(calPencilIcon());
       editBtn.addEventListener('click', () => openEventEditor(ev));
@@ -601,17 +601,17 @@ function openEventEditor(existing) {
 // save leaves just this overlay closed and the editor still open beneath it.
 function openDeleteConfirm(ev, onDeleted) {
   const { modal, form, error, actions, close } = siteOpenEditModal('');
-  modal.classList.add('cal-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'cal-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = `Slet "${ev.title}"?`;
   form.appendChild(info);
 
   const sub = document.createElement('p');
-  sub.className = 'cal-confirm-sub';
+  sub.className = 'site-confirm-sub';
   sub.textContent = 'Dette kan ikke fortrydes.';
   form.appendChild(sub);
 
@@ -856,13 +856,10 @@ function renderGantt() {
     head.appendChild(title);
   }
   if (canEdit) {
-    // One button in and out of edit mode — every change saves on its own,
-    // so "Færdig" only waits for the last save (staying put if it failed).
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className = 'btn-small gantt-edit-btn';
-    editBtn.textContent = editing ? 'Færdig' : 'Rediger';
-    editBtn.addEventListener('click', async () => {
+    // One button in and out of edit mode (pencil → check, siteEditToggle) —
+    // every change saves on its own, so the check mark only waits for the
+    // last save (staying put if it failed).
+    const editBtn = siteEditToggle(editing, async () => {
       if (!editing) {
         ganttDraft = structuredClone(getEffectiveGantt());
         ganttError = '';
@@ -880,7 +877,8 @@ function renderGantt() {
       } else {
         editBtn.disabled = false;
       }
-    });
+    }, { editLabel: 'Rediger revyperioden' });
+    editBtn.classList.add('gantt-edit-btn');
     head.appendChild(editBtn);
   }
   card.appendChild(head);
@@ -979,7 +977,7 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'gantt-label-input';
+    input.className = 'site-inline-field gantt-label-input';
     input.value = row.title;
     input.maxLength = 200;
     input.setAttribute('aria-label', 'Sektionens navn');
@@ -991,7 +989,7 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
 
     const addBar = document.createElement('button');
     addBar.type = 'button';
-    addBar.className = 'boss-manage-add-plus';
+    addBar.className = 'site-icon-btn site-add-plus';
     addBar.textContent = '+';
     addBar.title = 'Tilføj periode';
     addBar.setAttribute('aria-label', 'Tilføj periode');
@@ -1000,7 +998,7 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
 
     const remove = document.createElement('button');
     remove.type = 'button';
-    remove.className = 'boss-edit-remove';
+    remove.className = 'site-icon-btn site-icon-btn-danger';
     remove.textContent = '✕';
     remove.title = 'Fjern sektion';
     remove.setAttribute('aria-label', 'Fjern sektion');
@@ -1072,7 +1070,7 @@ function ganttBuildRow(row, idx, win, months, todayPct, editing) {
 function ganttBuildYearInput() {
   const input = document.createElement('input');
   input.type = 'number';
-  input.className = 'gantt-year-input';
+  input.className = 'site-inline-field gantt-year-input';
   input.min = '1900';
   input.max = '2100';
   input.value = String(ganttDraft.year);
@@ -1103,16 +1101,16 @@ function ganttShiftIsoYear(iso, delta) {
 
 function ganttOpenShiftYearConfirm(prev, next) {
   const { modal, form, actions, close } = siteOpenEditModal('');
-  modal.classList.add('cal-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'cal-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = `Flyt alle perioder til ${next}?`;
   form.appendChild(info);
   const sub = document.createElement('p');
-  sub.className = 'cal-confirm-sub';
+  sub.className = 'site-confirm-sub';
   sub.textContent = `Ellers beholder de deres datoer i ${prev} og vises ikke i ${next}.`;
   form.appendChild(sub);
 
@@ -1150,16 +1148,16 @@ function ganttRemoveRow(row) {
     return;
   }
   const { modal, form, actions, close } = siteOpenEditModal('');
-  modal.classList.add('cal-confirm-modal');
+  modal.classList.add('site-confirm-modal');
   const heading = modal.querySelector('h2');
   if (heading) heading.remove();
 
   const info = document.createElement('p');
-  info.className = 'cal-confirm-text';
+  info.className = 'site-confirm-text';
   info.textContent = `Fjern "${row.title || 'sektion'}"?`;
   form.appendChild(info);
   const sub = document.createElement('p');
-  sub.className = 'cal-confirm-sub';
+  sub.className = 'site-confirm-sub';
   sub.textContent = 'Sektionen og alle dens perioder fjernes.';
   form.appendChild(sub);
 
@@ -1275,7 +1273,7 @@ function ganttBuildEditFooter() {
   addWrap.className = 'gantt-add-row-wrap';
   const addRow = document.createElement('button');
   addRow.type = 'button';
-  addRow.className = 'boss-manage-add-plus';
+  addRow.className = 'site-icon-btn site-add-plus';
   addRow.textContent = '+';
   addRow.title = 'Tilføj sektion';
   addRow.setAttribute('aria-label', 'Tilføj sektion');
@@ -1311,13 +1309,13 @@ function calBuildSaveStatus(id, state, error) {
 
 function calPaintSaveStatus(el, state, error) {
   if (!el) return;
-  el.className = 'gantt-save-status';
+  el.className = 'site-save-status gantt-save-status';
   if (state === 'saving') el.textContent = 'Gemmer…';
-  else if (state === 'saved') el.textContent = 'Gemt';
+  else if (state === 'saved') el.textContent = 'Gemmes automatisk · Gemt';
   else if (state === 'error') {
     el.textContent = error ? `Ikke gemt: ${error}` : 'Ikke gemt';
-    el.classList.add('gantt-save-status-error');
-  } else el.textContent = '';
+    el.classList.add('error');
+  } else el.textContent = 'Gemmes automatisk';
 }
 
 // Saves the draft as it is right now. No re-render on success: the draft
@@ -1487,12 +1485,8 @@ function renderRevyugen() {
     head.appendChild(revyugenBuildLegend());
   }
   if (canEdit) {
-    // Same Rediger/Færdig toggle as the Gantt card (see renderGantt).
-    const editBtn = document.createElement('button');
-    editBtn.type = 'button';
-    editBtn.className = 'btn-small gantt-edit-btn';
-    editBtn.textContent = editing ? 'Færdig' : 'Rediger';
-    editBtn.addEventListener('click', async () => {
+    // Same pencil → check toggle as the Gantt card (see renderGantt).
+    const editBtn = siteEditToggle(editing, async () => {
       if (!editing) {
         revyugenDraft = structuredClone(getEffectiveRevyugen());
         revyugenDraft.endDate = revyugenEndDate(revyugenDraft);
@@ -1511,7 +1505,8 @@ function renderRevyugen() {
       } else {
         editBtn.disabled = false;
       }
-    });
+    }, { editLabel: 'Rediger revyugen' });
+    editBtn.classList.add('gantt-edit-btn');
     head.appendChild(editBtn);
   }
   card.appendChild(head);

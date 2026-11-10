@@ -79,7 +79,7 @@
 
 .wiki-chapter-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: var(--disabled-opacity);
 }
 
 /* Revyst-level view: an unpublished chapter (js/wiki.js's `locked`) —
@@ -88,7 +88,7 @@
    a "not written yet" toast instead of opening the chapter). */
 .wiki-chapter-btn.wiki-chapter-locked {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: var(--disabled-opacity);
 }
 
 @media (hover: hover) {
@@ -133,14 +133,14 @@
   border-radius: 6px;
   padding: 0.3rem 0.7rem 0.3rem 1.25rem;
   font-family: inherit;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
   cursor: pointer;
 }
 
 .wiki-outline-item:disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: var(--disabled-opacity);
 }
 
 @media (hover: hover) {
@@ -208,8 +208,8 @@
   left: 0;
   right: 0;
   top: -0.3rem;
-  height: 3px;
-  border-radius: 2px;
+  height: 2px;
+  border-radius: 1px;
   background: transparent;
   transition: background-color 0.15s;
   pointer-events: none;
@@ -262,41 +262,14 @@
   white-space: nowrap;
 }
 
-/* Per-row "Synlig for revyster" toggle — an open/closed eye icon button,
-   same square icon-button chrome as budget.js's .budget-icon-btn (that
-   file isn't loaded on this page, per the per-feature duplication
-   convention documented in CLAUDE.md). */
-.wiki-manage-publish-toggle {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.8rem;
-  height: 1.8rem;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-/* :not(.wiki-manage-publish-toggle-readonly), not :not(:disabled) — the
-   button is deliberately never actually `disabled` (see openManageChapters-
-   Modal's own comment: a disabled button can't fire click at all, which
-   would leave a boss's click on it giving no feedback), so hover/focus
-   styling has to be gated on the readonly class instead. */
+/* Per-row "Synlig for revyster" toggle — an open/closed eye icon
+   (.site-icon-btn). The button is deliberately never actually `disabled`
+   (a disabled button can't fire click, which would leave a boss's click
+   giving no feedback), so the readonly look is a class instead. */
 @media (hover: hover) {
-  .wiki-manage-publish-toggle:not(.wiki-manage-publish-toggle-readonly):hover {
-    background: var(--accent-warm-fill);
-    color: var(--accent-warm-text);
+  .wiki-manage-publish-toggle.wiki-manage-publish-toggle-readonly:hover {
+    color: var(--text-muted);
   }
-}
-
-.wiki-manage-publish-toggle:not(.wiki-manage-publish-toggle-readonly):focus-visible {
-  outline: none;
-  background: var(--accent-warm-fill);
-  color: var(--accent-warm-text);
 }
 
 /* Boss (not admin) still sees each chapter's publish state but can't
@@ -316,7 +289,7 @@
   max-width: 320px;
   background: var(--header);
   color: var(--surface);
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   line-height: 1.35;
   padding: 0.4rem 0.6rem;
   border-radius: 6px;
@@ -447,23 +420,11 @@
 }
 
 /* --- In-place edit view --------------------------------------- */
+/* The chapter title is a .site-inline-field (style.css). */
 .wiki-edit-title-input {
   font-size: 1.3rem;
   font-weight: 600;
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: 6px;
   padding: 0.2rem 0.4rem;
-  background: transparent;
-  font-family: inherit;
-  color: var(--text);
-}
-
-.wiki-edit-title-input:focus {
-  outline: none;
-  border-color: var(--accent-warm);
-  background: var(--input-bg);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
 }
 
 .wiki-toolbar {
@@ -525,7 +486,7 @@
 .wiki-edit-body:focus {
   outline: none;
   border-color: var(--accent-warm);
-  box-shadow: 0 0 0 2px var(--accent-warm-ring);
+  box-shadow: var(--focus-ring);
 }
 
 .wiki-edit-body p {
@@ -614,20 +575,6 @@
   white-space: nowrap;
 }
 
-.wiki-edit-attachment-remove {
-  flex: none;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.2rem;
-  border-radius: 6px;
-}
-
-@media (hover: hover) {
-  .wiki-edit-attachment-remove:hover { color: var(--danger); }
-}
-
 .wiki-edit-attachment-add {
   margin-top: 0.3rem;
 }
@@ -637,35 +584,6 @@
 .wiki-edit-divider {
   border-top: 1px solid var(--border);
   margin-top: 1rem;
-}
-
-/* --- Delete-chapter confirm overlay ---------------------------
-   Mirrors Kalender's .cal-confirm-modal/.cal-confirm-text (calendar.css)
-   and Forside's .post-confirm-modal/.post-confirm-text (style.css) — the
-   shared "Er du sikker?" redesign: openDeleteChapterConfirm drops the
-   usual h2 heading in favor of this one bold centered line. Width is the
-   shared one-liner delete-confirm formula — see .post-confirm-modal
-   (style.css) for the full rationale. */
-.wiki-confirm-modal {
-  width: fit-content;
-  min-width: min(300px, 85vw);
-  max-width: min(480px, 92vw);
-}
-
-.login-modal .wiki-confirm-text {
-  font-size: 1.05rem;
-  font-weight: 600;
-  color: var(--text);
-  text-align: center;
-  margin-bottom: 0.5rem;
-}
-
-/* The explanatory line below the title. */
-.login-modal .wiki-confirm-sub {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  text-align: center;
-  margin-bottom: 0.75rem;
 }
 
 @media (max-width: 719px) {

@@ -275,7 +275,7 @@ function stjernePaintStatus(state, message) {
   stjerneStatusEl.textContent = state === 'saving' ? 'Gemmer…'
     : state === 'error' ? (message || 'Ikke gemt')
       : 'Gemmes automatisk · Gemt';
-  stjerneStatusEl.classList.toggle('stjerne-status-error', state === 'error');
+  stjerneStatusEl.classList.toggle('error', state === 'error');
 }
 
 const stjerneAutosave = siteCreateAutosave({
@@ -422,7 +422,7 @@ function stjerneNoteCell(row, editable) {
   sizer.className = 'stjerne-note-sizer';
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'stjerne-note';
+  input.className = 'site-inline-field stjerne-note';
   input.maxLength = STJERNE_NOTE_MAX;
   input.value = row.values.stjerneNote || '';
   input.setAttribute('aria-label', 'Kommentar');
@@ -451,7 +451,7 @@ function stjerneRender() {
 
   const empty = (text) => {
     const p = document.createElement('p');
-    p.className = 'stjerne-empty';
+    p.className = 'site-empty stjerne-empty';
     p.textContent = text;
     card.appendChild(p);
   };
@@ -463,7 +463,7 @@ function stjerneRender() {
   const editable = stjerneCanEdit();
   if (editable) {
     stjerneStatusEl = document.createElement('p');
-    stjerneStatusEl.className = 'stjerne-status';
+    stjerneStatusEl.className = 'site-save-status stjerne-status';
     card.appendChild(stjerneStatusEl);
     stjernePaintStatus('saved');
   }
@@ -472,7 +472,7 @@ function stjerneRender() {
   const wrap = document.createElement('div');
   wrap.className = 'stjerne-scroll';
   const table = document.createElement('table');
-  table.className = 'stjerne-table';
+  table.className = 'stjerne-table site-sheet site-sheet-lines';
 
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
@@ -493,7 +493,7 @@ function stjerneRender() {
   const tbody = document.createElement('tbody');
   for (const g of stjerneGroups) {
     const actTr = document.createElement('tr');
-    actTr.className = 'stjerne-act-row';
+    actTr.className = 'stjerne-act-row site-sheet-section';
     const actTd = document.createElement('td');
     actTd.colSpan = columnCount;
     const actLabel = document.createElement('span');
@@ -528,6 +528,8 @@ function stjerneRender() {
   table.appendChild(tbody);
   wrap.appendChild(table);
   card.appendChild(wrap);
+  // The header row follows the page down the sheet.
+  siteStickyHead(thead);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
