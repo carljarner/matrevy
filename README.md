@@ -22,6 +22,7 @@ Plain HTML/CSS/JS with one PHP file as the write API. There's no framework and n
 | Rekvisitten (under "Redskaber") | `rekvisitten.html` | Revyst; the prop crew's sheets per revy (Rekvisitter, Hvem hvornår?, Indkøbsliste, Brændimprenering, Regnskab) |
 | Teknikken (under "Redskaber") | `teknikken.html` | Revyst; under udvikling |
 | Lydfiler (under "Redskaber") | `lydfiler.html` | Revyst; practice audio for the singers, deleted after the revy |
+| Program (under "Redskaber") | `program.html` | Revyst; scratch copy of the programme's Medvirkende and Ordliste (bosses copy changes into Manus by hand) |
 | Koordinator | `koordinator.html` | Admin |
 
 There are four levels: public, revyst, boss and admin. Each level beyond public has a shared password, handed out verbally. Logging in happens top right.

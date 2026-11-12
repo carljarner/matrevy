@@ -123,6 +123,11 @@
 
 .rekvisit-table thead th.rekvisit-in-group-instr { box-shadow: inset 0 -2px 0 0 #7fa9d8, inset -1px 0 0 0 var(--border); }
 .rekvisit-table thead th.rekvisit-in-group-rekv { box-shadow: inset 0 -2px 0 0 #d2ac5c, inset -1px 0 0 0 var(--border); }
+/* The last title (Status) has no line on its right (style.css's
+   :last-child / :has(+ .site-sheet-noline) rule), which would otherwise
+   also drop its coloured underline. */
+.rekvisit-table.site-sheet-lines thead th.rekvisit-in-group-instr:is(:last-child, :has(+ .site-sheet-noline)) { box-shadow: inset 0 -2px 0 0 #7fa9d8; }
+.rekvisit-table.site-sheet-lines thead th.rekvisit-in-group-rekv:is(:last-child, :has(+ .site-sheet-noline)) { box-shadow: inset 0 -2px 0 0 #d2ac5c; }
 
 /* Boss/admin rename a band in place (rekvisitGroupTitleInput). */
 .rekvisit-group-input {
@@ -202,6 +207,39 @@
 .rekvisit-drag-handle {
   user-select: none;
 }
+
+.rekvisit-drag-handle:focus-visible {
+  outline: none;
+  border-radius: var(--radius);
+  box-shadow: var(--focus-ring);
+}
+
+/* --- Row colours (Rekvisitter; picked from the drag handle) --------- */
+/* Opaque, and specific enough to beat .site-sheet-sticky's background, so
+   the sticky first column takes the colour too. */
+.rekvisit-table tr.rekvisit-row-color-green > td { background: var(--success-tint); }
+.rekvisit-table tr.rekvisit-row-color-orange > td { background: var(--warning-tint); }
+.rekvisit-table tr.rekvisit-row-color-red > td { background: var(--danger-tint); }
+
+.rekvisit-color-pop { width: min(11rem, calc(100vw - 1rem)); }
+
+.rekvisit-color-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.rekvisit-color-swatch {
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.rekvisit-color-swatch-green { background: var(--success-tint); }
+.rekvisit-color-swatch-orange { background: var(--warning-tint); }
+.rekvisit-color-swatch-red { background: var(--danger-tint); }
+.rekvisit-color-swatch-none { background: var(--surface); }
 
 /* Cells are .site-inline-field (style.css). Column titles are editable,
    styled like plain header labels. */

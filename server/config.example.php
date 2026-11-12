@@ -114,3 +114,9 @@ define('SANGERE_DATA_DIR', '/absolute/path/to/matrevy-sangere-data');
 // YouTube, Spotify: e-mail, password, phone). Secret: never a web-served
 // folder, admin-only actions. Layout: logins.json, created on first save.
 define('KOORD_DATA_DIR', '/absolute/path/to/matrevy-koordinator-data');
+
+// Absolute path on the server for the Program page's scratch copy of
+// Medvirkende/Ordliste (Redskaber; revyst-editable, coupled to nothing).
+// Never a web-served folder. Layout: programkladde.json, created on the
+// first save.
+define('PROGRAMKLADDE_DATA_DIR', '/absolute/path/to/matrevy-programkladde-data');

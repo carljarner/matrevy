@@ -99,6 +99,7 @@
      "-" and "En side" brændimprægnering states. */
   --danger-tint: #f6d4cf;  --danger-tint-text: #8e2a1f;
   --success-tint: #d3ebd4; --success-tint-text: #2e6b34;
+  --warning-tint: #fbe3c4;  /* light orange (Rekvisitter's row colour) */
 
   /* Priority palette shared by Stjerneark (manus.css) and the Rekvisitten
      sidebar (schedule.css) — one source of truth for what used to be two

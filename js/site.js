@@ -43,6 +43,7 @@ const SITE_PAGES = [
   { href: 'ninjas',          label: 'Ninjas, Mics & Cues', level: 'revyst', group: 'redskaber' },
   { href: 'rekvisitten',     label: 'Rekvisitten', level: 'revyst', group: 'redskaber' },
   { href: 'lydfiler',        label: 'Lydfiler',    level: 'revyst', group: 'redskaber' },
+  { href: 'program',         label: 'Program',     level: 'revyst', group: 'redskaber' },
   { href: 'stjerneark',      label: 'Stjerneark',  level: 'revyst', group: 'redskaber' },
   { href: 'teknikken',       label: 'Teknikken',   level: 'revyst', group: 'redskaber' },
   { href: 'schedule',        label: 'Øveplan',     level: 'revyst', group: 'redskaber' },

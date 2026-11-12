@@ -45,6 +45,7 @@ Internal website for Matematikrevyen (Danish student revue) at `matematikrevy.dk
 | Rekvisitten | `rekvisitten.html`, `rekvisit.*` | `rekvisitten.md` |
 | Teknikken | `teknikken.*` | `teknikken.md` |
 | Lydfiler (internally `sangere`; shares Teknikken's server code) | `lydfiler.html`, `js/sangere.js`, `css/sangere.css` | `lydfiler.md` |
+| Program (Redskaber; scratch Medvirkende/Ordliste, internally `programkladde` server-side) | `program.*` | `program.md` |
 | Øveplan | `schedule.*` | `oveplan.md` |
 | Header/nav/login | `js/site.js` | `site-shell.md` |
 | Containers, worker, archive mirror, dispatch order | `server/**`, `docker-compose.yml` | `server.md` |
@@ -54,7 +55,7 @@ Internal website for Matematikrevyen (Danish student revue) at `matematikrevy.dk
 ## Hosting & data flow
 
 - **Two containers** (`docker-compose.yml`), both mounting `/srv/matrevy/data` at `/data`: **`web`** (`php:8.3-apache`: static files, `update-data.php`, `health.php`, `config.php` from Coolify env vars `REVYST_/BOSS_/ADMIN_PASSWORD`, optional `SATYR_PASSWORD`) and **`worker`** (TeX Live + Node: reruns `embed-scenes.js` / `generate-pdfs.js` when `update-data.php` drops a flag file, and mirrors the archive to GitHub). Apache gives pages **clean URLs** (`/kalender`); `server/dev-router.php` mirrors those rules for local `php -S`.
-- **Live data**: public in `/srv/matrevy/data/site/{data,archive,posts,wiki}` (+ `generated/` for `js/*-data.js` and `calendar.ics`); private in `/srv/matrevy/data/{budget,forms,faellesspisning,band,kostumetinder,ninjas,rekvisitten,lokaler,teknikken,sangere,koordinator}`, never web-served. Nightly restic backup of `/srv`, except `teknikken/` and `sangere/`. The repo doesn't track `data/*.json`, `posts/`, `wiki/`, `calendar.ics` or `js/*-data.js` (except `manus-data.js`); editing local copies changes nothing live.
+- **Live data**: public in `/srv/matrevy/data/site/{data,archive,posts,wiki}` (+ `generated/` for `js/*-data.js` and `calendar.ics`); private in `/srv/matrevy/data/{budget,forms,faellesspisning,band,kostumetinder,ninjas,rekvisitten,lokaler,teknikken,sangere,koordinator,programkladde}`, never web-served. Nightly restic backup of `/srv`, except `teknikken/` and `sangere/`. The repo doesn't track `data/*.json`, `posts/`, `wiki/`, `calendar.ics` or `js/*-data.js` (except `manus-data.js`); editing local copies changes nothing live.
 - **Save path**: browser → `update-data.php` → `github_api()` (now a local-disk stand-in: base64 `content` + `sha` = sha1 of the bytes, flock'd, atomic rename, stale `sha` → 409) → touches `.embed-requested` → worker regenerates embeds. Visible on next load within ~3 s; a full PDF build takes ~15 s.
 - **Deploy**: push to `main` → Coolify rebuilds both containers (code is baked into the image). Secrets only in Coolify env vars. `SITE_API_ENDPOINT` is always `/update-data.php` (same origin); CORS only allows `https://matematikrevy.dk`.
 - **Archive mirror**: the worker pushes `/data/site/archive/` to the repo's `archive/` ~5 min after the last change. Until Manus's "Revyster kan se manus"/"… roller" toggles are on, the current production is mirrored hidden or redacted (`server.md`).
@@ -130,8 +131,8 @@ Native date/time/select UI is unstylable, so every page except Øveplan uses cus
 - **Four save models** (check which one a page uses before changing it):
   1. **Full array replace** via `siteSaveResource` (`archive`, `bosses`, `config`, `gantt`, `revyugen`): last save wins.
   2. **Read-apply-retry** via `siteSaveListResource` (Kalender, Posts, Wiki): `resource_read` → apply one change to the live list → save with `baseSha`, a 409 re-reads (3 tries).
-  3. **Three-way merge on save**: Manus (`manusMergeActs`), Program, Masterplan/Lokalebooking/Fravær (`koordSaveMerged`).
-  4. **Live per-row/per-cell actions** on private stores (Fællesspisning, Bandet, Kostume, Rekvisitten, Ninjas, Stregregnskab, Koordinator notes, Teknikken/Lydfiler): blur-commit, chained per row on `row._inFlight`, flock'd `*_mutate()` server-side. Each has its own `*Api` helper (`budgetApi`, `formsApi`, `faellesApi`, `bandApi`, `postsApi`, `manusApi`, …).
+  3. **Three-way merge on save**: Manus (`manusMergeActs`), Program, Masterplan/Lokalebooking/Fravær (`koordSaveMerged`), Redskaber's Program page (per line, `progMerge3`).
+  4. **Live per-row/per-cell actions** on private stores (Fællesspisning, Bandet, Kostume, Rekvisitten, Ninjas, Stregregnskab, Koordinator notes, Teknikken/Lydfiler): blur-commit, chained per row on `row._inFlight`, flock'd `*_mutate()` server-side. Each has its own `*Api` helper (`budgetApi`, `formsApi`, `faellesApi`, `bandApi`, `postsApi`, `manusApi`, `progApi`, …).
 - **Per-revy tools** (Bandet, Kostume, Rekvisitten, Ninjas): a revy picker; revyster write only the current production (Bandet: its active folder), boss any year (`403 read_only`).
 
 ## Data schemas (`data/README.md` has them all)

@@ -1,0 +1,42 @@
+/* Program (Redskaber): the scratch copy of the programme's Medvirkende and
+   Ordliste. Same look as Manus's Program tab (page-scoped copies of
+   .manus-script-textarea / .manus-program-section / .manus-autosave-status
+   in manus.css, which this page doesn't load). */
+
+.prog-intro {
+  max-width: 40rem;
+  margin: -0.75rem auto 1.25rem;
+  text-align: center;
+}
+
+.prog-status {
+  margin: 0 0 0.75rem;
+  text-align: right;
+}
+
+.prog-section h2 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+/* Raw LaTeX, like Manus's Medvirkende/Ordliste boxes. */
+.prog-textarea {
+  display: block;
+  width: 100%;
+  min-height: 16rem;
+  padding: 0.6rem 0.7rem;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--text);
+  resize: vertical;
+}
+
+.prog-textarea:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: var(--focus-ring);
+}

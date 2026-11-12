@@ -362,7 +362,17 @@ if (isset($REKVISIT_ACTIONS[$action])) {
       && $rekvisitFolder !== manus_current_production_folder()) {
     respond(403, ['error' => 'read_only']);
   }
-  handle_rekvisit($action, $rekvisitFolder, $body);
+  // The Bosser tab (its titles/widths/note and the boss* fields it edits
+  // on Hvem, hvornår?'s rows) is boss-only; rekvisit_read strips it below.
+  $rekvisitIsBoss = $LEVEL_RANK[$level] >= $LEVEL_RANK['boss'];
+  if (!$rekvisitIsBoss) {
+    $rekvisitRowIn = $body['row'] ?? null;
+    if (($body['sheet'] ?? '') === 'bosser'
+        || (is_array($rekvisitRowIn) && array_intersect(array_keys($rekvisitRowIn), rekvisit_boss_keys()))) {
+      respond(403, ['error' => 'insufficient_level']);
+    }
+  }
+  handle_rekvisit($action, $rekvisitFolder, $body, $rekvisitIsBoss);
 }
 
 // ── Ninjas, Mics & Cues actions (mic plan + cue sheet per revy) ──
@@ -448,6 +458,24 @@ if (isset($KOORD_ACTIONS[$action])) {
   if ($action === 'koord_notes_delete') koord_notes_delete($body);
   if ($action === 'koord_notes_archive') koord_notes_archive($body);
   koord_notes_move($body);
+}
+
+// ── Program (Redskaber) actions: a scratch copy of the programme lists ──
+// Medvirkende/Ordliste as free text that every revyst can edit, so bosses
+// can collect additions and copy them into Manus's Program tab by hand.
+// Coupled to nothing (not program.json, not the PDFs, not Afslut revyen);
+// named programkladde so it can't be mixed up with Manus's `program`
+// resource. Private PROGRAMKLADDE_DATA_DIR. Hoisted functions only.
+$PROGRAMKLADDE_ACTIONS = [
+  'programkladde_read' => 'revyst', // {medvirkende, ordliste, sha}
+  'programkladde_save' => 'revyst', // {medvirkende, ordliste, baseSha} → {sha}; 409 stale
+];
+if (isset($PROGRAMKLADDE_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$PROGRAMKLADDE_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  if ($action === 'programkladde_read') programkladde_read();
+  programkladde_save($body);
 }
 
 // ── Teknikken actions (the tech crew's Drive-like file store) ──
@@ -5277,7 +5305,7 @@ function handle_kostume($action, $folder, $body) {
 
 // ── Rekvisitten datastore (private, local files under REKVISIT_DATA_DIR) ──
 //   REKVISIT_DATA_DIR/<folder>/rekvisitten.json
-//     {sheets: {rekvisitter, hvem, indkob, braend}, updatedAt}
+//     {sheets: {rekvisitter, hvem, indkob, braend, bosser}, updatedAt}
 // A row sheet is {rows, columnLabels, columnWidths, customColumns,
 // hiddenColumns}; hvem adds {extraDays:[{id,date,title}], hiddenDays:[date]}
 // and its rows carry days:{YYYY-MM-DD: text}. A sheets.regnskab from when
@@ -5285,7 +5313,10 @@ function handle_kostume($action, $folder, $body) {
 // only its own sheet).
 // braend (the Brændimprægnering tab) has no rows of its own — it shows
 // Rekvisitter's rows, whose braendNote/braend/braendProgress fields it
-// edits — so it only stores titles/widths.
+// edits — so it only stores titles/widths. bosser (boss-only) likewise
+// lists hvem's rows and edits their bossEnDag/bossToDage/bossNote, which
+// rekvisit_read leaves out below boss. Rekvisitter rows carry rowColor
+// ('' | green | orange | red).
 // The folder comes from the body (any revy can be read); the dispatch
 // block limits writes below boss to the current production. A copy of the
 // kostume_* handlers generalised to several sheets. Dispatched early, so
@@ -5320,15 +5351,18 @@ function rekvisit_sheet_defs() {
         'rekvisit' => 'text', 'scene' => 'text', 'instruktoer' => 'text', 'kommentar' => 'text',
         'type' => 'text', 'ansvarlig' => 'text', 'ekstra' => 'text',
         'progress' => 'progress', 'braend' => 'status', 'braendNote' => 'text',
-        'braendProgress' => 'progress',
+        'braendProgress' => 'progress', 'rowColor' => 'status',
       ],
       // braend/braendNote/braendProgress only show on the
-      // Brændimprægnering tab; progress is never hideable.
+      // Brændimprægnering tab; progress is never hideable; rowColor is the
+      // row's background on the Rekvisitter tab.
       'hideable' => ['scene', 'instruktoer', 'kommentar', 'type', 'ansvarlig', 'ekstra'],
     ],
     'hvem' => [
       'rows' => true, 'locked' => 'navn', 'custom' => false, 'extraKeys' => [],
-      'fields' => ['navn' => 'text'], 'hideable' => [],
+      // boss* are edited on the Bosser tab (boss-only, see rekvisit_boss_keys()).
+      'fields' => ['navn' => 'text', 'bossEnDag' => 'status', 'bossToDage' => 'status', 'bossNote' => 'text'],
+      'hideable' => [],
     ],
     'indkob' => [
       'rows' => true, 'locked' => 'hvad', 'custom' => true, 'extraKeys' => [],
@@ -5342,7 +5376,27 @@ function rekvisit_sheet_defs() {
       'extraKeys' => ['rekvisit', 'kommentar', 'progress', 'braendNote', 'braend', 'braendProgress'],
       'fields' => [], 'hideable' => [],
     ],
+    // Boss-only tab listing Hvem, hvornår?'s rows (their boss* fields), so
+    // like braend it only stores titles/widths.
+    'bosser' => [
+      'rows' => false, 'locked' => null, 'custom' => false,
+      'extraKeys' => ['navn', 'bossEnDag', 'bossToDage', 'bossNote'],
+      'fields' => [], 'hideable' => [],
+    ],
   ];
+}
+
+// The hvem row fields only boss/admin may read or write (the Bosser tab).
+function rekvisit_boss_keys() {
+  return ['bossEnDag', 'bossToDage', 'bossNote'];
+}
+
+// A row as sent back to the client: below boss without the boss keys.
+function rekvisit_row_out($row, $isBoss) {
+  if (!$isBoss) {
+    foreach (rekvisit_boss_keys() as $key) unset($row[$key]);
+  }
+  return $row;
 }
 
 // Pill values per status column; '' is each one's default.
@@ -5350,6 +5404,9 @@ function rekvisit_status_values($sheet, $key) {
   $map = [
     'rekvisitter/braend' => ['', 'enside', 'begge', 'skalikke'],
     'indkob/kobt' => ['', 'ja'],
+    'hvem/bossEnDag' => ['', 'tjek'],
+    'hvem/bossToDage' => ['', 'tjek'],
+    'rekvisitter/rowColor' => ['', 'green', 'orange', 'red'],
   ];
   return $map[$sheet . '/' . $key] ?? [''];
 }
@@ -5511,17 +5568,24 @@ function rekvisit_mutate($folder, $sheet, $mutate) {
   return $doc['sheets'][$sheet];
 }
 
-function rekvisit_read($folder) {
+// Below boss the Bosser tab and the boss* fields on hvem's rows are left out.
+function rekvisit_read($folder, $isBoss) {
   $doc = rekvisit_load($folder);
   $sheets = [];
   foreach (array_keys(rekvisit_sheet_defs()) as $sheet) $sheets[$sheet] = rekvisit_sheet($doc, $folder, $sheet);
+  if (!$isBoss) {
+    unset($sheets['bosser']);
+    $sheets['hvem']['rows'] = array_map(function ($row) {
+      return rekvisit_row_out($row, false);
+    }, $sheets['hvem']['rows']);
+  }
   respond(200, ['ok' => true, 'folder' => $folder, 'sheets' => $sheets, 'updatedAt' => $doc['updatedAt'] ?? null]);
 }
 
 // {sheet, row:{id?, …fields, days?}, afterId?} — create appends at the end
 // (or right after afterId); update merges only the sent fields. Hvem's
 // `days` merges per date ('' clears one).
-function rekvisit_upsert_row($folder, $body) {
+function rekvisit_upsert_row($folder, $body, $isBoss) {
   $sheet = $body['sheet'] ?? '';
   $def = rekvisit_sheet_def($sheet, true);
   $rowIn = $body['row'] ?? null;
@@ -5591,7 +5655,7 @@ function rekvisit_upsert_row($folder, $body) {
     array_splice($s['rows'], $insertAt, 0, [$savedRow]);
     return $s;
   });
-  respond(200, ['ok' => true, 'row' => $savedRow]);
+  respond(200, ['ok' => true, 'row' => rekvisit_row_out($savedRow, $isBoss)]);
 }
 
 function rekvisit_delete_row($folder, $body) {
@@ -5609,7 +5673,7 @@ function rekvisit_delete_row($folder, $body) {
 }
 
 // {sheet, order:[ids]} — must name exactly the current rows (409 stale_rows).
-function rekvisit_reorder($folder, $body) {
+function rekvisit_reorder($folder, $body, $isBoss) {
   $sheet = $body['sheet'] ?? '';
   rekvisit_sheet_def($sheet, true);
   $order = $body['order'] ?? null;
@@ -5631,7 +5695,9 @@ function rekvisit_reorder($folder, $body) {
     $s['rows'] = $next;
     return $s;
   });
-  respond(200, ['ok' => true, 'rows' => $s['rows']]);
+  respond(200, ['ok' => true, 'rows' => array_map(function ($row) use ($isBoss) {
+    return rekvisit_row_out($row, $isBoss);
+  }, $s['rows'])]);
 }
 
 // {sheet, customColumns:[{key?, label}], hiddenColumns:[keys]} — full
@@ -5791,12 +5857,12 @@ function rekvisit_hide_day($folder, $body) {
   respond(200, ['ok' => true, 'hiddenDays' => $s['hiddenDays']]);
 }
 
-function handle_rekvisit($action, $folder, $body) {
+function handle_rekvisit($action, $folder, $body, $isBoss) {
   switch ($action) {
-    case 'rekvisit_read':               return rekvisit_read($folder);
-    case 'rekvisit_upsert_row':         return rekvisit_upsert_row($folder, $body);
+    case 'rekvisit_read':               return rekvisit_read($folder, $isBoss);
+    case 'rekvisit_upsert_row':         return rekvisit_upsert_row($folder, $body, $isBoss);
     case 'rekvisit_delete_row':         return rekvisit_delete_row($folder, $body);
-    case 'rekvisit_reorder':            return rekvisit_reorder($folder, $body);
+    case 'rekvisit_reorder':            return rekvisit_reorder($folder, $body, $isBoss);
     case 'rekvisit_save_columns':       return rekvisit_save_columns($folder, $body);
     case 'rekvisit_save_column_labels': return rekvisit_save_column_labels($folder, $body);
     case 'rekvisit_save_column_widths': return rekvisit_save_column_widths($folder, $body);
@@ -6549,6 +6615,107 @@ function koord_notes_move($body) {
   });
   if (!$found) respond(404, ['error' => 'not_found']);
   respond(200, ['ok' => true]);
+}
+
+// ── Program kladde (PROGRAMKLADDE_DATA_DIR/programkladde.json) ──
+// {medvirkende, ordliste, updatedAt}: two free-text fields, stored verbatim
+// (not trimmed, so the client's draft and base never drift). `sha` = sha1
+// of the file bytes (null while there is no file). Every save must name the
+// sha it built on; a mismatch is 409 `stale`, and the page re-reads, merges
+// per line (progMerge3() in js/program.js) and saves again. Created on the
+// first save.
+
+function programkladde_dir() {
+  if (!defined('PROGRAMKLADDE_DATA_DIR') || !is_string(PROGRAMKLADDE_DATA_DIR) || PROGRAMKLADDE_DATA_DIR === '') {
+    respond(500, ['error' => 'programkladde_not_configured']);
+  }
+  return rtrim(PROGRAMKLADDE_DATA_DIR, '/');
+}
+
+function programkladde_path() {
+  return programkladde_dir() . '/programkladde.json';
+}
+
+function programkladde_max_chars() {
+  return 50000;
+}
+
+// The two fields of a raw file; anything unreadable reads as empty (a
+// scratchpad never blocks the page).
+function programkladde_fields($raw) {
+  $doc = ($raw === '' || $raw === false || $raw === null) ? null : json_decode($raw, true);
+  $out = [];
+  foreach (['medvirkende', 'ordliste'] as $key) {
+    $out[$key] = (is_array($doc) && is_string($doc[$key] ?? null)) ? $doc[$key] : '';
+  }
+  return $out;
+}
+
+function programkladde_read() {
+  $path = programkladde_path();
+  $raw = '';
+  if (is_file($path)) {
+    $fh = @fopen($path, 'r');
+    if (!$fh || !flock($fh, LOCK_SH)) {
+      if ($fh) fclose($fh);
+      respond(500, ['error' => 'programkladde_storage_unavailable']);
+    }
+    $raw = (string) stream_get_contents($fh);
+    flock($fh, LOCK_UN);
+    fclose($fh);
+  }
+  respond(200, ['ok' => true, 'sha' => $raw === '' ? null : sha1($raw)] + programkladde_fields($raw));
+}
+
+function programkladde_save($body) {
+  $fields = [];
+  foreach (['medvirkende', 'ordliste'] as $key) {
+    $value = $body[$key] ?? null;
+    if (!is_string($value) || mb_strlen($value) > programkladde_max_chars()) {
+      respond(400, ['error' => 'invalid_shape']);
+    }
+    $fields[$key] = $value;
+  }
+  // Required: a save that doesn't say what it built on could erase
+  // everyone else's additions.
+  if (!array_key_exists('baseSha', $body) || ($body['baseSha'] !== null && !is_string($body['baseSha']))) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $baseSha = $body['baseSha'];
+
+  $dir = programkladde_dir();
+  if (!is_dir($dir) && !@mkdir($dir, 0770, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'programkladde_storage_unavailable']);
+  }
+  $path = programkladde_path();
+  $fh = @fopen($path, 'c+');
+  if (!$fh || !flock($fh, LOCK_EX)) {
+    if ($fh) fclose($fh);
+    respond(500, ['error' => 'programkladde_storage_unavailable']);
+  }
+  $raw = (string) stream_get_contents($fh);
+  $currentSha = $raw === '' ? null : sha1($raw);
+  if ($baseSha !== $currentSha) {
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    respond(409, ['error' => 'stale']);
+  }
+  $json = json_encode($fields + ['updatedAt' => date('c')], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+  if ($json === false) {
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $json .= "\n";
+  rewind($fh);
+  ftruncate($fh, 0);
+  $written = fwrite($fh, $json);
+  fflush($fh);
+  flock($fh, LOCK_UN);
+  fclose($fh);
+  if ($written !== strlen($json)) respond(500, ['error' => 'programkladde_storage_unavailable']);
+  @chmod($path, 0660);
+  respond(200, ['ok' => true, 'sha' => sha1($json)]);
 }
 
 function handle_lokaler($action, $body) {

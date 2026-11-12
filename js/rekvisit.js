@@ -1,17 +1,19 @@
 /* =========================================================
    Matematikrevyen – Rekvisitten (rekvisitten.html)
 
-   The prop crew's four sheets for one revy, as tabs: Rekvisitter (what
-   each scene needs and how far along each prop is), Brændimprægnering
-   (whether it is fire-proofed), Hvem, hvornår? (who is away which day)
-   and Indkøbsliste. Styled like Kostumetinder/Bandet's sheet: cells
+   The prop crew's sheets for one revy, as tabs: Rekvisitter (what each
+   scene needs and how far along each prop is), Brændimprægnering
+   (whether it is fire-proofed), Hvem, hvornår? (who is away which day),
+   Indkøbsliste and, for boss/admin only, Bosser. Styled like Kostumetinder/Bandet's sheet: cells
    commit on blur, rows reorder by their handle, columns can be renamed, resized,
    removed and added, pills cycle on click.
 
    Brændimprægnering (key `braend`) has no rows of its own: it lists
    Rekvisitter's rows and edits their braendNote/braend/braendProgress
    fields (braendProgress is its own bar, not Rekvisitter's), so the two
-   can't drift.
+   can't drift. Bosser does the same with Hvem, hvornår?'s rows
+   (bossEnDag/bossToDage/bossNote, which the server leaves out below boss).
+   Rekvisitter's rows can be coloured (rowColor) by clicking the drag handle.
    Hvem, hvornår?'s day columns are Kalender's øvedage/forestillinger in
    July–December of the revy's year plus days added here; a cell is free
    text, and "x" means "not here".
@@ -119,6 +121,7 @@ const REKVISIT_TABS = [
   { key: 'braend', label: 'Brændimprægnering' },
   { key: 'hvem', label: 'Hvem, hvornår?' },
   { key: 'indkob', label: 'Indkøbsliste' },
+  { key: 'bosser', label: 'Bosser', level: 'boss' },
 ];
 const REKVISIT_TAB_KEY = 'matrevy-rekvisit-tab';
 const REKVISIT_REVY_KEY = 'matrevy-rekvisit-revy';
@@ -136,7 +139,24 @@ const REKVISIT_STATUSES = {
     { value: '', label: '-', cls: 'rekvisit-pill-none' },
     { value: 'ja', label: 'Ja', cls: 'rekvisit-pill-done' },
   ],
+  'hvem/bossEnDag': [
+    { value: '', label: '-', cls: 'rekvisit-pill-none' },
+    { value: 'tjek', label: 'Tjek', cls: 'rekvisit-pill-done' },
+  ],
+  'hvem/bossToDage': [
+    { value: '', label: '-', cls: 'rekvisit-pill-none' },
+    { value: 'tjek', label: 'Tjek', cls: 'rekvisit-pill-done' },
+  ],
 };
+
+// Rekvisitter's row backgrounds, picked from the drag handle's menu.
+// Mirrors 'rekvisitter/rowColor' in rekvisit_status_values().
+const REKVISIT_ROW_COLORS = [
+  { value: 'green', label: 'Grøn' },
+  { value: 'orange', label: 'Orange' },
+  { value: 'red', label: 'Rød' },
+  { value: '', label: 'Ingen farve' },
+];
 
 // Per tab: rowSheet = whose rows it shows (Brændimprægnering borrows
 // Rekvisitter's);
@@ -144,11 +164,13 @@ const REKVISIT_STATUSES = {
 // draggable 0-100% bar;
 // readOnly = shown, not edited; stayRight = custom
 // columns are inserted before it); locked = can't be removed; custom =
-// text columns can be added; rows = rows can be added/removed/moved.
+// text columns can be added; rows = rows can be added/removed/moved;
+// nameKey/emptyText (row-less tabs) = which rows are listed and the text
+// when there are none; rowColors = rows can be coloured.
 // Mirrors rekvisit_sheet_defs() in update-data.php.
 const REKVISIT_SHEETS = {
   rekvisitter: {
-    rowSheet: 'rekvisitter', locked: 'rekvisit', custom: true, rows: true,
+    rowSheet: 'rekvisitter', locked: 'rekvisit', custom: true, rows: true, rowColors: true,
     note: 'Rekvisit, Sketch/Sang, Instruktør og Kommentar udfyldes af instruktørerne, resten af rekvisitten.',
     hintRequired: ['rekvisit', 'scene', 'instruktoer'],
     // A header row above the titles shows who fills in what (titles
@@ -192,6 +214,7 @@ const REKVISIT_SHEETS = {
   },
   braend: {
     rowSheet: 'rekvisitter', locked: null, custom: false, rows: false,
+    nameKey: 'rekvisit', emptyText: 'Ingen rekvisitter endnu.',
     totalProgress: 'braendProgress',
     note: 'Rækkerne kommer fra fanen Rekvisitter.',
     columns: [
@@ -200,6 +223,18 @@ const REKVISIT_SHEETS = {
       { key: 'braend', label: 'Brændimprægneret', width: 130, status: true },
       // Its own progress, not Rekvisitter's Status.
       { key: 'braendProgress', label: 'Status', width: 200, progress: true },
+    ],
+  },
+  // Boss/admin only (the tab's `level`; the server strips it below boss).
+  bosser: {
+    rowSheet: 'hvem', locked: null, custom: false, rows: false,
+    nameKey: 'navn', emptyText: 'Ingen navne endnu.',
+    note: 'Navnene kommer fra fanen Hvem, hvornår?',
+    columns: [
+      { key: 'navn', label: 'Navn', width: 200, readOnly: true },
+      { key: 'bossEnDag', label: 'En dag', width: 90, status: true },
+      { key: 'bossToDage', label: 'To dage', width: 90, status: true },
+      { key: 'bossNote', label: 'Noter', width: 360 },
     ],
   },
 };
@@ -220,6 +255,11 @@ let rekvisitFolder = '';
 let rekvisitSheets = null; // the read's `sheets` (every tab, back-filled)
 let rekvisitLoadSeq = 0;
 let rekvisitDragRow = null;
+
+// Tabs this login may see (a tab's `level`, e.g. Bosser's boss).
+function rekvisitVisibleTabs() {
+  return REKVISIT_TABS.filter((t) => !t.level || (typeof siteHasLevel === 'function' && siteHasLevel(t.level)));
+}
 
 function rekvisitDef(tab = rekvisitActiveTab) {
   return REKVISIT_SHEETS[tab];
@@ -352,6 +392,8 @@ function rekvisitRender() {
   const root = rekvisitRoot();
   root.replaceChildren();
   if (!rekvisitSheets) return;
+  // A remembered tab this login can't see (e.g. Bosser after "vis som revyst").
+  if (!rekvisitVisibleTabs().some((t) => t.key === rekvisitActiveTab)) rekvisitActiveTab = 'rekvisitter';
   rekvisitRenderTabs(root);
   const def = rekvisitDef();
   const canEdit = rekvisitCanEdit();
@@ -383,7 +425,7 @@ function rekvisitRender() {
 // The shared tab bar (.site-tabs, style.css).
 function rekvisitRenderTabs(root) {
   const tabs = el('div', 'site-tabs');
-  for (const tab of REKVISIT_TABS) {
+  for (const tab of rekvisitVisibleTabs()) {
     const btn = el('button', 'site-tab' + (tab.key === rekvisitActiveTab ? ' active' : ''), tab.label);
     btn.type = 'button';
     btn.addEventListener('click', () => {
@@ -754,14 +796,14 @@ function rekvisitBuildSheetTable(canEdit) {
 
   const tbody = el('tbody');
   let rows = rekvisitRowDoc().rows;
-  // Brændimprægnering lists only the props that have a name.
-  if (!def.rows) rows = rows.filter((r) => String(r.rekvisit || '').trim() !== '');
+  // Brændimprægnering/Bosser list only the rows that have a name.
+  if (!def.rows) rows = rows.filter((r) => String(r[def.nameKey] || '').trim() !== '');
   rows.forEach((row) => tbody.appendChild(rekvisitRenderRow(row, columns, canEdit)));
   if (withHandle) tbody.appendChild(rekvisitBuildDropTail(columns.length + (withActions ? 2 : 1)));
   table.appendChild(tbody);
   if (!rows.length && !def.rows) {
     const tr = el('tr');
-    const td = el('td', 'site-muted rekvisit-empty', 'Ingen rekvisitter endnu.');
+    const td = el('td', 'site-muted rekvisit-empty', def.emptyText);
     td.colSpan = columns.length;
     tr.appendChild(td);
     tbody.appendChild(tr);
@@ -1090,6 +1132,7 @@ function rekvisitRenderRow(row, columns, canEdit) {
   const def = rekvisitDef();
   const tr = el('tr', 'rekvisit-row');
   tr._row = row;
+  if (def.rowColors) rekvisitPaintRowColor(tr, row.rowColor);
   if (def.rows && canEdit) {
     const handleTd = rekvisitStickyCell(el('td', 'rekvisit-col-handle site-sheet-noline'), 0);
     const handle = el('span', 'boss-manage-drag-handle rekvisit-drag-handle', '⠿');
@@ -1097,6 +1140,7 @@ function rekvisitRenderRow(row, columns, canEdit) {
     handleTd.appendChild(handle);
     tr.appendChild(handleTd);
     rekvisitWireRowDrag(tr, handle, row);
+    if (def.rowColors) rekvisitWireRowColorMenu(tr, handle, row);
   }
   for (const col of columns) {
     const td = el('td', rekvisitCellClass(col));
@@ -1128,6 +1172,52 @@ function rekvisitRenderRow(row, columns, canEdit) {
     tr.appendChild(actions);
   }
   return tr;
+}
+
+// ── Row colours (Rekvisitter) ────────────────────────────────
+function rekvisitPaintRowColor(tr, color) {
+  for (const c of REKVISIT_ROW_COLORS) {
+    if (c.value) tr.classList.toggle(`rekvisit-row-color-${c.value}`, c.value === (color || ''));
+  }
+}
+
+// A click on the handle (a drag fires no click) opens the colour menu.
+// A draft row has no id yet, so it gets no menu (it can't be dragged either).
+function rekvisitWireRowColorMenu(tr, handle, row) {
+  handle.setAttribute('role', 'button');
+  handle.tabIndex = 0;
+  handle.title = 'Træk for at flytte, klik for at vælge farve';
+  handle.setAttribute('aria-label', 'Vælg farve til rækken');
+  const open = () => {
+    if (row.id === null) return;
+    siteToggleFieldPopup(handle, () => rekvisitOpenRowColorMenu(handle, row, tr));
+  };
+  handle.addEventListener('click', open);
+  handle.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+  });
+}
+
+// Shaped like siteOpenDropdownPicker() (site-utils.js), with a swatch per row.
+function rekvisitOpenRowColorMenu(anchor, row, tr) {
+  const pop = el('div', 'site-field-pop site-dd-pop rekvisit-color-pop');
+  const current = row.rowColor || '';
+  for (const opt of REKVISIT_ROW_COLORS) {
+    const btn = el('button', 'site-list-row rekvisit-color-option');
+    btn.type = 'button';
+    if (opt.value === current) btn.classList.add('site-list-selected');
+    btn.appendChild(el('span', `rekvisit-color-swatch rekvisit-color-swatch-${opt.value || 'none'}`));
+    btn.appendChild(el('span', null, opt.label));
+    btn.addEventListener('click', () => {
+      close();
+      if (opt.value === (row.rowColor || '')) return;
+      row.rowColor = opt.value;
+      rekvisitPaintRowColor(tr, opt.value);
+      rekvisitCommitRow(row, { rowColor: opt.value }, tr);
+    });
+    pop.appendChild(btn);
+  }
+  const close = siteOpenFieldPopup(anchor, pop);
 }
 
 // Adds an unsaved row at the end; it's created server-side on the first

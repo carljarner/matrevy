@@ -51,7 +51,8 @@
 
 /* Madark | Oversigt (.site-segmented) pinned to the toolbar's top right
    corner (revyst+): top-aligned, so it stays put when switching views even
-   though the two toolbars differ in height. */
+   though the two toolbars differ in height. The admin's "Lukker kl." button
+   top left is made just as tall, so the two line up exactly. */
 .faelles-view-toggle {
   justify-self: end;
   align-self: start;
@@ -69,18 +70,33 @@
   .faelles-view-toggle { order: -2; }
 }
 
-/* Toolbar's left cell: the admin's closing-time menu, then the count. */
+/* Toolbar's left cell, top-aligned like the toggle and only as wide as its
+   content: the admin's closing-time menu on the toggle's line, the count
+   centred below it. */
 .faelles-toolbar-left {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem;
+  align-self: start;
+  justify-self: start;
+  gap: 0.3rem;
   min-width: 0;
+}
+
+/* As tall as the Madark | Oversigt buttons (.site-segmented, 24px) instead
+   of the usual 2rem toolbar control, so the two sit level. */
+.faelles-close-time-btn.site-toolbar-control {
+  height: 24px;
 }
 
 .faelles-count {
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+/* Without the admin's button the count is alone: on the toggle's line. */
+.faelles-toolbar-left > .faelles-count:first-child {
+  line-height: 24px;
 }
 
 /* --- Boss Box (.site-boss-box, last on the page) ------------------ */
@@ -313,12 +329,25 @@
    checkboxes are disabled for everyone below admin. */
 .faelles-table th.faelles-col-closed {
   color: var(--text-muted);
-  opacity: 0.6;
+  opacity: 0.8;
 }
 
+/* A closed day's checkbox is drawn by hand so it keeps an open one's amber,
+   only softer: Chrome and Safari paint a disabled native checkbox grey
+   whatever accent-color says, which made closed days hard to read. */
 .faelles-table .faelles-col-day input[type="checkbox"]:disabled {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--text-muted);
+  border-radius: 3px;
+  background: #ffffff;
   cursor: not-allowed;
-  opacity: var(--disabled-opacity);
+  opacity: 0.55;
+}
+
+.faelles-table .faelles-col-day input[type="checkbox"]:disabled:checked {
+  border-color: var(--accent-warm-text);
+  background: var(--accent-warm-text) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-6.5' fill='none' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 85% no-repeat;
 }
 
 .faelles-table .faelles-add-row td {

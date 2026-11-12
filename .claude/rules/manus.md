@@ -46,6 +46,7 @@ Generates `archive/<folder>/Program.pdf` (front cover / Aktoversigt / Medvirkend
 - `buildProgramSections()` sources Aktoversigt from `scenes.json` (centered `\Huge`, like the original hand-written `program.tex`, not `Aktoversigt.pdf`'s numbered layout) and **excludes the `E`/Ekstranumre act**. Front cover = the current production's Arkiv `coverImage`, falling back to `archive/_assets/placeholder-cover.jpg`; back cover is always that placeholder. The six pieces compile as separate PDFs (Medvirkende/Ordliste have unknowable page counts); `composeProgramPdf()` assembles `Program.pdf` in reading order and a reordered "booklet source" (front, Aktoversigt, Ordliste, Medvirkende, blanks, QR, back — see `imposeBooklet()`'s comment) padded to a multiple of 4, which `imposeBooklet()` imposes two-up on landscape A4 in saddle-stitch order: `ProgramHaefte.pdf` (vertical flip) and `ProgramHaefteHorisontal.pdf` (every back side rotated 180°). The booklet order is a fixed template sized for a normal year (two folded sheets), by product decision.
 - Rebuilt by "Generér PDF'er" like the other PDFs. `data/program.json` must exist before the first save (no create-if-missing); if missing, `generate-pdfs.js` skips Program with a notice.
 - **Not reset** by Koordinator's close-year: a new production inherits Medvirkende/Ordliste/QR as a starting point.
+- Redskaber's **Program** page (`program.md`) is a separate, revyst-editable scratch copy of Medvirkende/Ordliste; nothing syncs between it and this tab (bosses copy by hand).
 
 
 ## Known issues & ideas
