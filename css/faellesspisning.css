@@ -69,6 +69,15 @@
   .faelles-view-toggle { order: -2; }
 }
 
+/* Toolbar's left cell: the admin's closing-time menu, then the count. */
+.faelles-toolbar-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
 .faelles-count {
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -298,6 +307,18 @@
   width: 1.1rem;
   height: 1.1rem;
   cursor: pointer;
+}
+
+/* A day past its closing time (faellesIsDayClosed): muted header; its
+   checkboxes are disabled for everyone below admin. */
+.faelles-table th.faelles-col-closed {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+.faelles-table .faelles-col-day input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  opacity: var(--disabled-opacity);
 }
 
 .faelles-table .faelles-add-row td {

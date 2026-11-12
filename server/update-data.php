@@ -254,6 +254,7 @@ $FAELLES_ACTIONS = [
   'faelles_add_day'         => 'boss',   // add a Fællesspisning-only day column (never the public `calendar` resource)
   'faelles_delete_day'      => 'boss',   // remove one — the only way to correct a mistaken add
   'faelles_hide_day'        => 'boss',   // hide a real calendar-sourced day column from this sheet only — the event itself is untouched
+  'faelles_set_close_time'  => 'admin',  // the time a day column closes on its own date (non-admins can't change a closed day)
 ];
 if (isset($FAELLES_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$FAELLES_ACTIONS[$action]]) {
@@ -264,7 +265,7 @@ if (isset($FAELLES_ACTIONS[$action])) {
       && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
-  handle_faelles($action, $body);
+  handle_faelles($action, $body, $level);
 }
 
 // ── Bandet actions (private band folder per revy) ──
@@ -3521,8 +3522,69 @@ function faelles_attendance_mode($doc) {
 
 // The short boss-editable text centered above the sheet. Never set = the
 // default below; a boss can clear it to '' (shows nothing).
+// The never-set default follows the closing time ("kl. 14", "kl. 14.30").
 function faelles_notice($doc) {
-  return (isset($doc['notice']) && is_string($doc['notice'])) ? $doc['notice'] : 'Madtilmelding lukker kl. 12 på dagen';
+  if (isset($doc['notice']) && is_string($doc['notice'])) return $doc['notice'];
+  $time = faelles_close_time($doc);
+  $label = substr($time, 3) === '00' ? (string) (int) substr($time, 0, 2) : ((int) substr($time, 0, 2)) . '.' . substr($time, 3);
+  return 'Madtilmelding lukker kl. ' . $label . ' på dagen';
+}
+
+// Admin-set "HH:MM" (Danish time — PHP's timezone is Europe/Copenhagen)
+// at which a day column closes on its own date: from then on, and on every
+// later date, only an admin can change that day's checkboxes (enforced in
+// faelles_upsert_row, mirrored by faellesIsDayClosed client-side).
+function faelles_close_time_re() {
+  return '/^([01]\d|2[0-3]):[0-5]\d$/';
+}
+
+function faelles_close_time($doc) {
+  $t = $doc['closeTime'] ?? null;
+  return (is_string($t) && preg_match(faelles_close_time_re(), $t) === 1) ? $t : '14:00';
+}
+
+function faelles_is_date_closed($date, $closeTime) {
+  $today = date('Y-m-d');
+  if ($date < $today) return true;
+  return $date === $today && date('H:i') >= $closeTime;
+}
+
+// Day id → ISO date for every possible day column: the document's own
+// extraDays plus the public calendar's events. Read straight from disk, no
+// lock; a missing/unreadable calendar just means its ids aren't known (and
+// so not locked), same "don't validate against a live list" posture as
+// faelles_validate_day_overrides.
+function faelles_day_dates($doc) {
+  $dates = [];
+  foreach (faelles_extra_days($doc) as $d) {
+    if (isset($d['id'], $d['date']) && is_string($d['date'])) $dates[(string) $d['id']] = $d['date'];
+  }
+  if (defined('SITE_DATA_DIR') && is_string(SITE_DATA_DIR) && SITE_DATA_DIR !== '') {
+    $raw = @file_get_contents(rtrim(SITE_DATA_DIR, '/') . '/data/calendar.json');
+    $events = is_string($raw) ? json_decode($raw, true) : null;
+    if (is_array($events) && isset($events['events']) && is_array($events['events'])) $events = $events['events'];
+    if (is_array($events)) {
+      foreach ($events as $ev) {
+        if (is_array($ev) && isset($ev['id'], $ev['date']) && is_string($ev['date'])) $dates[(string) $ev['id']] = $ev['date'];
+      }
+    }
+  }
+  return $dates;
+}
+
+// True if going from $old to $new overrides changes any day that has
+// closed (a key added, removed or flipped).
+function faelles_touches_closed_day($doc, $old, $new) {
+  $closeTime = faelles_close_time($doc);
+  $dates = null;
+  foreach (array_unique(array_merge(array_map('strval', array_keys($old)), array_map('strval', array_keys($new)))) as $key) {
+    $had = array_key_exists($key, $old);
+    $has = array_key_exists($key, $new);
+    if ($had === $has && (!$had || $old[$key] === $new[$key])) continue;
+    if ($dates === null) $dates = faelles_day_dates($doc);
+    if (isset($dates[$key]) && faelles_is_date_closed($dates[$key], $closeTime)) return true;
+  }
+  return false;
 }
 
 // The second, non-bold line under the notice; same rules as faelles_notice.
@@ -3797,7 +3859,7 @@ function faelles_maybe_sync($doc) {
 function faelles_read($body) {
   $doc = faelles_load();
   $doc = faelles_maybe_sync($doc);
-  respond(200, ['ok' => true, 'rows' => faelles_rows_for_json($doc['rows']), 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
+  respond(200, ['ok' => true, 'rows' => faelles_rows_for_json($doc['rows']), 'connection' => $doc['connection'], 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'attendanceMode' => faelles_attendance_mode($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'closeTime' => faelles_close_time($doc), 'columnWidths' => faelles_column_widths($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
 // Satyr: the same document as faelles_read, but every row stripped to what
@@ -3816,7 +3878,7 @@ function faelles_summary($body) {
       'answers' => ['madforbehold' => is_string($answers['madforbehold'] ?? null) ? $answers['madforbehold'] : ''],
     ];
   }, $doc['rows']);
-  respond(200, ['ok' => true, 'rows' => faelles_rows_for_json($rows), 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc)]);
+  respond(200, ['ok' => true, 'rows' => faelles_rows_for_json($rows), 'extraDays' => faelles_extra_days($doc), 'hiddenDays' => faelles_hidden_days($doc), 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'closeTime' => faelles_close_time($doc)]);
 }
 
 // Create (no rowId; boss, checked at dispatch) or update (rowId given;
@@ -3832,7 +3894,11 @@ function faelles_summary($body) {
 // and must never move just because an existing row was edited later. The
 // same goes for `attendanceMode`, stamped from the document's setting only
 // on create.
-function faelles_upsert_row($body) {
+//
+// A non-admin can't change the override of a day that has closed
+// (faelles_touches_closed_day) → 403 day_closed; Navn/Madforbehold stay
+// editable.
+function faelles_upsert_row($body, $level) {
   $rowId = $body['rowId'] ?? null;
   if ($rowId !== null && (!is_string($rowId) || !faelles_valid_id($rowId))) {
     respond(400, ['error' => 'invalid_shape']);
@@ -3842,11 +3908,14 @@ function faelles_upsert_row($body) {
   if ($answers === null || $overrides === null) respond(400, ['error' => 'invalid_shape']);
 
   $savedRow = null;
-  $doc = faelles_mutate(function ($doc) use ($rowId, $answers, $overrides, &$savedRow) {
+  $isAdmin = $level === 'admin';
+  $doc = faelles_mutate(function ($doc) use ($rowId, $answers, $overrides, $isAdmin, &$savedRow) {
     $now = date('c');
     $found = false;
     foreach ($doc['rows'] as &$row) {
       if ($rowId !== null && $row['id'] === $rowId) {
+        $old = is_array($row['dayOverrides'] ?? null) ? $row['dayOverrides'] : [];
+        if (!$isAdmin && faelles_touches_closed_day($doc, $old, $overrides)) respond(403, ['error' => 'day_closed']);
         $row['answers'] = array_merge($row['answers'], $answers);
         $row['dayOverrides'] = faelles_overrides_for_json($overrides);
         $row['updatedAt'] = $now;
@@ -3858,6 +3927,7 @@ function faelles_upsert_row($body) {
     unset($row);
     if ($rowId !== null && !$found) respond(404, ['error' => 'not_found']);
     if ($rowId === null) {
+      if (!$isAdmin && faelles_touches_closed_day($doc, [], $overrides)) respond(403, ['error' => 'day_closed']);
       $savedRow = [
         'id' => faelles_id(),
         'answers' => $answers,
@@ -3950,6 +4020,19 @@ function faelles_set_notice($body) {
   respond(200, ['ok' => true, 'notice' => faelles_notice($doc), 'subNotice' => faelles_sub_notice($doc), 'updatedAt' => $doc['updatedAt']]);
 }
 
+// Admin: sets the time a day column closes on its own date (see
+// faelles_close_time). The reply's notice follows it while never set.
+function faelles_set_close_time($body) {
+  $time = $body['closeTime'] ?? null;
+  if (!is_string($time) || preg_match(faelles_close_time_re(), $time) !== 1) respond(400, ['error' => 'invalid_shape']);
+  $doc = faelles_mutate(function ($doc) use ($time) {
+    $doc['closeTime'] = $time;
+    $doc['updatedAt'] = date('c');
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'closeTime' => faelles_close_time($doc), 'notice' => faelles_notice($doc), 'updatedAt' => $doc['updatedAt']]);
+}
+
 // Boss: {columnWidths:{navn?, madforbehold?}} — full replace, like
 // band_save_column_widths; shared by everyone viewing the sheet.
 function faelles_save_column_widths($body) {
@@ -4026,11 +4109,11 @@ function faelles_hide_day($body) {
   respond(200, ['ok' => true, 'hiddenDays' => $doc['hiddenDays'], 'updatedAt' => $doc['updatedAt']]);
 }
 
-function handle_faelles($action, $body) {
+function handle_faelles($action, $body, $level) {
   switch ($action) {
     case 'faelles_read':            return faelles_read($body);
     case 'faelles_summary':         return faelles_summary($body);
-    case 'faelles_upsert_row':      return faelles_upsert_row($body);
+    case 'faelles_upsert_row':      return faelles_upsert_row($body, $level);
     case 'faelles_delete_row':      return faelles_delete_row($body);
     case 'faelles_save_connection': return faelles_save_connection($body);
     case 'faelles_set_attendance_mode': return faelles_set_attendance_mode($body);
@@ -4039,6 +4122,7 @@ function handle_faelles($action, $body) {
     case 'faelles_add_day':         return faelles_add_day($body);
     case 'faelles_delete_day':      return faelles_delete_day($body);
     case 'faelles_hide_day':        return faelles_hide_day($body);
+    case 'faelles_set_close_time':  return faelles_set_close_time($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
@@ -6500,7 +6584,7 @@ function teknik_stores() {
     'teknikken' => ['dir' => 'TEKNIK_DATA_DIR', 'doc' => 'teknikken.json', 'quota' => 5 * 1024 * 1024 * 1024,
       'title' => 'Teknikken', 'needsUploader' => true, 'pausable' => true],
     'sangere' => ['dir' => 'SANGERE_DATA_DIR', 'doc' => 'sangere.json', 'quota' => 500 * 1024 * 1024,
-      'title' => 'Sangere', 'needsUploader' => false, 'pausable' => false],
+      'title' => 'Lydfiler', 'needsUploader' => false, 'pausable' => false],
   ];
 }
 
@@ -6624,43 +6708,34 @@ function teknik_find_file($doc, $fileId) {
   return null;
 }
 
-// Sangere starts with one top-level folder per song in Manus (a scene whose
-// `types` has 'sang', the upload pool's 'pool' act left out), created once per
-// production the first time the store is read while "Revyster kan se manus"
-// (pdfLinksVisibleToRevyst) is on. `songFoldersFor` records the production,
-// so folders deleted afterwards stay deleted and later Manus changes never
-// update them. A song whose name is already a top-level folder is skipped.
-function sangere_seed_song_folders() {
-  $production = manus_current_production_folder();
-  if ($production === null) return;
-  $doc = teknik_load();
-  if (($doc['songFoldersFor'] ?? null) === $production) return;
-  [$cfgStatus, $cfg] = github_api('GET', 'contents/data/config.json');
-  if ($cfgStatus !== 200) return;
-  if ((json_decode(base64_decode($cfg['content']), true)['pdfLinksVisibleToRevyst'] ?? false) !== true) return;
-  [$scenesStatus, $scenesFile] = github_api('GET', 'contents/data/scenes.json');
-  if ($scenesStatus !== 200) return;
-  $names = [];
-  foreach (json_decode(base64_decode($scenesFile['content']), true)['acts'] ?? [] as $act) {
-    if (!is_array($act) || ($act['act'] ?? '') === 'pool') continue;
-    foreach ($act['scenes'] ?? [] as $scene) {
-      if (!is_array($scene) || !in_array('sang', (array) ($scene['types'] ?? []), true)) continue;
-      $name = teknik_clean_name($scene['name'] ?? '');
-      if ($name !== '') $names[] = $name;
-    }
+// Lydfiler's cards are flat. A store from the nested-tree days gets its
+// sub-folders folded into their top-level folder once: files move up, the
+// sub-folders go. A no-op (no lock) when nothing is nested.
+function sangere_flatten() {
+  $nested = false;
+  foreach (teknik_load()['folders'] ?? [] as $folder) {
+    if (($folder['parentId'] ?? null) !== null) { $nested = true; break; }
   }
-  teknik_mutate(function ($doc) use ($production, $names) {
-    if (($doc['songFoldersFor'] ?? null) === $production) return $doc; // another request got here first
-    $taken = [];
-    foreach ($doc['folders'] ?? [] as $folder) {
-      if (($folder['parentId'] ?? null) === null) $taken[mb_strtolower($folder['name'])] = true;
+  if (!$nested) return;
+  teknik_mutate(function ($doc) {
+    $parent = [];
+    foreach ($doc['folders'] ?? [] as $folder) $parent[$folder['id']] = $folder['parentId'] ?? null;
+    $top = function ($id) use ($parent) {
+      $seen = [];
+      // array_key_exists, not isset: a top-level folder's parent is null.
+      while ($id !== null && array_key_exists($id, $parent) && $parent[$id] !== null && !isset($seen[$id])) {
+        $seen[$id] = true;
+        $id = $parent[$id];
+      }
+      return $id !== null && array_key_exists($id, $parent) ? $id : null;
+    };
+    foreach ($doc['files'] as &$file) {
+      if (($file['folderId'] ?? null) !== null) $file['folderId'] = $top($file['folderId']);
     }
-    foreach ($names as $name) {
-      if (isset($taken[mb_strtolower($name)])) continue;
-      $taken[mb_strtolower($name)] = true;
-      $doc['folders'][] = ['id' => teknik_id(), 'name' => $name, 'parentId' => null, 'createdAt' => date('c')];
-    }
-    $doc['songFoldersFor'] = $production;
+    unset($file);
+    $doc['folders'] = array_values(array_filter($doc['folders'], function ($f) {
+      return ($f['parentId'] ?? null) === null;
+    }));
     return $doc;
   });
 }
@@ -6692,7 +6767,8 @@ function sangere_set_guide($body) {
 }
 
 function teknik_read($body) {
-  if (teknik_store_key() === 'sangere') sangere_seed_song_folders();
+  $sangere = teknik_store_key() === 'sangere';
+  if ($sangere) sangere_flatten();
   $doc = teknik_load();
   respond(200, [
     'ok' => true,
@@ -6703,7 +6779,7 @@ function teknik_read($body) {
     'uploadsPaused' => teknik_uploads_paused(),
     'revyActive' => manus_current_production_folder() !== null,
     // Sangere's "Guide til øvetracks med Moises.ai" (null = never saved).
-    'guide' => teknik_store_key() === 'sangere' ? ($doc['guide'] ?? null) : null,
+    'guide' => $sangere ? ($doc['guide'] ?? null) : null,
     'updatedAt' => $doc['updatedAt'] ?? null,
   ]);
 }
@@ -6711,6 +6787,8 @@ function teknik_read($body) {
 function teknik_create_folder($body) {
   $parentId = teknik_folder_id_from($body['parentId'] ?? null);
   $name = teknik_clean_name($body['name'] ?? '');
+  // Lydfiler (the sangere store) is flat: every folder is top-level.
+  if (teknik_store_key() === 'sangere' && $parentId !== null) respond(400, ['error' => 'invalid_shape']);
   if ($name === '') respond(400, ['error' => 'invalid_shape']);
   $folder = ['id' => teknik_id(), 'name' => $name, 'parentId' => $parentId, 'createdAt' => date('c')];
   teknik_mutate(function ($doc) use ($folder) {

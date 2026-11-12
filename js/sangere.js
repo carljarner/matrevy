@@ -1,18 +1,17 @@
 /* =========================================================
-   Matematikrevyen – Sangere (sangere.html)
+   Matematikrevyen – Lydfiler (lydfiler.html; internally "sangere")
 
-   The singers' practice audio during the revy: a nested folder tree of
-   sound files, capped at 500 MB for the whole store (a usage bar at the
-   top). A page-scoped copy of teknikken.js on its own store: the server
-   runs Teknikken's store code on SANGERE_DATA_DIR via the sangere_*
-   actions (teknik_stores() in update-data.php). One store for the whole
-   site, not per revy, never archived, and emptied by Koordinator's
-   "Afslut revyen" (people save what they want to keep).
+   The singers' practice audio during the revy, capped at 500 MB for the
+   whole store (a usage bar at the top). Hand-made folders ("+ Ny mappe"),
+   shown as flat cards in one alphabetical grid with the look of Bandet's
+   Noder folders. No sub-folders.
 
-   Differences from Teknikken: one "Upload lyd-filer" button (audio
-   files only), every file gets a name typed in the upload modal, like
-   Bandet's sheet music (sent as "<navn>.<ext>", shown without the
-   extension), no Afsender and no Boss Box.
+   The server runs Teknikken's store code on SANGERE_DATA_DIR via the
+   sangere_* actions (teknik_stores() in update-data.php). One store for
+   the whole site, not per revy, never archived, and emptied by
+   Koordinator's "Afslut revyen" (people save what they want to keep).
+   Every file gets a name typed in the upload modal, like Bandet's sheet
+   music (sent as "<navn>.<ext>", shown without the extension); audio only.
 
    Uploads go in 8 MB base64 chunks (sangere_upload_start → _chunk × N →
    _finish), one file at a time; downloads ask for a short-lived signed
@@ -91,10 +90,6 @@ function sangDownloadIcon() {
 // Pencil glyph — same drawing as band.js's bandPencilIcon.
 function sangPencilIcon() {
   return sangSvg('0 0 16 16', 15, 1.3, ['M10.5 2.5l3 3-8 8-3.4 0.9 0.9-3.4z', 'M9 4l3 3']);
-}
-
-function sangFolderIcon() {
-  return sangSvg('0 0 24 24', 20, 1.8, ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z']);
 }
 
 // ── Authenticated API (mirrors band.js's bandApi) ────────────
@@ -180,54 +175,54 @@ function sangFolderById(id) {
   return id ? (sangState.folders.find((f) => f.id === id) || null) : null;
 }
 
-function sangChildFolders(parentId) {
-  return sangState.folders.filter((f) => (f.parentId || null) === parentId);
-}
-
 function sangFolderFiles(folderId) {
   return sangState.files.filter((f) => (f.folderId || null) === folderId);
 }
 
-// Every folder id at or below `folderId`.
-function sangSubtreeIds(folderId) {
-  const ids = new Set([folderId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const f of sangState.folders) {
-      if (!ids.has(f.id) && ids.has(f.parentId)) { ids.add(f.id); grew = true; }
-    }
-  }
-  return ids;
+// ── Cards ────────────────────────────────────────────────────
+// A card is {key, label, folder, root}. Keys: 'f:<folderId>', and 'root'
+// for loose files from the old tree (shown only while there are any; no
+// uploads to it). Open cards are kept by key.
+function sangCompareLabels(a, b) {
+  return a.label.localeCompare(b.label, 'da', { sensitivity: 'base', numeric: true });
 }
 
-function sangSubtreeFiles(folderId) {
-  const ids = sangSubtreeIds(folderId);
-  return sangState.files.filter((f) => ids.has(f.folderId));
+function sangCards() {
+  const cards = sangState.folders.map((folder) => ({ key: 'f:' + folder.id, folder, label: folder.name, root: false }));
+  if (sangFolderFiles(null).length) cards.push({ key: 'root', folder: null, label: 'Uden mappe', root: true });
+  return cards.sort(sangCompareLabels);
 }
 
-// "Revysange › Stemme 1"
-function sangFolderPath(folderId) {
-  const names = [];
-  for (let f = sangFolderById(folderId); f; f = sangFolderById(f.parentId)) names.unshift(f.name);
-  return names.join(' › ');
+function sangCardByKey(key) {
+  return sangCards().find((card) => card.key === key) || null;
 }
 
-function sangFolderLabel(folderId) {
-  return folderId ? sangFolderPath(folderId) : 'Øverst (ingen mappe)';
+function sangCardFiles(card) {
+  return sangFolderFiles(card.root ? null : card.folder.id);
 }
 
-// Dropdown options: the top level, then every folder in tree order.
-function sangFolderOptions() {
-  const options = [{ value: '', label: sangFolderLabel(null) }];
-  const walk = (parentId) => {
-    for (const folder of sangChildFolders(parentId).sort(sangCompareNames)) {
-      options.push({ value: folder.id, label: sangFolderPath(folder.id) });
-      walk(folder.id);
-    }
-  };
-  walk(null);
-  return options;
+// The card a file in this folder shows up on.
+function sangCardKeyForFolder(folderId) {
+  return folderId ? 'f:' + folderId : 'root';
+}
+
+// What a folder is called on the page (upload panel, toasts).
+function sangFolderName(folderId) {
+  if (!folderId) return 'Uden mappe';
+  const folder = sangFolderById(folderId);
+  return folder ? folder.name : '';
+}
+
+// "Upload til" / "Mappe" options: every card but the loose-files one.
+function sangTargetOptions() {
+  return sangCards().filter((card) => !card.root).map((card) => ({ value: card.key, label: card.label }));
+}
+
+// A card key → its folder id. Returns {ok, folderId} | {ok:false, message}.
+async function sangResolveTarget(key) {
+  const card = sangCardByKey(key);
+  if (!card || card.root) return { ok: false, message: 'Vælg en mappe.' };
+  return { ok: true, folderId: card.folder.id };
 }
 
 function sangCompareNames(a, b) {
@@ -283,7 +278,7 @@ async function sangLoad() {
   const result = await sangApi('sangere_read', {});
   if (!result.ok) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'sang-error', result.message || 'Kunne ikke indlæse Sangere.'));
+    card.appendChild(el('p', 'sang-error', result.message || 'Kunne ikke indlæse Lydfiler.'));
     root.replaceChildren(card);
     return;
   }
@@ -291,8 +286,9 @@ async function sangLoad() {
   if (Number.isInteger(result.data.quotaBytes)) sangQuotaBytes = result.data.quotaBytes;
   sangUploadsOpen = result.data.uploadsOpen !== false;
   sangGuideSaved = result.data.guide || null;
-  // Forget open folders that no longer exist.
-  for (const id of [...sangOpenFolders]) if (!sangFolderById(id)) sangOpenFolders.delete(id);
+  // Forget open cards that no longer exist.
+  const keys = new Set(sangCards().map((card) => card.key));
+  for (const key of [...sangOpenFolders]) if (!keys.has(key)) sangOpenFolders.delete(key);
   sangSaveOpenFolders();
   sangRender();
   if (!sangGuideEditing) sangRenderGuide();
@@ -306,13 +302,13 @@ function sangRender() {
   const head = el('div', 'card-head sang-card-head');
   head.appendChild(el('h2', null, 'Filer'));
   const center = el('div', 'sang-head-center');
-  const newFolderBtn = sangBtn('+ Mappe');
-  newFolderBtn.addEventListener('click', () => sangOpenNewFolderModal(null));
+  const newFolderBtn = sangBtn('+ Ny mappe');
+  newFolderBtn.addEventListener('click', () => sangOpenNewFolderModal());
   center.appendChild(newFolderBtn);
   head.appendChild(center);
   const uploadBtns = el('div', 'sang-upload-btns');
   const uploadBtn = sangBtn('Upload lyd-filer');
-  uploadBtn.addEventListener('click', () => sangPickFiles(null));
+  uploadBtn.addEventListener('click', () => sangPickFiles(''));
   uploadBtn.disabled = !sangUploadsOpen;
   uploadBtns.appendChild(uploadBtn);
   head.appendChild(uploadBtns);
@@ -321,14 +317,14 @@ function sangRender() {
     card.appendChild(el('p', 'site-muted sang-closed-notice', SANG_CLOSED_TEXT));
   }
 
-  const list = el('div', 'sang-list');
-  sangBuildLevel(list, null, 0);
-  if (!list.childElementCount) {
-    list.appendChild(el('p', 'site-empty sang-empty', sangUploadsOpen
-      ? 'Her er ingen lydfiler endnu. Opret en mappe, eller træk lydfiler hertil.'
-      : 'Her er ingen filer.'));
-  }
+  const cards = sangCards();
+  const list = el('div', 'sang-folder-list');
+  if (cards.length) list.appendChild(sangBuildGrid(cards));
+  else list.appendChild(el('p', 'site-empty', sangUploadsOpen
+    ? 'Her er ingen mapper endnu. Opret en med "+ Ny mappe".'
+    : 'Her er ingen filer.'));
   card.appendChild(list);
+
   if (sangState.files.length) {
     const foot = el('div', 'sang-card-foot');
     const allBtn = sangBtn('Download alt');
@@ -345,95 +341,80 @@ function sangRender() {
   sangRenderUploads();
 }
 
-// Folders, then files, of one level; an open folder's contents follow
-// right after its row, one step further in.
-function sangBuildLevel(list, parentId, depth) {
-  for (const folder of sangChildFolders(parentId).sort(sangCompareNames)) {
-    list.appendChild(sangBuildFolderRow(folder, depth));
-    if (!sangOpenFolders.has(folder.id)) continue;
-    const before = list.childElementCount;
-    sangBuildLevel(list, folder.id, depth + 1);
-    if (list.childElementCount === before) {
-      const empty = el('div', 'sang-row sang-empty-row', 'Tom mappe');
-      empty.style.setProperty('--depth', depth + 1);
-      empty.dataset.target = folder.id;
-      list.appendChild(empty);
-    }
-  }
-  for (const file of sangFolderFiles(parentId).sort(sangCompareNames)) {
-    list.appendChild(sangBuildFileRow(file, depth));
-  }
+function sangBuildGrid(cards) {
+  const grid = el('div', 'sang-folder-grid');
+  for (const card of cards) grid.appendChild(sangBuildCard(card));
+  return grid;
 }
 
-function sangFolderSummary(folder) {
-  const subfolders = sangChildFolders(folder.id).length;
-  const files = sangFolderFiles(folder.id).length;
-  if (!subfolders && !files) return 'Tom';
-  const parts = [];
-  if (subfolders) parts.push(sangPlural(subfolders, 'mappe', 'mapper'));
-  if (files) parts.push(sangPlural(files, 'fil', 'filer'));
-  return parts.join(', ');
-}
+// A page-scoped copy of band.js's bandBuildFolder: a .site-collapse head
+// (title, original title underneath, file count), open to the files and
+// an upload bar. Desktop files dropped on it open the upload modal; a
+// file row dragged onto it moves there.
+function sangBuildCard(card) {
+  const node = el('div', 'sang-folder');
+  node.dataset.key = card.key;
+  const isOpen = sangOpenFolders.has(card.key);
+  if (isOpen) node.classList.add('open');
+  const files = sangCardFiles(card);
 
-function sangBuildFolderRow(folder, depth) {
-  const isOpen = sangOpenFolders.has(folder.id);
-  const row = el('div', 'sang-row sang-folder-row' + (isOpen ? ' open' : ''));
-  row.style.setProperty('--depth', depth);
-  row.dataset.folderId = folder.id;
-  row.dataset.target = folder.id;
-
-  const toggle = el('button', 'site-collapse sang-row-main');
-  toggle.type = 'button';
-  toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-  toggle.appendChild(el('span', 'site-chevron sang-chevron', '▾'));
-  const icon = el('span', 'sang-folder-icon');
-  icon.appendChild(sangFolderIcon());
-  toggle.appendChild(icon);
-  toggle.appendChild(el('span', 'sang-row-name', folder.name));
-  toggle.addEventListener('click', () => {
-    if (sangOpenFolders.has(folder.id)) sangOpenFolders.delete(folder.id);
-    else sangOpenFolders.add(folder.id);
+  const headBtn = el('button', 'site-collapse sang-folder-head');
+  headBtn.type = 'button';
+  headBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  headBtn.appendChild(el('span', 'site-chevron', '▾'));
+  const titles = el('span', 'sang-folder-titles');
+  titles.appendChild(el('span', 'sang-folder-name', card.label));
+  headBtn.appendChild(titles);
+  headBtn.appendChild(el('span', 'sang-folder-count', files.length === 1 ? '1 fil' : `${files.length} filer`));
+  headBtn.addEventListener('click', () => {
+    if (sangOpenFolders.has(card.key)) sangOpenFolders.delete(card.key);
+    else sangOpenFolders.add(card.key);
     sangSaveOpenFolders();
-    sangRender();
+    node.replaceWith(sangBuildCard(card));
   });
-  row.appendChild(toggle);
-  row.appendChild(el('span', 'sang-row-meta', sangFolderSummary(folder)));
+  node.appendChild(headBtn);
+  sangWireCardDrop(node, card);
+  if (!isOpen) return node;
 
-  const actions = el('div', 'sang-row-actions');
-  const downloadBtn = sangIconBtn(sangDownloadIcon(), 'Download mappen som .zip');
-  downloadBtn.addEventListener('click', () => sangDownloadFolder(folder.id));
-  actions.appendChild(downloadBtn);
-  const editBtn = sangIconBtn(sangPencilIcon(), 'Omdøb mappen');
-  editBtn.addEventListener('click', () => sangOpenRenameFolderModal(folder));
-  actions.appendChild(editBtn);
-  const removeBtn = sangRemoveBtn('Slet mappen');
-  removeBtn.addEventListener('click', () => sangConfirmDeleteFolder(folder));
-  actions.appendChild(removeBtn);
-  row.appendChild(actions);
-  return row;
+  const body = el('div', 'sang-folder-body');
+  if (!files.length) body.appendChild(el('p', 'site-muted', 'Ingen filer endnu.'));
+  for (const file of files.slice().sort(sangCompareNames)) body.appendChild(sangBuildFileRow(file));
+
+  // "Upload filer" centred, the pencil (rename / delete) in the right corner.
+  if (!card.root) {
+    const bar = el('div', 'sang-upload-bar');
+    const uploadBtn = sangBtn('Upload filer');
+    uploadBtn.disabled = !sangUploadsOpen;
+    uploadBtn.addEventListener('click', () => sangPickFiles(card.key));
+    bar.appendChild(uploadBtn);
+    const editBtn = sangIconBtn(sangPencilIcon(), 'Rediger mappen');
+    editBtn.classList.add('sang-folder-edit');
+    editBtn.addEventListener('click', () => sangOpenEditFolderModal(card.folder));
+    bar.appendChild(editBtn);
+    body.appendChild(bar);
+  }
+  node.appendChild(body);
+  return node;
 }
 
-function sangBuildFileRow(file, depth) {
-  const row = el('div', 'sang-row sang-file-row');
-  row.style.setProperty('--depth', depth);
-  row.dataset.target = file.folderId || '';
-  row.draggable = true;
-  sangWireFileDrag(row, file);
-
+// band.js's bandBuildFileRow, for sound files: the name plays the file in
+// the browser where it can (SANG_INLINE_EXTS), else downloads it.
+function sangBuildFileRow(file) {
+  const line = el('div', 'sang-file');
+  line.draggable = true;
+  sangWireFileDrag(line, file);
   const kind = sangFileKind(file.ext);
+  line.appendChild(el('span', 'sang-kind sang-kind-' + kind.key, kind.label));
   const inline = SANG_INLINE_EXTS.includes(file.ext);
-  const open = el('button', 'sang-row-main');
-  open.type = 'button';
-  open.title = inline ? 'Åbn' : 'Download';
-  open.appendChild(el('span', 'sang-kind sang-kind-' + kind.key, kind.label));
-  open.appendChild(el('span', 'sang-row-name', sangFileDisplayName(file)));
-  open.addEventListener('click', () => (inline ? sangOpenFile(file) : sangDownloadFile(file)));
-  row.appendChild(open);
-  const date = (file.uploadedAt || '').slice(0, 10);
-  row.appendChild(el('span', 'sang-row-meta',
-    sangFormatBytes(file.size || 0) + (date ? ' · ' + formatDaDate(date) : '')));
+  const info = el('div', 'sang-file-info');
+  const nameBtn = el('button', 'sang-file-name sang-file-open', sangFileDisplayName(file));
+  nameBtn.type = 'button';
+  nameBtn.title = inline ? 'Afspil' : 'Download';
+  nameBtn.addEventListener('click', () => (inline ? sangOpenFile(file) : sangDownloadFile(file)));
+  info.appendChild(nameBtn);
+  line.appendChild(info);
 
-  const actions = el('div', 'sang-row-actions');
+  const actions = el('div', 'sang-file-actions');
   const downloadBtn = sangIconBtn(sangDownloadIcon(), 'Download');
   downloadBtn.addEventListener('click', () => sangDownloadFile(file));
   actions.appendChild(downloadBtn);
@@ -451,8 +432,8 @@ function sangBuildFileRow(file, depth) {
     });
   });
   actions.appendChild(removeBtn);
-  row.appendChild(actions);
-  return row;
+  line.appendChild(actions);
+  return line;
 }
 
 // ── Usage bar (top centre) ───────────────────────────────────
@@ -785,10 +766,13 @@ function sangConfirm(title, description, confirmLabel, onConfirm) {
   actions.appendChild(confirmBtn);
 }
 
-// Modal chrome for a Navn field (+ optional Mappe dropdown) and Annuller/
-// confirm. `submit({name, folderId})` returns an error message, '' when
-// done, or null for a cancelled password prompt.
-function sangOpenFormModal({ title, name, placeholder, folderLabel, folderId, confirmLabel, submit }) {
+// Modal chrome for a Navn field (+ optional Mappe dropdown of cards) and
+// a confirm button. `submit({name, target})` (target = a card key, '' when
+// there's no dropdown) returns an error message, '' when done, or null for
+// a cancelled password prompt.
+// `onDelete` (optional) adds a red "Slet" bottom left; it closes this modal
+// and calls onDelete(), which asks for confirmation itself.
+function sangOpenFormModal({ title, name, placeholder, targetLabel, target, confirmLabel, submit, onDelete }) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(title);
   modal.classList.add('site-modal-sm');
   const input = document.createElement('input');
@@ -797,10 +781,10 @@ function sangOpenFormModal({ title, name, placeholder, folderLabel, folderId, co
   input.value = name;
   input.placeholder = placeholder || '';
   form.appendChild(siteEditField('Navn', input));
-  let folderField = null;
-  if (folderLabel) {
-    folderField = siteCreateDropdownField(sangFolderOptions(), folderId || '');
-    form.appendChild(siteEditField(folderLabel, folderField));
+  let targetField = null;
+  if (targetLabel) {
+    targetField = siteCreateDropdownField(sangTargetOptions(), target || '', 'Vælg mappe');
+    form.appendChild(siteEditField(targetLabel, targetField));
   }
   const saveBtn = sangPillBtn(confirmLabel, 'site-btn-success');
   async function onSubmit() {
@@ -808,7 +792,7 @@ function sangOpenFormModal({ title, name, placeholder, folderLabel, folderId, co
     if (!value) { error.textContent = 'Skriv et navn.'; input.focus(); return; }
     saveBtn.disabled = true;
     error.textContent = '';
-    const message = await submit({ name: value, folderId: folderField ? (folderField.value || null) : null });
+    const message = await submit({ name: value, target: targetField ? targetField.value : '' });
     saveBtn.disabled = false;
     if (message === null) return;
     if (message) { error.textContent = message; return; }
@@ -820,20 +804,25 @@ function sangOpenFormModal({ title, name, placeholder, folderLabel, folderId, co
     e.preventDefault();
     onSubmit();
   });
+  if (onDelete) {
+    actions.classList.add('sang-edit-actions'); // Slet left, Gem right
+    const deleteBtn = sangPillBtn('Slet', 'site-btn-danger');
+    deleteBtn.addEventListener('click', () => { close(); onDelete(); });
+    actions.appendChild(deleteBtn);
+  }
   actions.appendChild(saveBtn);
   input.focus();
   input.select();
 }
 
-function sangOpenNewFolderModal(parentId) {
+function sangOpenNewFolderModal() {
   sangOpenFormModal({
-    title: 'Ny mappe', name: '', placeholder: 'Fx Revysange, Stemme 1',
-    folderLabel: 'Placering', folderId: parentId, confirmLabel: 'Opret',
-    async submit({ name, folderId }) {
-      const result = await sangApi('sangere_create_folder', { parentId: folderId, name });
+    title: 'Ny mappe', name: '', placeholder: 'Fx sangens titel', confirmLabel: 'Opret',
+    async submit({ name }) {
+      const result = await sangApi('sangere_create_folder', { name });
       if (!result.ok) return result.message || null;
       sangState.folders.push(result.data.folder);
-      if (folderId) sangOpenFolders.add(folderId); // show the new folder
+      sangOpenFolders.add('f:' + result.data.folder.id); // show the new card open
       sangSaveOpenFolders();
       sangRender();
       return '';
@@ -841,9 +830,10 @@ function sangOpenNewFolderModal(parentId) {
   });
 }
 
-function sangOpenRenameFolderModal(folder) {
+function sangOpenEditFolderModal(folder) {
   sangOpenFormModal({
-    title: 'Omdøb mappe', name: folder.name, confirmLabel: 'Gem',
+    title: 'Rediger mappe', name: folder.name, confirmLabel: 'Gem',
+    onDelete: () => sangConfirmDeleteFolder(folder),
     async submit({ name }) {
       if (name === folder.name) return '';
       const result = await sangApi('sangere_rename_folder', { folderId: folder.id, name });
@@ -858,17 +848,20 @@ function sangOpenRenameFolderModal(folder) {
 // Rename and/or move (the Mappe dropdown is how touch screens move files).
 function sangOpenEditFileModal(file) {
   const oldName = sangFileDisplayName(file);
+  const oldTarget = sangCardKeyForFolder(file.folderId || null);
   sangOpenFormModal({
-    title: 'Rediger fil', name: oldName, folderLabel: 'Mappe', folderId: file.folderId,
+    title: 'Rediger fil', name: oldName, targetLabel: 'Mappe', target: oldTarget,
     confirmLabel: 'Gem',
-    async submit({ name, folderId }) {
+    async submit({ name, target }) {
       if (name !== oldName) {
         const result = await sangApi('sangere_rename_file', { fileId: file.id, name });
         if (!result.ok) return result.message || null;
         file.name = result.data.file.name;
       }
-      if (folderId !== (file.folderId || null)) {
-        const result = await sangApi('sangere_move_file', { fileId: file.id, folderId });
+      if (target && target !== oldTarget) {
+        const resolved = await sangResolveTarget(target);
+        if (!resolved.ok) { sangRender(); return resolved.message; }
+        const result = await sangApi('sangere_move_file', { fileId: file.id, folderId: resolved.folderId });
         if (!result.ok) { sangRender(); return result.message || null; }
         file.folderId = result.data.file.folderId;
       }
@@ -879,20 +872,16 @@ function sangOpenEditFileModal(file) {
 }
 
 function sangConfirmDeleteFolder(folder) {
-  const ids = sangSubtreeIds(folder.id);
-  const fileCount = sangState.files.filter((f) => ids.has(f.folderId)).length;
-  const folderCount = ids.size - 1;
-  const contents = [];
-  if (folderCount) contents.push(sangPlural(folderCount, 'undermappe', 'undermapper'));
-  if (fileCount) contents.push(sangPlural(fileCount, 'fil', 'filer'));
-  const description = (contents.length ? `Mappen og alt i den (${contents.join(' og ')}) slettes. ` : '')
-    + 'Dette kan ikke fortrydes.';
-  sangConfirm(`Slet "${folder.name}"?`, description, 'Slet', async () => {
+  const fileCount = sangFolderFiles(folder.id).length;
+  const description = (fileCount
+    ? `Mappen og ${fileCount === 1 ? 'filen' : `alle ${fileCount} filer`} i den slettes. `
+    : 'Mappen er tom. ') + 'Dette kan ikke fortrydes.';
+  sangConfirm(`Er du sikker på, at du vil slette "${folder.name}"?`, description, 'Slet', async () => {
     const result = await sangApi('sangere_delete_folder', { folderId: folder.id });
     if (!result.ok) { sangShowError(result.message); return false; }
-    sangState.folders = sangState.folders.filter((f) => !ids.has(f.id));
-    sangState.files = sangState.files.filter((f) => !ids.has(f.folderId));
-    for (const id of ids) sangOpenFolders.delete(id);
+    sangState.folders = sangState.folders.filter((f) => f.id !== folder.id);
+    sangState.files = sangState.files.filter((f) => f.folderId !== folder.id);
+    sangOpenFolders.delete('f:' + folder.id);
     sangSaveOpenFolders();
     sangRender();
     return true;
@@ -930,63 +919,73 @@ function sangWireFileDrag(row, file) {
 }
 
 function sangClearDropHighlight() {
-  document.querySelectorAll('.sang-drop-target').forEach((n) => n.classList.remove('sang-drop-target'));
+  document.querySelectorAll('.sang-folder-dragover').forEach((n) => n.classList.remove('sang-folder-dragover'));
 }
 
-// Where a drop at this element lands: a folder row → that folder, a file
-// row → the folder it's in, anywhere else on the card → the top level.
-function sangDropTarget(node) {
-  const row = node && node.closest ? node.closest('[data-target]') : null;
-  return row ? (row.dataset.target || null) : null;
-}
-
-function sangHighlightDrop(card, folderId) {
-  const target = folderId ? card.querySelector(`.sang-folder-row[data-folder-id="${folderId}"]`) : card;
-  if (target && target.classList.contains('sang-drop-target')) return;
-  sangClearDropHighlight();
-  if (target) target.classList.add('sang-drop-target');
-}
-
-// One handler on the card covers both a file row being moved and files
-// dragged in from the desktop (which open the upload modal).
-function sangWireDrop(card) {
+// One card: a file row dragged onto it moves there; files from the
+// desktop open the upload modal with this card chosen. The loose-files
+// card ('root') takes neither.
+function sangWireCardDrop(node, card) {
   const isDesktopFiles = (e) => !sangDragFile && e.dataTransfer
     && Array.from(e.dataTransfer.types || []).includes('Files');
-  card.addEventListener('dragover', (e) => {
-    if (!sangDragFile && !isDesktopFiles(e)) return;
+  node.addEventListener('dragover', (e) => {
+    if (card.root || (!sangDragFile && !isDesktopFiles(e))) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = sangDragFile ? 'move' : 'copy';
-    sangHighlightDrop(card, sangDropTarget(e.target));
+    if (!node.classList.contains('sang-folder-dragover')) {
+      sangClearDropHighlight();
+      node.classList.add('sang-folder-dragover');
+    }
   });
-  card.addEventListener('dragleave', (e) => {
-    if (!card.contains(e.relatedTarget)) sangClearDropHighlight();
+  node.addEventListener('dragleave', (e) => {
+    if (!node.contains(e.relatedTarget)) node.classList.remove('sang-folder-dragover');
   });
-  card.addEventListener('drop', (e) => {
-    const folderId = sangDropTarget(e.target);
+  node.addEventListener('drop', (e) => {
+    if (card.root) return;
     sangClearDropHighlight();
     if (sangDragFile) {
       e.preventDefault();
       const file = sangDragFile;
       sangDragFile = null;
-      sangMoveFile(file, folderId);
+      sangMoveFile(file, card.key);
       return;
     }
     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
     e.preventDefault();
     if (!sangUploadsOpen) { sangShowError(SANG_CLOSED_TEXT); return; }
-    sangOpenUploadModal(Array.from(e.dataTransfer.files), folderId);
+    sangOpenUploadModal(Array.from(e.dataTransfer.files), card.key);
   });
 }
 
-async function sangMoveFile(file, folderId) {
-  if ((file.folderId || null) === folderId) return;
-  const result = await sangApi('sangere_move_file', { fileId: file.id, folderId });
+// Desktop files dropped elsewhere on the Filer card open the upload modal
+// without a card chosen (and never make the browser open the file).
+function sangWireDrop(card) {
+  const isDesktopFiles = (e) => !sangDragFile && e.dataTransfer
+    && Array.from(e.dataTransfer.types || []).includes('Files');
+  card.addEventListener('dragover', (e) => {
+    if (e.defaultPrevented || !isDesktopFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  card.addEventListener('drop', (e) => {
+    if (e.defaultPrevented || sangDragFile || !e.dataTransfer || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    if (!sangUploadsOpen) { sangShowError(SANG_CLOSED_TEXT); return; }
+    sangOpenUploadModal(Array.from(e.dataTransfer.files), '');
+  });
+}
+
+async function sangMoveFile(file, key) {
+  if (sangCardKeyForFolder(file.folderId || null) === key) return;
+  const resolved = await sangResolveTarget(key);
+  if (!resolved.ok) { sangShowError(resolved.message); sangRender(); return; }
+  const result = await sangApi('sangere_move_file', { fileId: file.id, folderId: resolved.folderId });
   if (!result.ok) { sangShowError(result.message); return; }
   file.folderId = result.data.file.folderId;
-  if (folderId) sangOpenFolders.add(folderId);
+  sangOpenFolders.add(key);
   sangSaveOpenFolders();
   sangRender();
-  siteShowToast(`Flyttet til ${folderId ? sangFolderPath(folderId) : 'øverste niveau'}.`);
+  siteShowToast(`Flyttet til ${sangFolderName(file.folderId)}.`);
 }
 
 // ── Download / open ──────────────────────────────────────────
@@ -1019,7 +1018,7 @@ async function sangDownloadFile(file) {
 
 // A folder (null = everything) as one .zip, built while it downloads.
 async function sangDownloadFolder(folderId) {
-  const files = folderId ? sangSubtreeFiles(folderId) : sangState.files;
+  const files = folderId ? sangFolderFiles(folderId) : sangState.files;
   if (!files.length) { siteShowToast('Mappen er tom.'); return; }
   const url = await sangSignedUrl('sangere_folder_download_url', { folderId });
   if (!url) return;
@@ -1041,14 +1040,15 @@ async function sangOpenFile(file) {
 }
 
 // ── Upload modal ─────────────────────────────────────────────
-function sangPickFiles(folderId) {
+// `target` = a card key, '' = let the modal ask.
+function sangPickFiles(target) {
   const input = document.createElement('input');
   input.type = 'file';
   input.multiple = true;
   input.accept = 'audio/*,' + SANG_AUDIO_EXTS.map((ext) => '.' + ext).join(',');
   input.addEventListener('change', () => {
     const picked = Array.from(input.files || []);
-    if (picked.length) sangOpenUploadModal(picked, folderId);
+    if (picked.length) sangOpenUploadModal(picked, target);
   });
   input.click();
 }
@@ -1071,10 +1071,10 @@ function sangNotEnoughSpace(total, free) {
 }
 
 // Bandet's recipe (bandOpenUploadModal): each file needs a name typed
-// here (required, sent as "<navn>.<ext>"), plus which folder they go into
+// here (required, sent as "<navn>.<ext>"), plus which card they go into
 // (defaulting to the one they were dropped on); refuses a batch that
 // won't fit. Anything that isn't a sound file is skipped.
-function sangOpenUploadModal(files, folderId) {
+function sangOpenUploadModal(files, target) {
   const valid = files.filter((file) => {
     if (!sangIsAudio(file)) {
       siteShowToast(`"${file.name}" blev sprunget over (kun lydfiler: ${SANG_AUDIO_EXTS.join(', ')}).`);
@@ -1113,8 +1113,8 @@ function sangOpenUploadModal(files, folderId) {
     return { file, ext, input };
   });
   form.appendChild(list);
-  const folderField = siteCreateDropdownField(sangFolderOptions(), folderId || '');
-  form.appendChild(siteEditField('Upload til', folderField));
+  const targetField = siteCreateDropdownField(sangTargetOptions(), target || '', 'Vælg mappe');
+  form.appendChild(siteEditField('Upload til', targetField));
   const free = sangFreeBytes();
   form.appendChild(el('p', 'sang-upload-space',
     `I alt ${sangFormatBytes(total)} · ${sangFormatBytes(free)} ledigt`));
@@ -1124,7 +1124,7 @@ function sangOpenUploadModal(files, folderId) {
     error.textContent = sangNotEnoughSpace(total, free);
     uploadBtn.disabled = true;
   }
-  function submit() {
+  async function submit() {
     if (uploadBtn.disabled) return;
     const missing = entries.find((entry) => !entry.input.value.trim());
     if (missing) {
@@ -1132,12 +1132,19 @@ function sangOpenUploadModal(files, folderId) {
       missing.input.focus();
       return;
     }
-    const target = folderField.value || null;
+    const key = targetField.value;
+    if (!key) { error.textContent = 'Vælg en mappe.'; return; }
+    uploadBtn.disabled = true;
+    error.textContent = '';
+    const resolved = await sangResolveTarget(key);
+    if (!resolved.ok) { uploadBtn.disabled = false; error.textContent = resolved.message; return; }
     close();
-    if (target) { sangOpenFolders.add(target); sangSaveOpenFolders(); sangRender(); }
+    sangOpenFolders.add(key);
+    sangSaveOpenFolders();
+    sangRender();
     sangEnqueue(entries.map(({ file, ext, input }) => ({
       file, name: `${sangCleanBaseName(input.value)}.${ext}`,
-    })), target);
+    })), resolved.folderId);
   }
   uploadBtn.addEventListener('click', submit);
   entries.forEach(({ input }, i) => {
@@ -1201,7 +1208,7 @@ function sangBuildUploadRow(item) {
   const row = el('div', 'sang-upload');
   const top = el('div', 'sang-upload-top');
   top.appendChild(el('span', 'sang-upload-name', item.name));
-  top.appendChild(el('span', 'sang-upload-where', '→ ' + (item.folderId ? sangFolderPath(item.folderId) || 'slettet mappe' : 'Øverst')));
+  top.appendChild(el('span', 'sang-upload-where', '→ ' + (sangFolderName(item.folderId) || 'slettet mappe')));
   const status = el('span', 'sang-upload-status');
   item.statusEl = status;
   top.appendChild(status);
@@ -1351,7 +1358,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!root) return;
   if (typeof siteIsFileProtocol === 'function' && siteIsFileProtocol()) {
     const card = el('section', 'card');
-    card.appendChild(el('p', 'site-muted', 'Sangere kræver forbindelse til serveren og virker ikke offline.'));
+    card.appendChild(el('p', 'site-muted', 'Lydfiler kræver forbindelse til serveren og virker ikke offline.'));
     root.replaceChildren(card);
     return;
   }

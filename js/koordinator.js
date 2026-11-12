@@ -476,9 +476,9 @@ async function koordCloseYear({ closingFolder, closingName, closingYear }, onPro
   const teknikRes = await koordBudgetApi('teknik_clear_all', {});
   if (!teknikRes.ok) throw new Error(teknikRes.message || 'Kunne ikke slette filerne i Teknikken.');
 
-  onProgress('Sletter alle filer i Sangere...');
+  onProgress('Sletter alle filer i Lydfiler...');
   const sangereRes = await koordBudgetApi('sangere_clear_all', {});
-  if (!sangereRes.ok) throw new Error(sangereRes.message || 'Kunne ikke slette filerne i Sangere.');
+  if (!sangereRes.ok) throw new Error(sangereRes.message || 'Kunne ikke slette filerne i Lydfiler.');
 
   onProgress('Arkiverer fællesbeskeder og tjeklister...');
   const notesRes = await koordBudgetApi('koord_notes_archive', { folder: closingFolder, name: closingName });

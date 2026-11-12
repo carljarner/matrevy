@@ -17,6 +17,8 @@ function dev_redirect($to) {
 }
 
 if (preg_match('#^/index(\.html)?$#', $path)) dev_redirect('/' . $suffix);
+// Renamed pages (keep in sync with apache-site.conf): Sangere -> Lydfiler.
+if (preg_match('#^/sangere(\.html|/)?$#', $path)) dev_redirect('/lydfiler' . $suffix);
 if (preg_match('#^/([a-z-]+)(\.html|/)$#', $path, $m) && is_file("$root/{$m[1]}.html")) {
     dev_redirect('/' . $m[1] . $suffix);
 }

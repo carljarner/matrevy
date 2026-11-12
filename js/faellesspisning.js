@@ -300,11 +300,112 @@ function faellesIsDayChecked(row, col) {
   return faellesDayDefault(row, col);
 }
 
+// ── Closing time ──────────────────────────────────────────────
+// A day column closes at `closeTime` (admin-set, default 14:00, Danish
+// time) on its own date and stays closed on every later date. Only an
+// admin can still change a closed day's checkboxes; the server enforces
+// the same rule (faelles_touches_closed_day → 403 day_closed).
+const FAELLES_DEFAULT_CLOSE_TIME = '14:00';
+
+function faellesValidCloseTime(value) {
+  return (typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value)) ? value : FAELLES_DEFAULT_CLOSE_TIME;
+}
+
+// Today's date and the time in Copenhagen, whatever the device's own timezone.
+function faellesCopenhagenNow() {
+  const parts = {};
+  for (const p of new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Copenhagen', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date())) parts[p.type] = p.value;
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+function faellesIsDayClosed(col) {
+  const now = faellesCopenhagenNow();
+  if (col.date < now.date) return true;
+  const closeTime = (faellesState && faellesState.closeTime) || FAELLES_DEFAULT_CLOSE_TIME;
+  return col.date === now.date && now.time >= closeTime;
+}
+
+function faellesIsAdmin() {
+  return typeof siteHasLevel === 'function' && siteHasLevel('admin');
+}
+
+function faellesCanEditDay(col) {
+  return faellesIsAdmin() || !faellesIsDayClosed(col);
+}
+
+const FAELLES_CLOSED_TITLE = 'Lukket for tilmelding';
+
+// Applies the closed state to one rendered checkbox.
+function faellesApplyDayLock(cb, col) {
+  const locked = !faellesCanEditDay(col);
+  cb.disabled = locked;
+  if (locked) cb.title = FAELLES_CLOSED_TITLE;
+  else cb.removeAttribute('title');
+}
+
+// The page can stay open across the closing moment: every 30 s, re-apply
+// the lock in place (no re-render, so focus and in-flight edits survive)
+// once the set of closed days has changed.
+let faellesClosedKey = '';
+function faellesRefreshDayLocks() {
+  if (!faellesState) return;
+  const columns = faellesRehearsalColumns();
+  const key = columns.filter(faellesIsDayClosed).map((c) => c.id).join('|');
+  if (key === faellesClosedKey) return;
+  faellesClosedKey = key;
+  const byId = new Map(columns.map((c) => [c.id, c]));
+  document.querySelectorAll('.faelles-table [data-day-id]').forEach((node) => {
+    const col = byId.get(node.dataset.dayId);
+    if (!col) return;
+    if (node.tagName === 'TH') node.classList.toggle('faelles-col-closed', faellesIsDayClosed(col));
+    else if (node.tagName === 'INPUT') faellesApplyDayLock(node, col);
+  });
+}
+
+// Admin: the menu button top-left in the sheet card's toolbar.
+function faellesBuildCloseTimeButton(root) {
+  const btn = el('button', 'site-field-btn site-toolbar-control faelles-close-time-btn');
+  btn.type = 'button';
+  btn.title = 'Vælg hvornår en dag lukker for tilmelding på selve dagen';
+  btn.appendChild(el('span', 'site-field-text', `Lukker kl. ${faellesState.closeTime}`));
+  btn.appendChild(el('span', 'site-field-chevron', '▾'));
+  btn.addEventListener('click', () => {
+    siteToggleFieldPopup(btn, () => {
+      siteOpenTimePicker(btn, faellesState.closeTime, async (time) => {
+        if (!time || time === faellesState.closeTime) return; // "Ingen tid" isn't an option here
+        faellesSavesPending++;
+        const result = await faellesApi('faelles_set_close_time', { closeTime: time });
+        faellesSavesPending--;
+        if (!result.ok) {
+          if (result.message) siteShowToast(result.message);
+          return;
+        }
+        faellesState.closeTime = faellesValidCloseTime(result.data.closeTime);
+        if (typeof result.data.notice === 'string') faellesState.notice = result.data.notice;
+        siteShowToast(`Dagene lukker nu kl. ${faellesState.closeTime}`);
+        faellesRender(root);
+      });
+    });
+  });
+  return btn;
+}
+
+// The toolbar's left cell: the count, with the admin's closing-time button first.
+function faellesBuildToolbarLeft(root, withCount) {
+  const left = el('div', 'faelles-toolbar-left');
+  if (faellesIsAdmin()) left.appendChild(faellesBuildCloseTimeButton(root));
+  if (withCount) left.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
+  return left;
+}
+
 // ── State ─────────────────────────────────────────────────────
 // One loaded document, live-synced from every successful write's server
 // response — not a batched draft (unlike the removed Ark page's
 // sheetState), since edits commit individually on blur/change.
-let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, notice, subNotice, columnWidths, updatedAt } once loaded
+let faellesState = null; // { rows, connection, extraDays, hiddenDays, attendanceMode, notice, subNotice, closeTime, columnWidths, updatedAt } once loaded
 
 function faellesRowHasContent(row) {
   return (row.answers.navn || '').trim() !== '';
@@ -330,6 +431,7 @@ async function faellesLoad(root) {
     attendanceMode: result.data.attendanceMode === 'in' ? 'in' : 'out',
     notice: typeof result.data.notice === 'string' ? result.data.notice : '',
     subNotice: typeof result.data.subNotice === 'string' ? result.data.subNotice : '',
+    closeTime: faellesValidCloseTime(result.data.closeTime),
     columnWidths: (result.data.columnWidths && typeof result.data.columnWidths === 'object') ? result.data.columnWidths : {},
     updatedAt: result.data.updatedAt || null,
   };
@@ -382,7 +484,7 @@ function faellesRender(root) {
   const card = el('section', 'card');
 
   const toolbar = el('div', 'faelles-toolbar');
-  toolbar.appendChild(el('div', 'faelles-count', `${faellesState.rows.length} tilmeldt${faellesState.rows.length === 1 ? '' : 'e'}`));
+  toolbar.appendChild(faellesBuildToolbarLeft(root, true));
   toolbar.appendChild(faellesBuildNotice());
   toolbar.appendChild(faellesBuildViewToggle(root));
   card.appendChild(toolbar);
@@ -401,6 +503,7 @@ function faellesRender(root) {
   if (isBoss) root.appendChild(faellesBuildBossBox(root));
   // The sheet scrolls with the page; its header row follows it down.
   siteStickyHead(table.tHead);
+  faellesClosedKey = faellesRehearsalColumns().filter(faellesIsDayClosed).map((c) => c.id).join('|');
 }
 
 // ── Satyr: per-day summary without names ──────────────────────
@@ -427,6 +530,7 @@ async function faellesLoadSummary(root) {
     attendanceMode: 'out',
     notice: typeof result.data.notice === 'string' ? result.data.notice : '',
     subNotice: typeof result.data.subNotice === 'string' ? result.data.subNotice : '',
+    closeTime: faellesValidCloseTime(result.data.closeTime),
     columnWidths: {},
     updatedAt: null,
   };
@@ -449,7 +553,7 @@ function faellesBuildSummaryCard(toggleRoot) {
   notice.appendChild(faellesBuildNoticeLine('notice', 'faelles-notice', 'Besked over arket'));
   if (toggleRoot) {
     const toolbar = el('div', 'faelles-toolbar faelles-summary-toolbar');
-    toolbar.appendChild(el('div'));
+    toolbar.appendChild(faellesBuildToolbarLeft(toggleRoot, false));
     toolbar.appendChild(notice);
     toolbar.appendChild(faellesBuildViewToggle(toggleRoot));
     card.appendChild(toolbar);
@@ -671,6 +775,8 @@ function faellesBuildTable(root) {
   }
   for (const col of columns) {
     const th = el('th', 'faelles-col-day', col.label);
+    th.dataset.dayId = col.id;
+    if (faellesIsDayClosed(col)) th.classList.add('faelles-col-closed');
     if (col.title) {
       th.addEventListener('mouseenter', () => faellesShowFieldTooltip(th, col.title));
       th.addEventListener('mouseleave', faellesHideFieldTooltip);
@@ -844,7 +950,16 @@ function faellesRenderRow(row, columns, canManage) {
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = faellesIsDayChecked(row, col);
+    cb.dataset.dayId = col.id;
+    faellesApplyDayLock(cb, col);
     cb.addEventListener('change', () => {
+      // The day may have closed since the sheet was drawn.
+      if (!faellesCanEditDay(col)) {
+        cb.checked = !cb.checked;
+        faellesApplyDayLock(cb, col);
+        siteShowToast('Dagen er lukket for tilmelding');
+        return;
+      }
       const isDefault = cb.checked === faellesDayDefault(row, col);
       if (!row.dayOverrides) row.dayOverrides = {};
       // A merged date's other ids may still carry an old override; the
@@ -904,7 +1019,10 @@ async function faellesSendRow(row, tr) {
   const errorBox = document.querySelector('.faelles-error');
   if (!result.ok) {
     row._sentSeq = null; // let a later commit retry these edits
-    if (errorBox && result.message) errorBox.textContent = result.message;
+    const message = /day_closed/.test(result.message || '')
+      ? 'Dagen er lukket for tilmelding. Genindlæs siden.'
+      : result.message;
+    if (errorBox && message) errorBox.textContent = message;
     return;
   }
   if (errorBox) errorBox.textContent = '';
@@ -1397,6 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
     faellesLoad(root);
+    setInterval(faellesRefreshDayLocks, 30 * 1000);
   } else if (typeof siteHasLevel === 'function' && siteHasLevel('satyr')) {
     faellesLoadSummary(root);
   }
