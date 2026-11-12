@@ -5339,7 +5339,7 @@ function rekvisit_folder_from_body($body) {
 }
 
 // Built-in columns per sheet: fields = [key => 'text'|'status'|'progress'
-// (an int 0-100)] stored on
+// (an int 0-100)|'count' (an int 0-999)] stored on
 // each row; locked = can't be hidden; custom = text columns can be added;
 // extraKeys = rename/resize-only keys (derived or borrowed columns).
 // Mirrors REKVISIT_SHEETS in rekvisit.js.
@@ -5352,6 +5352,9 @@ function rekvisit_sheet_defs() {
         'type' => 'text', 'ansvarlig' => 'text', 'ekstra' => 'text',
         'progress' => 'progress', 'braend' => 'status', 'braendNote' => 'text',
         'braendProgress' => 'progress', 'rowColor' => 'status',
+        // Status as an amount instead of a percentage (progressCount of
+        // progressTotal); progress then follows, see rekvisit_derive_progress().
+        'progressMode' => 'status', 'progressTotal' => 'count', 'progressCount' => 'count',
       ],
       // braend/braendNote/braendProgress only show on the
       // Brændimprægnering tab; progress is never hideable; rowColor is the
@@ -5407,6 +5410,7 @@ function rekvisit_status_values($sheet, $key) {
     'hvem/bossEnDag' => ['', 'tjek'],
     'hvem/bossToDage' => ['', 'tjek'],
     'rekvisitter/rowColor' => ['', 'green', 'orange', 'red'],
+    'rekvisitter/progressMode' => ['', 'antal'],
   ];
   return $map[$sheet . '/' . $key] ?? [''];
 }
@@ -5451,7 +5455,7 @@ function rekvisit_custom_key_valid($key) {
 
 function rekvisit_blank_row($sheet) {
   $row = [];
-  foreach (rekvisit_sheet_defs()[$sheet]['fields'] as $key => $type) $row[$key] = $type === 'progress' ? 0 : '';
+  foreach (rekvisit_sheet_defs()[$sheet]['fields'] as $key => $type) $row[$key] = ($type === 'progress' || $type === 'count') ? 0 : '';
   if ($sheet === 'hvem') $row['days'] = (object) [];
   return $row;
 }
@@ -5602,6 +5606,8 @@ function rekvisit_upsert_row($folder, $body, $isBoss) {
       if (!in_array($value, rekvisit_status_values($sheet, $key), true)) respond(400, ['error' => 'invalid_shape']);
     } elseif ($type === 'progress') {
       if (!is_int($value) || $value < 0 || $value > 100) respond(400, ['error' => 'invalid_shape']);
+    } elseif ($type === 'count') {
+      if (!is_int($value) || $value < 0 || $value > 999) respond(400, ['error' => 'invalid_shape']);
     } elseif (!is_string($value) || mb_strlen($value) > 1000) {
       respond(400, ['error' => 'invalid_shape']);
     }
@@ -5636,7 +5642,7 @@ function rekvisit_upsert_row($folder, $body, $isBoss) {
     if ($rowId !== null) {
       foreach ($s['rows'] as &$row) {
         if ($row['id'] === $rowId) {
-          $row = $applyDays(array_merge($row, $fields));
+          $row = rekvisit_derive_progress($applyDays(array_merge($row, $fields)));
           $savedRow = $row;
           break;
         }
@@ -5645,7 +5651,7 @@ function rekvisit_upsert_row($folder, $body, $isBoss) {
       if ($savedRow === null) respond(404, ['error' => 'not_found']);
       return $s;
     }
-    $savedRow = $applyDays(array_merge(['id' => rekvisit_id()], rekvisit_blank_row($sheet), $fields));
+    $savedRow = rekvisit_derive_progress($applyDays(array_merge(['id' => rekvisit_id()], rekvisit_blank_row($sheet), $fields)));
     $insertAt = count($s['rows']);
     if ($afterId !== null) {
       foreach ($s['rows'] as $i => $row) {
@@ -5656,6 +5662,19 @@ function rekvisit_upsert_row($folder, $body, $isBoss) {
     return $s;
   });
   respond(200, ['ok' => true, 'row' => rekvisit_row_out($savedRow, $isBoss)]);
+}
+
+// A Rekvisitter row counting an amount (progressMode 'antal' with a
+// progressTotal) keeps progress as its percentage, so "Samlet status" and
+// the Procent view still read one number.
+function rekvisit_derive_progress($row) {
+  if (($row['progressMode'] ?? '') !== 'antal') return $row;
+  $total = $row['progressTotal'] ?? 0;
+  if (!is_int($total) || $total < 1) return $row;
+  $count = min($total, max(0, is_int($row['progressCount'] ?? null) ? $row['progressCount'] : 0));
+  $row['progressCount'] = $count;
+  $row['progress'] = (int) round($count * 100 / $total);
+  return $row;
 }
 
 function rekvisit_delete_row($folder, $body) {

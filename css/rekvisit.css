@@ -489,6 +489,40 @@
   width: 180px;
 }
 
+/* Right-click menu on a Status bar: Procent, or Antal + the amount. */
+.rekvisit-mode-pop { width: 11rem; }
+
+.rekvisit-mode-count {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.rekvisit-mode-count .site-list-row { flex: 1; width: auto; }
+
+.rekvisit-mode-total {
+  width: 3.6rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+.rekvisit-mode-total:focus {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: var(--focus-ring);
+}
+
+@media (hover: hover) {
+  .rekvisit-mode-total:hover { border-color: var(--accent-warm); }
+}
+
+.rekvisit-mode-total.rekvisit-mode-invalid { border-color: var(--danger); }
+
 
 @media (max-width: 719px) {
   .rekvisit-edit-note {

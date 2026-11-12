@@ -189,7 +189,8 @@ const REKVISIT_SHEETS = {
       { key: 'type', label: 'Type (pap/stof/hønsenet/træ)', width: 180, group: 'rekv' },
       { key: 'ansvarlig', label: 'Ansvarlig', width: 110, group: 'rekv' },
       { key: 'ekstra', label: 'Ekstra', width: 200, group: 'rekv' },
-      { key: 'progress', label: 'Status', width: 200, progress: true, group: 'rekv', stayRight: true },
+      // modes: right-click switches a row between percent and an amount.
+      { key: 'progress', label: 'Status', width: 200, progress: true, modes: true, group: 'rekv', stayRight: true },
     ],
     totalProgress: 'progress', // the key "Samlet status" averages
   },
@@ -1004,11 +1005,14 @@ function rekvisitProgressColor(value) {
   return `rgb(${a.map((c, j) => Math.round(c + (b[j] - c) * f)).join(', ')})`;
 }
 
-function rekvisitPaintProgress(bar, value) {
+// `text` replaces the "N%" label (an amount: "7 af 12").
+function rekvisitPaintProgress(bar, value, text) {
+  const label = text || `${value}%`;
   bar.querySelector('.rekvisit-progress-fill').style.width = `${value}%`;
   bar.querySelector('.rekvisit-progress-fill').style.background = rekvisitProgressColor(value);
-  bar.querySelector('.rekvisit-progress-label').textContent = `${value}%`;
+  bar.querySelector('.rekvisit-progress-label').textContent = label;
   bar.setAttribute('aria-valuenow', String(value));
+  bar.setAttribute('aria-valuetext', label);
 }
 
 function rekvisitProgressEl(ariaLabel) {
@@ -1047,34 +1051,65 @@ function rekvisitRefreshTotalProgress() {
   rekvisitPaintProgress(wrap.querySelector('.rekvisit-progress'), avg);
 }
 
-function rekvisitProgressBar(row, key, tr, canEdit) {
+// ── Status as an amount (Rekvisitter) ────────────────────────
+// A row can count an amount instead (progressMode 'antal': progressCount of
+// progressTotal, dragged in whole steps); `progress` then holds its
+// percentage (the server derives it too, rekvisit_derive_progress()), so
+// "Samlet status" averages the same number either way.
+const REKVISIT_MAX_PROGRESS_TOTAL = 999; // mirrors the server's 'count' type
+
+function rekvisitCountMode(row) {
+  return row.progressMode === 'antal' && Number.isInteger(row.progressTotal) && row.progressTotal >= 1;
+}
+
+function rekvisitCountPercent(count, total) {
+  return Math.round(count * 100 / total);
+}
+
+// `withModes`: right-click opens the Procent/Antal menu (saved rows only).
+function rekvisitProgressBar(row, key, tr, canEdit, withModes) {
   const bar = rekvisitProgressEl('Status');
-  let value = Number(row[key]) || 0;
+  const counting = () => withModes && rekvisitCountMode(row);
+  const max = () => (counting() ? row.progressTotal : 100);
+  const step = () => (counting() ? 1 : REKVISIT_PROGRESS_STEP);
+  const read = () => (counting()
+    ? Math.min(row.progressTotal, Math.max(0, Number(row.progressCount) || 0))
+    : (Number(row[key]) || 0));
+  let value = read();
+  const percent = () => (counting() ? rekvisitCountPercent(value, row.progressTotal) : value);
+  const show = () => rekvisitPaintProgress(bar, percent(), counting() ? `${value} af ${row.progressTotal}` : '');
   function paint() {
-    rekvisitPaintProgress(bar, value);
+    show();
     // The total follows the bar while it's being dragged.
-    row[key] = value;
+    if (counting()) row.progressCount = value;
+    row[key] = percent();
     rekvisitRefreshTotalProgress();
   }
-  rekvisitPaintProgress(bar, value);
+  show();
   if (!canEdit) {
     bar.classList.add('rekvisit-progress-readonly');
     bar.setAttribute('aria-readonly', 'true');
     return bar;
   }
   bar.tabIndex = 0;
-  bar.title = 'Træk for at ændre';
+  bar.title = withModes ? 'Træk for at ændre, højreklik for procent eller antal' : 'Træk for at ændre';
   let saved = value;
+  // After the mode menu changed the row: start over from it.
+  bar._reset = () => {
+    value = read();
+    saved = value;
+    show();
+    rekvisitRefreshTotalProgress();
+  };
   const commit = () => {
     if (value === saved) return;
     saved = value;
-    row[key] = value;
-    rekvisitCommitRow(row, { [key]: value }, tr);
+    rekvisitCommitRow(row, counting() ? { progressCount: value } : { [key]: value }, tr);
   };
   const fromPointer = (e) => {
     const rect = bar.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    value = Math.round(ratio * 100 / REKVISIT_PROGRESS_STEP) * REKVISIT_PROGRESS_STEP;
+    value = Math.round(ratio * max() / step()) * step();
     paint();
   };
   bar.addEventListener('pointerdown', (e) => {
@@ -1098,15 +1133,94 @@ function rekvisitProgressBar(row, key, tr, canEdit) {
   bar.addEventListener('pointercancel', end);
   bar.addEventListener('keydown', (e) => {
     const steps = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 };
-    if (e.key in steps) value = Math.min(100, Math.max(0, value + steps[e.key] * REKVISIT_PROGRESS_STEP));
+    if (e.key in steps) value = Math.min(max(), Math.max(0, value + steps[e.key] * step()));
     else if (e.key === 'Home') value = 0;
-    else if (e.key === 'End') value = 100;
+    else if (e.key === 'End') value = max();
     else return;
     e.preventDefault();
     paint();
     commit();
   });
+  if (withModes) {
+    // A draft row isn't saved yet, so it keeps the browser's own menu.
+    bar.addEventListener('contextmenu', (e) => {
+      if (row.id === null) return;
+      e.preventDefault();
+      siteToggleFieldPopup(bar, () => rekvisitOpenProgressModeMenu(bar, row, tr));
+    });
+  }
   return bar;
+}
+
+// Right-click menu: Procent, or Antal with the amount typed beside it
+// (Enter or a click on Antal applies it).
+function rekvisitOpenProgressModeMenu(bar, row, tr) {
+  const pop = el('div', 'site-field-pop rekvisit-mode-pop');
+  const counting = rekvisitCountMode(row);
+
+  const percentBtn = el('button', 'site-list-row' + (counting ? '' : ' site-list-selected'), 'Procent');
+  percentBtn.type = 'button';
+  percentBtn.addEventListener('click', () => {
+    close();
+    rekvisitSetProgressMode(row, tr, bar, '', 0);
+  });
+  pop.appendChild(percentBtn);
+
+  const countRow = el('div', 'rekvisit-mode-count');
+  const countBtn = el('button', 'site-list-row' + (counting ? ' site-list-selected' : ''), 'Antal');
+  countBtn.type = 'button';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.inputMode = 'numeric';
+  input.maxLength = 3;
+  input.className = 'rekvisit-mode-total';
+  input.placeholder = 'Fx 12';
+  input.setAttribute('aria-label', 'Antal i alt');
+  input.value = Number.isInteger(row.progressTotal) && row.progressTotal >= 1 ? String(row.progressTotal) : '';
+  const apply = () => {
+    const text = input.value.trim();
+    const n = /^\d+$/.test(text) ? Number(text) : NaN;
+    if (!Number.isInteger(n) || n < 1 || n > REKVISIT_MAX_PROGRESS_TOTAL) {
+      input.classList.add('rekvisit-mode-invalid');
+      input.focus();
+      return;
+    }
+    close();
+    rekvisitSetProgressMode(row, tr, bar, 'antal', n);
+  };
+  countBtn.addEventListener('click', apply);
+  input.addEventListener('input', () => input.classList.remove('rekvisit-mode-invalid'));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); apply(); }
+  });
+  countRow.appendChild(countBtn);
+  countRow.appendChild(input);
+  pop.appendChild(countRow);
+
+  const close = siteOpenFieldPopup(bar, pop);
+  if (counting) { input.focus(); input.select(); }
+}
+
+// Switching to Antal keeps roughly the same fill (percent → count, or the
+// old count capped at the new amount); back to Procent keeps the
+// percentage it had.
+function rekvisitSetProgressMode(row, tr, bar, mode, total) {
+  let fields;
+  if (mode === 'antal') {
+    const count = rekvisitCountMode(row)
+      ? Math.min(total, Math.max(0, Number(row.progressCount) || 0))
+      : Math.round((Number(row.progress) || 0) * total / 100);
+    if (rekvisitCountMode(row) && row.progressTotal === total && row.progressCount === count) return;
+    fields = { progressMode: 'antal', progressTotal: total, progressCount: count };
+    Object.assign(row, fields);
+    row.progress = rekvisitCountPercent(count, total);
+  } else {
+    if (!rekvisitCountMode(row)) return;
+    fields = { progressMode: '' };
+    row.progressMode = '';
+  }
+  bar._reset();
+  rekvisitCommitRow(row, fields, tr);
 }
 
 // The example hints sit on the topmost row that doesn't yet have the
@@ -1148,7 +1262,7 @@ function rekvisitRenderRow(row, columns, canEdit) {
     if (col.status) {
       td.appendChild(rekvisitStatusToggle(row, col.key, tr, canEdit));
     } else if (col.progress) {
-      td.appendChild(rekvisitProgressBar(row, col.key, tr, canEdit));
+      td.appendChild(rekvisitProgressBar(row, col.key, tr, canEdit, Boolean(col.modes)));
     } else if (col.readOnly) {
       const text = String(row[col.key] || '');
       const span = el('span', 'rekvisit-readonly', text);
