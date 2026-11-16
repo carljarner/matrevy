@@ -1192,8 +1192,13 @@
   gap: 2.5rem;
 }
 
+/* width:100% because .forms-form's margin:0 auto stops a grid item from
+   stretching to its track: without it the card shrinks to its content, so
+   a form with only short answers got a narrow card. On phones (display:
+   block) the same width caps at max-width:640px and stays centered. */
 .forms-stats-layout .forms-form {
   grid-column: 2;
+  width: 100%;
 }
 
 /* Fixed 75px below the top of <main class="page-content"> (the sticky
@@ -1594,7 +1599,8 @@
   align-items: start;
   gap: 1.5rem;
 }
-.forms-response-detail-layout .forms-response-detail { grid-column: 2; grid-row: 1; }
+/* width:100%: see .forms-stats-layout .forms-form (auto margins vs. stretch). */
+.forms-response-detail-layout .forms-response-detail { grid-column: 2; grid-row: 1; width: 100%; }
 .forms-response-detail-back {
   grid-column: 1;
   grid-row: 1;

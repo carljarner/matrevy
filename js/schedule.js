@@ -792,7 +792,7 @@ function countPlacementsLostByBuild({ roomLines, configChanged }) {
   let lost = 0;
   state.grid.forEach(row => {
     (row || []).forEach((cell, ri) => {
-      if (cell != null && (configChanged || !roomLines.includes(state.rooms[ri]))) lost++;
+      if (cell != null && !schedIsSpanCont(cell) && (configChanged || !roomLines.includes(state.rooms[ri]))) lost++;
     });
   });
   return lost;
@@ -858,6 +858,7 @@ function applyBuild({ startTime, endTime, segmentMinutes, gapMinutes, roomLines,
 
 // ── Render grid ───────────────────────────────────────────
 function renderGrid() {
+  schedNormalizeSpans();
   const thead = document.getElementById('sched-thead');
   const tbody = document.getElementById('sched-tbody');
 
@@ -876,16 +877,22 @@ function renderGrid() {
     // so this doesn't remove any existing way to place a scene.
     const timeTd = document.createElement('td');
     timeTd.className = 'col-time col-time-clickable';
+    timeTd.dataset.slot = si;
     timeTd.textContent = slot.label;
-    timeTd.title = 'Klik for at redigere tidspunktet';
+    timeTd.title = 'Klik for at redigere tidspunktet, træk op eller ned for at se hvem der er fri';
     timeTd.onclick = () => openSlotTimeEditor(si);
+    timeTd.onmousedown = e => schedStartRangeDrag(e, si);
     tr.appendChild(timeTd);
 
-    // Room cells
+    // Room cells. A row covered by a placement from above (a span marker)
+    // gets no cell of its own: the head cell's rowSpan reaches down into it.
     state.rooms.forEach((_, ri) => {
+      if (schedIsSpanCont(state.grid[si][ri])) return;
       const td = document.createElement('td');
       td.dataset.slot = si;
       td.dataset.room = ri;
+      const span = state.grid[si][ri] ? schedSpanRows(si, ri).length : 1;
+      if (span > 1) td.rowSpan = span;
       renderCell(td, si, ri);
       tr.appendChild(td);
     });
@@ -907,7 +914,10 @@ function renderGrid() {
 // explanatory title when blocked, rather than hiding it.
 function canMergeSlots(si) {
   if (si < 0 || si + 1 >= state.grid.length) return false;
-  return state.rooms.every((_, ri) => !(state.grid[si][ri] && state.grid[si + 1][ri]));
+  // A stretched placement continuing from row si into si+1 is fine: the
+  // merged row simply keeps it.
+  return state.rooms.every((_, ri) => !(state.grid[si][ri] && state.grid[si + 1][ri]
+    && !schedIsSpanCont(state.grid[si + 1][ri])));
 }
 
 // Combines slot si and si+1 into one slot spanning the earliest start and
@@ -919,7 +929,10 @@ function mergeSlots(si) {
   const rangeB = getSlotRange(si + 1);
   const start = Math.min(rangeA.start, rangeB.start);
   const end = Math.max(rangeA.end, rangeB.end);
-  const mergedRow = state.rooms.map((_, ri) => state.grid[si][ri] || state.grid[si + 1][ri]);
+  const mergedRow = state.rooms.map((_, ri) => {
+    const lower = state.grid[si + 1][ri];
+    return state.grid[si][ri] || (schedIsSpanCont(lower) ? null : lower);
+  });
 
   state.slots.splice(si, 2, {
     startMinutes: start,
@@ -942,7 +955,11 @@ function mergeSlots(si) {
 // posture as mergeSlots' room-carrying.
 function splitSlot(si, startA, endA, startB, endB) {
   const firstRow = state.grid[si];
-  const secondRow = state.rooms.map(() => null);
+  // A placement stretched across the split row and the row below keeps
+  // covering the new second half too, so the stretch stays in one piece.
+  const nextRow = state.grid[si + 1] || [];
+  const secondRow = state.rooms.map((_, ri) =>
+    firstRow[ri] && schedIsSpanCont(nextRow[ri]) ? { spanCont: true } : null);
 
   state.slots.splice(si, 1,
     { startMinutes: startA, endMinutes: endA, label: minutesToTime(startA) + '-' + minutesToTime(endA) },
@@ -986,16 +1003,21 @@ function renderCell(td, si, ri) {
     inner.classList.add('cell-empty');
     inner.innerHTML = '<div class="cell-plus">+</div>';
     inner.onclick = () => openPicker(si, ri);
+    inner.onmousedown = e => schedStartRangeDrag(e, si);
+    inner.oncontextmenu = e => { e.preventDefault(); schedOpenCellMenu(e, si, ri); };
     inner.ondragover = e => { e.preventDefault(); highlightDrop(td, si, ri); };
     inner.ondragleave = () => clearDropHighlight(td);
     inner.ondrop = e => { e.preventDefault(); handleDrop(si, ri); };
   } else {
     const scene = getSceneById(assignment.sceneId);
-    const conflicts = getConflicts(si, ri, assignment);
+    const rows = schedSpanRows(si, ri);
+    const conflicts = [...new Set(rows.flatMap(s => getConflicts(s, ri, assignment)))];
     inner.classList.add('cell-filled');
     if (conflicts.length) inner.classList.add('has-conflict');
     inner.draggable = true;
+    inner.oncontextmenu = e => { e.preventDefault(); schedOpenCellMenu(e, si, ri); };
     inner.ondragstart = () => startDrag(assignment.sceneId, si, ri, {
+      span: rows.length,
       customCast: assignment.customCast || null,
       crossedOutCast: assignment.crossedOutCast || null,
       pairedSceneIds: schedCellSceneIds(assignment).slice(1),
@@ -1031,7 +1053,7 @@ function renderCell(td, si, ri) {
       if (names.length) {
         const castEl = document.createElement('div');
         castEl.className = 'cell-cast-list';
-        castEl.innerHTML = renderCastListHtml(names, si, assignment);
+        castEl.innerHTML = renderCastListHtml(names, rows, assignment);
         inner.appendChild(castEl);
       }
     }
@@ -1054,6 +1076,97 @@ function renderCell(td, si, ri) {
   }
 
   td.appendChild(inner);
+}
+
+// ── Stretched placements (Dobbeltsegment) ─────────────────
+// A placement can cover several rows in its room (the right-click menu's
+// "Dobbeltsegment"): each row below the head cell holds a `{ spanCont: true }`
+// marker, "the placement above continues here". No indexes or copies are
+// stored, so editing the head edits the whole stretch and inserting or
+// removing rows can't leave a marker pointing at the wrong row. A marker is
+// non-null, so every "is this cell empty?" check already treats a covered
+// cell as taken; anything that needs the placement itself (cast, conflicts,
+// counts) reads through schedCellAt().
+function schedIsSpanCont(c) {
+  return !!(c && c.spanCont);
+}
+
+// Row of the head cell for the placement covering (si, ri).
+function schedSpanHead(si, ri) {
+  let s = si;
+  while (s > 0 && schedIsSpanCont(state.grid[s][ri])) s--;
+  return s;
+}
+
+// The placement covering (si, ri), resolving span markers, or null.
+function schedCellAt(si, ri) {
+  const row = state.grid[si];
+  const c = row ? row[ri] : null;
+  if (!c) return null;
+  if (!schedIsSpanCont(c)) return c;
+  const head = state.grid[schedSpanHead(si, ri)][ri];
+  return head && !schedIsSpanCont(head) ? head : null;
+}
+
+// Rows covered by the placement whose head cell is (si, ri).
+function schedSpanRows(si, ri) {
+  const rows = [si];
+  for (let s = si + 1; s < state.grid.length && schedIsSpanCont(state.grid[s][ri]); s++) rows.push(s);
+  return rows;
+}
+
+// Drops markers left with nothing above them (row 0, or below an empty
+// cell). Runs at the top of renderGrid(), so every structural change
+// (merge/split/build/drop/undo/restore) heals itself.
+function schedNormalizeSpans() {
+  state.grid.forEach((row, si) => {
+    row.forEach((c, ri) => {
+      if (schedIsSpanCont(c) && !(si > 0 && state.grid[si - 1][ri])) row[ri] = null;
+    });
+  });
+}
+
+// Puts `placement` at (si, ri) and stretches it `len` rows down, as far as
+// the cells below are empty.
+function schedPlaceWithSpan(si, ri, placement, len) {
+  state.grid[si][ri] = placement;
+  for (let k = 1; k < len; k++) {
+    const s = si + k;
+    if (s >= state.grid.length || state.grid[s][ri]) break;
+    state.grid[s][ri] = { spanCont: true };
+  }
+}
+
+// Clears the placement headed at (si, ri) and every row it covers.
+function schedClearSpan(si, ri) {
+  for (const s of schedSpanRows(si, ri)) state.grid[s][ri] = null;
+}
+
+// Why the placement headed at (si, ri) can't take one more row, or ''.
+function schedExtendBlockedReason(si, ri) {
+  const rows = schedSpanRows(si, ri);
+  const next = rows[rows.length - 1] + 1;
+  if (next >= state.grid.length) return 'Der er ingen række nedenunder';
+  if (state.grid[next][ri]) return 'Lokalet er optaget i rækken nedenunder';
+  return '';
+}
+
+function schedExtendSpan(si, ri) {
+  if (schedExtendBlockedReason(si, ri)) return;
+  const rows = schedSpanRows(si, ri);
+  state.grid[rows[rows.length - 1] + 1][ri] = { spanCont: true };
+  renderGrid();
+  renderSceneSidebar();
+  saveState();
+}
+
+function schedShrinkSpan(si, ri) {
+  const rows = schedSpanRows(si, ri);
+  if (rows.length < 2) return;
+  state.grid[rows[rows.length - 1]][ri] = null;
+  renderGrid();
+  renderSceneSidebar();
+  saveState();
 }
 
 // ── Conflict detection ────────────────────────────────────
@@ -1096,10 +1209,10 @@ function getDisplayCastNames(cell) {
 // inside the span (never a bare text node between spans), so a
 // display:block rule on the span (e.g. in print) can't strand a lone comma
 // on its own line between names.
-function renderCastListHtml(names, si, cell) {
+function renderCastListHtml(names, rows, cell) {
   return names.map((n, i) => {
     const crossedOut = isPersonCrossedOutAtCell(n, cell);
-    const absent = !crossedOut && isPersonAbsentAtSlot(n, si);
+    const absent = !crossedOut && rows.some(s => isPersonAbsentAtSlot(n, s));
     const sep = i < names.length - 1 ? ', ' : '';
     // The separator sits outside the "absent"/"crossed-out" span so the
     // strikethrough only crosses the name itself, not the trailing comma.
@@ -1115,7 +1228,7 @@ function getConflicts(si, ri, cell) {
   const conflicts = [];
   state.rooms.forEach((_, otherRi) => {
     if (otherRi === ri) return;
-    const other = state.grid[si][otherRi];
+    const other = schedCellAt(si, otherRi);
     if (!other) return;
     const otherCast = getCellCastNames(other).filter(n => !isPersonCrossedOutAtCell(n, other));
     const clash = castNames.filter(n => otherCast.includes(n) && !isPersonAbsentAtSlot(n, si));
@@ -1133,7 +1246,7 @@ function castConflictsAtNames(si, castNames, excludeRi = -1) {
   const names = new Set(castNames.filter(n => !isPersonAbsentAtSlot(n, si) && !schedIsPlaceholderName(n)));
   for (let ri = 0; ri < state.rooms.length; ri++) {
     if (ri === excludeRi) continue;
-    const other = state.grid[si][ri];
+    const other = schedCellAt(si, ri);
     if (!other) continue;
     for (const n of getCellCastNames(other)) {
       if (isPersonCrossedOutAtCell(n, other)) continue;
@@ -1162,8 +1275,19 @@ function highlightDrop(td, si, ri) {
   clearAllDropHighlights();
   if (!dragState) return;
   const castNames = getCellCastNames(dragState).filter(n => !isPersonCrossedOutAtCell(n, dragState));
-  const wouldConflict = castConflictsAtNames(si, castNames,
-    dragState.fromSlot === si ? dragState.fromRoom : -1);
+  // Check every row the drop would cover. The dragged placement's own
+  // source cells don't count against it.
+  const { fromSlot, fromRoom } = dragState;
+  const span = dragState.span || 1;
+  const fromCovers = s => fromSlot !== null && s >= fromSlot && s < fromSlot + span;
+  let wouldConflict = false;
+  for (let k = 0; k < span; k++) {
+    const s = si + k;
+    if (s >= state.grid.length) break;
+    const ownCell = ri === fromRoom && fromCovers(s);
+    if (k > 0 && state.grid[s][ri] && !ownCell) break;
+    if (castConflictsAtNames(s, castNames, fromCovers(s) ? fromRoom : -1)) { wouldConflict = true; break; }
+  }
   td.querySelector('.cell-inner').classList.add(wouldConflict ? 'cell-drop-blocked' : 'cell-drop-target');
 }
 
@@ -1182,6 +1306,7 @@ function handleDrop(toSlot, toRoom) {
   clearAllDropHighlights();
   if (!dragState) return;
   const { sceneId, fromSlot, fromRoom, customCast, crossedOutCast, pairedSceneIds, customText, customName } = dragState;
+  const span = dragState.span || 1;
   dragState = null;
 
   // Remove chip dragging style
@@ -1190,23 +1315,26 @@ function handleDrop(toSlot, toRoom) {
   // Don't drop onto itself
   if (fromSlot === toSlot && fromRoom === toRoom) return;
 
-  // If source was a grid cell, vacate it
-  if (fromSlot !== null && fromRoom !== null) {
-    state.grid[fromSlot][fromRoom] = null;
-  }
+  const fromGrid = fromSlot !== null && fromRoom !== null;
 
-  // Place in target (swap if occupied)
+  // Lift the target's placement (with its stretch) and the source's, then
+  // put them down again: the dragged one at the target, the old target
+  // one (on a swap) at the source. Each keeps its length as far as the
+  // cells below are free. The target is never a span marker (those rows
+  // render no cell to drop on).
   const existing = state.grid[toSlot][toRoom];
+  const existingSpan = existing ? schedSpanRows(toSlot, toRoom).length : 0;
+  if (existing) schedClearSpan(toSlot, toRoom);
+  if (fromGrid) schedClearSpan(fromSlot, fromRoom);
+
   const placed = { sceneId };
   if (customCast) placed.customCast = customCast;
   if (crossedOutCast && crossedOutCast.length) placed.crossedOutCast = crossedOutCast;
   if (pairedSceneIds && pairedSceneIds.length) placed.pairedSceneIds = pairedSceneIds;
   if (customText) placed.customText = customText;
   if (customName) placed.customName = customName;
-  state.grid[toSlot][toRoom] = placed;
-  if (existing && fromSlot !== null && fromRoom !== null) {
-    state.grid[fromSlot][fromRoom] = existing;
-  }
+  if (existing && fromGrid) schedPlaceWithSpan(fromSlot, fromRoom, existing, existingSpan);
+  schedPlaceWithSpan(toSlot, toRoom, placed, span);
 
   renderGrid();
   renderSceneSidebar();
@@ -1214,10 +1342,11 @@ function handleDrop(toSlot, toRoom) {
 }
 
 // ── Remove from cell ──────────────────────────────────────
+// Re-renders the whole grid, not just this cell: the other cells in the
+// rows it covered may have been red only because of it.
 function removeFromCell(si, ri) {
-  state.grid[si][ri] = null;
-  const td = document.querySelector(`td[data-slot="${si}"][data-room="${ri}"]`);
-  if (td) renderCell(td, si, ri);
+  schedClearSpan(si, ri);
+  renderGrid();
   renderSceneSidebar();
   saveState();
 }
@@ -1251,6 +1380,250 @@ async function confirmClearSchedule() {
   renderGrid();
   renderSceneSidebar();
   saveState();
+}
+
+// ── Right-click menu: Dobbeltsegment, Kopier, Indsæt ──────
+// The copied placement lives in memory only (this tab, until reload).
+let schedClipboard = null; // { placement, span }
+
+// A zero-size stand-in anchor at the cursor, so the menu opens where the
+// click was even on a tall stretched cell.
+function schedPointAnchor(x, y) {
+  return {
+    getBoundingClientRect: () => ({ left: x, right: x, top: y, bottom: y, width: 0, height: 0 }),
+    focus() {},
+  };
+}
+
+function schedMenuItem(label, onClick, disabledReason) {
+  const btn = schedEl('button', 'site-list-row sched-cell-menu-item', label);
+  btn.type = 'button';
+  if (disabledReason) {
+    // aria-disabled rather than disabled, so the title still shows on hover.
+    btn.setAttribute('aria-disabled', 'true');
+    btn.classList.add('sched-cell-menu-disabled');
+    btn.title = disabledReason;
+  } else {
+    btn.addEventListener('click', onClick);
+  }
+  return btn;
+}
+
+function schedOpenCellMenu(e, si, ri) {
+  const pop = schedEl('div', 'site-field-pop sched-cell-menu');
+  pop.setAttribute('role', 'menu');
+  const run = fn => () => { close(); fn(); };
+  const cell = state.grid[si][ri];
+
+  if (cell) {
+    const rows = schedSpanRows(si, ri);
+    pop.appendChild(schedMenuItem('Dobbeltsegment', run(() => schedExtendSpan(si, ri)),
+      schedExtendBlockedReason(si, ri)));
+    if (rows.length > 1) {
+      pop.appendChild(schedMenuItem('Fjern ekstra segment', run(() => schedShrinkSpan(si, ri))));
+    }
+    pop.appendChild(schedMenuItem('Kopier segment', run(() => {
+      schedClipboard = { placement: JSON.parse(JSON.stringify(cell)), span: rows.length };
+    })));
+  } else {
+    pop.appendChild(schedMenuItem('Indsæt segment', run(() => {
+      schedPlaceWithSpan(si, ri, JSON.parse(JSON.stringify(schedClipboard.placement)), schedClipboard.span);
+      renderGrid();
+      renderSceneSidebar();
+      saveState();
+    }), schedClipboard ? '' : 'Kopier først et segment'));
+  }
+
+  const close = schedOpenFieldPopup(schedPointAnchor(e.clientX, e.clientY), pop);
+}
+
+// ── Who's free across several rows ────────────────────────
+// Hold the mouse down on an empty cell or a time cell and drag into another
+// row: on release a modal lists who has no segment anywhere in those rows.
+// A placed scene's own drag still moves it (it's an HTML5 drag, which never
+// reaches these mouse handlers).
+let schedRangeDrag = null; // { start, current }
+
+// Row index under the cursor's Y position (correct inside row-spanned
+// cells, unlike the element under the cursor), clamped to the grid.
+function schedRowAtY(y) {
+  const trs = document.getElementById('sched-tbody').rows;
+  if (!trs.length) return null;
+  for (let i = 0; i < trs.length; i++) {
+    const r = trs[i].getBoundingClientRect();
+    if (y >= r.top && y < r.bottom) return i;
+  }
+  return y < trs[0].getBoundingClientRect().top ? 0 : trs.length - 1;
+}
+
+function schedPaintRange(lo, hi) {
+  const on = lo !== null;
+  document.body.classList.toggle('sched-range-selecting', on);
+  Array.from(document.getElementById('sched-tbody').rows).forEach((tr, i) => {
+    tr.classList.toggle('sched-row-range', on && i >= lo && i <= hi);
+  });
+}
+
+function schedStartRangeDrag(e, si) {
+  // Ctrl+click is a right-click on a Mac: leave it to the context menu.
+  if (e.button !== 0 || e.ctrlKey) return;
+  e.preventDefault(); // no text selection while dragging
+  schedRangeDrag = { start: si, current: si };
+  document.addEventListener('mousemove', schedRangeMove);
+  document.addEventListener('mouseup', schedRangeEnd);
+}
+
+function schedRangeMove(e) {
+  const d = schedRangeDrag;
+  if (!d) return;
+  const r = schedRowAtY(e.clientY);
+  if (r === null || r === d.current) return;
+  d.current = r;
+  if (r === d.start) schedPaintRange(null, null);
+  else schedPaintRange(Math.min(d.start, r), Math.max(d.start, r));
+}
+
+function schedRangeEnd() {
+  document.removeEventListener('mousemove', schedRangeMove);
+  document.removeEventListener('mouseup', schedRangeEnd);
+  const d = schedRangeDrag;
+  schedRangeDrag = null;
+  schedPaintRange(null, null);
+  if (!d || d.current === d.start) return; // same row: a plain click
+  // Swallow the click this release is about to fire, so neither the picker
+  // nor the time editor opens behind the modal.
+  const swallow = ev => { ev.stopPropagation(); ev.preventDefault(); };
+  document.addEventListener('click', swallow, { capture: true, once: true });
+  setTimeout(() => document.removeEventListener('click', swallow, true), 0);
+  openFreeCastModal(Math.min(d.start, d.current), Math.max(d.start, d.current));
+}
+
+// Absence windows for `name` clipped to [start, end), as "14:00-15:00", or
+// null when they cover the whole range (or there are none: []).
+function schedAbsenceWithin(name, start, end) {
+  const parts = [];
+  for (const a of state.absentees) {
+    if (a.name !== name || a.start >= end || a.end <= start) continue;
+    const from = Math.max(a.start, start);
+    const to = Math.min(a.end, end);
+    if (from <= start && to >= end) return null;
+    parts.push(minutesToTime(from) + '-' + minutesToTime(to));
+  }
+  return parts;
+}
+
+function openFreeCastModal(lo, hi) {
+  const start = getSlotRange(lo).start;
+  const end = getSlotRange(hi).end;
+  const rangeLabel = minutesToTime(start) + '-' + minutesToTime(end);
+
+  // Everyone on a placement in these rows, with each placement listed once
+  // (a stretched one with its full time span).
+  const busy = new Map(); // name -> [label, ...]
+  const seen = new Set();
+  for (let s = lo; s <= hi; s++) {
+    state.rooms.forEach((_, ri) => {
+      const cell = schedCellAt(s, ri);
+      if (!cell) return;
+      const headSi = schedSpanHead(s, ri);
+      const key = headSi + ':' + ri;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const rows = schedSpanRows(headSi, ri);
+      const label = minutesToTime(getSlotRange(rows[0]).start) + '-'
+        + minutesToTime(getSlotRange(rows[rows.length - 1]).end) + ' ' + schedCellName(cell);
+      for (const n of getCellCastNames(cell)) {
+        if (isPersonCrossedOutAtCell(n, cell) || schedIsPlaceholderName(n)) continue;
+        if (!busy.has(n)) busy.set(n, []);
+        busy.get(n).push(label);
+      }
+    });
+  }
+  const byName = (a, b) => a.localeCompare(b, 'da');
+  const free = state.allCast.map(c => c.name).filter(n => !busy.has(n)).sort(byName);
+  const busyNames = [...busy.keys()].sort(byName);
+
+  const overlay = schedEl('div', 'login-overlay');
+  const modal = schedEl('div', 'login-modal site-modal sched-free-modal');
+  modal.setAttribute('role', 'dialog');
+  modal.setAttribute('aria-label', 'Revyster ' + rangeLabel);
+
+  function close() {
+    document.removeEventListener('keydown', onKeydown);
+    overlay.remove();
+  }
+  function onKeydown(e) {
+    if (e.key === 'Escape') close();
+  }
+  document.addEventListener('keydown', onKeydown);
+  let backdropMousedown = false;
+  overlay.addEventListener('mousedown', (e) => { backdropMousedown = e.target === overlay; });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && backdropMousedown) close(); });
+
+  const closeX = schedEl('button', 'site-modal-close', '✕');
+  closeX.type = 'button';
+  closeX.setAttribute('aria-label', 'Luk');
+  closeX.addEventListener('click', close);
+  modal.appendChild(closeX);
+  modal.appendChild(schedEl('h2', null, 'Revyster ' + rangeLabel));
+
+  const body = schedEl('div', 'sched-free-body');
+  modal.appendChild(body);
+  const open = { free: true, busy: false };
+
+  const row = (name, detail) => {
+    const el = schedEl('div', 'sched-free-row');
+    el.appendChild(schedEl('span', 'sched-free-name', name));
+    if (detail) el.appendChild(schedEl('span', 'sched-free-detail', detail));
+    return el;
+  };
+
+  // Same section markup as the cell editor's Roller / Andre revyster.
+  const section = (key, title, names, detailFor) => {
+    const sec = schedEl('div', 'import-act-section');
+    const header = schedEl('div', 'import-act-header');
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', String(open[key]));
+    header.tabIndex = 0;
+    const toggle = () => { open[key] = !open[key]; render(); };
+    header.onclick = toggle;
+    header.onkeydown = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    };
+    header.appendChild(schedEl('span', 'import-chevron', open[key] ? '▾' : '▸'));
+    header.appendChild(schedEl('span', 'picker-act-label', title));
+    header.appendChild(schedEl('span', 'import-act-count', String(names.length)));
+    sec.appendChild(header);
+    if (open[key]) {
+      const list = schedEl('div', 'sched-free-list');
+      if (!names.length) list.appendChild(schedEl('div', 'sched-free-empty', 'Ingen'));
+      for (const n of names) list.appendChild(row(n, detailFor(n)));
+      sec.appendChild(list);
+    }
+    return sec;
+  };
+
+  function render() {
+    body.replaceChildren(
+      section('free', 'Frie revyster', free, (n) => {
+        const parts = schedAbsenceWithin(n, start, end);
+        if (parts === null) return '(fraværende)';
+        return parts.length ? '(fraværende ' + parts.join(', ') + ')' : '';
+      }),
+      section('busy', 'Optagede revyster', busyNames, (n) => busy.get(n).join(', ')),
+    );
+  }
+  render();
+
+  const actions = schedEl('div', 'login-actions');
+  const closeBtn = schedEl('button', 'site-btn-warm', 'Luk');
+  closeBtn.type = 'button';
+  closeBtn.addEventListener('click', close);
+  actions.appendChild(closeBtn);
+  modal.appendChild(actions);
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 }
 
 // ── Lokalebooking → Lokaler field ─────────────────────────
@@ -1717,7 +2090,8 @@ function computeAttentionLists() {
   state.grid.forEach((row, si) => {
     const range = getSlotRange(si);
     if (!range) return;
-    row.forEach(cell => {
+    row.forEach((_, ri) => {
+      const cell = schedCellAt(si, ri);
       if (!cell) return;
       const names = getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell));
       for (const name of names) {
@@ -1927,7 +2301,7 @@ function renderRekvisittenCastList() {
   // (crossed-out members are exempted — crossing out frees them up).
   const occupied = new Set();
   for (let ri = 0; ri < state.rooms.length; ri++) {
-    const cell = state.grid[pickerSlot][ri];
+    const cell = schedCellAt(pickerSlot, ri);
     if (cell) getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell)).forEach(n => occupied.add(n));
   }
   // Also fold in cast from scenes selected-but-not-yet-confirmed in this same
@@ -2048,11 +2422,15 @@ function renderCellEditorList() {
   // Cast occupied in OTHER cells of this slot (not the cell being edited).
   // Crossed-out members of an other cell are exempted — crossing out frees
   // them up to be picked here instead.
+  // A stretched placement checks every row it covers.
+  const editRows = schedSpanRows(pickerSlot, pickerRoom);
   const occupied = new Set();
-  for (let ri2 = 0; ri2 < state.rooms.length; ri2++) {
-    if (ri2 === pickerRoom) continue;
-    const other = state.grid[pickerSlot][ri2];
-    if (other) getCellCastNames(other).filter(n => !isPersonCrossedOutAtCell(n, other)).forEach(n => occupied.add(n));
+  for (const s of editRows) {
+    for (let ri2 = 0; ri2 < state.rooms.length; ri2++) {
+      if (ri2 === pickerRoom) continue;
+      const other = schedCellAt(s, ri2);
+      if (other) getCellCastNames(other).filter(n => !isPersonCrossedOutAtCell(n, other)).forEach(n => occupied.add(n));
+    }
   }
 
   // isRollerRow: default-cast ("Roller") rows cross out instead of being
@@ -2062,7 +2440,7 @@ function renderCellEditorList() {
   // toggle, since cross-out only applies to people actually in the scene.
   const makeRow = (name, roleLabel, isRollerRow) => {
     const isOccupied = occupied.has(name);
-    const isAbsent = isPersonAbsentAtSlot(name, pickerSlot);
+    const isAbsent = editRows.some(s => isPersonAbsentAtSlot(name, s));
     const isSelected = cellEditCastSelected.has(name);
     const isCrossedOut = isRollerRow && cellEditCrossedOut.has(name);
     // Someone already in THIS cell must remain clickable even if now flagged
@@ -2464,7 +2842,7 @@ function getPickerConflictNames(si, sceneId) {
   // placed cell is exempted, same as everywhere else: crossing out frees
   // them up, so a different scene containing them shouldn't be flagged.
   for (let ri = 0; ri < state.rooms.length; ri++) {
-    const cell = state.grid[si][ri];
+    const cell = schedCellAt(si, ri);
     if (!cell) continue;
     getCellCastNames(cell).filter(n => !isPersonCrossedOutAtCell(n, cell)).forEach(n => occupiedCast.add(n));
   }
@@ -2672,12 +3050,14 @@ function getSceneById(id) {
 function getPlacedSceneCounts() {
   const counts = new Map();
   const bump = id => counts.set(id, (counts.get(id) || 0) + 1);
-  for (const row of state.grid) {
-    for (const cell of row) {
-      if (!cell) continue;
-      schedCellSceneIds(cell).forEach(bump);
-    }
-  }
+  // Every row a stretched placement covers counts (by decision), so a
+  // repeat scene stretched over two rows reads as placed twice.
+  state.grid.forEach((row, si) => {
+    row.forEach((_, ri) => {
+      const cell = schedCellAt(si, ri);
+      if (cell) schedCellSceneIds(cell).forEach(bump);
+    });
+  });
   return counts;
 }
 

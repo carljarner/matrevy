@@ -405,38 +405,184 @@ function stjerneCheckCell(row, field, label, editable) {
   return td;
 }
 
-// One line that grows sideways: the input shares a grid cell with an
-// invisible copy of its text (::after, from data-value), which sets the
-// width, so a long comment widens the column instead of wrapping.
+// Kommentar: one field per line (several people comment on the same scene
+// over time), stored as stjerneNote with the lines joined by "\n" (empty
+// lines dropped). Shift+Enter adds a line below. One chevron in the
+// Kommentar header folds every row's extra lines away at once (closed on
+// every load); a folded row's first line ends in "...". Each field shares a
+// grid cell with a copy of its text (.stjerne-note-ghost, invisible except
+// for the "..."), which sets the width, so a long line widens the column
+// instead of wrapping and the "..." sits right after the text.
+let stjerneNotesOpen = false;
+// One {lineCount, paint} per Kommentar cell, and the header's own repaint.
+let stjerneNoteCells = [];
+let stjerneNoteHeadPaint = null;
+
+function stjernePaintNotes() {
+  for (const cell of stjerneNoteCells) cell.paint();
+  if (stjerneNoteHeadPaint) stjerneNoteHeadPaint();
+}
+
+// The Kommentar header: just the label, or (once some row has more than
+// one line) a .site-collapse toggle with the chevron left of the label.
+function stjerneNoteHead() {
+  const th = document.createElement('th');
+  th.scope = 'col';
+  th.className = 'stjerne-col-note';
+  const plain = document.createElement('span');
+  plain.textContent = 'Kommentar';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'site-collapse stjerne-note-head-toggle';
+  const chevron = document.createElement('span');
+  chevron.className = 'site-chevron';
+  chevron.setAttribute('aria-hidden', 'true');
+  chevron.textContent = '▾';
+  const label = document.createElement('span');
+  label.textContent = 'Kommentar';
+  btn.append(chevron, label);
+  btn.addEventListener('click', () => {
+    stjerneNotesOpen = !stjerneNotesOpen;
+    stjernePaintNotes();
+  });
+  th.append(plain, btn);
+  stjerneNoteHeadPaint = () => {
+    const any = stjerneNoteCells.some(c => c.lineCount() > 1);
+    plain.hidden = any;
+    btn.hidden = !any;
+    btn.setAttribute('aria-expanded', String(stjerneNotesOpen));
+    btn.title = stjerneNotesOpen ? 'Skjul flere linjer' : 'Vis alle linjer';
+  };
+  return th;
+}
+
+// The "..." after a folded row's first line.
+function stjerneNoteMore() {
+  const more = document.createElement('span');
+  more.className = 'stjerne-note-more';
+  more.textContent = '...';
+  more.hidden = true;
+  return more;
+}
+
 function stjerneNoteCell(row, editable) {
   const td = document.createElement('td');
   td.className = 'stjerne-note-cell';
+  const linesEl = document.createElement('div');
+  linesEl.className = 'stjerne-note-lines';
+  td.appendChild(linesEl);
+
+  const lineEls = () => Array.from(linesEl.children);
+  function paint() {
+    const many = linesEl.children.length > 1;
+    lineEls().forEach((el, i) => {
+      el.hidden = i > 0 && !stjerneNotesOpen;
+      el.querySelector('.stjerne-note-more').hidden = i > 0 || !many || stjerneNotesOpen;
+    });
+  }
+  stjerneNoteCells.push({ lineCount: () => linesEl.children.length, paint });
+
+  const note = row.values.stjerneNote || '';
+  const lines = note ? note.split('\n') : [''];
+
   if (!editable) {
-    const text = document.createElement('span');
-    text.className = 'stjerne-note-text';
-    text.textContent = row.values.stjerneNote || '';
-    td.appendChild(text);
+    for (const line of lines) {
+      const text = document.createElement('span');
+      text.className = 'stjerne-note-text';
+      const content = document.createElement('span');
+      content.textContent = line;
+      text.append(content, stjerneNoteMore());
+      linesEl.appendChild(text);
+    }
+    paint();
     return td;
   }
-  const sizer = document.createElement('div');
-  sizer.className = 'stjerne-note-sizer';
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'site-inline-field stjerne-note';
-  input.maxLength = STJERNE_NOTE_MAX;
-  input.value = row.values.stjerneNote || '';
-  input.setAttribute('aria-label', 'Kommentar');
-  sizer.dataset.value = input.value;
-  input.addEventListener('input', () => {
-    row.values.stjerneNote = input.value;
-    sizer.dataset.value = input.value;
+
+  const inputs = () => Array.from(linesEl.querySelectorAll('.stjerne-note'));
+  // Writes the lines back to the row and keeps the joined comment within
+  // STJERNE_NOTE_MAX (each field may only use what the others leave).
+  function commit() {
+    const all = inputs();
+    const values = all.map(i => i.value);
+    row.values.stjerneNote = values.filter(v => v.trim() !== '').join('\n');
+    const total = values.reduce((n, v) => n + v.length, 0) + values.length - 1;
+    for (const i of all) i.maxLength = Math.max(i.value.length, STJERNE_NOTE_MAX - (total - i.value.length));
     stjerneAutosave.schedule();
+  }
+
+  function focusLine(el, atEnd) {
+    if (!el || el.hidden) return false;
+    const input = el.querySelector('.stjerne-note');
+    input.focus();
+    if (atEnd) input.setSelectionRange(input.value.length, input.value.length);
+    return true;
+  }
+
+  function makeLine(value) {
+    const sizer = document.createElement('div');
+    sizer.className = 'stjerne-note-sizer';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'site-inline-field stjerne-note';
+    input.value = value;
+    input.setAttribute('aria-label', 'Kommentar');
+    const ghost = document.createElement('span');
+    ghost.className = 'stjerne-note-ghost';
+    ghost.setAttribute('aria-hidden', 'true');
+    const ghostText = document.createElement('span');
+    ghostText.className = 'stjerne-note-ghost-text';
+    ghostText.textContent = value;
+    ghost.append(ghostText, stjerneNoteMore());
+    input.addEventListener('input', () => {
+      ghostText.textContent = input.value;
+      commit();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.isComposing) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!e.shiftKey) { input.blur(); return; }
+        // A new line unfolds every row, so it can be seen.
+        const next = makeLine('');
+        sizer.after(next);
+        stjerneNotesOpen = true;
+        stjernePaintNotes();
+        commit();
+        focusLine(next, false);
+      } else if (e.key === 'Backspace' && input.value === '' && linesEl.children.length > 1) {
+        // An empty line goes away, and the cursor moves to the end of the
+        // line above (or the one below, for the first line). Focus moves
+        // first, so removing the field doesn't trigger the focusout tidy.
+        e.preventDefault();
+        const target = sizer.previousElementSibling || sizer.nextElementSibling;
+        focusLine(target, true);
+        sizer.remove();
+        stjernePaintNotes();
+        commit();
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const target = e.key === 'ArrowUp' ? sizer.previousElementSibling : sizer.nextElementSibling;
+        if (focusLine(target, true)) e.preventDefault();
+      }
+    });
+    sizer.append(input, ghost);
+    return sizer;
+  }
+
+  for (const line of lines) linesEl.appendChild(makeLine(line));
+  commit();
+  // Leaving the cell tidies away empty lines (they're never saved anyway).
+  td.addEventListener('focusout', (e) => {
+    if (td.contains(e.relatedTarget)) return;
+    let removed = false;
+    for (const el of lineEls()) {
+      if (linesEl.children.length > 1 && el.querySelector('.stjerne-note').value.trim() === '') {
+        el.remove();
+        removed = true;
+      }
+    }
+    if (removed) stjernePaintNotes();
   });
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.isComposing) input.blur();
-  });
-  sizer.appendChild(input);
-  td.appendChild(sizer);
+  paint();
   return td;
 }
 
@@ -445,6 +591,8 @@ function stjerneRender() {
   const root = document.getElementById('stjerne-root');
   root.textContent = '';
   stjerneStatusEl = null;
+  stjerneNoteCells = [];
+  stjerneNoteHeadPaint = null;
   const card = document.createElement('section');
   card.className = 'card stjerne-card';
   root.appendChild(card);
@@ -486,7 +634,7 @@ function stjerneRender() {
   addHead('Titel', 'stjerne-col-title');
   for (const f of STJERNE_PRIO_FIELDS) addHead(f.label, 'stjerne-col-prio');
   for (const f of STJERNE_CHECK_FIELDS) addHead(f.label, 'stjerne-col-check');
-  addHead('Kommentar', 'stjerne-col-note');
+  headRow.appendChild(stjerneNoteHead());
   thead.appendChild(headRow);
   table.appendChild(thead);
 
@@ -526,6 +674,7 @@ function stjerneRender() {
     }
   }
   table.appendChild(tbody);
+  stjernePaintNotes();
   wrap.appendChild(table);
   card.appendChild(wrap);
   // The header row follows the page down the sheet.

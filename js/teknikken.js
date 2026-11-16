@@ -762,7 +762,7 @@ function teknikWireDrop(card) {
     e.preventDefault();
     if (!teknikUploadsOpen) { teknikShowError(teknikUploadsClosedMessage()); return; }
     const dropped = Array.from(e.dataTransfer.files);
-    // A lone video goes to the video flow (it needs its project file).
+    // A lone video goes to the video flow.
     if (dropped.length === 1 && teknikIsVideo(dropped[0])) teknikOpenVideoUploadModal(folderId, dropped[0]);
     else teknikOpenUploadModal(dropped, folderId);
   });
@@ -1014,8 +1014,7 @@ function teknikFilePickField(buttonLabel, accept, check, onPick) {
   return { wrap, pick, get file() { return chosen; } };
 }
 
-// One video + its whole editing project as a .zip, both required, uploaded
-// as "<Navn>.<ext>" and "<Navn> (projektfil).zip".
+// One video, uploaded as "<Navn>.<ext>".
 function teknikOpenVideoUploadModal(folderId, initialVideo) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose('Upload video');
   modal.classList.add('site-modal-md', 'teknik-upload-modal');
@@ -1046,25 +1045,10 @@ function teknikOpenVideoUploadModal(folderId, initialVideo) {
       refreshSpace();
     },
   );
-  const project = teknikFilePickField(
-    'Vælg .zip',
-    '.zip,application/zip',
-    (file) => {
-      if (teknikFileExt(file.name) !== 'zip') return `"${file.name}" er ikke en .zip-fil.`;
-      return file.size ? '' : `"${file.name}" er tom.`;
-    },
-    (file, problem) => { error.textContent = problem; refreshSpace(); },
-  );
   const videoField = el('div', 'edit-field');
   videoField.appendChild(el('p', 'teknik-upload-label', 'Videofil'));
   videoField.appendChild(video.wrap);
   form.appendChild(videoField);
-  const projectField = el('div', 'edit-field');
-  projectField.appendChild(el('p', 'teknik-upload-label', 'Projektfil'));
-  projectField.appendChild(el('p', 'teknik-upload-note',
-    'Hele projektet (fx Premiere- eller Final Cut-mappen) pakket som én .zip-fil.'));
-  projectField.appendChild(project.wrap);
-  form.appendChild(projectField);
 
   form.appendChild(siteEditField('Navn', nameInput));
   const folderField = siteCreateDropdownField(teknikFolderOptions(), folderId || '');
@@ -1075,7 +1059,7 @@ function teknikOpenVideoUploadModal(folderId, initialVideo) {
   const uploadBtn = teknikPillBtn('Upload', 'site-btn-success');
 
   function total() {
-    return (video.file ? video.file.size : 0) + (project.file ? project.file.size : 0);
+    return video.file ? video.file.size : 0;
   }
   function refreshSpace() {
     const free = teknikFreeBytes();
@@ -1090,7 +1074,6 @@ function teknikOpenVideoUploadModal(folderId, initialVideo) {
     const base = teknikCleanBaseName(nameInput.value);
     if (!uploadedBy) { error.textContent = 'Skriv hvem du er.'; uploaderInput.focus(); return; }
     if (!video.file) { error.textContent = 'Vælg en videofil.'; return; }
-    if (!project.file) { error.textContent = 'Vælg projektfilen (.zip).'; return; }
     if (!base) { error.textContent = 'Giv videoen et navn.'; nameInput.focus(); return; }
     teknikRememberUploader(uploadedBy);
     const target = folderField.value || null;
@@ -1098,7 +1081,6 @@ function teknikOpenVideoUploadModal(folderId, initialVideo) {
     if (target) { teknikOpenFolders.add(target); teknikSaveOpenFolders(); teknikRender(); }
     teknikEnqueue([
       { file: video.file, name: `${base}.${teknikFileExt(video.file.name)}` },
-      { file: project.file, name: `${base} (projektfil).zip` },
     ], target, uploadedBy);
   }
   uploadBtn.addEventListener('click', submit);

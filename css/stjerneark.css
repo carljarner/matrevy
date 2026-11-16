@@ -130,22 +130,53 @@
   text-align: left;
 }
 
-/* Kommentar stays one line and widens its column: the input and an
-   invisible copy of its text share one grid cell, so the copy sets the
-   width (stjerneNoteCell in stjerneark.js). */
+/* Kommentar: one field per line, stacked. The header's chevron folds
+   every row's extra lines away at once (stjerneNoteCell / stjerneNoteHead
+   in stjerneark.js). */
+.stjerne-note-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+.stjerne-note-lines > [hidden] {
+  display: none;
+}
+
+/* The header toggle (.site-collapse, style.css) keeps the header's size
+   and centring, with the chevron left of "Kommentar". */
+.stjerne-table th .stjerne-note-head-toggle {
+  display: inline-flex;
+  width: auto;
+  gap: 0.35rem;
+  font-weight: inherit;
+}
+
+.stjerne-table th .stjerne-note-head-toggle[hidden] {
+  display: none;
+}
+
+/* Each line widens its column instead of wrapping: the input and a copy
+   of its text (.stjerne-note-ghost, invisible but for a folded row's
+   "...") share one grid cell, so the copy sets the width. */
 .stjerne-note-sizer {
   display: inline-grid;
   min-width: 11rem;
 }
 
-.stjerne-note-sizer::after {
-  content: attr(data-value) ' ';
-  visibility: hidden;
-  white-space: pre;
+.stjerne-note-ghost {
   grid-area: 1 / 1;
-  padding: 0.2rem 0.3rem;
+  padding: 0.2rem 0.6rem 0.2rem 0.3rem;
   border: 1px solid transparent;
-  font: inherit;
+  white-space: pre;
+  pointer-events: none;
+}
+
+.stjerne-note-ghost-text {
+  visibility: hidden;
+}
+
+.stjerne-note-more {
+  color: var(--text-muted);
 }
 
 /* Kommentar is a .site-inline-field (style.css). */

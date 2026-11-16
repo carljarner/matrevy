@@ -297,12 +297,6 @@
   display: none;
 }
 
-.teknik-upload-note {
-  margin: 0 0 0.35rem;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-}
-
 /* --- Upload panel -------------------------------------------------- */
 .teknik-uploads-head {
   display: flex;
