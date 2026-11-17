@@ -4514,25 +4514,10 @@ function openCustomAktModal() {
     const h3 = document.createElement('h3');
     h3.textContent = group.label;
     head.appendChild(h3);
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = 'btn-small';
-    head.appendChild(allBtn);
     groupEl.appendChild(head);
 
     const list = document.createElement('div');
     list.className = 'manus-col-list manus-akt-scene-grid';
-    const syncs = [];
-    const syncAllBtn = () => {
-      allBtn.textContent = group.scenes.every(isPicked) ? 'Fravælg alle' : 'Vælg alle';
-    };
-    allBtn.addEventListener('click', () => {
-      const pick = !group.scenes.every(isPicked);
-      for (const scene of group.scenes) setPicked(scene, pick);
-      for (const sync of syncs) sync();
-      syncAllBtn();
-      update();
-    });
 
     for (const scene of group.scenes) {
       const el = document.createElement('div');
@@ -4551,7 +4536,6 @@ function openCustomAktModal() {
       const toggle = () => {
         setPicked(scene, !isPicked(scene));
         sync();
-        syncAllBtn();
         update();
       };
       el.addEventListener('click', toggle);
@@ -4559,10 +4543,8 @@ function openCustomAktModal() {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
       });
       sync();
-      syncs.push(sync);
       list.appendChild(el);
     }
-    syncAllBtn();
     groupEl.appendChild(list);
     scroll.appendChild(groupEl);
   }
@@ -6284,21 +6266,6 @@ function renderProgramScenesSection() {
   }
 
   section.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
-    const syncs = [];
-    const allBtn = document.createElement('button');
-    allBtn.type = 'button';
-    allBtn.className = 'btn-small manus-program-scenes-all';
-    const syncAllBtn = () => {
-      allBtn.textContent = rowsInAct.every(r => programSceneIncluded(r.uid, act.code)) ? 'Fravælg alle' : 'Vælg alle';
-    };
-    allBtn.addEventListener('click', () => {
-      const include = !rowsInAct.every(r => programSceneIncluded(r.uid, act.code));
-      for (const row of rowsInAct) programSetSceneIncluded(row.uid, act.code, include);
-      for (const sync of syncs) sync();
-      syncAllBtn();
-      programAutosave.schedule();
-    });
-
     for (const row of rowsInAct) {
       const el = document.createElement('div');
       el.className = 'manus-select-row';
@@ -6316,7 +6283,6 @@ function renderProgramScenesSection() {
       const toggle = () => {
         programSetSceneIncluded(row.uid, act.code, !programSceneIncluded(row.uid, act.code));
         sync();
-        syncAllBtn();
         programAutosave.schedule();
       };
       el.addEventListener('click', toggle);
@@ -6324,13 +6290,9 @@ function renderProgramScenesSection() {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
       });
       sync();
-      syncs.push(sync);
       body.appendChild(el);
     }
-    if (rowsInAct.length) {
-      syncAllBtn();
-      body.appendChild(allBtn);
-    } else {
+    if (!rowsInAct.length) {
       const empty = document.createElement('p');
       empty.className = 'manus-col-empty';
       empty.textContent = 'Ingen scener.';

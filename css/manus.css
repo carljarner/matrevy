@@ -2203,13 +2203,6 @@ a.manus-pdf-title:focus-visible {
   margin-bottom: 0.25rem;
 }
 
-/* "Scener i programmet": the act columns' toggle rows (.manus-select-row,
-   highlighted = printed) with a "Vælg alle" under each column's list. */
-.manus-program-scenes-all {
-  align-self: center;
-  margin-top: 0.25rem;
-}
-
 .manus-program-qr-list {
   display: flex;
   flex-direction: column;
