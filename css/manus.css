@@ -1937,6 +1937,27 @@ a.manus-pdf-title:focus-visible {
   transition: width 0.15s ease-out;
 }
 
+/* Waiting on the server (Aktfordeling → Custom): no known progress, so a
+   short segment slides back and forth instead. */
+.manus-cprint-progress-waiting .manus-cprint-progress-fill {
+  width: 30%;
+  transition: none;
+  animation: manus-cprint-progress-slide 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes manus-cprint-progress-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(233%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .manus-cprint-progress-waiting .manus-cprint-progress-fill {
+    width: 100%;
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 .manus-cprint-progress-detail {
   margin: 0.5rem 0 0;
   min-height: 1.2em;
@@ -2180,6 +2201,13 @@ a.manus-pdf-title:focus-visible {
    bottom margin .manus-script-textarea doesn't need inside a modal. */
 .manus-program-textarea {
   margin-bottom: 0.25rem;
+}
+
+/* "Scener i programmet": the act columns' toggle rows (.manus-select-row,
+   highlighted = printed) with a "Vælg alle" under each column's list. */
+.manus-program-scenes-all {
+  align-self: center;
+  margin-top: 0.25rem;
 }
 
 .manus-program-qr-list {

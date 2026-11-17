@@ -574,17 +574,20 @@ if ($action === 'manuscripts_sync_selection') {
   manuscripts_sync_selection($body);
 }
 
-// Manus's merge-before-save read, its save-free PDF trigger, removing one
+// Manus's merge-before-save read, its save-free PDF trigger, the custom
+// Aktoversigt job + its status poll, removing one
 // pool record ("Fjern"), setting pool submissions' durations, Stjerneark's per-click save and the Program tab's
 // merge read, and the Cast list's Revyst flag (manus_set_cast) and Sangboss
 // (manus_set_sangboss) — boss-level like the `manus`/`manuscripts`
 // resources. Single-purpose actions rather than full-array saves, so a tab
 // with stale data can't overwrite anything through them.
-if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'manus_set_cast', 'manus_set_sangboss', 'program_read', 'resource_read'], true)) {
+if (in_array($action, ['manus_read', 'manus_regenerate_pdfs', 'manus_pdf_status', 'manus_custom_aktoversigt', 'manus_custom_aktoversigt_status', 'manuscripts_remove', 'manuscripts_set_durations', 'manus_set_stars', 'manus_set_cast', 'manus_set_sangboss', 'program_read', 'resource_read'], true)) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK['boss']) {
     respond(403, ['error' => 'insufficient_level']);
   }
   if ($action === 'manus_read') manus_read();
+  else if ($action === 'manus_custom_aktoversigt') manus_custom_aktoversigt($body);
+  else if ($action === 'manus_custom_aktoversigt_status') manus_custom_aktoversigt_status($body);
   else if ($action === 'resource_read') resource_read($body);
   else if ($action === 'manus_regenerate_pdfs') manus_regenerate_pdfs();
   else if ($action === 'manus_pdf_status') manus_pdf_status();
@@ -7693,6 +7696,81 @@ function manus_regenerate_pdfs() {
   respond(200, ['ok' => true, 'requestedAt' => $requestedAt]);
 }
 
+// ── Custom Aktoversigt (Manus: Aktfordeling → Custom) ─────────
+// The page sends the picked scenes' uids; the worker (server/worker.sh →
+// scripts/custom-aktoversigt.js) compiles them with the standard
+// Aktoversigt template. Jobs live in generated/custom-akt/ (not
+// web-served) as <jobId>.request.json → <jobId>.pdf + <jobId>.json.
+// Hoisted functions, not consts (dispatch runs near the top of the file).
+function manus_custom_akt_dir() {
+  return rtrim(SITE_DATA_DIR, '/') . '/generated/custom-akt';
+}
+
+// The jobId is built into file names, so this regex is the path guard.
+function manus_custom_akt_job_id_ok($jobId) {
+  return is_string($jobId) && preg_match('/^[a-f0-9]{16}$/', $jobId) === 1;
+}
+
+function manus_custom_aktoversigt($body) {
+  $keys = $body['keys'] ?? null;
+  if (!is_array($keys) || count($keys) === 0 || count($keys) > 500) {
+    respond(400, ['error' => 'invalid_keys']);
+  }
+  $clean = [];
+  foreach ($keys as $k) {
+    if (!is_string($k) || !preg_match('/^[A-Za-z0-9:_.-]{1,80}$/', $k)) {
+      respond(400, ['error' => 'invalid_keys']);
+    }
+    $clean[$k] = true;
+  }
+  $dir = manus_custom_akt_dir();
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'custom_akt_dir_failed']);
+  }
+  $jobId = bin2hex(random_bytes(8));
+  $request = json_encode([
+    'jobId' => $jobId,
+    'keys' => array_keys($clean),
+    'requestedAt' => (int) floor(microtime(true) * 1000),
+  ]);
+  // The worker only picks up *.request.json, so the temp name never matches.
+  $tmp = $dir . '/.' . $jobId . '.tmp-' . getmypid();
+  if (@file_put_contents($tmp, $request) === false || !@rename($tmp, $dir . '/' . $jobId . '.request.json')) {
+    @unlink($tmp);
+    respond(500, ['error' => 'custom_akt_write_failed']);
+  }
+  respond(200, ['ok' => true, 'jobId' => $jobId]);
+}
+
+// pending (queued or compiling), done (the PDF, base64; the job's files are
+// deleted), failed (a Danish message) or missing (unknown/expired job).
+function manus_custom_aktoversigt_status($body) {
+  $jobId = $body['jobId'] ?? null;
+  if (!manus_custom_akt_job_id_ok($jobId)) respond(400, ['error' => 'invalid_job']);
+  $dir = manus_custom_akt_dir();
+  $statusFile = $dir . '/' . $jobId . '.json';
+  $pdfFile = $dir . '/' . $jobId . '.pdf';
+  if (is_file($statusFile)) {
+    $status = json_decode((string) @file_get_contents($statusFile), true);
+    $state = is_array($status) ? ($status['state'] ?? '') : '';
+    if ($state === 'done' && is_file($pdfFile)) {
+      $pdf = @file_get_contents($pdfFile);
+      if ($pdf === false) respond(500, ['error' => 'custom_akt_read_failed']);
+      @unlink($pdfFile);
+      @unlink($statusFile);
+      respond(200, ['ok' => true, 'state' => 'done', 'pdf' => base64_encode($pdf)]);
+    }
+    $message = is_array($status) && is_string($status['message'] ?? null) ? $status['message'] : '';
+    @unlink($pdfFile);
+    @unlink($statusFile);
+    respond(200, ['ok' => true, 'state' => 'failed', 'message' => mb_substr($message, 0, 500)]);
+  }
+  if (is_file($dir . '/' . $jobId . '.request.json')) {
+    respond(200, ['ok' => true, 'state' => 'pending']);
+  }
+  respond(200, ['ok' => true, 'state' => 'missing']);
+}
+
 // The latest PDF run's status, written by scripts/generate-pdfs.js to
 // generated/pdf-status.json (not web-served — it can carry LaTeX log
 // excerpts): {state: running|done|failed, startedAt, finishedAt?, errors?}.
@@ -8735,6 +8813,23 @@ function save_program($payload) {
     $seenQrId[$q['id']] = true;
   }
 
+  // "Scener i programmet": {<scene uid>: bool}, only the scenes that differ
+  // from the default (every act but Ekstranumre; generate-pdfs.js's
+  // programIncludesScene). Optional: when absent the live value is kept.
+  // An empty map arrives as [] from json_decode and is stored as {}.
+  $sceneOverrides = null;
+  if (array_key_exists('sceneOverrides', $payload)) {
+    $raw = $payload['sceneOverrides'];
+    if (!is_array($raw) || count($raw) > 2000) respond(400, ['error' => 'invalid_program_shape']);
+    $sceneOverrides = [];
+    foreach ($raw as $k => $v) {
+      if (!is_string($k) || !preg_match('/^[A-Za-z0-9:_.-]{1,80}$/', $k) || !is_bool($v)) {
+        respond(400, ['error' => 'invalid_program_shape']);
+      }
+      $sceneOverrides[$k] = $v;
+    }
+  }
+
   // The sha the client's auto-save built on (from program_read or its last
   // save) — a mismatch is 409 `stale`, and the client merges and retries.
   $baseSha = $payload['baseSha'] ?? null;
@@ -8742,10 +8837,11 @@ function save_program($payload) {
     respond(400, ['error' => 'invalid_shape']);
   }
 
-  $sha = update_file('data/program.json', function ($json) use ($medvirkende, $ordliste, $qrCodes) {
+  $sha = update_file('data/program.json', function ($json) use ($medvirkende, $ordliste, $qrCodes, $sceneOverrides) {
     $json['medvirkende'] = $medvirkende;
     $json['ordliste'] = $ordliste;
     $json['qrCodes'] = $qrCodes;
+    if ($sceneOverrides !== null) $json['sceneOverrides'] = (object) $sceneOverrides;
     return $json;
   }, 'Opdater program.json via Manus', $baseSha);
   respond(200, ['ok' => true, 'sha' => $sha]);

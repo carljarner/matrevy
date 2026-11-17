@@ -289,7 +289,7 @@ let manuscriptsOverride = siteLoadOverride('manuscripts');
 let programOverride = siteLoadOverride('program');
 
 function getEffectiveProgram() {
-  return programOverride || (typeof PROGRAM_DATA !== 'undefined' ? PROGRAM_DATA : { medvirkende: '', ordliste: '', qrCodes: [] });
+  return programOverride || (typeof PROGRAM_DATA !== 'undefined' ? PROGRAM_DATA : { medvirkende: '', ordliste: '', qrCodes: [], sceneOverrides: {} });
 }
 
 function getEffectiveManuscripts() {
@@ -4299,15 +4299,24 @@ function manusOpenPdfProgress(onCancel) {
   return {
     set(text, done, total, unit) {
       label.textContent = text;
+      bar.classList.remove('manus-cprint-progress-waiting');
       fill.style.width = total ? `${Math.min(100, (done / total) * 100)}%` : '100%';
       detail.textContent = total ? `${done} af ${total} ${unit}` : '';
+    },
+    // No known progress (waiting on the server): a sliding bar instead.
+    wait(text) {
+      label.textContent = text;
+      bar.classList.add('manus-cprint-progress-waiting');
+      fill.style.width = '';
+      detail.textContent = '';
     },
     // Last resort when the browser blocked the automatic new tab: the
     // click on this button is a fresh user gesture, so it always opens.
     ready(pageCount, onOpen, onClose) {
       label.textContent = 'PDF’en er klar';
+      bar.classList.remove('manus-cprint-progress-waiting');
       fill.style.width = '100%';
-      detail.textContent = `${pageCount} sider`;
+      detail.textContent = pageCount ? `${pageCount} sider` : '';
       actions.textContent = '';
       const closeBtn = document.createElement('button');
       closeBtn.type = 'button';
@@ -4381,25 +4390,240 @@ async function manusCustomPrint(rows, countOf, btn) {
     await manusNextFrame();
     const bytes = await out.save();
     if (cancelled) { finish(); return; }
-    const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-    if (siteIsIos()) { window.location.href = url; return; }
-    const win = window.open(url, '_blank');
-    if (win) {
-      finish();
-      setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
-      return;
-    }
-    progress.ready(total, () => {
-      window.open(url, '_blank');
-      finish();
-      setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
-    }, () => {
-      finish();
-      URL.revokeObjectURL(url);
-    });
+    manusOpenPdfBlob(bytes, total, progress, finish);
   } catch (e) {
     finish();
     siteShowToast(e.message === 'pdf-lib' ? 'Kunne ikke indlæse PDF-værktøjet.' : e.message);
+  }
+}
+
+// Opens a PDF built in memory in a new tab (on iOS in this tab). The click's
+// user activation has usually expired by now, so a blocked window.open
+// leaves the progress box offering "Åbn PDF" (a fresh click). The blob URL
+// is revoked a minute after it opens. `pageCount` may be null (unknown).
+function manusOpenPdfBlob(bytes, pageCount, progress, finish) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  if (siteIsIos()) { window.location.href = url; return; }
+  const win = window.open(url, '_blank');
+  if (win) {
+    finish();
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+    return;
+  }
+  progress.ready(pageCount, () => {
+    window.open(url, '_blank');
+    finish();
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+  }, () => {
+    finish();
+    URL.revokeObjectURL(url);
+  });
+}
+
+// ── Aktfordeling → Custom: a one-off Aktoversigt of picked scenes ──
+// Boss/admin only (the PDF links row's Aktfordeling menu). Lists every saved
+// scene in an act, the same set as the standard Aktoversigt.pdf, all ticked
+// by default. The worker compiles the picked ones with the standard LaTeX
+// template (update-data.php's manus_custom_aktoversigt →
+// scripts/custom-aktoversigt.js); the page polls for the PDF and opens it.
+// The choice is kept in memory only (unticked keys), so reopening the modal
+// keeps it until reload and newly saved scenes start ticked.
+const manusCustomAktUnticked = new Set();
+const MANUS_CUSTOM_AKT_POLL_MS = 1500;
+// Generous: a full "Generér PDF'er" run in the worker goes first.
+const MANUS_CUSTOM_AKT_TIMEOUT_MS = 3 * 60 * 1000;
+
+// Saved scenes grouped per act, in saved order (what the worker compiles
+// from), without the reserved 'pool' pseudo-act.
+function manusCustomAktGroups() {
+  const groups = [];
+  const byAct = new Map();
+  for (const scene of getEffectiveScenesData()) {
+    const act = String(scene.id).split('-')[0];
+    if (act === MANUS_POOL_ACT_CODE) continue;
+    if (!byAct.has(act)) {
+      const group = { act, label: scene.actLabel || act, scenes: [] };
+      byAct.set(act, group);
+      groups.push(group);
+    }
+    byAct.get(act).scenes.push(scene);
+  }
+  return groups;
+}
+
+function openCustomAktModal() {
+  if (!(getEffectiveConfig().currentProductionFolder || '')) {
+    siteShowToast('Ingen aktiv produktion');
+    return;
+  }
+  const groups = manusCustomAktGroups();
+  const allScenes = groups.flatMap(g => g.scenes);
+  const isPicked = scene => !manusCustomAktUnticked.has(manusSceneUid(scene));
+  const setPicked = (scene, picked) => {
+    if (picked) manusCustomAktUnticked.delete(manusSceneUid(scene));
+    else manusCustomAktUnticked.add(manusSceneUid(scene));
+  };
+
+  const { modal, form, actions } = siteOpenModalWithClose('Custom aktfordeling');
+  modal.classList.add('site-modal-xl', 'manus-akt-modal');
+  actions.style.display = 'none';
+
+  const pageEl = document.createElement('div');
+  pageEl.className = 'manus-akt-page';
+  form.appendChild(pageEl);
+
+  const count = document.createElement('p');
+  count.className = 'manus-akt-count';
+  pageEl.appendChild(count);
+
+  const scroll = document.createElement('div');
+  scroll.className = 'manus-akt-scroll';
+  pageEl.appendChild(scroll);
+
+  const buttonRow = document.createElement('div');
+  buttonRow.className = 'manus-points-grid-row';
+  const printBtn = document.createElement('button');
+  printBtn.type = 'button';
+  printBtn.className = 'site-btn-success manus-points-col-end';
+  printBtn.textContent = 'Udskriv';
+  printBtn.addEventListener('click', () => {
+    manusCustomAktPrint(allScenes.filter(isPicked).map(manusSceneUid), printBtn);
+  });
+  buttonRow.appendChild(printBtn);
+  form.appendChild(buttonRow);
+
+  const update = () => {
+    const n = allScenes.filter(isPicked).length;
+    count.textContent = `${n} af ${allScenes.length} valgt`;
+    printBtn.disabled = n === 0;
+  };
+
+  if (!allScenes.length) {
+    const empty = document.createElement('p');
+    empty.className = 'manus-col-empty';
+    empty.textContent = 'Placer scener i Aktfordeling og gem først.';
+    scroll.appendChild(empty);
+  }
+
+  for (const group of groups) {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'manus-cprint-group';
+
+    const head = document.createElement('div');
+    head.className = 'manus-cprint-group-head';
+    const h3 = document.createElement('h3');
+    h3.textContent = group.label;
+    head.appendChild(h3);
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'btn-small';
+    head.appendChild(allBtn);
+    groupEl.appendChild(head);
+
+    const list = document.createElement('div');
+    list.className = 'manus-col-list manus-akt-scene-grid';
+    const syncs = [];
+    const syncAllBtn = () => {
+      allBtn.textContent = group.scenes.every(isPicked) ? 'Fravælg alle' : 'Vælg alle';
+    };
+    allBtn.addEventListener('click', () => {
+      const pick = !group.scenes.every(isPicked);
+      for (const scene of group.scenes) setPicked(scene, pick);
+      for (const sync of syncs) sync();
+      syncAllBtn();
+      update();
+    });
+
+    for (const scene of group.scenes) {
+      const el = document.createElement('div');
+      el.className = 'manus-select-row';
+      el.setAttribute('role', 'button');
+      el.tabIndex = 0;
+      const title = document.createElement('span');
+      title.className = 'manus-pdf-title';
+      title.textContent = scene.name || scene.id;
+      el.appendChild(title);
+      const sync = () => {
+        const picked = isPicked(scene);
+        el.classList.toggle('manus-select-row-selected', picked);
+        el.setAttribute('aria-pressed', String(picked));
+      };
+      const toggle = () => {
+        setPicked(scene, !isPicked(scene));
+        sync();
+        syncAllBtn();
+        update();
+      };
+      el.addEventListener('click', toggle);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+      sync();
+      syncs.push(sync);
+      list.appendChild(el);
+    }
+    syncAllBtn();
+    groupEl.appendChild(list);
+    scroll.appendChild(groupEl);
+  }
+  update();
+}
+
+async function manusCustomAktPrint(keys, btn) {
+  if (!keys.length) {
+    siteShowToast('Vælg mindst én scene.');
+    return;
+  }
+  let cancelled = false;
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    progress.close();
+    btn.disabled = false;
+  };
+  const progress = manusOpenPdfProgress(() => { cancelled = true; finish(); });
+  btn.disabled = true;
+  const fail = (message) => { finish(); if (message) siteShowToast(message); };
+  try {
+    progress.wait('Sender scenerne…');
+    const start = await manusApi('manus_custom_aktoversigt', { keys });
+    if (cancelled) return;
+    if (!start.ok) { fail(start.message); return; }
+    const jobId = start.data.jobId;
+    progress.wait('Genererer aktfordeling…');
+    const deadline = Date.now() + MANUS_CUSTOM_AKT_TIMEOUT_MS;
+    for (;;) {
+      await new Promise(resolve => setTimeout(resolve, MANUS_CUSTOM_AKT_POLL_MS));
+      if (cancelled) return;
+      // A failed poll (network blip) just tries again until the deadline.
+      const res = await manusApi('manus_custom_aktoversigt_status', { jobId }, { prompt: false });
+      if (cancelled) return;
+      if (res.ok) {
+        const { state } = res.data;
+        if (state === 'done') {
+          const bin = atob(String(res.data.pdf || ''));
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          manusOpenPdfBlob(bytes, null, progress, finish);
+          return;
+        }
+        if (state === 'failed') {
+          fail(`Kunne ikke lave aktfordelingen. ${res.data.message || ''}`.trim());
+          return;
+        }
+        if (state === 'missing') {
+          fail('Aktfordelingen blev ikke fundet på serveren. Prøv igen.');
+          return;
+        }
+      }
+      if (Date.now() > deadline) {
+        fail('PDF-generatoren svarede ikke. Prøv igen om lidt.');
+        return;
+      }
+    }
+  } catch (e) {
+    fail('Kunne ikke lave aktfordelingen.');
   }
 }
 
@@ -5642,10 +5866,13 @@ let programDragId = null;
 let programBase = null;
 let programServer = null; // { sha, data } | null (unknown — read first)
 let programConflicts = {}; // section key → their value, awaiting a choice
+// sceneOverrides ("Scener i programmet") is merged per scene instead of as
+// one block (programMergeOverrides), so it never raises a conflict banner.
 const PROGRAM_SECTIONS = [
   { key: 'medvirkende', label: 'Medvirkende' },
   { key: 'ordliste', label: 'Ordliste' },
   { key: 'qrCodes', label: 'QR-koderne' },
+  { key: 'sceneOverrides', label: 'Scenerne i programmet' },
 ];
 
 function programNormalize(program) {
@@ -5655,7 +5882,45 @@ function programNormalize(program) {
     qrCodes: Array.isArray(program && program.qrCodes)
       ? program.qrCodes.map(q => ({ id: q.id, label: q.label, url: q.url || '' }))
       : [],
+    sceneOverrides: programNormalizeOverrides(program && program.sceneOverrides),
   };
+}
+
+// {<scene uid>: bool} with sorted keys, so two copies compare equal as JSON.
+// PHP hands an empty map back as [], hence the array check.
+function programNormalizeOverrides(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const key of Object.keys(raw).sort()) {
+    if (typeof raw[key] === 'boolean') out[key] = raw[key];
+  }
+  return out;
+}
+
+// Three-way merge per scene key: whichever side changed a key wins, and if
+// both did, mine (a toggle is one click, so the last click wins).
+function programMergeOverrides(base, mine, theirs) {
+  const keys = new Set([...Object.keys(base), ...Object.keys(mine), ...Object.keys(theirs)]);
+  const merged = {};
+  for (const key of keys) {
+    const b = base[key], m = mine[key], t = theirs[key];
+    const value = (m !== b || t === b) ? m : t;
+    if (typeof value === 'boolean') merged[key] = value;
+  }
+  return programNormalizeOverrides(merged);
+}
+
+// Whether a scene is printed in Program.pdf's Aktoversigt: only scenes that
+// differ from the default (every act but Ekstranumre) are stored. Copied
+// from scripts/generate-pdfs.js's programIncludesScene.
+function programSceneIncluded(uid, actCode) {
+  const value = programDraft.sceneOverrides[uid];
+  return typeof value === 'boolean' ? value : actCode !== 'E';
+}
+
+function programSetSceneIncluded(uid, actCode, included) {
+  if (included === (actCode !== 'E')) delete programDraft.sceneOverrides[uid];
+  else programDraft.sceneOverrides[uid] = included;
 }
 
 const programSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -5663,6 +5928,12 @@ const programSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 // Puts their version of one section into the draft and its on-screen field
 // (a section the user hasn't touched, so nothing of theirs is lost).
 function programApplyToDraft(key, value) {
+  if (key === 'sceneOverrides') {
+    programDraft.sceneOverrides = { ...value };
+    const card = document.querySelector('[data-program-scenes]');
+    if (card) card.replaceWith(renderProgramScenesSection());
+    return;
+  }
   if (key === 'qrCodes') {
     // Keep my not-yet-saveable rows (no label yet) — they aren't in any payload.
     const unsaved = programDraft.qrCodes.filter(q => !programQrSaveable(q));
@@ -5693,6 +5964,11 @@ async function programSaveNow() {
     const conflicts = {};
     for (const { key } of PROGRAM_SECTIONS) {
       const b = programBase[key], m = mine[key], t = theirs[key];
+      if (key === 'sceneOverrides') {
+        merged[key] = programMergeOverrides(b, m, t);
+        if (!programSame(merged[key], m)) programApplyToDraft(key, merged[key]);
+        continue;
+      }
       if (programSame(m, t) || programSame(t, b)) {
         merged[key] = m;
       } else if (programSame(m, b)) {
@@ -5975,7 +6251,93 @@ function programBuildSavePayload() {
     qrCodes: programDraft.qrCodes
       .filter(programQrSaveable)
       .map((q) => ({ id: q.id, label: q.label.trim(), url: (q.url || '').trim() })),
+    sceneOverrides: programNormalizeOverrides(programDraft.sceneOverrides),
   };
+}
+
+// "Scener i programmet": the Aktfordeling tab's acts (the draft, so a
+// placement not saved with Gem yet is already listed; "Ikke placeret" is
+// left out), each scene highlighted when it's printed in Program.pdf's
+// Aktoversigt. Clicking toggles it; auto-saved with the rest of the tab.
+// "Generér PDF'er" builds from the saved scenes, so a scene only reaches
+// the programme once its placement is saved too.
+function renderProgramScenesSection() {
+  const section = document.createElement('section');
+  section.className = 'card manus-program-section';
+  section.dataset.programScenes = '';
+  const h2 = document.createElement('h2');
+  h2.textContent = 'Scener i programmet';
+  section.appendChild(h2);
+
+  const hint = document.createElement('p');
+  hint.className = 'manus-col-empty';
+  hint.textContent = 'De markerede scener kommer med i programmets aktoversigt. Ekstranumre er fravalgt fra start.';
+  section.appendChild(hint);
+
+  const hasRows = manusDraft.acts.some(act => manusDraftRowsForLane(act.code).length > 0);
+  if (!hasRows) {
+    const empty = document.createElement('p');
+    empty.className = 'manus-col-empty';
+    empty.textContent = 'Placer scener i Aktfordeling først.';
+    section.appendChild(empty);
+    return section;
+  }
+
+  section.appendChild(renderActColumnsGrid((body, act, rowsInAct) => {
+    const syncs = [];
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'btn-small manus-program-scenes-all';
+    const syncAllBtn = () => {
+      allBtn.textContent = rowsInAct.every(r => programSceneIncluded(r.uid, act.code)) ? 'Fravælg alle' : 'Vælg alle';
+    };
+    allBtn.addEventListener('click', () => {
+      const include = !rowsInAct.every(r => programSceneIncluded(r.uid, act.code));
+      for (const row of rowsInAct) programSetSceneIncluded(row.uid, act.code, include);
+      for (const sync of syncs) sync();
+      syncAllBtn();
+      programAutosave.schedule();
+    });
+
+    for (const row of rowsInAct) {
+      const el = document.createElement('div');
+      el.className = 'manus-select-row';
+      el.setAttribute('role', 'button');
+      el.tabIndex = 0;
+      const title = document.createElement('span');
+      title.className = 'manus-pdf-title';
+      title.textContent = manusRowTitle(row);
+      el.appendChild(title);
+      const sync = () => {
+        const included = programSceneIncluded(row.uid, act.code);
+        el.classList.toggle('manus-select-row-selected', included);
+        el.setAttribute('aria-pressed', String(included));
+      };
+      const toggle = () => {
+        programSetSceneIncluded(row.uid, act.code, !programSceneIncluded(row.uid, act.code));
+        sync();
+        syncAllBtn();
+        programAutosave.schedule();
+      };
+      el.addEventListener('click', toggle);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      });
+      sync();
+      syncs.push(sync);
+      body.appendChild(el);
+    }
+    if (rowsInAct.length) {
+      syncAllBtn();
+      body.appendChild(allBtn);
+    } else {
+      const empty = document.createElement('p');
+      empty.className = 'manus-col-empty';
+      empty.textContent = 'Ingen scener.';
+      body.appendChild(empty);
+    }
+  }));
+  return section;
 }
 
 function renderProgramTab() {
@@ -5984,6 +6346,7 @@ function renderProgramTab() {
   if (!programDraft) {
     programDraft = structuredClone(getEffectiveProgram());
     programDraft.qrCodes = programDraft.qrCodes || [];
+    programDraft.sceneOverrides = programNormalizeOverrides(programDraft.sceneOverrides);
     programBase = programBuildSavePayload();
   }
 
@@ -5991,6 +6354,7 @@ function renderProgramTab() {
   mount.appendChild(renderProgramMedvirkendeSection());
   mount.appendChild(renderProgramOrdlisteSection());
   mount.appendChild(renderProgramQrSection());
+  mount.appendChild(renderProgramScenesSection());
   programPaintConflicts();
 }
 
@@ -7317,7 +7681,21 @@ function renderManusPdfLinksSection() {
     // manusPollPdfCompletion above).
     btn.classList.toggle('manus-pdf-generating', manusPdfGenerating);
     btn.textContent = label;
-    btn.addEventListener('click', () => openFile(filename));
+    // Boss/admin also get "Custom": a one-off Aktoversigt with only the
+    // scenes they pick (openCustomAktModal). Revyster open the PDF directly.
+    if (filename === 'Aktoversigt.pdf' && siteHasLevel('boss')) {
+      btn.addEventListener('click', () => {
+        siteOpenDropdownPicker(btn, [
+          { value: 'standard', label: 'Aktfordeling' },
+          { value: 'custom', label: 'Custom' },
+        ], null, (choice) => {
+          if (choice === 'custom') openCustomAktModal();
+          else openFile(filename);
+        });
+      });
+    } else {
+      btn.addEventListener('click', () => openFile(filename));
+    }
     linkRow.appendChild(btn);
   }
 

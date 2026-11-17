@@ -1202,44 +1202,25 @@ async function buildSangbossManuskript(actsData, prodMeta, scenePdfPaths, curren
 }
 
 // ── Main ─────────────────────────────────────────────────────
-async function main() {
-  checkPdflatexAvailable();
-
-  const scenesJson = readJson('data/scenes.json');
-  const castJson = readJson('data/cast.json');
-  const configJson = readJson('data/config.json');
-  const currentFolder = configJson.currentProductionFolder;
-
-  // scenes.json's "production" bakes the year into the same string (e.g.
-  // "Matematikrevyen 2026") — revy.sty's \maketitle prints \revyname{} and
-  // \revyyear{} side by side, so the year must be split back out here or
-  // every title page prints it twice ("Matematikrevyen 2026 2026").
+// scenes.json's "production" bakes the year into the same string (e.g.
+// "Matematikrevyen 2026") — revy.sty's \maketitle prints \revyname{} and
+// \revyyear{} side by side, so the year must be split back out here or
+// every title page prints it twice ("Matematikrevyen 2026 2026"). Shared
+// with scripts/custom-aktoversigt.js.
+function buildProdMeta(scenesJson) {
   const productionStr = String(scenesJson.production || '');
   const yearMatch = productionStr.match(/\d{4}/);
-  const prodMeta = {
+  return {
     name: productionStr.replace(/\s*\d{4}\s*/, ' ').trim() || 'Matematikrevyen',
     year: yearMatch ? yearMatch[0] : String(new Date().getFullYear()),
     version: scenesJson.version || new Date().toISOString().slice(0, 10),
   };
+}
 
-  fs.rmSync(BUILD_DIR, { recursive: true, force: true });
-
-  console.log(`Building for ${prodMeta.name} ${prodMeta.year} (production folder: ${currentFolder})`);
-
-  // manus.js stashes still-unplaced video/bandsang rows (created via the
-  // "Videoer & Bandsange" card but not yet dragged into a real act) under a
-  // reserved 'pool' pseudo-act (MANUS_POOL_ACT_CODE there) purely so a Gem
-  // click never silently drops them — see manusBuildActsPayload's own
-  // comment. They aren't actually part of the show yet, so every printed
-  // deliverable below (Aktoversigt/Rolleoversigt/Manuskript/individual
-  // manuscripts/per-scene PDFs) must skip that act entirely, exactly as it
-  // already skips a pool sketch/song submission that hasn't been placed.
-  const realActs = scenesJson.acts.filter((act) => act.act !== 'pool');
-
-  // Backfill each scene's writtenBy/melody from its own sourceTex (see
-  // extractTexAuthor/extractTexMelody's comments) before Aktoversigt and the
-  // per-scene .tex rebuild (step 1 below) read scene.writtenBy/melody.
-  for (const act of realActs) {
+// Backfills each scene's writtenBy/melody from its own sourceTex (see
+// extractTexAuthor/extractTexMelody's comments), in place.
+function backfillTexMeta(acts) {
+  for (const act of acts) {
     for (const scene of act.scenes) {
       if (!scene.sourceTex) continue;
       const texPath = root(scene.sourceTex);
@@ -1255,6 +1236,53 @@ async function main() {
       }
     }
   }
+}
+
+// A scene's permanent key, same rule as js/manus.js's manusSceneUid (scenes
+// saved before uids existed get one derived from their id).
+function sceneUid(scene) {
+  return scene.uid || `id:${scene.id}`;
+}
+
+// Whether a scene is printed in Program.pdf's Aktoversigt: program.json's
+// sceneOverrides (Manus's Program tab, "Scener i programmet") stores only
+// the scenes that differ from the default, which is every act but the
+// Ekstranumre act ("E"). Copied in js/manus.js (programSceneIncluded).
+function programIncludesScene(programJson, act, scene) {
+  const overrides = programJson && programJson.sceneOverrides;
+  const value = overrides && typeof overrides === 'object' && !Array.isArray(overrides)
+    ? overrides[sceneUid(scene)]
+    : undefined;
+  return typeof value === 'boolean' ? value : act.act !== 'E';
+}
+
+async function main() {
+  checkPdflatexAvailable();
+
+  const scenesJson = readJson('data/scenes.json');
+  const castJson = readJson('data/cast.json');
+  const configJson = readJson('data/config.json');
+  const currentFolder = configJson.currentProductionFolder;
+
+  const prodMeta = buildProdMeta(scenesJson);
+
+  fs.rmSync(BUILD_DIR, { recursive: true, force: true });
+
+  console.log(`Building for ${prodMeta.name} ${prodMeta.year} (production folder: ${currentFolder})`);
+
+  // manus.js stashes still-unplaced video/bandsang rows (created via the
+  // "Videoer & Bandsange" card but not yet dragged into a real act) under a
+  // reserved 'pool' pseudo-act (MANUS_POOL_ACT_CODE there) purely so a Gem
+  // click never silently drops them — see manusBuildActsPayload's own
+  // comment. They aren't actually part of the show yet, so every printed
+  // deliverable below (Aktoversigt/Rolleoversigt/Manuskript/individual
+  // manuscripts/per-scene PDFs) must skip that act entirely, exactly as it
+  // already skips a pool sketch/song submission that hasn't been placed.
+  const realActs = scenesJson.acts.filter((act) => act.act !== 'pool');
+
+  // Before Aktoversigt and the per-scene .tex rebuild (step 1 below) read
+  // scene.writtenBy/melody.
+  backfillTexMeta(realActs);
 
   // Every compile below records its failure in `errors` and carries on, so
   // one run reports every broken scene/document at once. Only the merge
@@ -1384,9 +1412,10 @@ async function main() {
   // once everything compiled. data/program.json is optional (no admin save
   // yet) — skip gracefully rather than fail the whole run, same bootstrap
   // posture as Budget's "no active budget" state (see CLAUDE.md). The
-  // Aktoversigt section explicitly excludes the Ekstranumre act (unlike the
-  // internal Aktoversigt.pdf above, which includes it) — a printed audience
-  // programme lists only the three real acts.
+  // Aktoversigt section lists the scenes picked under the Program tab's
+  // "Scener i programmet" (programIncludesScene: by default every act but
+  // Ekstranumre, unlike the internal Aktoversigt.pdf above, which includes
+  // it); an act with no picked scene is left out entirely.
   const programJsonPath = root('data/program.json');
   let sectionBytes = null;
   if (!fs.existsSync(programJsonPath)) {
@@ -1394,7 +1423,9 @@ async function main() {
   } else {
     console.log('  Compiling Program sections...');
     const programJson = readJson('data/program.json');
-    const programActs = realActs.filter((act) => act.act !== 'E');
+    const programActs = realActs
+      .map((act) => ({ ...act, scenes: act.scenes.filter((s) => programIncludesScene(programJson, act, s)) }))
+      .filter((act) => act.scenes.length > 0);
     const { coverRel, backRel } = resolveProgramImages(currentFolder);
     const workDir = path.join(BUILD_DIR, 'program');
     fs.mkdirSync(workDir, { recursive: true });
@@ -1542,6 +1573,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  root, readJson, compileTex, stripMarkers, buildProdMeta, backfillTexMeta, sceneUid, programIncludesScene,
   texEscape, slugify, classifyOrKeep, castRoleLabels, sceneCastLabels, hasScript, isMediaScene, deriveSourcePdfPath,
   deriveSourceTexPath,
   extractTexMelody, extractTexAuthor,

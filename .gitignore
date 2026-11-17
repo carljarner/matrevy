@@ -5,6 +5,7 @@ server/config.php
 # scripts/generate-pdfs.js dev tooling (see package.json)
 node_modules/
 .pdf-build/
+.pdf-build-custom/
 .pdf-status.json
 
 # Local planning documents, not tracked

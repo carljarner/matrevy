@@ -1,6 +1,7 @@
 #!/bin/bash
 # Regenerates the embedded js/*-data.js files, calendar.ics and the manuscript
-# PDFs whenever update-data.php drops a flag file in SITE (see github_api()).
+# PDFs whenever update-data.php drops a flag file in SITE (see github_api()),
+# and compiles Manus's custom Aktoversigt requests (generated/custom-akt/).
 # Replaces the embed-scenes.yml and generate-pdfs.yml GitHub Actions.
 #
 # Also mirrors SITE/archive to the GitHub repo's archive/ folder, so old and
@@ -191,6 +192,19 @@ while true; do
       log "embed-scenes failed"
     fi
   fi
+  # Manus's "Aktfordeling → Custom": one request file per job, written by
+  # update-data.php (manus_custom_aktoversigt). The script writes the
+  # job's status before the request is removed, so the page's status poll
+  # never sees a job vanish mid-run. Nothing under archive/ is written.
+  for req in "$SITE"/generated/custom-akt/*.request.json; do
+    [ -e "$req" ] || continue
+    if node scripts/custom-aktoversigt.js "$req"; then
+      log "custom aktoversigt done"
+    else
+      log "custom aktoversigt failed"
+    fi
+    rm -f "$req"
+  done
   if [ -e "$SITE/.regen-pdfs-requested" ]; then
     rm -f "$SITE/.regen-pdfs-requested"
     log "generating PDFs"
