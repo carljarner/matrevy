@@ -2325,12 +2325,16 @@ async function bandPrintLeadsheets(btn) {
   const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0));
   try {
     // The sheets themselves, in print order, each moved by its Revytoneart.
-    progress.set('Henter leadsheets…', 0, rows.length, 'sange');
+    // One count for the whole job: fetching the sheets takes moments, so it
+    // shows "0 af N sider" and only the drawing counts up.
+    progress.set('Henter leadsheets…', 0, rows.length, 'sider');
     const builderPromise = bandLoadBundleBuilder();
+    // All at once (each is a round trip to the server), in print order.
+    const results = await Promise.all(rows.map((row) => bandApi('band_leadsheet_read', { rowId: row.id })));
+    if (cancelled) return;
     const pages = [];
     for (const [i, row] of rows.entries()) {
-      if (cancelled) return;
-      const result = await bandApi('band_leadsheet_read', { rowId: row.id });
+      const result = results[i];
       if (!result.ok) throw new Error(result.message || `Kunne ikke hente leadsheetet til "${bandSongLabel(row)}".`);
       const sheet = result.data.sheet || bandDefaultSheet(row);
       const key = bandReadKey(sheet.key);
@@ -2338,7 +2342,6 @@ async function bandPrintLeadsheets(btn) {
       const semitones = key && shift ? shift : 0;
       const flats = key ? bandKeyPrefersFlats((key.pc + semitones + 1200) % 12, key.minor) : false;
       pages.push({ sheet, semitones, flats });
-      progress.set('Henter leadsheets…', i + 1, rows.length, 'sange');
     }
 
     const build = await builderPromise;
