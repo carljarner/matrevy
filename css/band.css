@@ -339,6 +339,309 @@
   margin: 0.5rem auto 0;
 }
 
+/* --- Leadsheets: a card per song (Noder's .band-folder), as a link --- */
+.band-ls-card {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .band-ls-card:hover {
+    border-color: var(--accent-warm);
+  }
+}
+
+.band-ls-card:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: var(--focus-ring);
+}
+
+/* The revy key where Noder has its file count, the original key under it. */
+.band-ls-keys {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.band-ls-key {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.band-ls-key-original {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 0.05rem;
+}
+
+/* --- Leadsheets → Samlet PDF: Manus's Aktfordeling layout (manus.css's
+   .manus-kanban*, copied with band- names) ------------------------------ */
+.band-print-card {
+  margin-top: 1rem;
+}
+
+/* Title left, Udskriv in the top right corner. */
+.band-print-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.band-print-head .band-card-title {
+  margin: 0;
+}
+
+.band-print-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.band-print-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.4rem;
+  border-radius: 6px;
+}
+
+.band-print-col-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--surface-2);
+  border-radius: 6px;
+  padding: 0.45rem 0.6rem;
+}
+
+.band-print-col-label {
+  flex: 1;
+  font-weight: 600;
+}
+
+.band-print-col-count {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.band-print-col-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0 0.25rem;
+  min-height: 2rem;
+}
+
+.band-print-pool .band-print-col-header {
+  margin-bottom: 0.5rem;
+}
+
+.band-print-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  min-height: 2rem;
+}
+
+.band-print-empty {
+  grid-column: 1 / -1;
+  padding-left: 0.6rem;
+  margin: 0;
+}
+
+.band-print-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.4rem 0.5rem;
+}
+
+.band-print-handle {
+  cursor: grab;
+  color: var(--neutral-border);
+  flex: none;
+}
+
+.band-print-row:active .band-print-handle { cursor: grabbing; }
+
+.band-print-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.band-print-row-key {
+  flex: none;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.band-print-row-remove {
+  flex: none;
+}
+
+/* Where a dragged song lands: a line in the gap above the song (or above
+   the column's empty end), as manus.css's .manus-akt-row::before. */
+.band-print-row::before,
+.band-print-drop-tail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -0.37rem;
+  height: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color 0.15s;
+  pointer-events: none;
+}
+
+.band-print-row.band-drop-target::before,
+.band-print-drop-tail.band-drop-target::before {
+  background: var(--accent-warm);
+}
+
+.band-print-drop-tail {
+  position: relative;
+  flex: 1;
+  min-height: 1.75rem;
+}
+
+/* A column or the pool lit up as a whole (dropping at its end). */
+.band-print-col.band-drop-target,
+.band-print-pool.band-drop-target {
+  background: var(--accent-warm-fill);
+  border-radius: 6px;
+}
+
+@media (max-width: 719px) {
+  .band-print-kanban,
+  .band-print-pool-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The editor in bundle mode (bandLoadBundleBuilder): off screen but laid
+   out, and wide enough for its desktop layout. */
+.band-bundle-frame {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  width: 1400px;
+  height: 1000px;
+  border: 0;
+  pointer-events: none;
+}
+
+/* Samlet PDF's progress box: copy of manus.css's .manus-cprint-progress*. */
+.band-progress-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.band-progress {
+  width: min(360px, 90vw);
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: var(--modal-shadow);
+  text-align: center;
+}
+
+.band-progress-label {
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.band-progress-bar {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.band-progress-fill {
+  width: 0;
+  height: 100%;
+  background: var(--accent-warm-text);
+  transition: width 0.15s ease-out;
+}
+
+.band-progress-detail {
+  margin: 0.5rem 0 0;
+  min-height: 1.2em;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.band-progress .login-actions {
+  margin-top: 1rem;
+}
+
+/* --- Oversigt: the Revytoneart menu, dressed as the sheet's inline cells --- */
+.band-key-field.site-field-btn {
+  padding: 0.25rem 0.35rem;
+  background: transparent;
+  border-color: transparent;
+  font-size: inherit;
+  gap: 0.25rem;
+}
+
+.band-key-field .site-field-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.band-key-field .site-field-chevron {
+  color: var(--text-muted);
+}
+
+@media (hover: hover) {
+  .band-key-field.site-field-btn:hover {
+    border-color: var(--border);
+  }
+  .band-key-field.site-field-btn:disabled:hover {
+    border-color: transparent;
+  }
+}
+
+.band-key-field.site-field-btn:disabled {
+  cursor: default;
+}
+
+.band-key-field.site-field-btn:disabled .site-field-chevron {
+  visibility: hidden;
+}
+
 /* --- Noder: folders ------------------------------------------------ */
 .band-noder-hint {
   margin-bottom: 1rem;

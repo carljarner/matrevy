@@ -392,6 +392,7 @@ const BAND_ALLOWED_EXTS = ['pdf', 'mscz', 'mscx']; // mirrors band_allowed_exts(
 const BAND_TABS = [
   { key: 'oversigt', label: 'Oversigt' },
   { key: 'noder', label: 'Noder' },
+  { key: 'leadsheets', label: 'Leadsheets' },
   { key: 'arkiv', label: 'Arkiv' },
 ];
 const BAND_TAB_KEY = 'matrevy-band-tab';
@@ -446,6 +447,77 @@ const BAND_STATUSES = [
   { value: 'klar', label: 'Tjek!', cls: 'band-status-klar', title: 'Klar' },
 ];
 
+// ── Keys ─────────────────────────────────────────────────────
+// Revytoneart is how far the revy moves a song from its lead sheet's key,
+// picked from a menu like leadsheets.dk's setlist key menu: "-" (not set,
+// the default), then 3 ↑ down to 2.5 ↓ in whole tones with "Original" (not
+// moved) in the middle. Stored as shown ("1 ↑", "2.5 ↓", "Original", '' for
+// "-"); "-" and "Original" both leave the sheet as written. Practice mode opens the sheet moved by it (leadsheet-page.js);
+// the Leadsheets cards show the key that gives. Toneart is plain free text.
+// bandReadKey/bandTransposeSemitones are copied into leadsheet-page.js
+// (lsReadKey/lsTransposeSemitones): keep in sync.
+const BAND_MAJOR_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+const BAND_MINOR_KEYS = ['Cm', 'C#m', 'Dm', 'Ebm', 'Em', 'Fm', 'F#m', 'Gm', 'G#m', 'Am', 'Bbm', 'Bm'];
+const BAND_LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11, H: 11 };
+
+// { pc, minor } of a lead sheet's key ("Bb", "C#m"), or null.
+function bandReadKey(text) {
+  const raw = String(text || '').trim().replace(/♯/g, '#').replace(/♭/g, 'b');
+  const m = /^([A-Ha-h])([#b]?)\s*(?:-?\s*(dur|moll?|m|min|minor|major|maj))?$/i.exec(raw);
+  if (!m) return null;
+  const quality = (m[3] || '').toLowerCase();
+  let minor = quality.startsWith('m') && quality !== 'maj' && quality !== 'major';
+  if (!quality && !m[2] && m[1] === m[1].toLowerCase()) minor = true;
+  const pc = (BAND_LETTER_PC[m[1].toUpperCase()] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + 12) % 12;
+  return { pc, minor };
+}
+
+// The menu's label for a shift in semitones (-5..+6): "1.5 ↑", "Original" for 0.
+function bandTransposeLabel(semitones) {
+  return semitones ? `${Math.abs(semitones) / 2} ${semitones > 0 ? '↑' : '↓'}` : 'Original';
+}
+
+// Semitones of a stored Revytoneart ('' and "Original" = 0), or null for an
+// old free-text value that isn't a shift.
+function bandTransposeSemitones(text) {
+  const raw = String(text || '').trim();
+  if (raw === '' || raw === '-' || raw.toLowerCase() === 'original') return 0;
+  const m = /^(\d+(?:[.,]5)?)\s*([↑↓])$/.exec(raw);
+  if (!m) return null;
+  const semitones = Math.round(parseFloat(m[1].replace(',', '.')) * 2);
+  return m[2] === '↑' ? semitones : -semitones;
+}
+
+// The key `semitones` away from a sheet's key, in fixed spellings ('' if unreadable).
+function bandTransposeKey(key, semitones) {
+  const k = bandReadKey(key);
+  if (!k) return '';
+  return (k.minor ? BAND_MINOR_KEYS : BAND_MAJOR_KEYS)[(k.pc + semitones + 1200) % 12];
+}
+
+// The Revytoneart menu: "-" (not set) at the top, then 3 ↑ down to 2.5 ↓
+// with "Original" between 0.5 ↑ and 0.5 ↓. An old free-text value stays
+// listed as its own option (under "-") until someone picks another.
+function bandRevyKeyField(row, tr) {
+  const options = [{ value: '', label: '-' }];
+  for (let t = 6; t >= -5; t--) options.push({ value: bandTransposeLabel(t), label: bandTransposeLabel(t) });
+  const raw = (row.revytoneart || '').trim();
+  const semitones = bandTransposeSemitones(raw);
+  let value = raw;
+  if (semitones === null) options.splice(1, 0, { value: raw, label: raw });
+  else if (raw !== '' && raw !== '-') value = bandTransposeLabel(semitones);
+  else value = '';
+  const field = siteCreateDropdownField(options, value, '-');
+  field.classList.add('band-key-field');
+  field.disabled = !bandCanEdit();
+  field.addEventListener('change', () => {
+    if (field.value === (row.revytoneart || '')) return;
+    row.revytoneart = field.value;
+    bandCommitRow(row, { revytoneart: field.value }, tr);
+  });
+  return field;
+}
+
 let bandFolder = '';
 let bandState = null; // { rows, instruments, columnLabels, columnWidths } once loaded
 let bandDragRow = null;
@@ -499,6 +571,10 @@ async function bandLoad(root) {
     columnWidths: (widths && !Array.isArray(widths)) ? widths : {},
     customColumns: result.data.customColumns || [],
     hiddenColumns: result.data.hiddenColumns || [],
+    // {rowId: key} of the saved lead sheets that have a key set.
+    leadsheetKeys: (result.data.leadsheetKeys && !Array.isArray(result.data.leadsheetKeys)) ? result.data.leadsheetKeys : {},
+    // {act code: [song row ids]}: the Leadsheets tab's print order.
+    printActs: bandNormalizePrintActs(result.data.printActs),
   };
   bandRender(root);
 }
@@ -514,6 +590,7 @@ function bandRender(root) {
   if (!bandState) return;
   bandRenderTabs(root);
   if (bandActiveTab === 'noder') bandRenderNoder(root);
+  else if (bandActiveTab === 'leadsheets') bandRenderLeadsheets(root);
   else bandRenderOversigt(root);
 }
 
@@ -1013,7 +1090,11 @@ function bandRenderSongRow(row) {
     }
     const td = el('td');
     if (col === columns[0]) bandStickyCell(td, BAND_HANDLE_COL_WIDTH);
-    td.appendChild(bandCreateTextInput(row, col.key, tr));
+    if (col.key === 'revytoneart') {
+      td.appendChild(bandRevyKeyField(row, tr));
+    } else {
+      td.appendChild(bandCreateTextInput(row, col.key, tr));
+    }
     tr.appendChild(td);
   }
   const actions = el('td', 'band-col-actions site-sheet-noline');
@@ -1783,6 +1864,524 @@ function bandOpenNewFolderModal(section) {
 }
 
 // ── Arkiv: every revy's songs + the _arkiv store ─────────────
+// ── Leadsheets: one lead sheet per song ──────────────────────
+// Every song row has a lead sheet (an empty one until someone saves it):
+// a card per song like Noder's folders, in Oversigt's order, with the revy
+// key where Noder has its file count and the sheet's own key under it. A
+// card opens leadsheet.html, which runs the vendored Lead Sheets editor
+// (vendor/leadsheets/) in Practice mode, in the revy key; Edit is there
+// when the folder is writable.
+function bandLeadsheetHref(row) {
+  const params = new URLSearchParams({ revy: bandFolder, song: row.id });
+  return `leadsheet?${params}`;
+}
+
+// A song's Revytoneart as the Leadsheets cards show it: the revy key with
+// its shift ("Eb (0.5 ↑)"), or just the shift while the sheet has no key;
+// "Original" / "-" as picked; an old free-text value as typed.
+function bandRevyKeyText(row) {
+  const sheetKey = bandState.leadsheetKeys[row.id] || '';
+  const raw = (row.revytoneart || '').trim();
+  const semitones = bandTransposeSemitones(raw);
+  if (semitones === null) return raw;
+  if (semitones !== 0) {
+    const revyKey = sheetKey ? bandTransposeKey(sheetKey, semitones) : '';
+    return revyKey ? `${revyKey} (${bandTransposeLabel(semitones)})` : bandTransposeLabel(semitones);
+  }
+  return raw.toLowerCase() === 'original' ? 'Original' : '-';
+}
+
+function bandBuildLeadsheetCard(row) {
+  const card = el('a', 'band-folder band-ls-card');
+  card.href = bandLeadsheetHref(row);
+  const titles = el('span', 'band-folder-titles');
+  titles.appendChild(el('span', 'band-folder-name', bandSongLabel(row)));
+  const original = (row.originaltitel || '').trim();
+  if (original && (row.revytitel || '').trim() && !bandIsInstance(bandFolder)) {
+    titles.appendChild(el('span', 'band-folder-sub', original));
+  }
+  card.appendChild(titles);
+  // Revytoneart on top, the sheet's own key (set in the editor) under it.
+  const keys = el('span', 'band-ls-keys');
+  const sheetKey = bandState.leadsheetKeys[row.id] || '';
+  const top = el('span', 'band-ls-key', bandRevyKeyText(row));
+  top.title = 'Revytoneart';
+  keys.appendChild(top);
+  if (sheetKey) {
+    const sub = el('span', 'band-ls-key-original', bandTransposeKey(sheetKey, 0) || sheetKey);
+    sub.title = 'Leadsheetets toneart';
+    keys.appendChild(sub);
+  }
+  card.appendChild(keys);
+  return card;
+}
+
+function bandRenderLeadsheets(root) {
+  const card = el('section', 'card');
+  card.appendChild(el('h2', 'band-card-title', 'Leadsheets'));
+  card.appendChild(el('p', 'site-muted band-noder-hint', 'Hver sang i Oversigt har sit eget leadsheet.'));
+  // Each section's cards sit in their own 3-column grid, as in Noder.
+  const list = el('div', 'band-folder-list');
+  let hasSongs = false;
+  let grid = null;
+  for (const row of bandState.rows) {
+    if (row.type === 'section') {
+      const sectionHead = el('div', 'band-folder-section');
+      sectionHead.appendChild(el('h3', 'band-folder-section-title', (row.title || '').trim() || 'Sektion'));
+      list.appendChild(sectionHead);
+      grid = null;
+      continue;
+    }
+    hasSongs = true;
+    if (!grid) {
+      grid = el('div', 'band-folder-grid');
+      list.appendChild(grid);
+    }
+    grid.appendChild(bandBuildLeadsheetCard(row));
+  }
+  if (!hasSongs) list.appendChild(el('p', 'site-muted', 'Ingen sange endnu. Tilføj dem i Oversigt.'));
+  card.appendChild(list);
+  root.appendChild(card);
+  root.appendChild(bandBuildPrintCard());
+}
+
+// ── Leadsheets → Samlet PDF: the revy's sheets in one PDF ────
+// Laid out like Manus's Aktfordeling: an act column per act (Manus's fixed
+// Akt 1/2/3/Ekstranumre) with "Ikke placeret" below, where every song starts.
+// Songs are dragged into the acts in playing order (stored per band folder
+// as printActs, live like the sheet: last save wins). Udskriv builds one PDF
+// in the browser: a front page with the revy's Arkiv cover photo (laid out
+// like Program.pdf's front cover), then every placed song's lead sheet in
+// order, moved by its Revytoneart. The sheets are drawn by the vendored
+// editor in bundle mode in a hidden iframe (leadsheet?bundle=1), the cover
+// added with pdf-lib (js/vendor/pdf-lib.min.js, as Manus's Custom print).
+// Nothing is stored: the PDF opens in a new tab.
+const BAND_PRINT_ACTS = [ // mirrors band_print_act_codes() and manusBuildActSkeleton()
+  { code: '1', label: 'Akt 1' },
+  { code: '2', label: 'Akt 2' },
+  { code: '3', label: 'Akt 3' },
+  { code: 'E', label: 'Ekstranumre' },
+];
+const BAND_PRINT_POOL = 'pool';
+const BAND_PRINT_EVEN_START = ['2', '3']; // acts whose first sheet goes on an even page
+const BAND_PLACEHOLDER_COVER = 'archive/_assets/placeholder-cover.jpg'; // = generate-pdfs.js's
+let bandPrintDragId = null;
+let bandPrintCardEl = null;
+
+function bandNormalizePrintActs(raw) {
+  const out = {};
+  for (const act of BAND_PRINT_ACTS) {
+    const ids = raw && !Array.isArray(raw) && Array.isArray(raw[act.code]) ? raw[act.code] : [];
+    out[act.code] = ids.filter((id) => typeof id === 'string');
+  }
+  return out;
+}
+
+function bandSongRows() {
+  return bandState.rows.filter((r) => r.type === 'song' && r.id !== null);
+}
+
+// Rows per act in print order, plus the unplaced ones (Oversigt's order).
+function bandPrintLanes() {
+  const byId = new Map(bandSongRows().map((r) => [r.id, r]));
+  const placed = new Set();
+  const lanes = {};
+  for (const act of BAND_PRINT_ACTS) {
+    lanes[act.code] = bandState.printActs[act.code]
+      .filter((id) => byId.has(id) && !placed.has(id) && placed.add(id))
+      .map((id) => byId.get(id));
+  }
+  lanes[BAND_PRINT_POOL] = bandSongRows().filter((r) => !placed.has(r.id));
+  return lanes;
+}
+
+function bandBuildPrintCard() {
+  const card = el('section', 'card band-print-card');
+  bandPrintCardEl = card;
+  const head = el('div', 'band-print-head');
+  head.appendChild(el('h2', 'band-card-title', 'Samlet PDF'));
+  const printBtn = bandBtn('Udskriv', 'band-print-btn');
+  printBtn.addEventListener('click', () => bandPrintLeadsheets(printBtn));
+  head.appendChild(printBtn);
+  card.appendChild(head);
+  card.appendChild(el('p', 'site-muted band-noder-hint', bandCanEdit()
+    ? 'Træk sangene ind i akterne i den rækkefølge, de skal med. Udskriv laver én PDF med årets forsidebillede og de placerede sange i revytonearten.'
+    : 'Udskriv laver én PDF med årets forsidebillede og de placerede sange i revytonearten.'));
+
+  const editable = bandCanEdit();
+  const lanes = bandPrintLanes();
+  const kanban = el('div', 'band-print-kanban');
+  for (const act of BAND_PRINT_ACTS) {
+    const col = el('div', 'band-print-col');
+    const header = el('div', 'band-print-col-header');
+    header.appendChild(el('span', 'band-print-col-label', act.label));
+    const n = lanes[act.code].length;
+    header.appendChild(el('span', 'band-print-col-count', n === 1 ? '1 sang' : `${n} sange`));
+    col.appendChild(header);
+    const list = el('div', 'band-print-col-list');
+    for (const row of lanes[act.code]) list.appendChild(bandBuildPrintRow(row, act.code, editable));
+    if (editable) {
+      const tail = el('div', 'band-print-drop-tail');
+      bandPrintWireDrop(tail, () => bandPrintMove(bandPrintDragId, act.code, null), true);
+      list.appendChild(tail);
+      bandPrintWireDrop(col, () => bandPrintMove(bandPrintDragId, act.code, null), false);
+    }
+    col.appendChild(list);
+    kanban.appendChild(col);
+  }
+  card.appendChild(kanban);
+
+  const pool = el('div', 'band-print-pool');
+  const poolHeader = el('div', 'band-print-col-header');
+  poolHeader.appendChild(el('span', 'band-print-col-label', 'Ikke placeret'));
+  const poolCount = lanes[BAND_PRINT_POOL].length;
+  poolHeader.appendChild(el('span', 'band-print-col-count', poolCount === 1 ? '1 sang' : `${poolCount} sange`));
+  pool.appendChild(poolHeader);
+  const poolGrid = el('div', 'band-print-pool-grid');
+  if (!lanes[BAND_PRINT_POOL].length) {
+    poolGrid.appendChild(el('p', 'site-muted band-print-empty', bandSongRows().length ? 'Alle sange er placeret.' : 'Ingen sange endnu.'));
+  }
+  for (const row of lanes[BAND_PRINT_POOL]) poolGrid.appendChild(bandBuildPrintRow(row, BAND_PRINT_POOL, editable));
+  pool.appendChild(poolGrid);
+  if (editable) bandPrintWireDrop(pool, () => bandPrintMove(bandPrintDragId, BAND_PRINT_POOL, null), false);
+  card.appendChild(pool);
+  return card;
+}
+
+function bandBuildPrintRow(row, lane, editable) {
+  const item = el('div', 'band-print-row');
+  if (editable) {
+    item.draggable = true;
+    item.appendChild(el('span', 'band-drag-handle band-print-handle', '⠿'));
+    item.addEventListener('dragstart', (e) => {
+      bandPrintDragId = row.id;
+      e.dataTransfer.effectAllowed = 'move';
+      const ghost = bandGetDragImageEl();
+      ghost.textContent = bandSongLabel(row);
+      e.dataTransfer.setDragImage(ghost, 12, 16);
+    });
+    item.addEventListener('dragend', () => { bandPrintDragId = null; });
+    // Dropping on a song inserts before it (the column's own drop = at the end).
+    bandPrintWireDrop(item, () => bandPrintMove(bandPrintDragId, lane, row.id), true);
+  }
+  item.appendChild(el('span', 'band-print-row-title', bandSongLabel(row)));
+  item.appendChild(el('span', 'band-print-row-key', bandRevyKeyText(row)));
+  if (editable && lane !== BAND_PRINT_POOL) {
+    const removeBtn = el('button', 'site-icon-btn site-icon-btn-danger site-icon-btn-sm band-print-row-remove', '✕');
+    removeBtn.type = 'button';
+    removeBtn.title = 'Flyt tilbage til "Ikke placeret"';
+    removeBtn.setAttribute('aria-label', removeBtn.title);
+    removeBtn.addEventListener('click', () => bandPrintMove(row.id, BAND_PRINT_POOL, null));
+    item.appendChild(removeBtn);
+  }
+  return item;
+}
+
+// Copy of manus.js's wireDropHighlight, for this card's drags only. `stop`
+// keeps a song's own highlight from also lighting up its column.
+function bandPrintWireDrop(target, onDrop, stop) {
+  let depth = 0;
+  target.addEventListener('dragenter', (e) => {
+    if (!bandPrintDragId) return;
+    e.preventDefault();
+    if (stop) e.stopPropagation();
+    depth++;
+    target.classList.add('band-drop-target');
+  });
+  target.addEventListener('dragover', (e) => {
+    if (!bandPrintDragId) return;
+    e.preventDefault();
+    if (stop) e.stopPropagation();
+  });
+  target.addEventListener('dragleave', (e) => {
+    if (stop) e.stopPropagation();
+    depth = Math.max(0, depth - 1);
+    if (depth === 0) target.classList.remove('band-drop-target');
+  });
+  target.addEventListener('drop', (e) => {
+    if (!bandPrintDragId) return;
+    e.preventDefault();
+    if (stop) e.stopPropagation();
+    depth = 0;
+    target.classList.remove('band-drop-target');
+    onDrop();
+  });
+}
+
+// Moves a song into `lane` before `beforeId` (null = at the end), redraws
+// the card and saves the whole order.
+function bandPrintMove(id, lane, beforeId) {
+  if (!id || id === beforeId) return;
+  for (const act of BAND_PRINT_ACTS) {
+    bandState.printActs[act.code] = bandState.printActs[act.code].filter((x) => x !== id);
+  }
+  if (lane !== BAND_PRINT_POOL) {
+    const list = bandState.printActs[lane];
+    const at = beforeId ? list.indexOf(beforeId) : -1;
+    if (at === -1) list.push(id);
+    else list.splice(at, 0, id);
+  }
+  bandPrintDragId = null;
+  if (bandPrintCardEl) bandPrintCardEl.replaceWith(bandBuildPrintCard());
+  bandSavePrintActs();
+}
+
+let bandPrintActsInFlight = null;
+async function bandSavePrintActs() {
+  if (bandPrintActsInFlight) await bandPrintActsInFlight;
+  const promise = bandApi('band_save_print_acts', { printActs: bandState.printActs });
+  bandPrintActsInFlight = promise;
+  const result = await promise;
+  bandPrintActsInFlight = null;
+  if (!result.ok) bandHandleFailure(result);
+}
+
+// ── Samlet PDF: building it ──────────────────────────────────
+// The editor's own key spelling for a transposed sheet (its semitonePrefersFlats).
+function bandKeyPrefersFlats(pc, minor) {
+  const major = minor ? (pc + 3) % 12 : pc;
+  return [1, 3, 5, 8, 10].includes(major) || (minor && major === 6);
+}
+
+// A song without a saved sheet prints as the empty sheet the editor would
+// open (leadsheet-page.js's lsDefaultSheet).
+function bandDefaultSheet(row) {
+  const revy = (row.revytitel || '').trim();
+  const original = (row.originaltitel || '').trim();
+  const useRevy = !bandIsInstance(bandFolder) && revy !== '';
+  return {
+    id: row.id,
+    title: (useRevy ? revy : original) || 'Unavngivet sang',
+    artist: useRevy ? original : '',
+    key: '',
+    elements: [],
+  };
+}
+
+// The hidden iframe running the editor in bundle mode; resolves to its
+// buildLeadSheetBundle once the editor script has loaded. Off screen but
+// laid out (not display:none / visibility:hidden, which the editor would
+// copy into the drawn sheets), and wide enough for the desktop layout.
+let bandBundlePromise = null;
+function bandLoadBundleBuilder() {
+  if (bandBundlePromise) return bandBundlePromise;
+  bandBundlePromise = new Promise((resolve, reject) => {
+    const frame = document.createElement('iframe');
+    frame.className = 'band-bundle-frame';
+    frame.setAttribute('aria-hidden', 'true');
+    frame.tabIndex = -1;
+    frame.src = 'leadsheet?bundle=1';
+    const started = Date.now();
+    const poll = () => {
+      let build = null;
+      try { build = frame.contentWindow && frame.contentWindow.buildLeadSheetBundle; } catch (e) { build = null; }
+      if (typeof build === 'function') { resolve(build); return; }
+      if (Date.now() - started > 20000) {
+        frame.remove();
+        bandBundlePromise = null;
+        reject(new Error('bundle'));
+        return;
+      }
+      setTimeout(poll, 100);
+    };
+    frame.addEventListener('load', poll);
+    document.body.appendChild(frame);
+  });
+  return bandBundlePromise;
+}
+
+let bandPdfLibPromise = null;
+function bandLoadPdfLib() { // copy of manus.js's manusLoadPdfLib
+  if (window.PDFLib) return Promise.resolve(window.PDFLib);
+  if (!bandPdfLibPromise) {
+    bandPdfLibPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'js/vendor/pdf-lib.min.js';
+      script.onload = () => (window.PDFLib ? resolve(window.PDFLib) : reject(new Error('pdf-lib')));
+      script.onerror = () => { bandPdfLibPromise = null; reject(new Error('pdf-lib')); };
+      document.head.appendChild(script);
+    });
+  }
+  return bandPdfLibPromise;
+}
+
+// The front page: "Band Mappe" at the top, then the revy's Arkiv cover
+// photo (placeholder if it has none or it can't be loaded) laid out like
+// Program.pdf's front cover: 2 cm side margins, full text width, centred in
+// the space under the title. The title is pdf-lib's built-in Times (no
+// Computer Modern without embedding a font).
+const BAND_COVER_TITLE = 'Band Mappe';
+async function bandAddCoverPage(PDFLib, out) {
+  const page = out.addPage([595.28, 841.89]);
+  const cm = 72 / 2.54;
+  const font = await out.embedFont(PDFLib.StandardFonts.TimesRoman);
+  const size = 40;
+  const titleY = page.getHeight() - 4 * cm;
+  page.drawText(BAND_COVER_TITLE, {
+    x: (page.getWidth() - font.widthOfTextAtSize(BAND_COVER_TITLE, size)) / 2,
+    y: titleY,
+    size,
+    font,
+  });
+  const entry = bandArchiveYears().find((y) => y.folder === bandFolder);
+  const paths = [entry && entry.coverImage, BAND_PLACEHOLDER_COVER].filter(Boolean);
+  for (const path of paths) {
+    try {
+      const res = await fetch(path, { cache: 'no-cache' });
+      if (!res.ok) continue;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const isPng = bytes[0] === 0x89 && bytes[1] === 0x50;
+      const image = isPng ? await out.embedPng(bytes) : await out.embedJpg(bytes);
+      const top = titleY - 1.5 * cm; // the image area: under the title, above a 2 cm bottom margin
+      const bottom = 2 * cm;
+      const scale = Math.min((page.getWidth() - 4 * cm) / image.width, (top - bottom) / image.height);
+      const w = image.width * scale;
+      const h = image.height * scale;
+      page.drawImage(image, { x: (page.getWidth() - w) / 2, y: bottom + (top - bottom - h) / 2, width: w, height: h });
+      return;
+    } catch (e) { /* try the next */ }
+  }
+  // No image at all: the title alone.
+}
+
+// Copy of manus.js's manusOpenPdfProgress (band-prefixed classes, band.css).
+function bandOpenPdfProgress(onCancel) {
+  const overlay = el('div', 'band-progress-overlay');
+  const box = el('div', 'band-progress');
+  box.setAttribute('role', 'status');
+  box.setAttribute('aria-live', 'polite');
+  const label = el('p', 'band-progress-label');
+  box.appendChild(label);
+  const bar = el('div', 'band-progress-bar');
+  const fill = el('div', 'band-progress-fill');
+  bar.appendChild(fill);
+  box.appendChild(bar);
+  const detail = el('p', 'band-progress-detail');
+  box.appendChild(detail);
+  const actions = el('div', 'login-actions');
+  const cancelBtn = bandPillBtn('Annuller', 'site-btn-warm');
+  cancelBtn.addEventListener('click', onCancel);
+  actions.appendChild(cancelBtn);
+  box.appendChild(actions);
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  return {
+    set(text, done, total, unit) {
+      label.textContent = text;
+      fill.style.width = total ? `${Math.min(100, (done / total) * 100)}%` : '100%';
+      detail.textContent = total ? `${done} af ${total} ${unit}` : '';
+    },
+    ready(pageCount, onOpen, onClose) {
+      label.textContent = 'PDF’en er klar';
+      fill.style.width = '100%';
+      detail.textContent = pageCount ? `${pageCount} sider` : '';
+      actions.textContent = '';
+      const closeBtn = bandPillBtn('Luk', 'site-btn-warm');
+      closeBtn.addEventListener('click', onClose);
+      const openBtn = bandPillBtn('Åbn PDF', 'site-btn-success');
+      openBtn.addEventListener('click', onOpen);
+      actions.appendChild(closeBtn);
+      actions.appendChild(openBtn);
+      openBtn.focus();
+    },
+    close() { overlay.remove(); },
+  };
+}
+
+// Copy of manus.js's manusOpenPdfBlob: a new tab (iOS: this tab); if the
+// browser blocks it, the progress box offers "Åbn PDF" (a fresh click).
+function bandOpenPdfBlob(bytes, pageCount, progress, finish) {
+  const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  if (siteIsIos()) { window.location.href = url; return; }
+  const win = window.open(url, '_blank');
+  if (win) {
+    finish();
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+    return;
+  }
+  progress.ready(pageCount, () => {
+    window.open(url, '_blank');
+    finish();
+    setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+  }, () => {
+    finish();
+    URL.revokeObjectURL(url);
+  });
+}
+
+async function bandPrintLeadsheets(btn) {
+  const lanes = bandPrintLanes();
+  const rows = BAND_PRINT_ACTS.flatMap((act) => lanes[act.code]);
+  // Which act each sheet belongs to, for the blank pages before Akt 2/3.
+  const actOf = BAND_PRINT_ACTS.flatMap((act) => lanes[act.code].map(() => act.code));
+  if (!rows.length) {
+    siteShowToast('Placer mindst én sang i en akt først.');
+    return;
+  }
+  let cancelled = false;
+  const progress = bandOpenPdfProgress(() => { cancelled = true; finish(); });
+  btn.disabled = true;
+  function finish() { progress.close(); btn.disabled = false; }
+  const nextFrame = () => new Promise((resolve) => setTimeout(resolve, 0));
+  try {
+    // The sheets themselves, in print order, each moved by its Revytoneart.
+    progress.set('Henter leadsheets…', 0, rows.length, 'sange');
+    const builderPromise = bandLoadBundleBuilder();
+    const pages = [];
+    for (const [i, row] of rows.entries()) {
+      if (cancelled) return;
+      const result = await bandApi('band_leadsheet_read', { rowId: row.id });
+      if (!result.ok) throw new Error(result.message || `Kunne ikke hente leadsheetet til "${bandSongLabel(row)}".`);
+      const sheet = result.data.sheet || bandDefaultSheet(row);
+      const key = bandReadKey(sheet.key);
+      const shift = bandTransposeSemitones(result.data.row && result.data.row.revytoneart);
+      const semitones = key && shift ? shift : 0;
+      const flats = key ? bandKeyPrefersFlats((key.pc + semitones + 1200) % 12, key.minor) : false;
+      pages.push({ sheet, semitones, flats });
+      progress.set('Henter leadsheets…', i + 1, rows.length, 'sange');
+    }
+
+    const build = await builderPromise;
+    if (cancelled) return;
+    progress.set('Tegner leadsheets…', 0, pages.length, 'sider');
+    const bundle = await build({ pages, sets: [], filename: 'Leadsheets.pdf' }, (i, n) => {
+      if (!cancelled) progress.set('Tegner leadsheets…', i - 1, n, 'sider');
+    });
+    if (cancelled) return;
+
+    progress.set('Samler PDF…', pages.length, pages.length, 'sider');
+    await nextFrame();
+    const PDFLib = await bandLoadPdfLib();
+    // The bundle comes from the iframe's realm, whose ArrayBuffer fails
+    // pdf-lib's instanceof checks: wrap it in this page's own Uint8Array.
+    const src = await PDFLib.PDFDocument.load(new Uint8Array(await bundle.arrayBuffer()));
+    const out = await PDFLib.PDFDocument.create();
+    out.setTitle('Leadsheets');
+    await bandAddCoverPage(PDFLib, out);
+    // One page per sheet (the bundle draws each on a single page). Akt 2 and
+    // Akt 3 start on an even page number (the cover is page 1): a blank page
+    // goes in first when the act's first song would land on an odd one.
+    const copied = await out.copyPages(src, src.getPageIndices());
+    copied.forEach((page, i) => {
+      const startsAct = i > 0 && actOf[i] !== actOf[i - 1];
+      if (startsAct && BAND_PRINT_EVEN_START.includes(actOf[i]) && (out.getPageCount() + 1) % 2 === 1) {
+        out.addPage([595.28, 841.89]);
+      }
+      out.addPage(page);
+    });
+    const bytes = await out.save();
+    if (cancelled) return;
+    bandOpenPdfBlob(bytes, out.getPageCount(), progress, finish);
+  } catch (e) {
+    if (cancelled) return;
+    finish();
+    const message = e && e.message;
+    siteShowToast(message === 'pdf-lib' ? 'Kunne ikke indlæse PDF-værktøjet.'
+      : message === 'bundle' ? 'Kunne ikke starte leadsheet-editoren. Prøv igen.'
+        : message || 'Kunne ikke lave PDF’en.');
+  }
+}
+
 const BAND_ARCHIVE_FOLDER = '_arkiv'; // mirrors band_archive_folder() in update-data.php
 
 function bandArchiveKey(title) {

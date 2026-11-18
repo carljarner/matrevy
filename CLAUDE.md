@@ -24,6 +24,7 @@ Internal website for Matematikrevyen (Danish student revue) at `matematikrevy.dk
 - **Server safety**: `github_api()` can write anything under `SITE_DATA_DIR`, so the path allow-list regexes in `update-data.php` are the only guard. **Never relax one without an equally strict replacement.**
 - **PHP const-ordering landmine**: top-level `const`s register in execution order, and most action groups dispatch near the top of `update-data.php`, so their handlers use **hoisted functions** (`budget_receipt_re()`, `band_max_upload_bytes()`, …), not consts declared later.
 - **Git**: the worker pushes `[skip ci]` commits to `main` (only under `archive/`), so `git pull --rebase` before pushing. Never edit the repo's `archive/`; the next sync overwrites it.
+- **`vendor/leadsheets/`** is the Lead Sheets editor (github.com/carljarner/leadsheets), copied unchanged by `scripts/sync-leadsheets.sh`. Never edit it here: change the editor in the Lead Sheets repo and re-run the script.
 
 ## Where to look
 
@@ -39,7 +40,7 @@ Internal website for Matematikrevyen (Danish student revue) at `matematikrevy.dk
 | Budget (+ Stregregnskab) | `budget.*` | `budget.md` |
 | Formularer | `forms.*` | `forms.md` |
 | Fællesspisning | `faellesspisning.*` | `faellesspisning.md` |
-| Bandet | `band.*` | `band.md` |
+| Bandet (+ Leadsheets) | `band.*`, `leadsheet.html`, `js/leadsheet-page.js`, `css/leadsheet-page.css`, `vendor/leadsheets/` | `band.md` |
 | Kostumetinder | `kostumetinder.html`, `kostume.*` | `kostume.md` |
 | Ninjas, Mics & Cues | `ninjas.*` | `ninjas.md` |
 | Rekvisitten | `rekvisitten.html`, `rekvisit.*` | `rekvisitten.md` |

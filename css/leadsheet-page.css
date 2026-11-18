@@ -1,0 +1,10 @@
+/* Leadsheet page (leadsheet.html): only what matrevy adds around the
+   vendored Lead Sheets editor, whose own stylesheet styles everything else. */
+
+.ls-page-status {
+  color: var(--text-dim);
+}
+
+.ls-page-status[hidden] {
+  display: none;
+}

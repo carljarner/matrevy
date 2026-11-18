@@ -296,6 +296,9 @@ $BAND_ACTIONS = [
   'band_instance_update'  => 'boss', // name/year only — the folder never changes
   'band_instance_delete'  => 'boss', // registry entry + its whole band folder
   'band_set_active_folder' => 'boss', // which folder ordinary revyster may edit
+  'band_leadsheet_read'   => 'revyst', // one song's lead sheet (or null) + the row's titles/key
+  'band_leadsheet_save'   => 'revyst', // full replace of one song's lead sheet (last save wins)
+  'band_save_print_acts'  => 'revyst', // the Leadsheets tab's print order: song ids per act (full replace)
 ];
 if (isset($BAND_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$BAND_ACTIONS[$action]]) {
@@ -4196,7 +4199,7 @@ function band_folder_from_body($body) {
 
 // Actions that never write — allowed on every folder at the revyst tier.
 function band_action_is_read($action) {
-  return in_array($action, ['band_read', 'band_file', 'band_archive_read', 'band_instances_read'], true);
+  return in_array($action, ['band_read', 'band_file', 'band_archive_read', 'band_instances_read', 'band_leadsheet_read'], true);
 }
 
 // Below boss, only the active folder can be written; older revys, extra
@@ -4381,6 +4384,8 @@ function band_read($body) {
     'columnWidths' => (object) ($doc['columnWidths'] ?? []),
     'customColumns' => band_custom_columns($doc),
     'hiddenColumns' => band_hidden_columns($doc),
+    'leadsheetKeys' => (object) band_leadsheet_keys($folder),
+    'printActs' => (object) band_print_acts($doc),
     'updatedAt' => $doc['updatedAt'] ?? null,
   ]);
 }
@@ -4558,9 +4563,18 @@ function band_delete_row($body) {
     $doc['rows'] = array_values(array_filter($doc['rows'], function ($r) use ($rowId) {
       return $r['id'] !== $rowId;
     }));
+    // ...and out of the Leadsheets tab's print order.
+    if (is_array($doc['printActs'] ?? null)) {
+      foreach ($doc['printActs'] as $code => $ids) {
+        $doc['printActs'][$code] = array_values(array_filter((array) $ids, function ($id) use ($rowId) {
+          return $id !== $rowId;
+        }));
+      }
+    }
     return $doc;
   });
   band_remove_dir(band_row_files_dir($folder, $rowId));
+  @unlink(band_leadsheet_path($folder, $rowId));
   respond(200, ['ok' => true]);
 }
 
@@ -4963,6 +4977,141 @@ function band_instance_delete($body) {
   respond(200, ['ok' => true, 'instances' => $list, 'activeFolder' => band_active_folder()]);
 }
 
+// ── Lead sheets (the Leadsheets tab; editor = vendor/leadsheets/) ──
+// One sheet per song row: BAND_DATA_DIR/<folder>/leadsheets/<rowId>.json,
+// the Lead Sheets editor's own JSON ({id, title, artist, key, elements, …}).
+// A song without a file is an empty sheet the page builds from the row, so
+// nothing is written until someone saves. Not for the _arkiv store.
+function band_leadsheet_path($folder, $rowId) {
+  return band_dir() . '/' . $folder . '/leadsheets/' . $rowId . '.json';
+}
+
+// {rowId: key} of the folder's saved sheets that have a key set (the
+// Leadsheets cards show it moved by the row's Revytoneart).
+function band_leadsheet_keys($folder) {
+  $out = [];
+  foreach (glob(band_dir() . '/' . $folder . '/leadsheets/*.json') ?: [] as $path) {
+    $id = basename($path, '.json');
+    if (!band_valid_id($id)) continue;
+    $sheet = json_decode((string) file_get_contents($path), true);
+    $key = is_array($sheet) && is_string($sheet['key'] ?? null) ? trim($sheet['key']) : '';
+    if ($key !== '') $out[$id] = $key;
+  }
+  return $out;
+}
+
+function band_leadsheet_max_bytes() {
+  return 1024 * 1024;
+}
+
+// {folder, rowId} -> the song row, or a 400/404.
+function band_leadsheet_song($body) {
+  $folder = band_folder_from_body($body);
+  if ($folder === band_archive_folder()) respond(400, ['error' => 'bad_folder']);
+  $rowId = $body['rowId'] ?? '';
+  if (!band_valid_id($rowId)) respond(400, ['error' => 'invalid_shape']);
+  foreach (band_load($folder)['rows'] ?? [] as $row) {
+    if (($row['id'] ?? '') === $rowId && ($row['type'] ?? '') === 'song') return [$folder, $rowId, $row];
+  }
+  respond(404, ['error' => 'not_found']);
+}
+
+function band_leadsheet_read($body) {
+  [$folder, $rowId, $row] = band_leadsheet_song($body);
+  $path = band_leadsheet_path($folder, $rowId);
+  $sheet = null;
+  if (is_file($path)) {
+    $sheet = json_decode((string) file_get_contents($path), true);
+    if (!is_array($sheet)) $sheet = null;
+  }
+  $rank = $GLOBALS['LEVEL_RANK'];
+  respond(200, [
+    'ok' => true,
+    'sheet' => $sheet,
+    'row' => [
+      'originaltitel' => (string) ($row['originaltitel'] ?? ''),
+      'revytitel' => (string) ($row['revytitel'] ?? ''),
+      'revytoneart' => (string) ($row['revytoneart'] ?? ''),
+    ],
+    'isInstance' => in_array($folder, array_column(band_instances_load(), 'folder'), true),
+    'writable' => $rank[$GLOBALS['level']] >= $rank['boss'] || band_folder_writable($folder),
+  ]);
+}
+
+// {folder, rowId, sheet} — full replace. Write rights were checked at
+// dispatch (band_folder_writable() below boss).
+function band_leadsheet_save($body) {
+  [$folder, $rowId] = band_leadsheet_song($body);
+  $sheet = $body['sheet'] ?? null;
+  if (!is_array($sheet) || !is_array($sheet['elements'] ?? null) || !array_is_list($sheet['elements'])) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $sheet['id'] = $rowId;
+  $sheet['updated_at'] = date('c');
+  $json = json_encode($sheet, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+  if ($json === false) respond(400, ['error' => 'invalid_shape']);
+  if (strlen($json) > band_leadsheet_max_bytes()) respond(413, ['error' => 'too_large']);
+  $dir = band_dir() . '/' . $folder . '/leadsheets';
+  band_ensure_dir($dir);
+  $path = band_leadsheet_path($folder, $rowId);
+  $tmp = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
+  if (@file_put_contents($tmp, $json . "\n", LOCK_EX) === false || !@rename($tmp, $path)) {
+    @unlink($tmp);
+    respond(500, ['error' => 'band_storage_unavailable']);
+  }
+  respond(200, ['ok' => true, 'updatedAt' => $sheet['updated_at']]);
+}
+
+// ── Print order (the Leadsheets tab's "Samlet PDF" card) ──
+// band.json printActs = {<act code>: [song row ids]} — which songs go into
+// the combined lead sheet PDF, act by act, in order. A song in no act is
+// "Ikke placeret". Act codes mirror Manus's fixed skeleton (BAND_PRINT_ACTS
+// in band.js).
+function band_print_act_codes() {
+  return ['1', '2', '3', 'E'];
+}
+
+// The stored order, limited to known acts and to song rows that still exist
+// (each song in at most one place).
+function band_print_acts($doc) {
+  $songs = [];
+  foreach ($doc['rows'] ?? [] as $row) {
+    if (($row['type'] ?? '') === 'song') $songs[$row['id']] = true;
+  }
+  $stored = is_array($doc['printActs'] ?? null) ? $doc['printActs'] : [];
+  $seen = [];
+  $out = [];
+  foreach (band_print_act_codes() as $code) {
+    $out[$code] = [];
+    foreach (is_array($stored[$code] ?? null) ? $stored[$code] : [] as $id) {
+      if (!is_string($id) || !isset($songs[$id]) || isset($seen[$id])) continue;
+      $seen[$id] = true;
+      $out[$code][] = $id;
+    }
+  }
+  return $out;
+}
+
+// {folder, printActs:{code:[ids]}} — full replace (last save wins); ids
+// that aren't songs (any more) are dropped rather than refused.
+function band_save_print_acts($body) {
+  $folder = band_folder_from_body($body);
+  $acts = $body['printActs'] ?? null;
+  if (!is_array($acts)) respond(400, ['error' => 'invalid_shape']);
+  foreach ($acts as $code => $ids) {
+    if (!in_array((string) $code, band_print_act_codes(), true) || !is_array($ids)) respond(400, ['error' => 'invalid_shape']);
+    foreach ($ids as $id) {
+      if (!band_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+    }
+  }
+  $doc = band_mutate($folder, function ($doc) use ($acts) {
+    $doc['printActs'] = $acts;
+    $doc['printActs'] = band_print_acts($doc);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'printActs' => (object) band_print_acts($doc)]);
+}
+
 function handle_band($action, $body) {
   switch ($action) {
     case 'band_read':             return band_read($body);
@@ -4983,6 +5132,9 @@ function handle_band($action, $body) {
     case 'band_instance_update':  return band_instance_update($body);
     case 'band_instance_delete':  return band_instance_delete($body);
     case 'band_set_active_folder': return band_set_active_folder($body);
+    case 'band_leadsheet_read':   return band_leadsheet_read($body);
+    case 'band_leadsheet_save':   return band_leadsheet_save($body);
+    case 'band_save_print_acts':  return band_save_print_acts($body);
   }
   respond(400, ['error' => 'unknown_action']);
 }
