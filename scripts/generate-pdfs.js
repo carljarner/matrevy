@@ -232,7 +232,9 @@ function buildRolesBlock(scene, redact = false) {
 
 // amsmath/amssymb are loaded unconditionally: this is a math student revue,
 // so scriptBody routinely contains real math notation (e.g. \mathbb{R}) that
-// plain LaTeX has no macro for.
+// plain LaTeX has no macro for. Every other generated document (Aktoversigt,
+// Rolleoversigt, Program) loads them too, since titles and the Program's
+// Medvirkende/Ordliste are raw LaTeX as well.
 function buildSceneTex(scene, prodMeta, redact = false) {
   const envName = isSongScene(scene) ? 'song' : 'sketch';
 
@@ -314,6 +316,7 @@ function buildAktoversigtTex(actsData, prodMeta) {
 \\usepackage{babel}
 \\usepackage[utf8]{inputenc}
 \\usepackage[T1]{fontenc}
+\\usepackage{amsmath,amssymb}
 % The reference Aktoversigt.pdf (old Perl toolchain output) is US Letter
 % with ~30mm/26mm side margins from plain \\documentclass{article} defaults
 % — but pdfTeX's own default output paper size is driver/install-dependent
@@ -401,6 +404,7 @@ function buildRolleoversigtTex(actsData, prodMeta) {
 \\usepackage[T1]{fontenc}
 \\usepackage[utf8]{inputenc}
 \\usepackage{graphicx}
+\\usepackage{amsmath,amssymb}
 % Symmetric margins on all four sides, with header/footer space zeroed out
 % (pagestyle is empty below, so nothing is ever drawn in headsep/footskip) —
 % mixing raw \\textwidth/\\textheight/\\headsep overrides with the geometry
@@ -663,6 +667,7 @@ ${qrBody}\\end{center}`,
 \\usepackage{graphicx}
 \\usepackage{multicol}
 \\usepackage{soul}
+\\usepackage{amsmath,amssymb}
 \\newcommand{\\arb}[1]{\\textbf{#1}\\\\}
 \\setlength{\\parindent}{0pt}
 \\pagestyle{empty}
