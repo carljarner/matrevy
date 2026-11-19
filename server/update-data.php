@@ -391,13 +391,17 @@ $NINJAS_ACTIONS = [
   'ninjas_save_mics'        => 'revyst', // full replace of the mic columns
   'ninjas_upsert_extra_row' => 'revyst', // a hand-added row (Bandintro …)
   'ninjas_delete_extra_row' => 'revyst', // idempotent — also clears its cells
+  // Ninjaplan (temporary): one uploaded PDF per revy, shown as pages.
+  'ninjas_upload_plan'      => 'boss',   // replaces the revy's PDF
+  'ninjas_delete_plan'      => 'boss',   // idempotent
+  'ninjas_plan_file'        => 'revyst', // streams the PDF's bytes (not JSON)
 ];
 if (isset($NINJAS_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$NINJAS_ACTIONS[$action]]) {
     respond(403, ['error' => 'insufficient_level']);
   }
   $ninjasFolder = rekvisit_folder_from_body($body);
-  if ($action !== 'ninjas_read' && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']
+  if ($action !== 'ninjas_read' && $action !== 'ninjas_plan_file' && $LEVEL_RANK[$level] < $LEVEL_RANK['boss']
       && $ninjasFolder !== manus_current_production_folder()) {
     respond(403, ['error' => 'read_only']);
   }
@@ -6053,7 +6057,9 @@ function handle_rekvisit($action, $folder, $body, $isBoss) {
 //   NINJAS_DATA_DIR/<folder>/ninjas.json
 //     {mics:[{id, name, label, color}], micCells:{<rowKey>:{<micId>: text}},
 //      cues:{<rowKey>:{instruktoer, startCue, giverCue, slutCue, note}},
-//      extraRows:[{id, act, afterKey, title}], updatedAt}
+//      extraRows:[{id, act, afterKey, title}], planPdf:{name, size, uploadedAt}|null,
+//      updatedAt}
+//   NINJAS_DATA_DIR/<folder>/ninjaplan.pdf  (the Ninjaplan tab's PDF, temporary)
 // Rows themselves come from scenes.json on the client; a rowKey is a
 // scene's permanent uid ('s…' for a scene made in Manus, 'sub:<id>' for one
 // chosen from the upload pool, or 'id:<act-number>' for a legacy scene
@@ -6117,7 +6123,7 @@ function ninjas_default_mics() {
 }
 
 function ninjas_default_doc() {
-  return ['mics' => ninjas_default_mics(), 'micCells' => [], 'cues' => [], 'extraRows' => [], 'updatedAt' => null];
+  return ['mics' => ninjas_default_mics(), 'micCells' => [], 'cues' => [], 'extraRows' => [], 'planPdf' => null, 'updatedAt' => null];
 }
 
 function ninjas_normalize_doc($doc) {
@@ -6126,6 +6132,7 @@ function ninjas_normalize_doc($doc) {
   foreach (['micCells', 'cues', 'extraRows'] as $key) {
     if (!is_array($doc[$key] ?? null)) $doc[$key] = [];
   }
+  if (!is_array($doc['planPdf'] ?? null)) $doc['planPdf'] = null;
   return $doc;
 }
 
@@ -6168,6 +6175,7 @@ function ninjas_respond_doc($folder, $doc) {
     'micCells' => (object) $doc['micCells'],
     'cues' => (object) $doc['cues'],
     'extraRows' => array_values($doc['extraRows']),
+    'planPdf' => $doc['planPdf'] ?? null,
     'updatedAt' => $doc['updatedAt'] ?? null,
   ]);
 }
@@ -6307,6 +6315,70 @@ function ninjas_delete_extra_row($folder, $body) {
   ninjas_respond_doc($folder, $doc);
 }
 
+// ── Ninjaplan PDF (temporary, until the plan is built on the page) ──
+// One PDF per revy at <folder>/ninjaplan.pdf; its metadata is the doc's
+// planPdf. Same checks as lokaler_upload_file().
+
+function ninjas_plan_max_bytes() {
+  return 15 * 1024 * 1024;
+}
+
+function ninjas_plan_path($folder) {
+  return ninjas_dir() . '/' . $folder . '/ninjaplan.pdf';
+}
+
+// {name, contentBase64}. The file is written first (outside the lock),
+// then recorded; a new upload replaces the old one.
+function ninjas_upload_plan($folder, $body) {
+  $name = is_string($body['name'] ?? null) ? trim(str_replace(['/', '\\', "\0"], '-', $body['name'])) : '';
+  if ($name === '' || mb_strlen($name) > 200) respond(400, ['error' => 'invalid_shape']);
+  if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'pdf') respond(400, ['error' => 'bad_extension']);
+  $raw = base64_decode((string) ($body['contentBase64'] ?? ''), true);
+  if ($raw === false || $raw === '') respond(400, ['error' => 'invalid_content']);
+  if (strlen($raw) > ninjas_plan_max_bytes()) respond(413, ['error' => 'too_large']);
+  if (substr($raw, 0, 5) !== '%PDF-') respond(400, ['error' => 'not_a_pdf']);
+
+  $dir = ninjas_dir() . '/' . $folder;
+  if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'ninjas_storage_unavailable']);
+  }
+  $path = ninjas_plan_path($folder);
+  $tmp = $path . '.tmp';
+  if (@file_put_contents($tmp, $raw) === false || !@rename($tmp, $path)) {
+    @unlink($tmp);
+    respond(500, ['error' => 'ninjas_storage_unavailable']);
+  }
+  $meta = ['name' => $name, 'size' => strlen($raw), 'uploadedAt' => date('c')];
+  $doc = ninjas_mutate($folder, function ($doc) use ($meta) {
+    $doc['planPdf'] = $meta;
+    return $doc;
+  });
+  ninjas_respond_doc($folder, $doc);
+}
+
+function ninjas_delete_plan($folder, $body) {
+  $doc = ninjas_mutate($folder, function ($doc) {
+    $doc['planPdf'] = null;
+    return $doc;
+  });
+  @unlink(ninjas_plan_path($folder));
+  ninjas_respond_doc($folder, $doc);
+}
+
+// Streams the PDF (fetched with the password, never at a public URL).
+function ninjas_plan_file($folder, $body) {
+  $meta = ninjas_load($folder)['planPdf'];
+  $path = ninjas_plan_path($folder);
+  if (!is_array($meta) || !is_file($path)) respond(404, ['error' => 'not_found']);
+  $name = (string) ($meta['name'] ?? 'Ninjaplan.pdf');
+  $asciiName = preg_replace('/[^A-Za-z0-9._ -]/', '_', $name);
+  header('Content-Type: application/pdf');
+  header('Content-Length: ' . filesize($path));
+  header('Content-Disposition: inline; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($name));
+  readfile($path);
+  exit;
+}
+
 function handle_ninjas($action, $folder, $body) {
   switch ($action) {
     case 'ninjas_read':             return ninjas_read($folder, $body);
@@ -6315,6 +6387,9 @@ function handle_ninjas($action, $folder, $body) {
     case 'ninjas_save_mics':        return ninjas_save_mics($folder, $body);
     case 'ninjas_upsert_extra_row': return ninjas_upsert_extra_row($folder, $body);
     case 'ninjas_delete_extra_row': return ninjas_delete_extra_row($folder, $body);
+    case 'ninjas_upload_plan':      return ninjas_upload_plan($folder, $body);
+    case 'ninjas_delete_plan':      return ninjas_delete_plan($folder, $body);
+    case 'ninjas_plan_file':        return ninjas_plan_file($folder, $body);
   }
   respond(400, ['error' => 'unknown_action']);
 }

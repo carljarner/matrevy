@@ -2,7 +2,9 @@
    Matematikrevyen – Ninjas, Mics & Cues (ninjas.html)
 
    Three tabs, styled like Bandet's:
-   - Ninjaplan: placeholder until the plan exists.
+   - Ninjaplan (temporary, until the plan is built on the page): one PDF
+     per revy, uploaded by a boss, shown as a scrolling stack of pages
+     (pdf.js, vendored in js/vendor/ and lazy-loaded).
    - Mikrofonplan: replaces the old Mic-plan spreadsheet — one row per
      scene (grouped by act), one column per mic (name, tape label, colour),
      a cell = who wears it (a name, "X", …).
@@ -71,6 +73,8 @@ function ninjasResolvePassword() {
 function ninjasMapError(status, detail) {
   if (detail === 'read_only') return 'Tidligere år kan kun redigeres af bosser.';
   if (detail === 'stale_mics') return 'Mikrofonerne er blevet ændret af en anden. Siden er opdateret.';
+  if (status === 413) return 'Filen er for stor. Maks. 15 MB.';
+  if (detail === 'not_a_pdf' || detail === 'bad_extension') return 'Filen er ikke en PDF.';
   if (status === 401 || status === 403) return 'Forkert eller utilstrækkelig adgangskode. Log ind igen.';
   return detail ? `Serverfejl: ${detail}` : `Serverfejl (${status}). Prøv igen senere.`;
 }
@@ -150,7 +154,7 @@ function ninjasIsEditing() {
 }
 let ninjasFolder = ''; // the revy picked top-right
 let ninjasLoadSeq = 0;
-let ninjasDoc = null; // {mics, micCells, cues, extraRows} once loaded
+let ninjasDoc = null; // {mics, micCells, cues, extraRows, planPdf} once loaded
 let ninjasDragMicId = null;
 // Cell commits not yet confirmed by the server: cellId → {folder, value}.
 // Re-applied over a full-document response of the same revy so an
@@ -415,7 +419,8 @@ async function ninjasLoad() {
     root.appendChild(ninjasMessageCard('Der er ingen revyer endnu.'));
     return;
   }
-  if (ninjasActiveTab === 'ninjaplan' || !ninjasManusVisible()) {
+  // The sheets wait for Manus; the Ninjaplan PDF doesn't.
+  if (ninjasActiveTab !== 'ninjaplan' && !ninjasManusVisible()) {
     ninjasRender();
     return;
   }
@@ -430,7 +435,7 @@ async function ninjasLoad() {
   const folder = ninjasFolder;
   const [result] = await Promise.all([
     ninjasApi('ninjas_read', {}),
-    ninjasIsCurrentFolder() ? null : ninjasLoadSnapshot(folder),
+    ninjasIsCurrentFolder() || ninjasActiveTab === 'ninjaplan' ? null : ninjasLoadSnapshot(folder),
   ]);
   // A slower read for a revy you've since switched away from is dropped.
   if (seq !== ninjasLoadSeq) return;
@@ -453,6 +458,7 @@ function ninjasApplyDoc(data) {
     micCells: obj(data.micCells),
     cues: obj(data.cues),
     extraRows: Array.isArray(data.extraRows) ? data.extraRows : [],
+    planPdf: (data.planPdf && typeof data.planPdf === 'object' && !Array.isArray(data.planPdf)) ? data.planPdf : null,
   };
   for (const [cellId, p] of ninjasPending) {
     if (p.folder === ninjasFolder) ninjasSetLocal(cellId, p.value);
@@ -464,10 +470,7 @@ function ninjasRender() {
   root.replaceChildren();
   ninjasRenderTabs(root);
   if (ninjasActiveTab === 'ninjaplan') {
-    const card = el('section', 'card');
-    card.appendChild(el('h2', null, 'Ninjaplan'));
-    card.appendChild(el('p', 'site-muted', 'Ninjaplanen kommer snart.'));
-    root.appendChild(card);
+    if (ninjasDoc) root.appendChild(ninjasBuildPlanCard());
   } else if (!ninjasManusVisible()) {
     root.appendChild(ninjasMessageCard(ninjasConfig().pdfLinksVisibleToRevyst ? 'Rollerne er ikke frigivet endnu.' : 'Manus er ikke frigivet endnu.'));
   } else if (ninjasDoc) {
@@ -1139,6 +1142,333 @@ function ninjasOpenExtraRowModal(group, row) {
   actions.appendChild(save);
   title.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save.click(); } });
   title.focus();
+}
+
+// ── Ninjaplan (temporary PDF) ────────────────────────────────
+// Until the plan is built on the page: one PDF per revy (boss uploads,
+// every revyst reads), drawn page by page onto canvases with pdf.js, as
+// browsers on phones don't show a PDF inside a page. Each page is a box
+// with the page's aspect ratio, so the scroll height is right at once; a
+// page's canvas is drawn when it comes near the viewport (and again when
+// the width changes). The loaded view is kept per revy + upload, so tab
+// switches reuse it instead of downloading the file again.
+const NINJAS_PLAN_MAX_BYTES = 15 * 1024 * 1024; // mirrors ninjas_plan_max_bytes()
+let ninjasPlanUploading = false;
+// {key, folder, wrap, blob, pdf, pages:[{page, box, visible, task, renderedWidth, renderingWidth}],
+//  observer, resizeObs, failed} or null
+let ninjasPlanView = null;
+
+let ninjasPdfJsPromise = null;
+function ninjasLoadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if (!ninjasPdfJsPromise) {
+    ninjasPdfJsPromise = new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'js/vendor/pdf.min.js';
+      script.onload = () => {
+        if (!window.pdfjsLib) { reject(new Error('pdfjs')); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/vendor/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      };
+      script.onerror = () => { ninjasPdfJsPromise = null; reject(new Error('pdfjs')); };
+      document.head.appendChild(script);
+    });
+  }
+  return ninjasPdfJsPromise;
+}
+
+function ninjasPlanKey(folder, meta) {
+  return meta ? `${folder}|${meta.uploadedAt}|${meta.size}` : '';
+}
+
+// Streams the revy's PDF with the password (never at a public URL), as
+// koordLokFetchFile in koordinator.js.
+async function ninjasFetchPlan(folder) {
+  const password = ninjasResolvePassword();
+  if (!password) return { ok: false, message: '' };
+  let res;
+  try {
+    res = await fetch(SITE_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ninjas_plan_file', password, folder }),
+    });
+  } catch (e) {
+    return { ok: false, message: 'Kunne ikke oprette forbindelse til serveren. Tjek din internetforbindelse.' };
+  }
+  const type = res.headers.get('Content-Type') || '';
+  if (!res.ok || type.includes('json') || type.includes('html')) {
+    return { ok: false, message: 'Kunne ikke hente PDF\'en.' };
+  }
+  const blob = await res.blob();
+  return { ok: true, blob: new Blob([blob], { type: 'application/pdf' }) };
+}
+
+function ninjasPlanDispose() {
+  const view = ninjasPlanView;
+  ninjasPlanView = null;
+  if (!view) return;
+  if (view.observer) view.observer.disconnect();
+  if (view.resizeObs) view.resizeObs.disconnect();
+  for (const p of view.pages) if (p.task) p.task.cancel();
+  if (view.pdf) view.pdf.destroy();
+}
+
+function ninjasBuildPlanCard() {
+  const meta = ninjasDoc.planPdf;
+  const card = el('section', 'card ninjas-plan-card');
+  const head = el('div', 'ninjas-card-head ninjas-plan-head');
+  head.appendChild(el('h2', null, 'Ninjaplan'));
+  if (meta) {
+    const open = el('button', 'btn-small site-toolbar-control ninjas-plan-open', 'Åbn PDF');
+    open.type = 'button';
+    open.title = 'Åbn PDF\'en i browserens egen visning (zoom og print)';
+    open.addEventListener('click', ninjasPlanOpenInTab);
+    head.appendChild(open);
+  }
+  if (siteHasLevel('boss')) {
+    const actions = el('div', 'ninjas-plan-actions');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/pdf,.pdf';
+    input.hidden = true;
+    input.addEventListener('change', () => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (file) ninjasPlanUpload(file);
+    });
+    const upload = el('button', 'btn-small site-toolbar-control',
+      ninjasPlanUploading ? 'Uploader…' : (meta ? 'Erstat PDF' : 'Upload PDF'));
+    upload.type = 'button';
+    upload.disabled = ninjasPlanUploading;
+    upload.addEventListener('click', () => input.click());
+    actions.appendChild(upload);
+    actions.appendChild(input);
+    if (meta) {
+      const del = el('button', 'btn-small btn-small-danger site-toolbar-control', 'Slet');
+      del.type = 'button';
+      del.disabled = ninjasPlanUploading;
+      del.addEventListener('click', ninjasPlanConfirmDelete);
+      actions.appendChild(del);
+    }
+    head.appendChild(actions);
+  }
+  card.appendChild(head);
+
+  if (!meta) {
+    ninjasPlanDispose();
+    card.appendChild(el('p', 'site-empty', 'Der er ikke uploadet en ninjaplan endnu.'));
+    return card;
+  }
+  const uploaded = typeof meta.uploadedAt === 'string' && /^\d{4}-\d{2}-\d{2}/.test(meta.uploadedAt)
+    ? ` · uploadet ${formatDaDate(meta.uploadedAt.slice(0, 10))}` : '';
+  card.appendChild(el('p', 'site-muted ninjas-plan-meta', `${meta.name || 'Ninjaplan.pdf'}${uploaded}`));
+  card.appendChild(ninjasPlanPagesEl(meta));
+  return card;
+}
+
+// The page stack for this revy's upload: the kept one if it's the same
+// (and didn't fail), else a fresh one that starts loading.
+function ninjasPlanPagesEl(meta) {
+  const key = ninjasPlanKey(ninjasFolder, meta);
+  if (ninjasPlanView && ninjasPlanView.key === key && !ninjasPlanView.failed) return ninjasPlanView.wrap;
+  ninjasPlanDispose();
+  const wrap = el('div', 'ninjas-plan-pages');
+  wrap.appendChild(el('p', 'site-muted', 'Indlæser PDF…'));
+  const view = {
+    key, folder: ninjasFolder, wrap, blob: null, pdf: null, pages: [],
+    observer: null, resizeObs: null, failed: false,
+  };
+  ninjasPlanView = view;
+  ninjasPlanLoad(view);
+  return wrap;
+}
+
+async function ninjasPlanLoad(view) {
+  const fail = (message) => {
+    if (ninjasPlanView !== view) return;
+    view.failed = true;
+    view.wrap.replaceChildren(el('p', 'ninjas-error', message || 'Kunne ikke vise PDF\'en.'));
+  };
+  let lib;
+  let result;
+  try {
+    [lib, result] = await Promise.all([ninjasLoadPdfJs(), ninjasFetchPlan(view.folder)]);
+  } catch (e) {
+    fail('Kunne ikke indlæse PDF-visningen.');
+    return;
+  }
+  if (ninjasPlanView !== view) return;
+  if (!result.ok) { fail(result.message); return; }
+  view.blob = result.blob;
+  try {
+    const data = new Uint8Array(await result.blob.arrayBuffer());
+    // isEvalSupported: false closes CVE-2024-4367 in this pdf.js version.
+    const pdf = await lib.getDocument({ data, isEvalSupported: false }).promise;
+    if (ninjasPlanView !== view) { pdf.destroy(); return; }
+    view.pdf = pdf;
+    const pages = [];
+    for (let n = 1; n <= pdf.numPages; n++) pages.push(await pdf.getPage(n));
+    if (ninjasPlanView !== view) return;
+    ninjasPlanBuildPages(view, pages);
+  } catch (e) {
+    fail();
+  }
+}
+
+function ninjasPlanBuildPages(view, pages) {
+  view.wrap.replaceChildren();
+  const byBox = new Map();
+  view.pages = pages.map((page, i) => {
+    const base = page.getViewport({ scale: 1 });
+    const box = el('div', 'ninjas-plan-page');
+    box.style.aspectRatio = `${base.width} / ${base.height}`;
+    box.setAttribute('role', 'img');
+    box.setAttribute('aria-label', `Side ${i + 1} af ${pages.length}`);
+    view.wrap.appendChild(box);
+    const p = { page, box, visible: false, task: null, renderedWidth: 0, renderingWidth: 0 };
+    byBox.set(box, p);
+    return p;
+  });
+  // About one screen ahead and behind is drawn before you get there.
+  view.observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const p = byBox.get(entry.target);
+      if (!p) continue;
+      p.visible = entry.isIntersecting;
+      if (p.visible) ninjasPlanRenderPage(view, p);
+    }
+  }, { rootMargin: '100% 0px' });
+  for (const p of view.pages) view.observer.observe(p.box);
+  let timer = null;
+  view.resizeObs = new ResizeObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      for (const p of view.pages) if (p.visible) ninjasPlanRenderPage(view, p);
+    }, 200);
+  });
+  view.resizeObs.observe(view.wrap);
+}
+
+// Draws one page at its box's width (× device pixels, at most 2×); a
+// canvas is only swapped in once it's finished, so nothing flashes.
+function ninjasPlanRenderPage(view, p) {
+  if (ninjasPlanView !== view) return;
+  const cssWidth = p.box.clientWidth;
+  if (!cssWidth) return; // detached (another tab) or not laid out yet
+  const width = Math.round(cssWidth * Math.min(window.devicePixelRatio || 1, 2));
+  if (p.renderedWidth === width || p.renderingWidth === width) return;
+  if (p.task) p.task.cancel();
+  const base = p.page.getViewport({ scale: 1 });
+  const viewport = p.page.getViewport({ scale: width / base.width });
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = Math.round(viewport.height);
+  const task = p.page.render({ canvasContext: canvas.getContext('2d'), viewport });
+  p.task = task;
+  p.renderingWidth = width;
+  task.promise.then(() => {
+    if (p.task !== task) return;
+    p.task = null;
+    p.renderingWidth = 0;
+    p.renderedWidth = width;
+    p.box.replaceChildren(canvas);
+  }, () => {
+    // Cancelled (a newer width) or failed; the next intersection retries.
+    if (p.task !== task) return;
+    p.task = null;
+    p.renderingWidth = 0;
+  });
+}
+
+function ninjasSaveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10 * 1000);
+}
+
+// The window is opened synchronously (inside the click) so popup blockers
+// allow it, then pointed at the blob; on iOS the file opens in this tab
+// instead (siteIsIos), as koordLokOpenFile.
+async function ninjasPlanOpenInTab() {
+  const meta = ninjasDoc && ninjasDoc.planPdf;
+  if (!meta) return;
+  const folder = ninjasFolder;
+  const sameTab = siteIsIos();
+  const win = sameTab ? null : window.open('', '_blank');
+  const view = ninjasPlanView;
+  let blob = view && view.key === ninjasPlanKey(folder, meta) ? view.blob : null;
+  if (!blob) {
+    const result = await ninjasFetchPlan(folder);
+    if (!result.ok) {
+      if (win) win.close();
+      if (result.message) siteShowToast(result.message);
+      return;
+    }
+    blob = result.blob;
+  }
+  const url = URL.createObjectURL(blob);
+  if (sameTab) { window.location.href = url; return; }
+  if (win) win.location.replace(url);
+  else ninjasSaveBlob(blob, meta.name || 'Ninjaplan.pdf');
+  setTimeout(() => URL.revokeObjectURL(url), 60 * 1000);
+}
+
+function ninjasReadAsBase64(file) { // copy of koordLokReadAsBase64
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result || '');
+      resolve(s.slice(s.indexOf(',') + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function ninjasPlanUpload(file) {
+  if (ninjasPlanUploading) return;
+  if (!/\.pdf$/i.test(file.name)) { siteShowToast('Kun PDF-filer kan uploades.'); return; }
+  if (file.size > NINJAS_PLAN_MAX_BYTES) { siteShowToast('Filen er for stor. Maks. 15 MB.'); return; }
+  const folder = ninjasFolder;
+  ninjasPlanUploading = true;
+  if (ninjasActiveTab === 'ninjaplan') ninjasRender();
+  let result;
+  try {
+    const contentBase64 = await ninjasReadAsBase64(file);
+    result = await ninjasApi('ninjas_upload_plan', { name: file.name, contentBase64 }, folder);
+  } catch (e) {
+    result = { ok: false, message: `Kunne ikke læse ${file.name}.` };
+  }
+  ninjasPlanUploading = false;
+  if (!result.ok) {
+    if (result.message) siteShowToast(result.message);
+  } else if (folder === ninjasFolder) {
+    ninjasApplyDoc(result.data);
+    siteShowToast('Ninjaplanen er uploadet.');
+  }
+  if (ninjasActiveTab === 'ninjaplan') ninjasRender();
+}
+
+function ninjasPlanConfirmDelete() {
+  const folder = ninjasFolder;
+  ninjasConfirm('Slet ninjaplanen?', 'PDF\'en fjernes for alle.', 'Slet', async () => {
+    const result = await ninjasApi('ninjas_delete_plan', {}, folder);
+    if (!result.ok) {
+      if (result.message) siteShowToast(result.message);
+      return false;
+    }
+    if (folder === ninjasFolder) {
+      ninjasApplyDoc(result.data);
+      if (ninjasActiveTab === 'ninjaplan') ninjasRender();
+    }
+    return true;
+  });
 }
 
 // ── Init ─────────────────────────────────────────────────────
