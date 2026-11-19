@@ -1158,6 +1158,19 @@ let ninjasPlanUploading = false;
 //  observer, resizeObs, failed} or null
 let ninjasPlanView = null;
 
+// Page width as % of the card (+/- in the card head). Remembered per
+// viewer, separately for phones and wider screens: 60 % by default on a
+// wide screen, the full width on a phone.
+const NINJAS_PLAN_ZOOM_STEPS = [30, 40, 50, 60, 70, 80, 90, 100];
+const NINJAS_PLAN_ZOOM_KEY = 'matrevy-ninjas-plan-zoom-'
+  + (window.matchMedia('(max-width: 719px)').matches ? 'phone' : 'wide');
+let ninjasPlanZoom = (() => {
+  let stored = NaN;
+  try { stored = Number(localStorage.getItem(NINJAS_PLAN_ZOOM_KEY)); } catch (e) { /* ignore */ }
+  if (NINJAS_PLAN_ZOOM_STEPS.includes(stored)) return stored;
+  return NINJAS_PLAN_ZOOM_KEY.endsWith('phone') ? 100 : 60;
+})();
+
 let ninjasPdfJsPromise = null;
 function ninjasLoadPdfJs() {
   if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
@@ -1220,11 +1233,14 @@ function ninjasBuildPlanCard() {
   const head = el('div', 'ninjas-card-head ninjas-plan-head');
   head.appendChild(el('h2', null, 'Ninjaplan'));
   if (meta) {
-    const open = el('button', 'btn-small site-toolbar-control ninjas-plan-open', 'Åbn PDF');
+    const tools = el('div', 'ninjas-plan-tools');
+    tools.appendChild(ninjasPlanZoomControls());
+    const open = el('button', 'btn-small site-toolbar-control', 'Åbn PDF');
     open.type = 'button';
-    open.title = 'Åbn PDF\'en i browserens egen visning (zoom og print)';
+    open.title = 'Åbn PDF\'en i browserens egen visning (print)';
     open.addEventListener('click', ninjasPlanOpenInTab);
-    head.appendChild(open);
+    tools.appendChild(open);
+    head.appendChild(tools);
   }
   if (siteHasLevel('boss')) {
     const actions = el('div', 'ninjas-plan-actions');
@@ -1271,9 +1287,13 @@ function ninjasBuildPlanCard() {
 // (and didn't fail), else a fresh one that starts loading.
 function ninjasPlanPagesEl(meta) {
   const key = ninjasPlanKey(ninjasFolder, meta);
-  if (ninjasPlanView && ninjasPlanView.key === key && !ninjasPlanView.failed) return ninjasPlanView.wrap;
+  if (ninjasPlanView && ninjasPlanView.key === key && !ninjasPlanView.failed) {
+    ninjasPlanView.wrap.style.width = `${ninjasPlanZoom}%`;
+    return ninjasPlanView.wrap;
+  }
   ninjasPlanDispose();
   const wrap = el('div', 'ninjas-plan-pages');
+  wrap.style.width = `${ninjasPlanZoom}%`;
   wrap.appendChild(el('p', 'site-muted', 'Indlæser PDF…'));
   const view = {
     key, folder: ninjasFolder, wrap, blob: null, pdf: null, pages: [],
@@ -1282,6 +1302,41 @@ function ninjasPlanPagesEl(meta) {
   ninjasPlanView = view;
   ninjasPlanLoad(view);
   return wrap;
+}
+
+// − 60 % +: changes the page stack's width in place (no re-render); the
+// stack's ResizeObserver redraws the visible pages at the new size.
+function ninjasPlanZoomControls() {
+  const group = el('div', 'ninjas-plan-zoom');
+  const minus = el('button', 'btn-small site-toolbar-control', '−');
+  minus.type = 'button';
+  minus.title = 'Mindre';
+  minus.setAttribute('aria-label', 'Zoom ud');
+  const label = el('span', 'ninjas-plan-zoom-label');
+  label.setAttribute('aria-live', 'polite');
+  const plus = el('button', 'btn-small site-toolbar-control', '+');
+  plus.type = 'button';
+  plus.title = 'Større';
+  plus.setAttribute('aria-label', 'Zoom ind');
+  const steps = NINJAS_PLAN_ZOOM_STEPS;
+  function sync() {
+    label.textContent = `${ninjasPlanZoom} %`;
+    minus.disabled = ninjasPlanZoom <= steps[0];
+    plus.disabled = ninjasPlanZoom >= steps[steps.length - 1];
+  }
+  function step(dir) {
+    const i = steps.indexOf(ninjasPlanZoom) + dir;
+    if (i < 0 || i >= steps.length) return;
+    ninjasPlanZoom = steps[i];
+    try { localStorage.setItem(NINJAS_PLAN_ZOOM_KEY, String(ninjasPlanZoom)); } catch (e) { /* ignore */ }
+    if (ninjasPlanView) ninjasPlanView.wrap.style.width = `${ninjasPlanZoom}%`;
+    sync();
+  }
+  minus.addEventListener('click', () => step(-1));
+  plus.addEventListener('click', () => step(1));
+  sync();
+  group.append(minus, label, plus);
+  return group;
 }
 
 async function ninjasPlanLoad(view) {
