@@ -9,9 +9,9 @@
    per revy, and never archived (people save what they want to keep).
 
    Folders open and close in place (Bandet's Noder style), indented by
-   depth; which ones are open is remembered per browser. Files drag
-   between folders (or to the top level); the edit modal can move them
-   too, for touch screens. Uploading always goes through a modal that
+   depth; which ones are open is remembered per browser. Files and
+   folders drag into folders (or to the top level); their edit modals
+   can move them too, for touch screens. Uploading always goes through a modal that
    asks which folder the files go into.
 
    Big files can't go through the usual one-JSON-request upload
@@ -120,6 +120,7 @@ function teknikResolvePassword() {
 function teknikMapError(status, detail) {
   if (detail === 'uploads_closed') return TEKNIK_CLOSED_TEXT;
   if (detail === 'uploads_paused') return TEKNIK_PAUSED_TEXT;
+  if (detail === 'folder_cycle') return 'En mappe kan ikke flyttes ind i sig selv eller en af sine undermapper.';
   if (detail === 'quota_exceeded') {
     return `Der er ikke plads nok. Teknikken må højst fylde ${teknikFormatBytes(teknikQuotaBytes)} i alt. Slet nogle filer først.`;
   }
@@ -231,10 +232,13 @@ function teknikFolderLabel(folderId) {
 }
 
 // Dropdown options: the top level, then every folder in tree order.
-function teknikFolderOptions() {
+// `excludeId` leaves out that folder and everything below it (where a
+// folder can't be moved to).
+function teknikFolderOptions(excludeId) {
   const options = [{ value: '', label: teknikFolderLabel(null) }];
   const walk = (parentId) => {
     for (const folder of teknikChildFolders(parentId).sort(teknikCompareNames)) {
+      if (folder.id === excludeId) continue;
       options.push({ value: folder.id, label: teknikFolderPath(folder.id) });
       walk(folder.id);
     }
@@ -402,6 +406,8 @@ function teknikBuildFolderRow(folder, depth) {
   row.style.setProperty('--depth', depth);
   row.dataset.folderId = folder.id;
   row.dataset.target = folder.id;
+  row.draggable = true;
+  teknikWireFolderDrag(row, folder);
 
   const toggle = el('button', 'site-collapse teknik-row-main');
   toggle.type = 'button';
@@ -424,8 +430,8 @@ function teknikBuildFolderRow(folder, depth) {
   const downloadBtn = teknikIconBtn(teknikDownloadIcon(), 'Download mappen som .zip');
   downloadBtn.addEventListener('click', () => teknikDownloadFolder(folder.id));
   actions.appendChild(downloadBtn);
-  const editBtn = teknikIconBtn(teknikPencilIcon(), 'Omdøb mappen');
-  editBtn.addEventListener('click', () => teknikOpenRenameFolderModal(folder));
+  const editBtn = teknikIconBtn(teknikPencilIcon(), 'Omdøb eller flyt');
+  editBtn.addEventListener('click', () => teknikOpenEditFolderModal(folder));
   actions.appendChild(editBtn);
   const removeBtn = teknikRemoveBtn('Slet mappen');
   removeBtn.addEventListener('click', () => teknikConfirmDeleteFolder(folder));
@@ -575,7 +581,7 @@ function teknikConfirm(title, description, confirmLabel, onConfirm) {
 // Modal chrome for a Navn field (+ optional Mappe dropdown) and Annuller/
 // confirm. `submit({name, folderId})` returns an error message, '' when
 // done, or null for a cancelled password prompt.
-function teknikOpenFormModal({ title, name, placeholder, folderLabel, folderId, confirmLabel, submit }) {
+function teknikOpenFormModal({ title, name, placeholder, folderLabel, folderId, excludeFolderId, confirmLabel, submit }) {
   const { modal, form, error, actions, close } = siteOpenModalWithClose(title);
   modal.classList.add('site-modal-sm');
   const input = document.createElement('input');
@@ -586,7 +592,7 @@ function teknikOpenFormModal({ title, name, placeholder, folderLabel, folderId, 
   form.appendChild(siteEditField('Navn', input));
   let folderField = null;
   if (folderLabel) {
-    folderField = siteCreateDropdownField(teknikFolderOptions(), folderId || '');
+    folderField = siteCreateDropdownField(teknikFolderOptions(excludeFolderId), folderId || '');
     form.appendChild(siteEditField(folderLabel, folderField));
   }
   const saveBtn = teknikPillBtn(confirmLabel, 'site-btn-success');
@@ -628,14 +634,24 @@ function teknikOpenNewFolderModal(parentId) {
   });
 }
 
-function teknikOpenRenameFolderModal(folder) {
+// Rename and/or move (Placering = where it sits; never inside itself).
+function teknikOpenEditFolderModal(folder) {
   teknikOpenFormModal({
-    title: 'Omdøb mappe', name: folder.name, confirmLabel: 'Gem',
-    async submit({ name }) {
-      if (name === folder.name) return '';
-      const result = await teknikApi('teknik_rename_folder', { folderId: folder.id, name });
-      if (!result.ok) return result.message || null;
-      folder.name = result.data.folder.name;
+    title: 'Rediger mappe', name: folder.name, folderLabel: 'Placering',
+    folderId: folder.parentId, excludeFolderId: folder.id, confirmLabel: 'Gem',
+    async submit({ name, folderId }) {
+      if (name !== folder.name) {
+        const result = await teknikApi('teknik_rename_folder', { folderId: folder.id, name });
+        if (!result.ok) return result.message || null;
+        folder.name = result.data.folder.name;
+      }
+      if (folderId !== (folder.parentId || null)) {
+        const result = await teknikApi('teknik_move_folder', { folderId: folder.id, parentId: folderId });
+        if (!result.ok) { teknikRender(); return result.message || null; }
+        folder.parentId = result.data.folder.parentId;
+        if (folderId) teknikOpenFolders.add(folderId);
+        teknikSaveOpenFolders();
+      }
       teknikRender();
       return '';
     },
@@ -686,8 +702,9 @@ function teknikConfirmDeleteFolder(folder) {
   });
 }
 
-// ── Moving files (drag and drop) ─────────────────────────────
-let teknikDragFile = null;
+// ── Moving files and folders (drag and drop) ─────────────────
+// What's being dragged: { kind: 'file' | 'folder', item }.
+let teknikDragItem = null;
 let teknikDragGhost = null;
 
 // Shared off-screen drag image (the site-wide recipe).
@@ -699,21 +716,29 @@ function teknikGetDragImageEl() {
   return teknikDragGhost;
 }
 
-function teknikWireFileDrag(row, file) {
+function teknikWireRowDrag(row, kind, item, label) {
   row.addEventListener('dragstart', (e) => {
-    teknikDragFile = file;
+    teknikDragItem = { kind, item };
     const ghost = teknikGetDragImageEl();
-    ghost.textContent = teknikFileDisplayName(file);
+    ghost.textContent = label();
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', file.name);
+    e.dataTransfer.setData('text/plain', item.name);
     e.dataTransfer.setDragImage(ghost, 12, 16);
     row.classList.add('teknik-dragging');
   });
   row.addEventListener('dragend', () => {
-    teknikDragFile = null;
+    teknikDragItem = null;
     row.classList.remove('teknik-dragging');
     teknikClearDropHighlight();
   });
+}
+
+function teknikWireFileDrag(row, file) {
+  teknikWireRowDrag(row, 'file', file, () => teknikFileDisplayName(file));
+}
+
+function teknikWireFolderDrag(row, folder) {
+  teknikWireRowDrag(row, 'folder', folder, () => folder.name);
 }
 
 function teknikClearDropHighlight() {
@@ -727,6 +752,12 @@ function teknikDropTarget(node) {
   return row ? (row.dataset.target || null) : null;
 }
 
+// A folder can't go into itself or anything below it.
+function teknikCanDrop(drag, folderId) {
+  if (drag.kind !== 'folder' || !folderId) return true;
+  return !teknikSubtreeIds(drag.item.id).has(folderId);
+}
+
 function teknikHighlightDrop(card, folderId) {
   const target = folderId ? card.querySelector(`.teknik-folder-row[data-folder-id="${folderId}"]`) : card;
   if (target && target.classList.contains('teknik-drop-target')) return;
@@ -734,16 +765,21 @@ function teknikHighlightDrop(card, folderId) {
   if (target) target.classList.add('teknik-drop-target');
 }
 
-// One handler on the card covers both a file row being moved and files
+// One handler on the card covers both a row being moved and files
 // dragged in from the desktop (which open the upload modal).
 function teknikWireDrop(card) {
-  const isDesktopFiles = (e) => !teknikDragFile && e.dataTransfer
+  const isDesktopFiles = (e) => !teknikDragItem && e.dataTransfer
     && Array.from(e.dataTransfer.types || []).includes('Files');
   card.addEventListener('dragover', (e) => {
-    if (!teknikDragFile && !isDesktopFiles(e)) return;
+    if (!teknikDragItem && !isDesktopFiles(e)) return;
+    const folderId = teknikDropTarget(e.target);
+    if (teknikDragItem && !teknikCanDrop(teknikDragItem, folderId)) {
+      teknikClearDropHighlight();
+      return; // no preventDefault → the browser shows "not allowed"
+    }
     e.preventDefault();
-    e.dataTransfer.dropEffect = teknikDragFile ? 'move' : 'copy';
-    teknikHighlightDrop(card, teknikDropTarget(e.target));
+    e.dataTransfer.dropEffect = teknikDragItem ? 'move' : 'copy';
+    teknikHighlightDrop(card, folderId);
   });
   card.addEventListener('dragleave', (e) => {
     if (!card.contains(e.relatedTarget)) teknikClearDropHighlight();
@@ -751,11 +787,12 @@ function teknikWireDrop(card) {
   card.addEventListener('drop', (e) => {
     const folderId = teknikDropTarget(e.target);
     teknikClearDropHighlight();
-    if (teknikDragFile) {
+    if (teknikDragItem) {
       e.preventDefault();
-      const file = teknikDragFile;
-      teknikDragFile = null;
-      teknikMoveFile(file, folderId);
+      const drag = teknikDragItem;
+      teknikDragItem = null;
+      if (drag.kind === 'folder') teknikMoveFolder(drag.item, folderId);
+      else teknikMoveFile(drag.item, folderId);
       return;
     }
     if (!e.dataTransfer || !e.dataTransfer.files.length) return;
@@ -766,6 +803,18 @@ function teknikWireDrop(card) {
     if (dropped.length === 1 && teknikIsVideo(dropped[0])) teknikOpenVideoUploadModal(folderId, dropped[0]);
     else teknikOpenUploadModal(dropped, folderId);
   });
+}
+
+async function teknikMoveFolder(folder, parentId) {
+  if ((folder.parentId || null) === parentId) return;
+  if (!teknikCanDrop({ kind: 'folder', item: folder }, parentId)) return;
+  const result = await teknikApi('teknik_move_folder', { folderId: folder.id, parentId });
+  if (!result.ok) { teknikShowError(result.message); return; }
+  folder.parentId = result.data.folder.parentId;
+  if (parentId) teknikOpenFolders.add(parentId);
+  teknikSaveOpenFolders();
+  teknikRender();
+  siteShowToast(`Flyttet til ${parentId ? teknikFolderPath(parentId) : 'øverste niveau'}.`);
 }
 
 async function teknikMoveFile(file, folderId) {

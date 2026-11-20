@@ -87,7 +87,8 @@
   border-radius: 4px;
 }
 
-.teknik-file-row {
+.teknik-file-row,
+.teknik-folder-row {
   cursor: grab;
 }
 

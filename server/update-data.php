@@ -498,6 +498,7 @@ $TEKNIK_ACTIONS = [
   'teknik_rename_file'   => 'revyst', // the shown/download name only; the extension stays
   'teknik_delete_file'   => 'revyst', // idempotent
   'teknik_move_file'     => 'revyst', // {fileId, folderId} — null = the top level
+  'teknik_move_folder'   => 'revyst', // {folderId, parentId} — null = the top level; never into its own subtree
   'teknik_upload_start'  => 'revyst', // {folderId, name, size} → uploadId
   'teknik_upload_chunk'  => 'revyst', // {uploadId, offset, contentBase64}, ≤8 MB, in order
   'teknik_upload_finish' => 'revyst', // records the file
@@ -7336,6 +7337,41 @@ function teknik_move_file($body) {
   respond(200, ['ok' => true, 'file' => $saved]);
 }
 
+// {folderId, parentId} — parentId null = the top level. Refuses a move into
+// the folder itself or one of its sub-folders (409 folder_cycle). Folders are
+// metadata only, so nothing on disk changes. Lydfiler (sangere) is flat.
+function teknik_move_folder($body) {
+  $folderId = $body['folderId'] ?? '';
+  $parentId = teknik_folder_id_from($body['parentId'] ?? null);
+  if (!teknik_valid_id($folderId) || teknik_store_key() === 'sangere') respond(400, ['error' => 'invalid_shape']);
+  $saved = null;
+  teknik_mutate(function ($doc) use ($folderId, $parentId, &$saved) {
+    if (!teknik_folder_exists($doc, $folderId) || !teknik_folder_exists($doc, $parentId)) {
+      respond(404, ['error' => 'not_found']);
+    }
+    $subtree = [$folderId => true];
+    // Parents can be listed after their children, so sweep until stable.
+    do {
+      $grew = false;
+      foreach ($doc['folders'] as $folder) {
+        if (!isset($subtree[$folder['id']]) && isset($subtree[$folder['parentId'] ?? ''])) {
+          $subtree[$folder['id']] = true;
+          $grew = true;
+        }
+      }
+    } while ($grew);
+    if ($parentId !== null && isset($subtree[$parentId])) respond(409, ['error' => 'folder_cycle']);
+    foreach ($doc['folders'] as &$folder) {
+      if ($folder['id'] !== $folderId) continue;
+      $folder['parentId'] = $parentId;
+      $saved = $folder;
+    }
+    unset($folder);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'folder' => $saved]);
+}
+
 // ── Chunked upload ──
 // start → chunk × N (strictly in order, by byte offset) → finish. A chunk
 // whose bytes are already on disk (a retry after a lost reply) is ok.
@@ -7817,6 +7853,7 @@ function handle_teknik($action, $body) {
     case 'teknik_rename_file':   return teknik_rename_file($body);
     case 'teknik_delete_file':   return teknik_delete_file($body);
     case 'teknik_move_file':     return teknik_move_file($body);
+    case 'teknik_move_folder':   return teknik_move_folder($body);
     case 'teknik_upload_start':  return teknik_upload_start($body);
     case 'teknik_upload_chunk':  return teknik_upload_chunk($body);
     case 'teknik_upload_finish': return teknik_upload_finish($body);
