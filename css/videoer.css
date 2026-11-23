@@ -142,11 +142,18 @@
   object-fit: cover;
 }
 
+/* Arkiv's last resort (its .arkiv-poster-placeholder): the year as text,
+   when not even the placeholder cover loads. */
 .vid-cover-empty {
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+}
+
+.vid-cover-year {
+  font-weight: 600;
+  font-size: 1.6rem;
 }
 
 /* A round ▶ in the cover's corner: this tile is a video. */
@@ -273,7 +280,39 @@
   object-fit: contain;
 }
 
-/* Subtitles: readable on any picture. */
+/* The <video> and the page's own subtitle layer over it. A size container,
+   so the text scales with the picture (cqw). */
+.vid-frame {
+  position: relative;
+  container-type: inline-size;
+}
+
+/* Subtitles drawn by the page (vidPaintSubs): a fixed height above the
+   browser's control bar, so they never jump when it shows or hides. */
+.vid-subs {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: max(14%, 4.5rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1em;
+  pointer-events: none;
+  font-size: clamp(0.8rem, 2.7cqw, 1.9rem);
+  line-height: 1.3;
+  text-align: center;
+}
+
+.vid-subs-line > span {
+  padding: 0.08em 0.4em;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+/* In fullscreen the browser draws them (::cue below). */
 .vid-video::cue {
   background: rgba(0, 0, 0, 0.72);
   color: #fff;
@@ -609,6 +648,17 @@
   overflow-wrap: anywhere;
 }
 
+.vid-paste-summary {
+  margin: 0.4rem 0 0.6rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.vid-paste-mode {
+  margin-bottom: 0.25rem;
+}
+
 .vid-act-check {
   display: block;
   margin: 0.35rem 0;
@@ -781,6 +831,13 @@
 
 /* --- Phones --------------------------------------------------------- */
 @media (max-width: 719px) {
+  /* Clear of Safari's inline control bar on the iPhone. Chrome on Android
+     lays its larger controls over the picture while paused, which can
+     cover them then; during playback the controls hide. */
+  .vid-subs {
+    bottom: max(18%, 3.25rem);
+  }
+
   .vid-main,
   .vid-editing .vid-main {
     max-width: none;

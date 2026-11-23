@@ -134,8 +134,9 @@ Arkiv's Videoer tab keeps the recorded revyer (about 1.5 GB each) on a **Hetzner
 Setting it up (once):
 
 1. Hetzner Cloud console → Volumes → Create: same location as web-1, ext4, attached to web-1 (80 GB to start; volumes can grow but never shrink).
-2. On web-1, mount it at `/mnt/videoer` by UUID (`blkid` shows it), with `nofail` so a missing volume never stops the boot:
+2. On web-1, format it if Hetzner didn't (with "Manual" mounting it can arrive blank: `lsblk -f` shows no FSTYPE; check `wipefs -n` prints nothing first), then mount it at `/mnt/videoer` by UUID (`blkid` shows it), with `nofail` so a missing volume never stops the boot. (Done 2026-11-23: volume `HC_Volume_107595295`, 80 GB, label `videoer`.)
    ```bash
+   mkfs.ext4 -L videoer /dev/disk/by-id/scsi-0HC_Volume_<id>   # only on a blank volume
    mkdir -p /mnt/videoer
    echo 'UUID=<uuid> /mnt/videoer ext4 defaults,nofail,discard 0 2' >> /etc/fstab
    mount -a

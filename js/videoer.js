@@ -21,8 +21,9 @@
    kind there is), reused across re-renders so a re-render never stops it.
    Under it a scene strip (one segment per chapter, placed by time, the
    scene's name on hover) and previous/next scene buttons; beside it (below
-   on phones) the scene list. Subtitles are
-   a <track> with the signed .vtt URL. Stream links come with videoer_read
+   on phones) the scene list. Subtitles are a <track> with the signed .vtt
+   URL, drawn by the page itself in a layer over the picture (a steady
+   height above the controls) and by the browser only in fullscreen. Stream links come with videoer_read
    and last 12-36 h; an expired one is refetched on error. The subtitles
    on/off choice is kept in localStorage.
 
@@ -209,9 +210,13 @@ function vidYearName(year) {
   return (entry && entry.name) || year.name || year.archiveFolder;
 }
 
+// Arkiv's own placeholder (archive.js's ARCHIVE_PLACEHOLDER_COVER) for a
+// year without a cover photo, so the tiles look like Arkiv's cards.
+const VID_PLACEHOLDER_COVER = 'archive/_assets/placeholder-cover.jpg';
+
 function vidYearCover(year) {
   const entry = year ? vidArchiveEntry(year.archiveFolder) : null;
-  return (entry && entry.coverImage) || '';
+  return (entry && entry.coverImage) || VID_PLACEHOLDER_COVER;
 }
 
 function vidYearNumber(year) {
@@ -440,15 +445,15 @@ function vidRender() {
   vidPaintNow();
 }
 
-// A cover image, or a ▶ placeholder when the year has none (or it fails).
+// The year's cover, Arkiv's placeholder cover when it has none, and like
+// Arkiv the year as text if even that fails to load.
 function vidCoverEl(year, className) {
   const wrap = vidEl('div', 'vid-cover' + (className ? ' ' + className : ''));
   const placeholder = () => {
     wrap.classList.add('vid-cover-empty');
-    wrap.appendChild(vidIcon('play', 40));
+    wrap.insertBefore(vidEl('span', 'vid-cover-year', String(vidYearNumber(year) || '')), wrap.firstChild);
   };
   const src = vidYearCover(year);
-  if (!src) { placeholder(); return wrap; }
   const img = document.createElement('img');
   img.alt = '';
   img.loading = 'lazy';
@@ -591,6 +596,10 @@ function vidBuildYearView(year) {
 const VID_STATE_KEY = 'matrevy-videoer';
 const vidPlayer = {
   video: null,
+  frame: null,       // .vid-frame: the <video> + the subtitle layer
+  subs: null,        // .vid-subs, the subtitle layer
+  subsOn: false,     // subtitles wanted (remembered per browser)
+  settingMode: false, // vidApplySubtitleMode is setting the track's mode
   fileId: null,
   yearId: null,
   subtitleId: null,
@@ -617,8 +626,11 @@ function vidSubtitlesWanted() {
   return vidLoadStored().subtitles === true;
 }
 
+// The <video> inside its frame (.vid-frame), with the subtitle layer
+// (.vid-subs) over it. The frame is what renders move into the page.
 function vidVideoEl() {
   if (vidPlayer.video) return vidPlayer.video;
+  const frame = vidEl('div', 'vid-frame');
   const v = document.createElement('video');
   v.className = 'vid-video';
   v.controls = true;
@@ -635,10 +647,23 @@ function vidVideoEl() {
   v.addEventListener('timeupdate', () => vidPaintNow());
   v.addEventListener('loadedmetadata', vidOnMetadata);
   v.addEventListener('error', vidOnVideoError);
-  v.textTracks.addEventListener('change', () => vidPaintSubtitleBtn());
+  v.textTracks.addEventListener('change', vidOnTrackModeChange);
+  // Fullscreen shows only the <video>, so there the browser draws the
+  // subtitles (desktop: the Fullscreen API; iPhone: its own player).
+  v.addEventListener('webkitbeginfullscreen', vidApplySubtitleMode);
+  v.addEventListener('webkitendfullscreen', vidApplySubtitleMode);
+  const subs = vidEl('div', 'vid-subs');
+  subs.setAttribute('aria-hidden', 'true'); // the <track> is the accessible text
+  frame.appendChild(v);
+  frame.appendChild(subs);
   vidPlayer.video = v;
+  vidPlayer.frame = frame;
+  vidPlayer.subs = subs;
   return v;
 }
+
+document.addEventListener('fullscreenchange', () => vidApplySubtitleMode());
+document.addEventListener('webkitfullscreenchange', () => vidApplySubtitleMode());
 
 // The <video> for `video`, loading it if another one was showing.
 function vidEnsurePlayer(video, year) {
@@ -653,7 +678,7 @@ function vidEnsurePlayer(video, year) {
   }
   vidSyncTrack(video);
   if (vidPlayer.pendingSeek && vidPlayer.pendingSeek.fileId === video.id && v.readyState >= 1) vidApplyPendingSeek();
-  return v;
+  return vidPlayer.frame;
 }
 
 // The <track> follows the video's subtitles (replaced when they change).
@@ -664,15 +689,16 @@ function vidSyncTrack(video) {
   if (vidPlayer.subtitleId === subId) return;
   vidPlayer.subtitleId = subId;
   v.querySelectorAll('track').forEach((t) => t.remove());
-  if (!sub) { vidPaintSubtitleBtn(); return; }
+  if (!sub) { vidPaintSubs(); vidPaintSubtitleBtn(); return; }
   const track = document.createElement('track');
   track.kind = 'subtitles';
   track.srclang = 'da';
   track.label = 'Dansk';
   track.src = vidStreamUrl(sub);
   v.appendChild(track);
-  track.track.mode = vidSubtitlesWanted() ? 'showing' : 'hidden';
-  vidPaintSubtitleBtn();
+  track.track.addEventListener('cuechange', vidPaintSubs);
+  vidPlayer.subsOn = vidSubtitlesWanted();
+  vidApplySubtitleMode();
 }
 
 function vidTextTrack() {
@@ -681,13 +707,72 @@ function vidTextTrack() {
   return t ? t.track : null;
 }
 
-function vidToggleSubtitles() {
+function vidIsFullscreen() {
+  const v = vidPlayer.video;
+  if (!v) return false;
+  return document.fullscreenElement === v || document.webkitFullscreenElement === v || v.webkitDisplayingFullscreen === true;
+}
+
+// The track's mode follows vidPlayer.subsOn: off = 'disabled'; on = 'hidden'
+// (cues load and fire cuechange; vidPaintSubs draws them in .vid-subs, at a
+// steady height that never moves with the controls), or 'showing' in
+// fullscreen, where the page's layer can't be seen.
+function vidApplySubtitleMode() {
   const track = vidTextTrack();
-  if (!track) return;
-  const on = track.mode !== 'showing';
-  track.mode = on ? 'showing' : 'hidden';
-  vidStore((s) => { s.subtitles = on; });
+  if (track) {
+    const want = !vidPlayer.subsOn ? 'disabled' : vidIsFullscreen() ? 'showing' : 'hidden';
+    if (track.mode !== want) {
+      vidPlayer.settingMode = true;
+      track.mode = want;
+      vidPlayer.settingMode = false;
+    }
+  }
+  vidPaintSubs();
   vidPaintSubtitleBtn();
+}
+
+// Someone used the browser's own captions menu: follow it (on/off), and
+// draw them ourselves again outside fullscreen.
+function vidOnTrackModeChange() {
+  const track = vidTextTrack();
+  if (!track || vidPlayer.settingMode) return;
+  const on = track.mode !== 'disabled';
+  if (on !== vidPlayer.subsOn) {
+    vidPlayer.subsOn = on;
+    vidStore((s) => { s.subtitles = on; });
+  }
+  vidApplySubtitleMode();
+}
+
+function vidToggleSubtitles() {
+  if (!vidTextTrack()) return;
+  vidPlayer.subsOn = !vidPlayer.subsOn;
+  vidStore((s) => { s.subtitles = vidPlayer.subsOn; });
+  vidApplySubtitleMode();
+}
+
+// The current cue(s) as plain text lines in the layer (WebVTT tags like
+// <i> or <v Navn> dropped; never innerHTML).
+function vidPaintSubs() {
+  const layer = vidPlayer.subs;
+  if (!layer) return;
+  const track = vidTextTrack();
+  const show = !!track && vidPlayer.subsOn && track.mode === 'hidden' && !vidIsFullscreen();
+  const lines = [];
+  if (show && track.activeCues) {
+    for (const cue of Array.from(track.activeCues)) {
+      const text = String(cue.text || '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      lines.push(...text.split('\n').map((l) => l.trim()).filter(Boolean));
+    }
+  }
+  layer.replaceChildren(...lines.map((l) => {
+    const row = vidEl('div', 'vid-subs-line');
+    row.appendChild(vidEl('span', null, l));
+    return row;
+  }));
+  layer.hidden = !lines.length;
 }
 
 function vidApplyPendingSeek() {
@@ -923,7 +1008,7 @@ function vidPaintSubtitleBtn() {
   if (!btn) return;
   const track = vidTextTrack();
   btn.hidden = !track;
-  const on = !!track && track.mode === 'showing';
+  const on = !!track && vidPlayer.subsOn;
   btn.classList.toggle('site-icon-on', on);
   btn.setAttribute('aria-pressed', on ? 'true' : 'false');
   btn.title = on ? 'Slå undertekster fra' : 'Slå undertekster til';
@@ -1165,6 +1250,7 @@ function vidResetPlayer() {
   vidPlayer.fileId = null;
   vidPlayer.yearId = null;
   vidPlayer.subtitleId = null;
+  vidPaintSubs();
 }
 
 // A revy without a video: upload it (or, admin, import it).
@@ -1305,6 +1391,10 @@ function vidBuildChapterEditor(year, video) {
   box.appendChild(head);
 
   const bar = vidEl('div', 'vid-ce-bar');
+  const pasteBtn = vidBtn('Indsæt fra tekst');
+  pasteBtn.title = 'Indsæt en liste med tider og scener, én pr. linje (fx 01:03:10 KomAn KomAn)';
+  pasteBtn.addEventListener('click', () => vidOpenPasteChapters(video));
+  bar.appendChild(pasteBtn);
   const insertBtn = vidBtn('Indsæt scener fra manus');
   insertBtn.hidden = true;
   insertBtn.addEventListener('click', () => vidOpenInsertScenes(year));
@@ -1394,6 +1484,91 @@ function vidAddChapter() {
     vidScrollIntoList(rows[idx], '.vid-ce-list');
     input.focus({ preventScroll: true });
   }
+}
+
+// A pasted scene list, one per line: a time and the scene's name, as in a
+// YouTube description ("01:03:10 KomAn KomAn (2006)", also "1:03:10 - …",
+// "63:10 …", a leading "-"/"•"). Headings ("Akt 2", "Ekstranumre",
+// "Manus") and links are skipped quietly. Returns {chapters, skipped}
+// (skipped = other lines that aren't "time name").
+const VID_PASTE_HEADING = /^(?:akt|act)\b.{0,20}$|^ekstra\w*:?$|^manus:?$|^https?:\/\//i;
+
+function vidParseChapterText(text) {
+  const chapters = [];
+  const skipped = [];
+  for (const raw of String(text || '').split(/\r\n?|\n/)) {
+    const line = raw.trim();
+    if (!line || VID_PASTE_HEADING.test(line)) continue;
+    const m = /^(?:[-*•]\s*)?(\d{1,2}(?::\d{1,2}){1,2}(?:[.,]\d+)?)\s*(?:[-–—:|]\s*)?(.+)$/.exec(line);
+    const t = m ? vidParseTimestamp(m[1]) : null;
+    if (!m || t === null || !m[2].trim()) { skipped.push(line); continue; }
+    // The site never shows long dashes ("Mr. Brightside" – The Killers →
+    // "Mr. Brightside", The Killers), and "Video : X" becomes "Video: X".
+    const label = m[2].trim().replace(/\s+[–—]\s+/g, ', ').replace(/\s+:\s+/g, ': ');
+    chapters.push({ t: Math.round(t * 10) / 10, uid: null, label: label.slice(0, 200) });
+  }
+  chapters.sort((a, b) => a.t - b.t);
+  return { chapters, skipped };
+}
+
+function vidOpenPasteChapters(video) {
+  const draft = vidDraftFor(video);
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Indsæt scener fra tekst');
+  modal.classList.add('site-modal-md');
+  form.appendChild(vidEl('p', 'site-hint vid-modal-hint',
+    'Én scene pr. linje: tiden i videoen og scenens navn, fx "01:03:10 KomAn KomAn (2006)", som i en YouTube-beskrivelse.'));
+  const area = document.createElement('textarea');
+  area.rows = 12;
+  area.spellcheck = false;
+  area.placeholder = '00:58:12 Video: Sommer i Corona (2020)\n01:01:05 Bandnummer\n01:03:10 KomAn KomAn (2006)';
+  form.appendChild(siteEditField('Scener', area));
+  const summary = vidEl('p', 'vid-paste-summary');
+  form.appendChild(summary);
+
+  // Replace or add to the scenes there already are (only asked then).
+  let mode = 'replace';
+  const existing = draft.chapters.length;
+  if (existing) {
+    const seg = vidEl('div', 'site-segmented vid-paste-mode');
+    const opts = [['replace', `Erstat de ${existing} nuværende`], ['add', 'Tilføj til dem']];
+    for (const [value, label] of opts) {
+      const b = vidEl('button', value === mode ? 'active' : '', label);
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        mode = value;
+        seg.querySelectorAll('button').forEach((x) => x.classList.toggle('active', x === b));
+      });
+      seg.appendChild(b);
+    }
+    form.appendChild(seg);
+  }
+
+  const saveBtn = vidPillBtn('Indsæt', 'site-btn-success');
+  let parsed = { chapters: [], skipped: [] };
+  const update = () => {
+    parsed = vidParseChapterText(area.value);
+    const dur = vidDuration();
+    const late = dur ? parsed.chapters.filter((c) => c.t > dur).length : 0;
+    const parts = [];
+    if (parsed.chapters.length) parts.push(`${vidPlural(parsed.chapters.length, 'scene', 'scener')} fundet.`);
+    if (parsed.skipped.length) parts.push(`${vidPlural(parsed.skipped.length, 'linje', 'linjer')} blev ikke forstået: "${parsed.skipped[0]}"${parsed.skipped.length > 1 ? ' …' : ''}.`);
+    if (late) parts.push(`${vidPlural(late, 'tid ligger', 'tider ligger')} efter videoens slutning (${vidFormatTime(dur)}).`);
+    summary.textContent = parts.join(' ');
+    summary.classList.toggle('vid-warn', parsed.skipped.length > 0 || late > 0);
+    saveBtn.disabled = !parsed.chapters.length;
+  };
+  area.addEventListener('input', update);
+  update();
+  saveBtn.addEventListener('click', () => {
+    if (!parsed.chapters.length) { error.textContent = 'Der er ingen scener at indsætte.'; return; }
+    draft.chapters = mode === 'add' ? draft.chapters.concat(parsed.chapters) : parsed.chapters;
+    close();
+    vidChaptersChanged();
+    vidRender();
+    siteShowToast(`${vidPlural(parsed.chapters.length, 'scene', 'scener')} indsat.`);
+  });
+  actions.appendChild(saveBtn);
+  area.focus();
 }
 
 // The year's scene list from Arkiv (archive/<folder>/snapshot/scenes.json,
