@@ -573,8 +573,9 @@ function openYearEditor(existing) {
 // The URL hash picks the tab: none or #arkiv, #videoer[/…], #albums[/…].
 // Each tab's own script reads the rest of its hash (albums.js: the album).
 // The hashchange listener is added when this script loads, before
-// albums.js adds its own (script order), so the right tab is showing by
-// the time Albums renders, names the page and places its queue panel.
+// albums.js and videoer.js add theirs (script order), so the right tab is
+// showing by the time they render, name the page and (Albums) place the
+// queue panel.
 const ARKIV_TABS = { arkiv: 'Arkiv', videoer: 'Videoer', albums: 'Albums' };
 
 function arkivCurrentTab() {
@@ -593,8 +594,9 @@ function arkivRoute() {
     btn.classList.toggle('active', on);
     btn.setAttribute('aria-selected', on ? 'true' : 'false');
   });
-  // albums.js names the tab itself (with the open album's name).
-  if (tab !== 'albums') document.title = `${ARKIV_TABS[tab]} · Matematikrevyen`;
+  // albums.js and videoer.js name their tabs themselves (with the open
+  // album's or year's name).
+  if (tab === 'arkiv') document.title = `${ARKIV_TABS[tab]} · Matematikrevyen`;
 }
 
 function arkivInitTabs() {

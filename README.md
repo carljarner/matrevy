@@ -72,6 +72,8 @@ Data lives on the server's disk under `/srv/matrevy/data`:
 | `site/generated` | `js/*-data.js` and `calendar.ics`, written by the worker | Yes |
 | `budget`, `forms`, `faellesspisning` | Private data (names, phone numbers, receipts) | **Never** |
 
+Arkiv's revy videos (Videoer) live on their own Hetzner Volume instead, mounted at `/mnt/videoer` (see "Videoer volume" under Drift). Never web-served; they only stream through signed links.
+
 The passwords are environment variables in Coolify. They're never in the repo.
 
 ### DNS (Simply.com)
@@ -125,9 +127,33 @@ Most upkeep is automatic: Ubuntu installs security updates, Coolify updates itse
 | Quarterly | Practise a restore | See below |
 | Each new revy season | Change the three passwords | Coolify environment variables, then Redeploy |
 
+### Videoer volume
+
+Arkiv's Videoer tab keeps the recorded revyer (about 1.5 GB each) on a **Hetzner Volume**, not the 38 GB root disk. It is outside `/srv`, so the nightly backup skips it on purpose: the originals are kept elsewhere.
+
+Setting it up (once):
+
+1. Hetzner Cloud console → Volumes → Create: same location as web-1, ext4, attached to web-1 (80 GB to start; volumes can grow but never shrink).
+2. On web-1, mount it at `/mnt/videoer` by UUID (`blkid` shows it), with `nofail` so a missing volume never stops the boot:
+   ```bash
+   mkdir -p /mnt/videoer
+   echo 'UUID=<uuid> /mnt/videoer ext4 defaults,nofail,discard 0 2' >> /etc/fstab
+   mount -a
+   mkdir -p /mnt/videoer/store/incoming
+   touch /mnt/videoer/store/.matrevy-volume
+   chown -R 33:33 /mnt/videoer/store    # www-data inside the container
+   ```
+3. Redeploy in Coolify (or restart the `web` container), so it binds the mounted folder. `docker-compose.yml` mounts `/mnt/videoer/store` at `/videoer`.
+
+The `.matrevy-volume` file is the safety check: without it (the volume didn't mount, so Docker bound an empty folder on the root disk) every Videoer action refuses with "Videodisken på serveren er ikke tilgængelig", instead of filling the root disk. The space shown on the page is the volume's size, so nothing needs changing when it grows.
+
+Growing it: resize the volume in the Hetzner console, then `resize2fs /dev/disk/by-id/scsi-0HC_Volume_<id>` on web-1 (online, no restart).
+
+Importing old videos: copy them to the incoming folder (`rsync -P film.mp4 web-1:/mnt/videoer/store/incoming/`; the folder must stay owned by uid 33, so the page can move files out of it), then on the year in Videoer (edit mode, admin) press "Importér fra serveren". Videos must be MP4 with H.264 video and AAC audio. If the page says a video isn't optimised for streaming, fix it once with `ffmpeg -i ind.mp4 -c copy -movflags +faststart ud.mp4` (seconds, no re-encoding). Subtitles are uploaded per video on the page (.sbv as YouTube exports them, .srt or .vtt; they're stored as .vtt and can be downloaded again from the CC icon in edit mode).
+
 ### Backups
 
-`/srv` (all matrevy data, public and private) is backed up every night at 03:30 with **restic** to Backblaze B2. It keeps 7 daily, 4 weekly and 12 monthly snapshots. `/srv/matrevy/data/teknikken` (Teknikken's temporary videos and slides, up to 5 GB in total) and `/srv/matrevy/data/sangere` (Lydfiler's temporary practice audio, up to 500 MB) are excluded (Albums' songs in `/srv/matrevy/data/albums`, up to 12 GB, are permanent and stay in the backup): the nightly job is `/usr/local/bin/backup-srv`, whose line reads `restic backup /srv --tag nightly --exclude /srv/matrevy/data/teknikken --exclude /srv/matrevy/data/sangere`. The credentials are in `/root/.restic-env` on web-1. Keep `RESTIC_PASSWORD` in the password manager, because without it the backups can't be decrypted.
+`/srv` (all matrevy data, public and private) is backed up every night at 03:30 with **restic** to Backblaze B2. It keeps 7 daily, 4 weekly and 12 monthly snapshots. `/srv/matrevy/data/teknikken` (Teknikken's temporary videos and slides, up to 5 GB in total) and `/srv/matrevy/data/sangere` (Lydfiler's temporary practice audio, up to 500 MB) are excluded (Albums' songs in `/srv/matrevy/data/albums`, up to 12 GB, are permanent and stay in the backup; Videoer's videos are on `/mnt/videoer`, outside `/srv`, and deliberately not backed up): the nightly job is `/usr/local/bin/backup-srv`, whose line reads `restic backup /srv --tag nightly --exclude /srv/matrevy/data/teknikken --exclude /srv/matrevy/data/sangere`. The credentials are in `/root/.restic-env` on web-1. Keep `RESTIC_PASSWORD` in the password manager, because without it the backups can't be decrypted.
 
 Restore a single folder:
 

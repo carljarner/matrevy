@@ -17,6 +17,11 @@ services:
       SATYR_PASSWORD: ${SATYR_PASSWORD:-}
     volumes:
       - /srv/matrevy/data:/data
+      # Videoer's store: a Hetzner Volume mounted on the host at
+      # /mnt/videoer (outside /srv, so the nightly backup skips it). The
+      # store refuses to work until /mnt/videoer/store/.matrevy-volume
+      # exists, so an unmounted volume never fills the root disk.
+      - /mnt/videoer/store:/videoer
     # Traefik only routes to a container once its healthcheck has passed,
     # and Docker runs the first check one `interval` after start — so the
     # interval is also the 503 window on every deploy. 5 s keeps that short

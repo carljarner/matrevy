@@ -583,6 +583,56 @@ if (isset($ALBUMS_ACTIONS[$action])) {
   handle_teknik('teknik_' . substr($action, strlen('albums_')), $body);
 }
 
+// ── Videoer actions (the recorded revyer, with scene chapters) ──
+// Teknikken's store code on its own store (teknik_stores()['videoer']):
+// VIDEOER_DATA_DIR on a Hetzner Volume (not under /srv, so never backed
+// up; the originals are kept elsewhere), quota = the volume's size. One
+// flat folder per Arkiv year (`archiveFolder`), like Albums. A video is a
+// teknik file plus `order`, `durationSec`, `chapters`, `chaptersVersion`
+// and `subtitleFileId` (a .vtt in the same store, `subtitleFor` = the
+// video). Permanent: never emptied by "Afslut revyen", never mirrored.
+// Revyster watch; boss creates, uploads, edits chapters and subtitles;
+// admin imports files rsynced to the volume's incoming/ and deletes.
+$VIDEOER_ACTIONS = [
+  'videoer_read'          => 'revyst', // {folders (years), files (videos + subtitles), quotaBytes, usedBytes, streamUrls, streamExpiresAt}
+  'videoer_stream_urls'   => 'revyst', // {folderId?} → {urls, expiresAt}, signed inline for 12-36 h
+  'videoer_download_url'  => 'boss',   // {fileId} → a signed ?teknik_dl= link (attachment)
+  'videoer_create'        => 'boss',   // {archiveFolder} — one entry per Arkiv year
+  'videoer_delete'        => 'admin',  // {folderId} — the year, its videos and subtitles (the page's ✕, two steps)
+  'videoer_rename_file'   => 'boss',   // {fileId, name} — the video's title; the extension stays
+  'videoer_delete_file'   => 'admin',  // {fileId} — the video and its subtitles (unused by the page: ✕ removes the year)
+  'videoer_reorder'       => 'boss',   // {folderId, fileIds} — every video of the year, in the new order
+  'videoer_set_chapters'  => 'boss',   // {fileId, chapters: [{t, uid, label}], baseVersion} → 409 stale if changed meanwhile
+  'videoer_set_subtitles' => 'boss',   // {fileId, vtt} — WebVTT text (≤2 MB); '' removes them
+  'videoer_set_duration'  => 'boss',   // {fileId, durationSec} — for imports, measured on first play
+  'videoer_upload_start'  => 'boss',   // {folderId, name, size, durationSec?} — mp4/m4v only
+  'videoer_upload_chunk'  => 'boss',
+  'videoer_upload_finish' => 'boss',   // appends the video last in its year
+  'videoer_upload_abort'  => 'boss',
+  'videoer_list_incoming' => 'admin',  // the .mp4/.m4v files rsynced to incoming/
+  'videoer_import'        => 'admin',  // {name, folderId, title} — moves incoming/<name> into the store
+];
+if (isset($VIDEOER_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$VIDEOER_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  $GLOBALS['TEKNIK_STORE'] = 'videoer';
+  if ($action === 'videoer_read') videoer_read($body);
+  if ($action === 'videoer_stream_urls') albums_stream_urls($body);
+  if ($action === 'videoer_create') albums_create($body);
+  if ($action === 'videoer_delete') handle_teknik('teknik_delete_folder', $body);
+  if ($action === 'videoer_delete_file') videoer_delete_file($body);
+  if ($action === 'videoer_reorder') albums_reorder($body);
+  if ($action === 'videoer_set_chapters') videoer_set_chapters($body);
+  if ($action === 'videoer_set_subtitles') videoer_set_subtitles($body);
+  if ($action === 'videoer_set_duration') videoer_set_duration($body);
+  if ($action === 'videoer_list_incoming') videoer_list_incoming($body);
+  if ($action === 'videoer_import') videoer_import($body);
+  if ($action === 'videoer_download_url') $body['inline'] = false;
+  if ($action === 'videoer_upload_start') videoer_check_upload_name($body);
+  handle_teknik('teknik_' . substr($action, strlen('videoer_')), $body);
+}
+
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
 // posts_create is revyst-level append-only (mirrors budget_submit's shape,
 // against the public data/posts.json instead of the private budget store)
@@ -7045,7 +7095,18 @@ function teknik_stores() {
       'title' => 'Lydfiler', 'needsUploader' => false, 'pausable' => false, 'needsRevy' => true],
     'albums' => ['dir' => 'ALBUMS_DATA_DIR', 'doc' => 'albums.json', 'quota' => 12 * 1024 * 1024 * 1024,
       'title' => 'Albums', 'needsUploader' => false, 'pausable' => false, 'needsRevy' => false],
+    // On its own volume: the quota is the volume's size ('disk'), and the
+    // marker file proves the volume is mounted (requiresMarker).
+    'videoer' => ['dir' => 'VIDEOER_DATA_DIR', 'doc' => 'videoer.json', 'quota' => 'disk',
+      'title' => 'Videoer', 'needsUploader' => false, 'pausable' => false, 'needsRevy' => false,
+      'requiresMarker' => true],
   ];
+}
+
+// Stores whose files are ordered within their folder and carry a length
+// (Albums' tracks, Videoer's videos).
+function teknik_store_ordered() {
+  return in_array(teknik_store_key(), ['albums', 'videoer'], true);
 }
 
 function teknik_store_key() {
@@ -7062,12 +7123,23 @@ function teknik_dir() {
   if (!defined($const) || !is_string(constant($const)) || constant($const) === '') {
     respond(500, ['error' => 'teknik_not_configured']);
   }
-  return rtrim(constant($const), '/');
+  $dir = rtrim(constant($const), '/');
+  // A volume that failed to mount leaves an empty folder on the root disk
+  // (Docker binds it anyway): refuse everything rather than fill that disk.
+  if (!empty(teknik_store()['requiresMarker']) && !is_file($dir . '/.matrevy-volume')) {
+    respond(503, ['error' => teknik_store_key() . '_volume_missing']);
+  }
+  return $dir;
 }
 
 // The whole store's cap — every file plus every upload in progress.
+// 'disk' = the volume's size minus the reserve, so growing the volume
+// needs no deploy.
 function teknik_quota_bytes() {
-  return teknik_store()['quota'];
+  $quota = teknik_store()['quota'];
+  if ($quota !== 'disk') return $quota;
+  $total = @disk_total_space(teknik_dir());
+  return $total === false ? 0 : max(0, (int) $total - teknik_disk_reserve_bytes());
 }
 
 function teknik_max_chunk_bytes() {
@@ -7471,20 +7543,21 @@ function albums_reorder($body) {
   $doc = teknik_mutate(function ($doc) use ($folderId, $position) {
     if (!teknik_folder_exists($doc, $folderId)) respond(404, ['error' => 'not_found']);
     $have = 0;
+    // Videoer's subtitle files sit in the folder too, but aren't ordered.
     foreach ($doc['files'] as $file) {
-      if (($file['folderId'] ?? null) !== $folderId) continue;
+      if (($file['folderId'] ?? null) !== $folderId || isset($file['subtitleFor'])) continue;
       if (!isset($position[$file['id']])) respond(409, ['error' => 'stale']);
       $have++;
     }
     if ($have !== count($position)) respond(409, ['error' => 'stale']);
     foreach ($doc['files'] as &$file) {
-      if (($file['folderId'] ?? null) === $folderId) $file['order'] = $position[$file['id']];
+      if (($file['folderId'] ?? null) === $folderId && !isset($file['subtitleFor'])) $file['order'] = $position[$file['id']];
     }
     unset($file);
     return $doc;
   });
   $files = array_values(array_filter($doc['files'], function ($f) use ($folderId) {
-    return ($f['folderId'] ?? null) === $folderId;
+    return ($f['folderId'] ?? null) === $folderId && !isset($f['subtitleFor']);
   }));
   respond(200, ['ok' => true, 'files' => $files]);
 }
@@ -7548,7 +7621,7 @@ function albums_stream_url_map($doc, $folderId) {
     if ($folderId !== null && ($file['folderId'] ?? null) !== $folderId) continue;
     if (!teknik_valid_id($file['id'] ?? null)) continue;
     $inline = isset(teknik_inline_types()[$file['ext'] ?? '']) ? 1 : 0;
-    $urls->{$file['id']} = 'teknik_dl=' . teknik_sign_claims(['f' => $file['id'], 'e' => $expires, 'i' => $inline, 's' => 'albums']);
+    $urls->{$file['id']} = 'teknik_dl=' . teknik_sign_claims(['f' => $file['id'], 'e' => $expires, 'i' => $inline, 's' => teknik_store_key()]);
   }
   return [$urls, $expires];
 }
@@ -7614,6 +7687,361 @@ function albums_stream_urls($body) {
   if (!teknik_folder_exists($doc, $folderId)) respond(404, ['error' => 'not_found']);
   [$urls, $expires] = albums_stream_url_map($doc, $folderId);
   respond(200, ['ok' => true, 'urls' => $urls, 'expiresAt' => date('c', $expires)]);
+}
+
+// ── Videoer (teknik_stores()['videoer']) ──
+// A year is a top-level teknik folder plus `archiveFolder` (albums_create
+// makes it: one per Arkiv year). A video is a teknik file (mp4/m4v) plus
+// `order`, `durationSec`, `faststart`, `codecs` (read from the file by
+// videoer_mp4_probe), `chapters` ([{t, uid, label}]: seconds or null for
+// a scene not marked yet, the scene's uid from the year's snapshot or null
+// for a free chapter, the shown label), `chaptersVersion` (the 409 check)
+// and `subtitleFileId`. A subtitle is a .vtt file in the same folder with
+// `subtitleFor` = its video; it never shows as a video.
+
+function videoer_video_exts() {
+  return ['mp4', 'm4v'];
+}
+
+function videoer_new_video_fields() {
+  return ['chapters' => [], 'chaptersVersion' => 0, 'subtitleFileId' => null];
+}
+
+// The next `order` in a folder (subtitles aren't ordered).
+function teknik_next_order($doc, $folderId) {
+  $last = -1;
+  foreach ($doc['files'] ?? [] as $other) {
+    if (($other['folderId'] ?? null) !== $folderId || isset($other['subtitleFor'])) continue;
+    $last = max($last, (int) ($other['order'] ?? 0));
+  }
+  return $last + 1;
+}
+
+// Before videoer_upload_start: only browser-playable video files.
+function videoer_check_upload_name($body) {
+  $name = is_string($body['name'] ?? null) ? $body['name'] : '';
+  if (!in_array(strtolower(pathinfo($name, PATHINFO_EXTENSION)), videoer_video_exts(), true)) {
+    respond(400, ['error' => 'unsupported_type']);
+  }
+}
+
+// What the page needs to know about an MP4 without decoding it: the length
+// (moov/mvhd), whether `moov` comes before `mdat` (faststart: playback can
+// start before the whole index has arrived), and the sample formats of the
+// tracks (stsd: avc1 = H.264, hvc1/hev1 = HEVC, mp4a = AAC). Walks the
+// top-level boxes by their sizes, so a 2 GB file costs a few reads.
+function videoer_mp4_probe($path) {
+  $out = ['durationSec' => null, 'faststart' => null, 'codecs' => []];
+  $fh = @fopen($path, 'rb');
+  if (!$fh) return $out;
+  $size = filesize($path);
+  $pos = 0;
+  $moov = null;
+  $mdatAt = null;
+  for ($i = 0; $i < 1000 && $pos + 8 <= $size; $i++) {
+    fseek($fh, $pos);
+    $head = fread($fh, 16);
+    if (!is_string($head) || strlen($head) < 8) break;
+    $boxSize = unpack('N', substr($head, 0, 4))[1];
+    $type = substr($head, 4, 4);
+    $headLen = 8;
+    if ($boxSize === 1) {
+      if (strlen($head) < 16) break;
+      $boxSize = unpack('J', substr($head, 8, 8))[1];
+      $headLen = 16;
+    } elseif ($boxSize === 0) {
+      $boxSize = $size - $pos;
+    }
+    if ($boxSize < $headLen) break;
+    if ($type === 'mdat' && $mdatAt === null) $mdatAt = $pos;
+    if ($type === 'moov' && $moov === null) {
+      // The index: a few MB even for a long video; capped to be safe.
+      $len = $boxSize - $headLen;
+      if ($len > 0 && $len <= 64 * 1024 * 1024) {
+        fseek($fh, $pos + $headLen);
+        $moov = fread($fh, $len);
+        if ($out['faststart'] === null) $out['faststart'] = $mdatAt === null;
+      }
+    }
+    $pos += $boxSize;
+  }
+  fclose($fh);
+  if (!is_string($moov) || $moov === '') return $out;
+  $at = strpos($moov, 'mvhd');
+  if ($at !== false && $at + 4 + 28 <= strlen($moov)) {
+    $body = substr($moov, $at + 4, 32);
+    if (ord($body[0]) === 1) {
+      $scale = unpack('N', substr($body, 20, 4))[1];
+      $dur = unpack('J', substr($body, 24, 8))[1];
+    } else {
+      $scale = unpack('N', substr($body, 12, 4))[1];
+      $dur = unpack('N', substr($body, 16, 4))[1];
+    }
+    if ($scale > 0 && $dur > 0) {
+      $sec = round($dur / $scale, 1);
+      if ($sec > 0 && $sec <= 86400) $out['durationSec'] = $sec;
+    }
+  }
+  // stsd: version/flags (4), entry count (4), then the first entry's size
+  // (4) and format (4).
+  $offset = 0;
+  while (($at = strpos($moov, 'stsd', $offset)) !== false && count($out['codecs']) < 10) {
+    $format = substr($moov, $at + 16, 4);
+    if (preg_match('/^[A-Za-z0-9 .]{4}$/', $format) && !in_array($format, $out['codecs'], true)) {
+      $out['codecs'][] = $format;
+    }
+    $offset = $at + 4;
+  }
+  return $out;
+}
+
+function videoer_read($body) {
+  $doc = teknik_load();
+  [$urls, $expires] = albums_stream_url_map($doc, null);
+  $free = @disk_free_space(teknik_dir());
+  respond(200, [
+    'ok' => true,
+    'folders' => $doc['folders'] ?? [],
+    'files' => $doc['files'] ?? [],
+    'quotaBytes' => teknik_quota_bytes(),
+    'usedBytes' => teknik_used_bytes($doc),
+    'freeBytes' => $free === false ? null : max(0, (int) $free - teknik_disk_reserve_bytes()),
+    'streamUrls' => $urls,
+    'streamExpiresAt' => date('c', $expires),
+    'updatedAt' => $doc['updatedAt'] ?? null,
+  ]);
+}
+
+// {fileId}: a video and its subtitles. Idempotent (an unknown id is ok).
+function videoer_delete_file($body) {
+  $fileId = $body['fileId'] ?? '';
+  if (!teknik_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  $removed = [];
+  teknik_mutate(function ($doc) use ($fileId, &$removed) {
+    $doc['files'] = array_values(array_filter($doc['files'] ?? [], function ($f) use ($fileId, &$removed) {
+      $gone = $f['id'] === $fileId || ($f['subtitleFor'] ?? null) === $fileId;
+      if ($gone) $removed[] = $f['id'];
+      return !$gone;
+    }));
+    return $doc;
+  });
+  foreach ($removed as $id) {
+    if (teknik_valid_id($id)) @unlink(teknik_file_path($id));
+  }
+  respond(200, ['ok' => true]);
+}
+
+// The video record's index in $doc['files'] (subtitles don't count), or
+// a 404.
+function videoer_video_index($doc, $fileId) {
+  foreach ($doc['files'] ?? [] as $i => $file) {
+    if ($file['id'] === $fileId && !isset($file['subtitleFor'])) return $i;
+  }
+  respond(404, ['error' => 'not_found']);
+}
+
+// {fileId, chapters, baseVersion}: the video's whole chapter list, as the
+// editor has it (the page sorts it). 409 stale when someone else saved
+// since baseVersion; the reply carries the live list.
+function videoer_set_chapters($body) {
+  $fileId = $body['fileId'] ?? '';
+  $chapters = $body['chapters'] ?? null;
+  $baseVersion = $body['baseVersion'] ?? null;
+  if (!teknik_valid_id($fileId) || !is_array($chapters) || !array_is_list($chapters)
+      || count($chapters) > 500 || !is_int($baseVersion)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $clean = [];
+  foreach ($chapters as $ch) {
+    if (!is_array($ch)) respond(400, ['error' => 'invalid_shape']);
+    $t = $ch['t'] ?? null;
+    if ($t !== null && ((!is_int($t) && !is_float($t)) || $t < 0 || $t > 86400)) respond(400, ['error' => 'invalid_shape']);
+    $uid = $ch['uid'] ?? null;
+    if ($uid !== null && (!is_string($uid) || !preg_match('/^[A-Za-z0-9:_.-]{1,100}$/', $uid))) respond(400, ['error' => 'invalid_shape']);
+    $label = $ch['label'] ?? '';
+    if (!is_string($label) || mb_strlen($label) > 200) respond(400, ['error' => 'invalid_shape']);
+    $label = trim(preg_replace('/[\x00-\x1f\x7f]/u', ' ', $label) ?? '');
+    $clean[] = ['t' => $t === null ? null : round((float) $t, 1), 'uid' => $uid, 'label' => $label];
+  }
+  $saved = null;
+  teknik_mutate(function ($doc) use ($fileId, $clean, $baseVersion, &$saved) {
+    $i = videoer_video_index($doc, $fileId);
+    $file = $doc['files'][$i];
+    $version = (int) ($file['chaptersVersion'] ?? 0);
+    if ($version !== $baseVersion) {
+      respond(409, ['error' => 'stale', 'chapters' => $file['chapters'] ?? [], 'chaptersVersion' => $version]);
+    }
+    $doc['files'][$i]['chapters'] = $clean;
+    $doc['files'][$i]['chaptersVersion'] = $version + 1;
+    $saved = $doc['files'][$i];
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'chapters' => $saved['chapters'], 'chaptersVersion' => $saved['chaptersVersion']]);
+}
+
+// {fileId, vtt}: the video's subtitles as WebVTT text (the page converts
+// SRT). Written as a new file and swapped in under the lock; the old one
+// goes. '' removes them. The reply has the video and fresh stream URLs.
+function videoer_set_subtitles($body) {
+  $fileId = $body['fileId'] ?? '';
+  $vtt = $body['vtt'] ?? null;
+  if (!teknik_valid_id($fileId) || !is_string($vtt) || strlen($vtt) > 2 * 1024 * 1024) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  if (str_starts_with($vtt, "\xEF\xBB\xBF")) $vtt = substr($vtt, 3);
+  if ($vtt !== '' && (!mb_check_encoding($vtt, 'UTF-8') || !preg_match('/^WEBVTT(?:[ \t\r\n]|$)/', $vtt))) {
+    respond(400, ['error' => 'invalid_subtitles']);
+  }
+  $newId = null;
+  $newPath = null;
+  if ($vtt !== '') {
+    teknik_ensure_dir(teknik_dir() . '/files');
+    $newId = teknik_id();
+    $newPath = teknik_file_path($newId);
+    $tmp = $newPath . '.tmp';
+    if (@file_put_contents($tmp, $vtt) !== strlen($vtt) || !@rename($tmp, $newPath)) {
+      @unlink($tmp);
+      respond(500, ['error' => 'teknik_storage_unavailable']);
+    }
+  }
+  $oldId = null;
+  $saved = null;
+  $doc = teknik_mutate(function ($doc) use ($fileId, $newId, $newPath, $vtt, &$oldId, &$saved) {
+    $found = false;
+    foreach ($doc['files'] ?? [] as $f) {
+      if ($f['id'] === $fileId && !isset($f['subtitleFor'])) { $found = true; break; }
+    }
+    if (!$found) {
+      if ($newPath) @unlink($newPath);
+      respond(404, ['error' => 'not_found']);
+    }
+    $video = $doc['files'][videoer_video_index($doc, $fileId)];
+    $oldId = $video['subtitleFileId'] ?? null;
+    $doc['files'] = array_values(array_filter($doc['files'], function ($f) use ($fileId) {
+      return ($f['subtitleFor'] ?? null) !== $fileId;
+    }));
+    $i = videoer_video_index($doc, $fileId);
+    $doc['files'][$i]['subtitleFileId'] = $newId;
+    if ($newId !== null) {
+      // Named after the revy ("MatRevy 2025.vtt": what a boss downloads to
+      // correct them), else after the video.
+      $base = $video['ext'] !== '' ? preg_replace('/\.' . preg_quote($video['ext'], '/') . '$/i', '', $video['name']) : $video['name'];
+      foreach ($doc['folders'] ?? [] as $folder) {
+        if ($folder['id'] === $video['folderId'] && is_string($folder['name'] ?? null) && $folder['name'] !== '') $base = $folder['name'];
+      }
+      $doc['files'][] = [
+        'id' => $newId,
+        'folderId' => $video['folderId'],
+        'name' => $base . '.vtt',
+        'ext' => 'vtt',
+        'size' => strlen($vtt),
+        'uploadedAt' => date('c'),
+        'uploadedBy' => '',
+        'subtitleFor' => $fileId,
+      ];
+    }
+    $saved = $doc['files'][$i];
+    return $doc;
+  });
+  if (is_string($oldId) && teknik_valid_id($oldId) && $oldId !== $newId) @unlink(teknik_file_path($oldId));
+  [$urls, $expires] = albums_stream_url_map($doc, $saved['folderId'] ?? null);
+  $subtitle = $newId !== null ? teknik_find_file($doc, $newId) : null;
+  respond(200, ['ok' => true, 'file' => $saved, 'subtitle' => $subtitle, 'urls' => $urls, 'expiresAt' => date('c', $expires)]);
+}
+
+// {fileId, durationSec}: a length the file's header didn't give, measured
+// by the page on first play.
+function videoer_set_duration($body) {
+  $fileId = $body['fileId'] ?? '';
+  $d = $body['durationSec'] ?? null;
+  if (!teknik_valid_id($fileId) || (!is_int($d) && !is_float($d)) || $d <= 0 || $d > 86400) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  teknik_mutate(function ($doc) use ($fileId, $d) {
+    $i = videoer_video_index($doc, $fileId);
+    $doc['files'][$i]['durationSec'] = round((float) $d, 1);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'durationSec' => round((float) $d, 1)]);
+}
+
+// ── Videoer import (admin): files rsynced to the volume's incoming/ ──
+// The path guard: a plain file name (no separators, no leading dot) with a
+// video extension, whose realpath is a direct child of incoming/. Never
+// relax it: incoming/ is on the same volume as the store, and a looser
+// name could move any file the web user can read into it.
+function videoer_incoming_dir() {
+  return teknik_dir() . '/incoming';
+}
+
+function videoer_incoming_name_ok($name) {
+  return is_string($name) && preg_match('/^[A-Za-z0-9_ ()-][A-Za-z0-9._ ()-]{0,199}\.(mp4|m4v)$/i', $name) === 1
+    && strpos($name, '..') === false;
+}
+
+function videoer_incoming_path($name) {
+  if (!videoer_incoming_name_ok($name)) return null;
+  $dir = realpath(videoer_incoming_dir());
+  $path = videoer_incoming_dir() . '/' . $name;
+  if ($dir === false || is_link($path)) return null;
+  $real = realpath($path);
+  if ($real === false || dirname($real) !== $dir || !is_file($real)) return null;
+  return $real;
+}
+
+function videoer_list_incoming($body) {
+  teknik_ensure_dir(videoer_incoming_dir());
+  $files = [];
+  foreach (scandir(videoer_incoming_dir()) ?: [] as $name) {
+    $path = videoer_incoming_path($name);
+    if ($path === null) continue;
+    $files[] = ['name' => $name, 'size' => filesize($path), 'modifiedAt' => date('c', filemtime($path))];
+  }
+  respond(200, ['ok' => true, 'files' => $files]);
+}
+
+// {name, folderId, title}: moves incoming/<name> into the store (a rename
+// on the same volume, so instant) as the year's last video.
+function videoer_import($body) {
+  $name = $body['name'] ?? '';
+  $folderId = $body['folderId'] ?? '';
+  $title = teknik_clean_name($body['title'] ?? '');
+  if (!teknik_valid_id($folderId) || $title === '' || mb_strlen($title) > 190) respond(400, ['error' => 'invalid_shape']);
+  $path = videoer_incoming_path($name);
+  if ($path === null) respond(404, ['error' => 'not_found']);
+  $doc = teknik_load();
+  if (!teknik_folder_exists($doc, $folderId)) respond(404, ['error' => 'not_found']);
+  teknik_ensure_dir(teknik_dir() . '/files');
+  $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+  $fileId = teknik_id();
+  $dest = teknik_file_path($fileId);
+  $size = filesize($path);
+  if (!@rename($path, $dest)) respond(500, ['error' => 'teknik_storage_unavailable']);
+  $probe = videoer_mp4_probe($dest);
+  $file = [
+    'id' => $fileId,
+    'folderId' => $folderId,
+    'name' => $title . '.' . $ext,
+    'ext' => $ext,
+    'size' => $size,
+    'crc32' => null,
+    'uploadedAt' => date('c'),
+    'uploadedBy' => '',
+    'durationSec' => $probe['durationSec'],
+    'faststart' => $probe['faststart'],
+    'codecs' => $probe['codecs'],
+  ] + videoer_new_video_fields();
+  teknik_mutate(function ($doc) use (&$file, $dest, $path) {
+    // The year may have been deleted meanwhile: put the file back.
+    if (!teknik_folder_exists($doc, $file['folderId'])) {
+      @rename($dest, $path);
+      respond(404, ['error' => 'not_found']);
+    }
+    $file['order'] = teknik_next_order($doc, $file['folderId']);
+    $doc['files'][] = $file;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'file' => $file]);
 }
 
 // ── Chunked upload ──
@@ -7689,9 +8117,10 @@ function teknik_upload_start($body) {
     respond(400, ['error' => 'invalid_shape']);
   }
   if ($size > teknik_quota_bytes()) respond(413, ['error' => 'quota_exceeded']);
-  // Albums: every track belongs to an album, and the page measures its
-  // length before uploading (seconds, optional).
-  $albums = teknik_store_key() === 'albums';
+  // Albums/Videoer: every track or video belongs to a folder (an album, a
+  // year), and the page measures its length before uploading (seconds,
+  // optional).
+  $albums = teknik_store_ordered();
   if ($albums && $folderId === null) respond(400, ['error' => 'invalid_shape']);
   $durationSec = null;
   if ($albums && isset($body['durationSec'])) {
@@ -7787,8 +8216,9 @@ function teknik_upload_finish($body) {
   $dest = teknik_file_path($fileId);
   if (!@rename($part, $dest)) respond(500, ['error' => 'teknik_storage_unavailable']);
   // Stored for folder downloads: a zip entry needs its CRC up front.
+  // Videoer has no folder downloads (and its files are 1-2 GB).
   set_time_limit(300);
-  $crc = hash_file('crc32b', $dest);
+  $crc = teknik_store_key() === 'videoer' ? null : hash_file('crc32b', $dest);
   @unlink(teknik_upload_path($uploadId, 'json'));
   $ext = strtolower(pathinfo($meta['name'], PATHINFO_EXTENSION));
   if (!preg_match('/^[a-z0-9]{1,10}$/', $ext)) $ext = '';
@@ -7802,12 +8232,20 @@ function teknik_upload_finish($body) {
     'uploadedAt' => date('c'),
     'uploadedBy' => is_string($meta['uploadedBy'] ?? null) ? $meta['uploadedBy'] : '',
   ];
-  $albums = teknik_store_key() === 'albums';
+  $albums = teknik_store_ordered();
   if ($albums) {
     // The file's own header wins; the browser's measurement is the fallback.
     $d = $ext === 'flac' ? albums_flac_duration($dest) : null;
     if ($d === null) $d = $meta['durationSec'] ?? null;
     $file['durationSec'] = (is_int($d) || is_float($d)) ? $d : null;
+  }
+  if (teknik_store_key() === 'videoer') {
+    // The file's own header wins here too.
+    $probe = videoer_mp4_probe($dest);
+    if ($probe['durationSec'] !== null) $file['durationSec'] = $probe['durationSec'];
+    $file['faststart'] = $probe['faststart'];
+    $file['codecs'] = $probe['codecs'];
+    $file += videoer_new_video_fields();
   }
   teknik_mutate(function ($doc) use (&$file, $dest, $albums) {
     // The folder may have been deleted while the upload ran.
@@ -7815,14 +8253,8 @@ function teknik_upload_finish($body) {
       @unlink($dest);
       respond(404, ['error' => 'not_found']);
     }
-    // Albums: a new track goes last in its album's tracklist.
-    if ($albums) {
-      $last = -1;
-      foreach ($doc['files'] as $other) {
-        if (($other['folderId'] ?? null) === $file['folderId']) $last = max($last, (int) ($other['order'] ?? 0));
-      }
-      $file['order'] = $last + 1;
-    }
+    // Albums/Videoer: a new track or video goes last in its folder.
+    if ($albums) $file['order'] = teknik_next_order($doc, $file['folderId']);
     $doc['files'][] = $file;
     return $doc;
   });
@@ -7866,6 +8298,7 @@ function teknik_inline_types() {
     'mp4' => 'video/mp4', 'm4v' => 'video/x-m4v', 'mov' => 'video/quicktime',
     'mp3' => 'audio/mpeg', 'm4a' => 'audio/mp4', 'wav' => 'audio/wav',
     'aac' => 'audio/aac', 'ogg' => 'audio/ogg', 'flac' => 'audio/flac',
+    'vtt' => 'text/vtt; charset=utf-8',
   ];
 }
 
@@ -7955,7 +8388,7 @@ function teknik_serve_download($token) {
   header('Accept-Ranges: bytes');
   // An album's stream URLs stay the same for a day (albums_stream_urls), so
   // the browser may keep what it has fetched; everything else is no-store.
-  header('Cache-Control: ' . ($inline && $store === 'albums' ? 'private, max-age=43200' : 'private, no-store'));
+  header('Cache-Control: ' . ($inline && in_array($store, ['albums', 'videoer'], true) ? 'private, max-age=43200' : 'private, no-store'));
   header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']));
   set_time_limit(0);
   while (ob_get_level() > 0) ob_end_clean();

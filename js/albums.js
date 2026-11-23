@@ -1776,7 +1776,12 @@ document.addEventListener('arkiv-media-play', (e) => {
 });
 
 function albOnPlayState(e) {
-  if (e && e.type === 'play') document.dispatchEvent(new CustomEvent('arkiv-media-play', { detail: { source: 'albums' } }));
+  if (e && e.type === 'play') {
+    document.dispatchEvent(new CustomEvent('arkiv-media-play', { detail: { source: 'albums' } }));
+    // Videoer sets its own lock screen handlers while a video plays.
+    albInitMediaSession();
+    albUpdateMediaSession();
+  }
   albPaintPlayer();
   albMarkPlaying();
   if ('mediaSession' in navigator) {

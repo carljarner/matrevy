@@ -9,6 +9,7 @@
   <link rel="icon" type="image/png" href="img/favicon.png" />
   <link rel="stylesheet" href="css/archive.css" />
   <link rel="stylesheet" href="css/albums.css" />
+  <link rel="stylesheet" href="css/videoer.css" />
 </head>
 <body>
   <!-- Nav + login rendered by site.js from its central page registry -->
@@ -22,7 +23,7 @@
     </section>
 
     <!-- Tabs, routed by the URL hash in archive.js (arkivRoute):
-         #arkiv (or none), #videoer, #albums, #albums/<folder>. -->
+         #arkiv (or none), #videoer[/<folder>[/<scene>]], #albums[/<folder>]. -->
     <div class="site-tabs arkiv-tabs" role="tablist" aria-label="Arkiv">
       <button type="button" class="site-tab" role="tab" data-tab="arkiv">Arkiv</button>
       <button type="button" class="site-tab" role="tab" data-tab="videoer">Videoer</button>
@@ -33,9 +34,7 @@
       <div id="arkiv-list" class="arkiv-grid"></div>
     </section>
     <section id="arkiv-tab-videoer" class="arkiv-tab-panel" role="tabpanel" hidden>
-      <div id="videoer-root">
-        <section class="card"><p class="site-empty">Videoerne kommer snart.</p></section>
-      </div>
+      <div id="videoer-root"></div>
     </section>
     <section id="arkiv-tab-albums" class="arkiv-tab-panel" role="tabpanel" hidden>
       <div id="albums-root"></div>
@@ -53,5 +52,6 @@
   <script src="js/config-data.js"></script>
   <script src="js/archive.js"></script>
   <script src="js/albums.js"></script>
+  <script src="js/videoer.js"></script>
 </body>
 </html>

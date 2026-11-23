@@ -1,0 +1,810 @@
+/* =========================================================
+   Matematikrevyen – Videoer styles (the Videoer tab on arkiv.html)
+   The overview grid, the year view (player, scene strip, scene list),
+   the boss's editors, and the upload modal/panel (copies of albums.css's).
+   Shared shell styles live in style.css. 719px is the site-wide mobile
+   breakpoint, 420px the narrow-phone one.
+   ========================================================= */
+
+/* `hidden` must win over the display rules below and in style.css (the
+   strip's hover label, .site-icon-btn's inline-flex, …): there is no
+   site-wide [hidden] rule, so without this, el.hidden = true leaves
+   them on screen. */
+#videoer-root [hidden],
+.vid-strip-tip[hidden] {
+  display: none !important;
+}
+
+.vid-error {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.vid-warn {
+  margin: 0.35rem 0 0;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+/* --- Overview: a grid of year covers -------------------------------- */
+.vid-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 1rem;
+}
+
+.vid-tile {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+@media (hover: hover) {
+  .vid-tile:hover {
+    background: var(--row-hover);
+    border-color: var(--accent-warm);
+  }
+}
+
+.vid-tile:focus-visible {
+  outline: none;
+  border-color: var(--accent-warm);
+  box-shadow: var(--focus-ring);
+}
+
+/* After the last year (boss): the round "+" in a dashed empty spot. */
+.vid-tile.vid-tile-add {
+  align-items: center;
+  justify-content: center;
+  min-height: 12rem;
+  background: transparent;
+  border: 2px dashed var(--neutral-border);
+  cursor: default;
+}
+
+@media (hover: hover) {
+  .vid-tile.vid-tile-add:hover {
+    background: transparent;
+    border-color: var(--neutral-border);
+  }
+}
+
+.vid-round-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent-warm-text);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+@media (hover: hover) {
+  .vid-round-btn:hover {
+    background: var(--warm-hover);
+    transform: scale(1.04);
+  }
+}
+
+.vid-round-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.vid-empty-hint {
+  margin: 0.75rem 0 0;
+}
+
+.vid-tile-name {
+  margin-top: 0.55rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vid-tile-meta {
+  margin-top: 0.1rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+/* --- Covers (square; ▶ when the year has none) --------------------- */
+.vid-cover {
+  position: relative;
+  aspect-ratio: 1;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+.vid-cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.vid-cover-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+/* A round ▶ in the cover's corner: this tile is a video. */
+.vid-tile-badge {
+  position: absolute;
+  right: 0.45rem;
+  bottom: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding-left: 2px;
+  border-radius: 50%;
+  background: rgba(31, 35, 40, 0.78);
+  color: #fff;
+}
+
+/* --- Year view ------------------------------------------------------ */
+.vid-year-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.vid-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.3rem 0.2rem 0;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .vid-back:hover {
+    color: var(--accent-warm-text);
+  }
+}
+
+.vid-back:focus-visible {
+  outline: none;
+  color: var(--accent-warm-text);
+  box-shadow: var(--focus-ring);
+}
+
+.vid-year-head {
+  margin-bottom: 0.9rem;
+}
+
+/* .page-content prefix: beats style.css's `.page-content h2` (1.1rem). */
+.page-content .vid-year-name {
+  margin: 0;
+  font-size: 1.6rem;
+  line-height: 1.15;
+}
+
+.vid-year-meta {
+  margin: 0.15rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.vid-no-videos {
+  margin: 0.5rem 0 0;
+}
+
+/* Player + scene list side by side when wide, stacked otherwise. */
+.vid-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 1000px) {
+  .vid-stage.vid-stage-side {
+    grid-template-columns: minmax(0, 1fr) minmax(15rem, 19rem);
+  }
+
+  /* The scene list is exactly as tall as the video column (video, strip,
+     buttons) and scrolls inside: height 0 keeps it from adding to the
+     row's height, min-height 100% stretches it to the row the video
+     column sets. */
+  .vid-stage-side .vid-side {
+    display: flex;
+    flex-direction: column;
+    height: 0;
+    min-height: 100%;
+  }
+
+  .vid-stage-side .vid-chapters {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+/* As wide as a 16:9 picture that fits on screen (the strip and controls
+   line up with it); smaller while editing, so the scene editor stays in
+   view next to it while marking. */
+.vid-main {
+  min-width: 0;
+  width: 100%;
+  max-width: calc((100vh - 14rem) * 16 / 9);
+  margin-inline: auto;
+}
+
+.vid-editing .vid-main {
+  max-width: calc(48vh * 16 / 9);
+}
+
+.vid-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: var(--radius);
+  object-fit: contain;
+}
+
+/* Subtitles: readable on any picture. */
+.vid-video::cue {
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 1.05em;
+  line-height: 1.3;
+}
+
+/* --- Scene strip: one segment per chapter, the current one amber ----
+   Each segment is placed by time (left/width in % of the video's length,
+   set in JS), so boundaries and the playhead match the real times. The
+   2px gap after a segment is cut out of it (background-clip), never added
+   between segments, which would shift everything after it. The empty
+   track shows before the first scene. */
+.vid-strip {
+  position: relative;
+  height: 0.75rem;
+  margin-top: 0.5rem;
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+
+.vid-strip-seg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding: 0 2px 0 0;
+  border: none;
+  border-radius: 2px;
+  background: var(--border);
+  background-clip: content-box;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.vid-strip-seg.vid-strip-last {
+  padding-right: 0;
+}
+
+.vid-strip-seg.vid-strip-current {
+  background-color: var(--accent-warm);
+}
+
+@media (hover: hover) {
+  .vid-strip-seg:hover {
+    background-color: var(--accent-warm-text);
+  }
+}
+
+/* The hover label: the site's dark tooltip (z-index 250, see CLAUDE.md). */
+.vid-strip-tip {
+  position: fixed;
+  z-index: 250;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  max-width: min(22rem, calc(100vw - 16px));
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: var(--header);
+  color: var(--surface);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.vid-strip-tip-label {
+  min-width: 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.vid-strip-tip-time {
+  flex: none;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The playhead: a thin dark line at --vid-pos. */
+.vid-strip-head {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: var(--vid-pos, 0%);
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text);
+  pointer-events: none;
+}
+
+/* --- Controls under the video --------------------------------------- */
+.vid-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  min-height: 2.25rem;
+}
+
+.vid-now {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+
+.vid-now-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.vid-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-right: 0.25rem;
+}
+
+/* --- Scene list ----------------------------------------------------- */
+.vid-side {
+  min-width: 0;
+}
+
+.vid-side-title,
+.vid-edit-title {
+  margin: 0 0 0.4rem;
+  font-size: var(--fs-md);
+}
+
+.vid-chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.vid-chapter {
+  display: flex;
+  align-items: center;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.vid-chapter:last-child {
+  box-shadow: none;
+}
+
+.vid-chapter-main {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vid-chapter-main:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.vid-chapter-time {
+  flex: none;
+  min-width: 3.6rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.vid-chapter-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The playing scene: a light amber fill (a picked row in a long list). */
+.vid-chapter.vid-chapter-current {
+  background: var(--accent-warm-fill);
+}
+
+.vid-chapter.vid-chapter-current .vid-chapter-label {
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  .vid-chapter:not(.vid-chapter-current):hover {
+    background: var(--row-hover);
+  }
+}
+
+/* --- Edit mode (boss): the year's videos ---------------------------- */
+.vid-edit-videos {
+  margin-bottom: 1rem;
+}
+
+.vid-edit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.vid-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0.35rem 0.5rem;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.vid-edit-row:last-child {
+  box-shadow: none;
+}
+
+.vid-edit-row > .vid-warn {
+  flex-basis: 100%;
+  margin: 0 0 0.2rem;
+}
+
+.vid-edit-name {
+  flex: none;
+  font-weight: 700;
+}
+
+.vid-edit-info {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.vid-edit-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  margin-left: auto;
+}
+
+/* A revy without a video: "Upload video" (and admin's "Importér"), centred. */
+.vid-edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.vid-file-dragover {
+  outline: 2px dashed var(--accent-warm);
+  outline-offset: -6px;
+}
+
+/* --- Chapter editor (boss) ------------------------------------------ */
+.vid-chapter-editor {
+  min-width: 0;
+}
+
+.vid-ce-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vid-ce-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+/* Scrolls inside itself, so marking a scene never scrolls the video away. */
+.vid-ce-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(30rem, 50vh);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.vid-ce-empty {
+  padding: 0.6rem;
+}
+
+.vid-ce-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.4rem;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.vid-ce-row:last-child {
+  box-shadow: none;
+}
+
+.vid-ce-time {
+  flex: none;
+  width: 5.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.vid-ce-unmarked .vid-ce-time {
+  background: var(--danger-bg);
+}
+
+.vid-ce-unmarked .vid-ce-label {
+  color: var(--text-muted);
+}
+
+.vid-ce-label {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Modals --------------------------------------------------------- */
+.vid-modal-hint {
+  margin: 0 0 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.vid-act-check {
+  display: block;
+  margin: 0.35rem 0;
+}
+
+.vid-sub-preview {
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  font-size: var(--fs-sm);
+}
+
+.vid-sub-cue {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.15rem 0;
+}
+
+.vid-sub-time {
+  flex: none;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vid-sub-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.vid-upload-hint {
+  margin: 0 0 0.6rem;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.vid-upload-item {
+  margin-bottom: 0.7rem;
+}
+
+.vid-import-row {
+  padding: 0.4rem 0;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.vid-import-row .vid-upload-item-head {
+  margin: 0;
+}
+
+.vid-upload-item-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.3rem;
+  min-width: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+}
+
+.vid-upload-item-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vid-upload-item-size {
+  flex: none;
+}
+
+.vid-upload-check {
+  margin: 0.3rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.vid-upload-check.vid-warn {
+  color: var(--danger);
+}
+
+.vid-upload-check-ok {
+  margin: 0.3rem 0 0;
+  color: var(--success);
+  font-size: var(--fs-sm);
+}
+
+.vid-upload-space {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.vid-import-list {
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+/* --- Upload panel (copy of albums.css's) ---------------------------- */
+.vid-uploads {
+  margin-top: 1rem;
+}
+
+.vid-uploads-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.vid-uploads-hint {
+  margin: 0 0 0.4rem;
+}
+
+.vid-upload {
+  padding: 0.45rem 0;
+  box-shadow: inset 0 -1px 0 0 var(--border);
+}
+
+.vid-upload-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.vid-upload-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vid-upload-where,
+.vid-upload-status {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+}
+
+.vid-upload-failed .vid-upload-status {
+  color: var(--danger);
+  white-space: normal;
+}
+
+.vid-progress {
+  height: 6px;
+  margin-top: 0.35rem;
+  border-radius: 3px;
+  background: var(--progress-track);
+  box-shadow: inset 0 0 0 1px var(--border);
+  overflow: hidden;
+}
+
+.vid-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent-warm);
+  transition: width 0.2s ease;
+}
+
+.vid-upload-failed .vid-progress-fill {
+  background: var(--danger);
+}
+
+/* --- Phones --------------------------------------------------------- */
+@media (max-width: 719px) {
+  .vid-main,
+  .vid-editing .vid-main {
+    max-width: none;
+  }
+
+  .page-content .vid-year-name {
+    font-size: 1.3rem;
+  }
+
+  .vid-upload-where {
+    display: none;
+  }
+
+  .vid-edit-info {
+    order: 3;
+  }
+
+  .vid-edit-tools {
+    order: 4;
+  }
+
+  .vid-edit-row > .vid-warn {
+    order: 5;
+    margin-left: 0;
+  }
+
+}

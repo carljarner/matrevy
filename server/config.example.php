@@ -116,6 +116,14 @@ define('SANGERE_DATA_DIR', '/absolute/path/to/matrevy-sangere-data');
 // web-served folder. Must be PHP-writable.
 define('ALBUMS_DATA_DIR', '/absolute/path/to/matrevy-albums-data');
 
+// Absolute path on the server for Videoer's file store (the recorded
+// revyer, 1-2 GB each; same code and layout as Teknikken's, with
+// videoer.json, plus incoming/ for admin imports). On its own volume in
+// production: the store refuses every action until the folder holds a
+// `.matrevy-volume` marker file, and its quota is the volume's size.
+// Never a web-served folder. Must be PHP-writable.
+define('VIDEOER_DATA_DIR', '/absolute/path/to/matrevy-videoer-data');
+
 // Absolute path on the server for Koordinator's account logins (Google,
 // YouTube, Spotify: e-mail, password, phone). Secret: never a web-served
 // folder, admin-only actions. Layout: logins.json, created on first save.

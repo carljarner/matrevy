@@ -37,6 +37,8 @@ define('REKVISIT_DATA_DIR', matrevy_env('REKVISIT_DATA_DIR', '/data/rekvisitten'
 define('TEKNIK_DATA_DIR', matrevy_env('TEKNIK_DATA_DIR', '/data/teknikken'));
 define('SANGERE_DATA_DIR', matrevy_env('SANGERE_DATA_DIR', '/data/sangere'));
 define('ALBUMS_DATA_DIR', matrevy_env('ALBUMS_DATA_DIR', '/data/albums'));
+// Its own Hetzner Volume, mounted at /videoer (docker-compose.yml), not under /data.
+define('VIDEOER_DATA_DIR', matrevy_env('VIDEOER_DATA_DIR', '/videoer'));
 define('KOORD_DATA_DIR', matrevy_env('KOORD_DATA_DIR', '/data/koordinator'));
 define('PROGRAMKLADDE_DATA_DIR', matrevy_env('PROGRAMKLADDE_DATA_DIR', '/data/programkladde'));
 
