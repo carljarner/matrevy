@@ -32,7 +32,7 @@ Internal website for Matematikrevyen (Danish student revue) at `matematikrevy.dk
 |---|---|---|
 | Forside (Posts, Bosser) | `index.html`, `posts.js`, `bosses.js` | `forside.md` |
 | Kalender (+ .ics, Gantt, Revyugen) | `kalender.html`, `calendar.js`; `.ics` in `embed-scenes.js` | `kalender.md` |
-| Arkiv | `arkiv.html`, `archive.js` | `arkiv.md` |
+| Arkiv (tabs Arkiv / Videoer / Albums) | `arkiv.html`, `archive.js` | `arkiv.md` |
 | Wiki | `wiki.html`, `wiki.js` | `wiki.md` |
 | Manus (+ Program, PDFs) | `manus.html`, `manus.js`, `manus-data.js`, `scripts/generate-pdfs.js`, `manus/` | `manus.md` |
 | Stjerneark | `stjerneark.*` | `stjerneark.md` |
@@ -46,6 +46,7 @@ Internal website for Matematikrevyen (Danish student revue) at `matematikrevy.dk
 | Rekvisitten | `rekvisitten.html`, `rekvisit.*` | `rekvisitten.md` |
 | Teknikken | `teknikken.*` | `teknikken.md` |
 | Lydfiler (internally `sangere`; shares Teknikken's server code) | `lydfiler.html`, `js/sangere.js`, `css/sangere.css` | `lydfiler.md` |
+| Albums (revy songs player, a tab on Arkiv; shares Teknikken's server code) | `js/albums.js`, `css/albums.css` | `albums.md` |
 | Program (Redskaber; scratch Medvirkende/Ordliste, internally `programkladde` server-side) | `program.*` | `program.md` |
 | Øveplan | `schedule.*` | `oveplan.md` |
 | Header/nav/login | `js/site.js` | `site-shell.md` |
@@ -56,7 +57,7 @@ Internal website for Matematikrevyen (Danish student revue) at `matematikrevy.dk
 ## Hosting & data flow
 
 - **Two containers** (`docker-compose.yml`), both mounting `/srv/matrevy/data` at `/data`: **`web`** (`php:8.3-apache`: static files, `update-data.php`, `health.php`, `config.php` from Coolify env vars `REVYST_/BOSS_/ADMIN_PASSWORD`, optional `SATYR_PASSWORD`) and **`worker`** (TeX Live + Node: reruns `embed-scenes.js` / `generate-pdfs.js` when `update-data.php` drops a flag file, and mirrors the archive to GitHub). Apache gives pages **clean URLs** (`/kalender`); `server/dev-router.php` mirrors those rules for local `php -S`.
-- **Live data**: public in `/srv/matrevy/data/site/{data,archive,posts,wiki}` (+ `generated/` for `js/*-data.js` and `calendar.ics`); private in `/srv/matrevy/data/{budget,forms,faellesspisning,band,kostumetinder,ninjas,rekvisitten,lokaler,teknikken,sangere,koordinator,programkladde}`, never web-served. Nightly restic backup of `/srv`, except `teknikken/` and `sangere/`. The repo doesn't track `data/*.json`, `posts/`, `wiki/`, `calendar.ics` or `js/*-data.js` (except `manus-data.js`); editing local copies changes nothing live.
+- **Live data**: public in `/srv/matrevy/data/site/{data,archive,posts,wiki}` (+ `generated/` for `js/*-data.js` and `calendar.ics`); private in `/srv/matrevy/data/{budget,forms,faellesspisning,band,kostumetinder,ninjas,rekvisitten,lokaler,teknikken,sangere,albums,koordinator,programkladde}`, never web-served. Nightly restic backup of `/srv`, except `teknikken/` and `sangere/` (`albums/` is backed up). The repo doesn't track `data/*.json`, `posts/`, `wiki/`, `calendar.ics` or `js/*-data.js` (except `manus-data.js`); editing local copies changes nothing live.
 - **Save path**: browser → `update-data.php` → `github_api()` (now a local-disk stand-in: base64 `content` + `sha` = sha1 of the bytes, flock'd, atomic rename, stale `sha` → 409) → touches `.embed-requested` → worker regenerates embeds. Visible on next load within ~3 s; a full PDF build takes ~15 s.
 - **Deploy**: push to `main` → Coolify rebuilds both containers (code is baked into the image). Secrets only in Coolify env vars. `SITE_API_ENDPOINT` is always `/update-data.php` (same origin); CORS only allows `https://matematikrevy.dk`.
 - **Archive mirror**: the worker pushes `/data/site/archive/` to the repo's `archive/` ~5 min after the last change. Until Manus's "Revyster kan se manus"/"… roller" toggles are on, the current production is mirrored hidden or redacted (`server.md`).

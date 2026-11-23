@@ -544,6 +544,43 @@ if (isset($SANGERE_ACTIONS[$action])) {
   handle_teknik('teknik_' . substr($action, strlen('sangere_')), $body);
 }
 
+// ── Albums actions (the revy songs as a members-only music player) ──
+// Teknikken's store code on its own store (teknik_stores()['albums']):
+// ALBUMS_DATA_DIR, 12 GB, one flat folder per album tied to an Arkiv year
+// (`archiveFolder`), tracks ordered by `order`. Permanent: never emptied
+// by "Afslut revyen", never mirrored, kept in the nightly backup. Revyster
+// listen; boss creates albums, uploads, edits and downloads.
+$ALBUMS_ACTIONS = [
+  'albums_read'                => 'revyst', // {folders (albums), files (tracks), quotaBytes, streamUrls, streamExpiresAt}
+  'albums_stream_urls'         => 'revyst', // {folderId?} → {urls: {fileId: query}, expiresAt}, signed inline for 12-36 h
+  'albums_count_play'          => 'revyst', // {fileId} → {plays}: one play, sent once a song has been listened to for 30 s (or half of a shorter one)
+  'albums_download_url'        => 'boss',   // {fileId} → a signed ?teknik_dl= link (attachment)
+  'albums_folder_download_url' => 'boss',   // {folderId} → the album as one numbered .zip
+  'albums_create'              => 'boss',   // {archiveFolder} — one album per Arkiv year
+  'albums_delete'              => 'boss',   // {folderId} — the album and all its tracks
+  'albums_rename_file'         => 'boss',   // {fileId, name} — the track title; the extension stays
+  'albums_delete_file'         => 'boss',
+  'albums_reorder'             => 'boss',   // {folderId, fileIds} — every track of the album, in the new order
+  'albums_upload_start'        => 'boss',   // {folderId, name, size, durationSec?}
+  'albums_upload_chunk'        => 'boss',
+  'albums_upload_finish'       => 'boss',   // appends the track last in its album
+  'albums_upload_abort'        => 'boss',
+];
+if (isset($ALBUMS_ACTIONS[$action])) {
+  if ($LEVEL_RANK[$level] < $LEVEL_RANK[$ALBUMS_ACTIONS[$action]]) {
+    respond(403, ['error' => 'insufficient_level']);
+  }
+  $GLOBALS['TEKNIK_STORE'] = 'albums';
+  if ($action === 'albums_read') albums_read($body);
+  if ($action === 'albums_create') albums_create($body);
+  if ($action === 'albums_delete') handle_teknik('teknik_delete_folder', $body);
+  if ($action === 'albums_reorder') albums_reorder($body);
+  if ($action === 'albums_count_play') albums_count_play($body);
+  if ($action === 'albums_stream_urls') albums_stream_urls($body);
+  if ($action === 'albums_download_url') $body['inline'] = false;
+  handle_teknik('teknik_' . substr($action, strlen('albums_')), $body);
+}
+
 // ── Posts actions (public, git-backed dashboard forum on Forside) ──
 // posts_create is revyst-level append-only (mirrors budget_submit's shape,
 // against the public data/posts.json instead of the private budget store)
@@ -6993,15 +7030,19 @@ function handle_lokaler($action, $body) {
 // (teknik_serve_download(), dispatched near the top) that the browser
 // downloads natively. Dispatched early, so hoisted functions only.
 
-// The same code also backs Sangere's store (the singers' practice audio):
+// The same code also backs Sangere's store (the singers' practice audio)
+// and Albums (the revy songs, one folder per album):
 // `$GLOBALS['TEKNIK_STORE']` names the store an action works on, set at
-// dispatch ($SANGERE_ACTIONS) or from a signed link's `s` claim.
+// dispatch ($SANGERE_ACTIONS, $ALBUMS_ACTIONS) or from a signed link's `s`
+// claim. `needsRevy`: uploads only while a revy is active.
 function teknik_stores() {
   return [
     'teknikken' => ['dir' => 'TEKNIK_DATA_DIR', 'doc' => 'teknikken.json', 'quota' => 5 * 1024 * 1024 * 1024,
-      'title' => 'Teknikken', 'needsUploader' => true, 'pausable' => true],
+      'title' => 'Teknikken', 'needsUploader' => true, 'pausable' => true, 'needsRevy' => true],
     'sangere' => ['dir' => 'SANGERE_DATA_DIR', 'doc' => 'sangere.json', 'quota' => 500 * 1024 * 1024,
-      'title' => 'Lydfiler', 'needsUploader' => false, 'pausable' => false],
+      'title' => 'Lydfiler', 'needsUploader' => false, 'pausable' => false, 'needsRevy' => true],
+    'albums' => ['dir' => 'ALBUMS_DATA_DIR', 'doc' => 'albums.json', 'quota' => 12 * 1024 * 1024 * 1024,
+      'title' => 'Albums', 'needsUploader' => false, 'pausable' => false, 'needsRevy' => false],
   ];
 }
 
@@ -7372,6 +7413,144 @@ function teknik_move_folder($body) {
   respond(200, ['ok' => true, 'folder' => $saved]);
 }
 
+// ── Albums (teknik_stores()['albums']) ──
+// An album is a top-level teknik folder plus `archiveFolder` (the Arkiv
+// year it belongs to, at most one album each); its name is copied from
+// archive.json so the zip is named after the revy. A track is a teknik
+// file plus `order`, `durationSec` and `plays`.
+
+// {archiveFolder}. The folder must be a `folder` in data/archive.json —
+// that lookup is the guard, the regex only rejects junk early.
+function albums_create($body) {
+  $archiveFolder = $body['archiveFolder'] ?? '';
+  if (!is_string($archiveFolder) || !preg_match('/^[A-Za-z0-9_-]{1,100}$/', $archiveFolder)) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  [$status, $file] = github_api('GET', 'contents/data/archive.json');
+  if ($status !== 200) respond(500, ['error' => 'github_read_failed']);
+  $years = json_decode(base64_decode($file['content']), true)['years'] ?? [];
+  $entry = null;
+  foreach (is_array($years) ? $years : [] as $year) {
+    if (is_array($year) && ($year['folder'] ?? null) === $archiveFolder) { $entry = $year; break; }
+  }
+  if ($entry === null) respond(404, ['error' => 'not_found']);
+  $name = teknik_clean_name(is_string($entry['name'] ?? null) ? $entry['name'] : '');
+  $album = [
+    'id' => teknik_id(),
+    'name' => $name !== '' ? $name : str_replace('_', ' ', $archiveFolder),
+    'parentId' => null,
+    'archiveFolder' => $archiveFolder,
+    'createdAt' => date('c'),
+  ];
+  teknik_mutate(function ($doc) use ($album) {
+    foreach ($doc['folders'] ?? [] as $folder) {
+      if (($folder['archiveFolder'] ?? null) === $album['archiveFolder']) respond(409, ['error' => 'album_exists']);
+    }
+    $doc['folders'][] = $album;
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'folder' => $album]);
+}
+
+// {folderId, fileIds}: the album's tracks in their new order. The list must
+// be exactly the album's tracks (409 stale otherwise: reload and retry).
+function albums_reorder($body) {
+  $folderId = $body['folderId'] ?? '';
+  $fileIds = $body['fileIds'] ?? null;
+  if (!teknik_valid_id($folderId) || !is_array($fileIds) || !array_is_list($fileIds) || count($fileIds) > 500) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  foreach ($fileIds as $id) {
+    if (!teknik_valid_id($id)) respond(400, ['error' => 'invalid_shape']);
+  }
+  $position = array_flip($fileIds);
+  if (count($position) !== count($fileIds)) respond(400, ['error' => 'invalid_shape']);
+  $doc = teknik_mutate(function ($doc) use ($folderId, $position) {
+    if (!teknik_folder_exists($doc, $folderId)) respond(404, ['error' => 'not_found']);
+    $have = 0;
+    foreach ($doc['files'] as $file) {
+      if (($file['folderId'] ?? null) !== $folderId) continue;
+      if (!isset($position[$file['id']])) respond(409, ['error' => 'stale']);
+      $have++;
+    }
+    if ($have !== count($position)) respond(409, ['error' => 'stale']);
+    foreach ($doc['files'] as &$file) {
+      if (($file['folderId'] ?? null) === $folderId) $file['order'] = $position[$file['id']];
+    }
+    unset($file);
+    return $doc;
+  });
+  $files = array_values(array_filter($doc['files'], function ($f) use ($folderId) {
+    return ($f['folderId'] ?? null) === $folderId;
+  }));
+  respond(200, ['ok' => true, 'files' => $files]);
+}
+
+// {fileId}: one more play of the track (the page decides what counts as a
+// play, like Spotify: 30 s listened, or half of a shorter song). Shared
+// passwords, so this is a popularity counter, not an audit.
+function albums_count_play($body) {
+  $fileId = $body['fileId'] ?? '';
+  if (!teknik_valid_id($fileId)) respond(400, ['error' => 'invalid_shape']);
+  $plays = null;
+  teknik_mutate(function ($doc) use ($fileId, &$plays) {
+    foreach ($doc['files'] as &$file) {
+      if ($file['id'] !== $fileId) continue;
+      $file['plays'] = (int) ($file['plays'] ?? 0) + 1;
+      $plays = $file['plays'];
+    }
+    unset($file);
+    if ($plays === null) respond(404, ['error' => 'not_found']);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'plays' => $plays]);
+}
+
+// Signed inline URLs for every track (folderId null = every album), so the
+// page has them before a tap: iOS only starts audio when play() runs inside
+// the tap itself, with no request first, and the next song can start with
+// the phone locked. The expiry is the first 04:00 at least 12 h away: valid
+// 12-36 h and the same all day, so the URLs (and the browser's cache of
+// them) stay stable. Returns [urls (fileId → query), expires].
+function albums_stream_url_map($doc, $folderId) {
+  $base = time() + 12 * 3600;
+  $expires = strtotime('today 04:00', $base);
+  if ($expires <= $base) $expires = strtotime('tomorrow 04:00', $base);
+  $urls = new stdClass();
+  foreach ($doc['files'] ?? [] as $file) {
+    if ($folderId !== null && ($file['folderId'] ?? null) !== $folderId) continue;
+    if (!teknik_valid_id($file['id'] ?? null)) continue;
+    $inline = isset(teknik_inline_types()[$file['ext'] ?? '']) ? 1 : 0;
+    $urls->{$file['id']} = 'teknik_dl=' . teknik_sign_claims(['f' => $file['id'], 'e' => $expires, 'i' => $inline, 's' => 'albums']);
+  }
+  return [$urls, $expires];
+}
+
+function albums_read($body) {
+  $doc = teknik_load();
+  [$urls, $expires] = albums_stream_url_map($doc, null);
+  respond(200, [
+    'ok' => true,
+    'folders' => $doc['folders'] ?? [],
+    'files' => $doc['files'] ?? [],
+    'quotaBytes' => teknik_quota_bytes(),
+    'streamUrls' => $urls,
+    'streamExpiresAt' => date('c', $expires),
+    'updatedAt' => $doc['updatedAt'] ?? null,
+  ]);
+}
+
+// {folderId?}: fresh stream URLs (null/absent = every album), for a page
+// left open past the expiry or a link that failed.
+function albums_stream_urls($body) {
+  $folderId = $body['folderId'] ?? null;
+  if ($folderId !== null && !teknik_valid_id($folderId)) respond(400, ['error' => 'invalid_shape']);
+  $doc = teknik_load();
+  if (!teknik_folder_exists($doc, $folderId)) respond(404, ['error' => 'not_found']);
+  [$urls, $expires] = albums_stream_url_map($doc, $folderId);
+  respond(200, ['ok' => true, 'urls' => $urls, 'expiresAt' => date('c', $expires)]);
+}
+
 // ── Chunked upload ──
 // start → chunk × N (strictly in order, by byte offset) → finish. A chunk
 // whose bytes are already on disk (a retry after a lost reply) is ok.
@@ -7393,6 +7572,7 @@ function teknik_remove_upload($uploadId) {
 // opens it again by setting a new one. A boss can also pause them from the
 // page's Boss Box (config.json's teknikUploadsClosed), for everyone.
 function teknik_uploads_open() {
+  if (!teknik_store()['needsRevy']) return true; // Albums: boss uploads any year, any time
   return manus_current_production_folder() !== null && !teknik_uploads_paused();
 }
 
@@ -7444,6 +7624,16 @@ function teknik_upload_start($body) {
     respond(400, ['error' => 'invalid_shape']);
   }
   if ($size > teknik_quota_bytes()) respond(413, ['error' => 'quota_exceeded']);
+  // Albums: every track belongs to an album, and the page measures its
+  // length before uploading (seconds, optional).
+  $albums = teknik_store_key() === 'albums';
+  if ($albums && $folderId === null) respond(400, ['error' => 'invalid_shape']);
+  $durationSec = null;
+  if ($albums && isset($body['durationSec'])) {
+    $d = $body['durationSec'];
+    if ((!is_int($d) && !is_float($d)) || $d <= 0 || $d > 86400) respond(400, ['error' => 'invalid_shape']);
+    $durationSec = round((float) $d, 1);
+  }
   $doc = teknik_load();
   if (!teknik_folder_exists($doc, $folderId)) respond(404, ['error' => 'not_found']);
   teknik_ensure_dir(teknik_dir() . '/uploads');
@@ -7464,6 +7654,7 @@ function teknik_upload_start($body) {
   }
   $uploadId = teknik_id() . bin2hex(random_bytes(4));
   $meta = ['folderId' => $folderId, 'name' => $name, 'uploadedBy' => $uploadedBy, 'size' => $size, 'startedAt' => date('c')];
+  if ($albums) $meta['durationSec'] = $durationSec;
   $created = @file_put_contents(teknik_upload_path($uploadId, 'part'), '') !== false
     && @file_put_contents(teknik_upload_path($uploadId, 'json'), json_encode($meta)) !== false;
   flock($lock, LOCK_UN);
@@ -7546,11 +7737,24 @@ function teknik_upload_finish($body) {
     'uploadedAt' => date('c'),
     'uploadedBy' => is_string($meta['uploadedBy'] ?? null) ? $meta['uploadedBy'] : '',
   ];
-  teknik_mutate(function ($doc) use ($file, $dest) {
+  $albums = teknik_store_key() === 'albums';
+  if ($albums) {
+    $d = $meta['durationSec'] ?? null;
+    $file['durationSec'] = (is_int($d) || is_float($d)) ? $d : null;
+  }
+  teknik_mutate(function ($doc) use (&$file, $dest, $albums) {
     // The folder may have been deleted while the upload ran.
     if (!teknik_folder_exists($doc, $file['folderId'])) {
       @unlink($dest);
       respond(404, ['error' => 'not_found']);
+    }
+    // Albums: a new track goes last in its album's tracklist.
+    if ($albums) {
+      $last = -1;
+      foreach ($doc['files'] as $other) {
+        if (($other['folderId'] ?? null) === $file['folderId']) $last = max($last, (int) ($other['order'] ?? 0));
+      }
+      $file['order'] = $last + 1;
     }
     $doc['files'][] = $file;
     return $doc;
@@ -7682,7 +7886,9 @@ function teknik_serve_download($token) {
   header('Content-Type: ' . ($inline ? $types[$file['ext']] : 'application/octet-stream'));
   header('Content-Length: ' . ($end - $start + 1));
   header('Accept-Ranges: bytes');
-  header('Cache-Control: private, no-store');
+  // An album's stream URLs stay the same for a day (albums_stream_urls), so
+  // the browser may keep what it has fetched; everything else is no-store.
+  header('Cache-Control: ' . ($inline && $store === 'albums' ? 'private, max-age=43200' : 'private, no-store'));
   header('Content-Disposition: ' . ($inline ? 'inline' : 'attachment') . '; filename="' . $asciiName . '"; filename*=UTF-8\'\'' . rawurlencode($file['name']));
   set_time_limit(0);
   while (ob_get_level() > 0) ob_end_clean();
@@ -7733,15 +7939,20 @@ function teknik_zip_entries($doc, $rootId) {
   $filesIn = [];
   foreach ($doc['files'] ?? [] as $file) $filesIn[$file['folderId'] ?? ''][] = $file;
   $byName = function ($a, $b) { return strcasecmp($a['name'], $b['name']); };
+  // Albums: tracklist order, numbered ("01 Title.flac") so players sort it right.
+  $albums = teknik_store_key() === 'albums';
+  $byOrder = function ($a, $b) { return ((int) ($a['order'] ?? 0)) <=> ((int) ($b['order'] ?? 0)); };
   $entries = [];
-  $walk = function ($folderId, $prefix) use (&$walk, &$entries, $byParent, $filesIn, $byName) {
+  $walk = function ($folderId, $prefix) use (&$walk, &$entries, $byParent, $filesIn, $byName, $albums, $byOrder) {
     $entries[] = ['path' => $prefix, 'file' => null];
     $taken = [];
     $files = $filesIn[$folderId ?? ''] ?? [];
-    usort($files, $byName);
+    usort($files, $albums ? $byOrder : $byName);
+    $track = 0;
     foreach ($files as $file) {
       if (!teknik_valid_id($file['id'] ?? null) || !is_file(teknik_file_path($file['id']))) continue;
-      $entries[] = ['path' => $prefix . teknik_zip_unique(teknik_zip_component($file['name']), $taken), 'file' => $file];
+      $name = $albums ? sprintf('%02d ', ++$track) . $file['name'] : $file['name'];
+      $entries[] = ['path' => $prefix . teknik_zip_unique(teknik_zip_component($name), $taken), 'file' => $file];
     }
     $subs = $byParent[$folderId ?? ''] ?? [];
     usort($subs, $byName);
