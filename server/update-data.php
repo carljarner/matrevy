@@ -7553,8 +7553,46 @@ function albums_stream_url_map($doc, $folderId) {
   return [$urls, $expires];
 }
 
+// A FLAC's length from its STREAMINFO header (always the first metadata
+// block): total samples / sample rate. Null if the file isn't a FLAC or
+// the encoder left the sample count at 0 (unknown).
+function albums_flac_duration($path) {
+  $fh = @fopen($path, 'rb');
+  if (!$fh) return null;
+  $head = fread($fh, 42);
+  fclose($fh);
+  if (!is_string($head) || strlen($head) < 42 || substr($head, 0, 4) !== 'fLaC') return null;
+  if ((ord($head[4]) & 0x7f) !== 0) return null;
+  // 20 bits sample rate, 3 channels, 5 bits per sample, 36 total samples.
+  $bits = unpack('J', substr($head, 18, 8))[1];
+  $rate = ($bits >> 44) & 0xfffff;
+  $samples = $bits & 0xfffffffff;
+  if ($rate <= 0 || $samples <= 0) return null;
+  $sec = round($samples / $rate, 1);
+  return ($sec > 0 && $sec <= 86400) ? $sec : null;
+}
+
+// Tracks stored without a length (the browser couldn't measure it before
+// upload, e.g. in a background tab) get it from the file, once.
+function albums_fill_missing_durations($doc) {
+  $found = [];
+  foreach ($doc['files'] ?? [] as $file) {
+    if (($file['durationSec'] ?? null) > 0 || ($file['ext'] ?? '') !== 'flac') continue;
+    $sec = albums_flac_duration(teknik_file_path($file['id']));
+    if ($sec !== null) $found[$file['id']] = $sec;
+  }
+  if (!$found) return $doc;
+  return teknik_mutate(function ($live) use ($found) {
+    foreach ($live['files'] as &$file) {
+      if (isset($found[$file['id']]) && !(($file['durationSec'] ?? null) > 0)) $file['durationSec'] = $found[$file['id']];
+    }
+    unset($file);
+    return $live;
+  });
+}
+
 function albums_read($body) {
-  $doc = teknik_load();
+  $doc = albums_fill_missing_durations(teknik_load());
   [$urls, $expires] = albums_stream_url_map($doc, null);
   respond(200, [
     'ok' => true,
@@ -7766,7 +7804,9 @@ function teknik_upload_finish($body) {
   ];
   $albums = teknik_store_key() === 'albums';
   if ($albums) {
-    $d = $meta['durationSec'] ?? null;
+    // The file's own header wins; the browser's measurement is the fallback.
+    $d = $ext === 'flac' ? albums_flac_duration($dest) : null;
+    if ($d === null) $d = $meta['durationSec'] ?? null;
     $file['durationSec'] = (is_int($d) || is_float($d)) ? $d : null;
   }
   teknik_mutate(function ($doc) use (&$file, $dest, $albums) {

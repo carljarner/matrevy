@@ -714,6 +714,38 @@ body.alb-has-player .site-toast {
   white-space: nowrap;
 }
 
+/* Phones only (shown in the ≤719px block). */
+.alb-player-line {
+  grid-area: line;
+  display: none;
+  min-width: 0;
+  padding: 0.1rem 0.25rem;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.alb-player-line:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.alb-player-line-title {
+  font-weight: 700;
+}
+
+.alb-player-line-album {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .alb-player-controls {
   grid-area: controls;
   display: flex;
@@ -967,8 +999,8 @@ body.alb-has-player .site-toast {
     display: none;
   }
 
-  /* Seek bar on top, then the cover (no title), the controls centred,
-     and the Kø button. */
+  /* "Titel · Revy" and the seek bar on top, then the cover, the
+     controls centred, and the Kø button. */
   .alb-player {
     padding: 0.35rem 0.75rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
   }
@@ -976,22 +1008,31 @@ body.alb-has-player .site-toast {
   .alb-player-inner {
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     grid-template-areas:
+      "line line line"
       "seek seek seek"
       "now controls tools";
     column-gap: 0.5rem;
-    row-gap: 0.25rem;
+    row-gap: 0.15rem;
   }
 
   .alb-player-titles {
     display: none;
   }
 
+  .alb-player-line {
+    display: block;
+    justify-self: center;
+    max-width: 100%;
+  }
+
   .alb-player-thumb {
     width: 2.5rem;
   }
 
+  /* As much room between the buttons as the width allows (8px on a
+     320px phone, 16px from 480px). */
   .alb-player-controls {
-    gap: 0.2rem;
+    gap: clamp(0.5rem, 5vw - 0.5rem, 1rem);
   }
 
   .alb-player-time {
@@ -999,11 +1040,11 @@ body.alb-has-player .site-toast {
   }
 
   body.alb-has-player {
-    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
   }
 
   body.alb-has-player .site-toast {
-    bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -1012,12 +1053,6 @@ body.alb-has-player .site-toast {
     width: 16px;
     height: 16px;
     margin-top: -6px;
-  }
-}
-
-@media (max-width: 420px) {
-  .alb-player-controls {
-    gap: 0;
   }
 }
 

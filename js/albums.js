@@ -2176,6 +2176,21 @@ function albBuildPlayer() {
   now.appendChild(titles);
   inner.appendChild(now);
 
+  // Phones only: "Titel · Revy" on one line above the seek bar.
+  const line = el('button', 'alb-player-line');
+  line.type = 'button';
+  line.title = 'Gå til albummet';
+  const lineTitle = el('span', 'alb-player-line-title');
+  const lineAlbum = el('span', 'alb-player-line-album');
+  line.appendChild(lineTitle);
+  line.appendChild(lineAlbum);
+  line.addEventListener('click', () => {
+    const file = albCurrentTrack();
+    const album = file && albAlbumById(file.folderId);
+    if (album) albGoToAlbum(album);
+  });
+  inner.appendChild(line);
+
   const controls = el('div', 'alb-player-controls');
   const shuffleBtn = albIconBtn('shuffle', 'Bland', 'alb-ctl alb-ctl-mode', 18);
   shuffleBtn.addEventListener('click', albToggleShuffle);
@@ -2240,7 +2255,7 @@ function albBuildPlayer() {
       document.body.style.setProperty('--alb-player-h', bar.offsetHeight + 'px');
     }).observe(bar);
   }
-  albPlayerEls = { bar, thumb, title, albumName, shuffleBtn, prevBtn, playBtn, nextBtn, repeatBtn, queueBtn, elapsed, range, duration, thumbFor: null };
+  albPlayerEls = { bar, thumb, title, albumName, lineTitle, lineAlbum, shuffleBtn, prevBtn, playBtn, nextBtn, repeatBtn, queueBtn, elapsed, range, duration, thumbFor: null };
 }
 
 function albPaintPlayer() {
@@ -2254,6 +2269,8 @@ function albPaintPlayer() {
   const album = albAlbumById(file.folderId);
   e.title.textContent = albTrackTitle(file);
   e.albumName.textContent = albAlbumName(album);
+  e.lineTitle.textContent = albTrackTitle(file);
+  e.lineAlbum.textContent = ' · ' + albAlbumName(album);
   if (e.thumbFor !== file.folderId) {
     e.thumb.replaceChildren(albCoverEl(album, 'alb-player-cover'));
     e.thumbFor = file.folderId;
