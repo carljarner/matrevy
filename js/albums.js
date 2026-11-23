@@ -19,7 +19,7 @@
    12-36 h; an expired one is refetched (albums_stream_urls) on error.
    A queue ("Næste i køen", via ⋯ on a song) plays before the album or
    shuffle continues; the "Kø" panel in the player bar shows and edits it.
-   The queue, position, shuffle and repeat are kept in localStorage.
+   The queue, position, shuffle, repeat and volume are kept in localStorage.
 
    Routing: a tab on Arkiv (arkiv.html; archive.js shows the tab): the
    overview at /arkiv#albums, an album at /arkiv#albums/<archiveFolder>.
@@ -65,6 +65,9 @@ const ALB_ICONS = {
   plus: { paths: ['M12 5v14', 'M5 12h14'] },
   more: { fill: true, paths: ['M4.2 12a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0-3.6 0z', 'M10.2 12a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0-3.6 0z', 'M16.2 12a1.8 1.8 0 1 0 3.6 0a1.8 1.8 0 1 0-3.6 0z'] },
   queue: { paths: ['M3 6h14', 'M3 12h9', 'M3 18h9', 'M16 11.5v8l5.5-4z'] },
+  volume: { paths: ['M4 9.5h3.5L12 6v12l-4.5-3.5H4z', 'M15.5 9a4.2 4.2 0 0 1 0 6', 'M18.2 6.3a8 8 0 0 1 0 11.4'] },
+  volumeLow: { paths: ['M4 9.5h3.5L12 6v12l-4.5-3.5H4z', 'M15.5 9a4.2 4.2 0 0 1 0 6'] },
+  volumeMuted: { paths: ['M4 9.5h3.5L12 6v12l-4.5-3.5H4z', 'M16 9.5l5 5', 'M21 9.5l-5 5'] },
 };
 
 function albIcon(name, size) {
@@ -516,6 +519,13 @@ function albBuildAlbumView(album) {
     shuffleBtn.appendChild(albIcon('shuffle', 22));
     shuffleBtn.addEventListener('click', () => albPlayAlbum(album, null, true));
     actions.appendChild(shuffleBtn);
+    const queueBtn = el('button', 'alb-big-play');
+    queueBtn.type = 'button';
+    queueBtn.title = 'Tilføj albummet til køen';
+    queueBtn.setAttribute('aria-label', 'Tilføj albummet til køen');
+    queueBtn.appendChild(albIcon('queue', 22));
+    queueBtn.addEventListener('click', () => albQueueAddAlbum(album));
+    actions.appendChild(queueBtn);
     info.appendChild(actions);
   }
   head.appendChild(info);
@@ -1426,6 +1436,7 @@ function albAudio() {
     audio.addEventListener('error', albOnAudioError);
     document.body.appendChild(audio);
     albPlayer.audio = audio;
+    albApplyVolume();
   }
   return albPlayer.audio;
 }
@@ -1627,6 +1638,24 @@ function albQueueAdd(file, playNext) {
   albPaintPlayer();
   albSaveState();
   siteShowToast(playNext ? `"${albTrackTitle(file)}" spilles som det næste.` : `"${albTrackTitle(file)}" er tilføjet til køen.`);
+}
+
+// The whole album, in album order, last in the queue. With nothing in the
+// player, its first song starts and the rest are queued behind it.
+function albQueueAddAlbum(album) {
+  const ids = albTracks(album.id).map((t) => t.id);
+  if (!ids.length) return;
+  if (!albCurrentTrack()) {
+    Object.assign(albPlayer, { ctxIds: [], ctxOrder: [], ctxPos: -1, ctxFolder: null, nowQueued: true });
+    albPlayer.upNext.push(...ids.slice(1));
+    albLoadTrack(ids[0], 0);
+    return;
+  }
+  albPlayer.upNext.push(...ids);
+  albPaintPlayer();
+  albSaveState();
+  const count = ids.length === 1 ? '1 sang' : `${ids.length} sange`;
+  siteShowToast(`${count} fra ${albAlbumName(album)} er tilføjet til køen.`);
 }
 
 // Plays the queued song at `index`, dropping the ones before it.
@@ -2210,6 +2239,27 @@ function albBuildPlayer() {
   inner.appendChild(controls);
 
   const tools = el('div', 'alb-player-tools');
+  // Volume (not on phones, where the device's buttons set it, nor where
+  // the browser ignores it, like iOS).
+  const volumeWrap = el('div', 'alb-volume');
+  volumeWrap.hidden = !albVolumeSettable();
+  const muteBtn = albIconBtn('volume', 'Slå lyden fra', 'alb-ctl alb-ctl-mute', 20);
+  muteBtn.addEventListener('click', albToggleMute);
+  const volumeRange = el('input', 'alb-seek alb-volume-range');
+  volumeRange.type = 'range';
+  volumeRange.min = '0';
+  volumeRange.max = '1';
+  volumeRange.step = '0.01';
+  volumeRange.setAttribute('aria-label', 'Lydstyrke');
+  volumeRange.addEventListener('input', () => {
+    albVolume.level = Number(volumeRange.value);
+    albVolume.muted = false;
+    albApplyVolume();
+  });
+  volumeRange.addEventListener('change', albSaveVolume);
+  volumeWrap.appendChild(muteBtn);
+  volumeWrap.appendChild(volumeRange);
+  tools.appendChild(volumeWrap);
   const queueBtn = albIconBtn('queue', 'Kø', 'alb-ctl alb-ctl-mode alb-ctl-queue', 20);
   queueBtn.setAttribute('aria-expanded', 'false');
   queueBtn.addEventListener('click', () => albToggleQueue());
@@ -2248,6 +2298,17 @@ function albBuildPlayer() {
   inner.appendChild(seek);
 
   bar.appendChild(inner);
+  // ✕ in the top-right corner (not on phones): stops the music and empties
+  // the player and the queue, which hides the bar.
+  const closeBtn = el('button', 'site-icon-btn alb-player-close', '✕');
+  closeBtn.type = 'button';
+  closeBtn.title = 'Luk afspilleren';
+  closeBtn.setAttribute('aria-label', 'Luk afspilleren');
+  closeBtn.addEventListener('click', () => {
+    albToggleQueue(false);
+    albStopPlayer();
+  });
+  bar.appendChild(closeBtn);
   document.body.appendChild(bar);
   // The queue panel sits right above the bar, whatever its height.
   if (typeof ResizeObserver === 'function') {
@@ -2255,7 +2316,63 @@ function albBuildPlayer() {
       document.body.style.setProperty('--alb-player-h', bar.offsetHeight + 'px');
     }).observe(bar);
   }
-  albPlayerEls = { bar, thumb, title, albumName, lineTitle, lineAlbum, shuffleBtn, prevBtn, playBtn, nextBtn, repeatBtn, queueBtn, elapsed, range, duration, thumbFor: null };
+  albPlayerEls = { bar, thumb, title, albumName, lineTitle, lineAlbum, shuffleBtn, prevBtn, playBtn, nextBtn, repeatBtn, queueBtn, muteBtn, volumeRange, elapsed, range, duration, thumbFor: null };
+  albApplyVolume();
+}
+
+// ── Volume (remembered per browser) ──────────────────────────
+const ALB_VOLUME_KEY = 'matrevy-albums-volume';
+const albVolume = { level: 1, muted: false };
+
+function albLoadVolume() {
+  let state = null;
+  try { state = JSON.parse(localStorage.getItem(ALB_VOLUME_KEY) || 'null'); } catch (e) { state = null; }
+  if (!state || typeof state !== 'object') return;
+  if (Number.isFinite(state.level)) albVolume.level = Math.min(1, Math.max(0, state.level));
+  albVolume.muted = state.muted === true;
+}
+
+function albSaveVolume() {
+  try { localStorage.setItem(ALB_VOLUME_KEY, JSON.stringify(albVolume)); } catch (e) { /* ignore */ }
+}
+
+// iOS keeps an audio element's volume at 1 whatever is set.
+function albVolumeSettable() {
+  try {
+    const probe = document.createElement('audio');
+    probe.volume = 0.5;
+    return probe.volume === 0.5;
+  } catch (e) {
+    return false;
+  }
+}
+
+function albToggleMute() {
+  if (albVolume.muted || albVolume.level === 0) {
+    albVolume.muted = false;
+    if (albVolume.level === 0) albVolume.level = 0.5;
+  } else {
+    albVolume.muted = true;
+  }
+  albApplyVolume();
+  albSaveVolume();
+}
+
+// Sets the audio element and paints the slider and the speaker icon.
+function albApplyVolume() {
+  if (albPlayer.audio) {
+    albPlayer.audio.volume = albVolume.level;
+    albPlayer.audio.muted = albVolume.muted;
+  }
+  if (!albPlayerEls) return;
+  const { muteBtn, volumeRange } = albPlayerEls;
+  const shown = albVolume.muted ? 0 : albVolume.level;
+  volumeRange.value = String(shown);
+  volumeRange.style.setProperty('--alb-seek-pct', (shown * 100) + '%');
+  const silent = shown === 0;
+  muteBtn.replaceChildren(albIcon(silent ? 'volumeMuted' : shown < 0.5 ? 'volumeLow' : 'volume', 20));
+  muteBtn.title = silent ? 'Slå lyden til' : 'Slå lyden fra';
+  muteBtn.setAttribute('aria-label', muteBtn.title);
 }
 
 function albPaintPlayer() {
@@ -2385,6 +2502,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // The page gate (site.js) already hides <main> below revyst level.
   if (typeof siteHasLevel !== 'function' || !siteHasLevel('revyst')) return;
   if (typeof siteRegisterUnsavedCheck === 'function') siteRegisterUnsavedCheck(albUploadsPending);
+  albLoadVolume();
   albRestoreState();
   albBuildPlayer();
   albInitMediaSession();

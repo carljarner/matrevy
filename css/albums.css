@@ -615,7 +615,8 @@
   right: 0;
   bottom: 0;
   z-index: 110; /* over the page, under the stale banner (120) and menus */
-  padding: 0.55rem 1rem calc(0.55rem + env(safe-area-inset-bottom, 0px));
+  /* Room on the right for the ✕ in the corner. */
+  padding: 0.55rem 2.5rem calc(0.55rem + env(safe-area-inset-bottom, 0px)) 1rem;
   background: var(--header);
   color: #fff;
   box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.18);
@@ -623,6 +624,28 @@
 
 body.alb-has-player {
   padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* ✕ in the top-right corner of the bar (not on phones). */
+.alb-player .site-icon-btn.alb-player-close {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.45rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+@media (hover: hover) {
+  .alb-player .site-icon-btn.alb-player-close:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.alb-player .site-icon-btn.alb-player-close:focus-visible {
+  color: #fff;
 }
 
 body.alb-has-player .site-toast {
@@ -842,6 +865,26 @@ body.alb-has-player .site-toast {
   justify-self: end;
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+}
+
+/* Volume: the speaker (mutes) and a short slider, styled like the seek bar. */
+.alb-volume:not([hidden]) {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.alb-seek.alb-volume-range {
+  flex: none;
+  width: 6rem;
+}
+
+/* Narrower screens: a shorter slider, so the song title keeps its room. */
+@media (max-width: 1000px) {
+  .alb-seek.alb-volume-range {
+    width: 3.5rem;
+  }
 }
 
 /* An amber dot on the Kø button while songs are queued by hand. */
@@ -1037,6 +1080,16 @@ body.alb-has-player .site-toast {
 
   .alb-player-time {
     min-width: 2.2rem;
+  }
+
+  /* Phones set the volume with their own buttons. */
+  .alb-volume:not([hidden]) {
+    display: none;
+  }
+
+  /* No ✕ on phones. */
+  .alb-player .site-icon-btn.alb-player-close {
+    display: none;
   }
 
   body.alb-has-player {
