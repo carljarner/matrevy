@@ -522,6 +522,10 @@ function albBuildAlbumView(album) {
   card.appendChild(head);
 
   if (tracks.length) {
+    if (albEditing) {
+      card.appendChild(el('p', 'site-hint alb-edit-hint',
+        'Tallet ved ▶ er afspilninger fra Spotify og SoundCloud. Afspilninger her på siden lægges oveni.'));
+    }
     const list = el('ol', 'alb-tracks');
     tracks.forEach((file, i) => list.appendChild(albEditing ? albBuildEditRow(album, file, i, tracks) : albBuildTrackRow(album, file, i)));
     if (albEditing) albFinishReorderList(list, 'album', (drag, before) => albMoveTrackByIndex(album, drag.index, before));
@@ -595,11 +599,48 @@ function albBuildEditRow(album, file, i, tracks) {
   });
   input.addEventListener('blur', () => albRenameTrack(file, input));
   row.appendChild(input);
+  row.appendChild(albImportedPlaysField(file));
   row.appendChild(el('span', 'alb-track-time', file.durationSec > 0 ? albFormatTime(file.durationSec) : ''));
   const remove = albRemoveBtn('Slet sangen');
   remove.addEventListener('click', () => albConfirmDeleteTrack(file));
   row.appendChild(remove);
   return row;
+}
+
+// Edit mode: the plays imported from Spotify/SoundCloud, typed in place
+// ("12.408", "12408" and "12 408" all work), saved on blur/Enter.
+function albImportedPlaysField(file) {
+  const wrap = el('span', 'alb-plays-edit');
+  wrap.title = 'Afspilninger fra Spotify og SoundCloud';
+  wrap.appendChild(albIcon('play', 10));
+  const input = el('input', 'site-inline-field alb-plays-input');
+  input.type = 'text';
+  input.inputMode = 'numeric';
+  input.maxLength = 13;
+  input.placeholder = '0';
+  input.setAttribute('aria-label', `Afspilninger fra Spotify og SoundCloud for ${albTrackTitle(file)}`);
+  const show = () => { input.value = file.playsImported ? file.playsImported.toLocaleString('da-DK') : ''; };
+  show();
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { show(); input.blur(); }
+  });
+  input.addEventListener('blur', async () => {
+    const raw = input.value.replace(/[\s.,]/g, '');
+    if (raw !== '' && !/^\d{1,9}$/.test(raw)) {
+      albShowError('Skriv et helt tal, fx 12.408.');
+      show();
+      return;
+    }
+    const value = raw === '' ? 0 : Number(raw);
+    if (value === (file.playsImported || 0)) { show(); return; }
+    const result = await albApi('albums_set_imported_plays', { fileId: file.id, plays: value });
+    if (!result.ok) { albShowError(result.message); show(); return; }
+    file.playsImported = result.data.playsImported;
+    show();
+  });
+  wrap.appendChild(input);
+  return wrap;
 }
 
 // The playing track's row gets the amber highlight and the bars.
@@ -1768,11 +1809,18 @@ async function albCountPlay(file) {
   } catch (e) { /* offline: not counted */ }
 }
 
+// A track's plays: imported from Spotify/SoundCloud (`playsImported`, set
+// by boss) plus the ones counted here (`plays`).
+function albTotalPlays(file) {
+  return (file.playsImported || 0) + (file.plays || 0);
+}
+
 // "▶ 1.234" in a track row (empty until a song has been played).
 function albPaintPlays(node, file) {
-  const n = file.plays || 0;
+  const n = albTotalPlays(file);
   node.replaceChildren();
-  node.title = n === 1 ? 'Afspillet 1 gang' : `Afspillet ${n.toLocaleString('da-DK')} gange`;
+  node.title = (n === 1 ? 'Afspillet 1 gang' : `Afspillet ${n.toLocaleString('da-DK')} gange`)
+    + (file.playsImported ? ` (heraf ${file.playsImported.toLocaleString('da-DK')} fra Spotify og SoundCloud)` : '');
   if (!n) return;
   node.appendChild(albIcon('play', 10));
   node.appendChild(document.createTextNode(n.toLocaleString('da-DK')));
@@ -2102,7 +2150,16 @@ function albBuildPlayer() {
   const inner = el('div', 'alb-player-inner');
 
   const now = el('div', 'alb-player-now');
-  const thumb = el('div', 'alb-player-thumb');
+  // The cover goes to the album too (on phones it's all there is).
+  const thumb = el('button', 'alb-player-thumb');
+  thumb.type = 'button';
+  thumb.title = 'Gå til albummet';
+  thumb.setAttribute('aria-label', 'Gå til albummet');
+  thumb.addEventListener('click', () => {
+    const file = albCurrentTrack();
+    const album = file && albAlbumById(file.folderId);
+    if (album) albGoToAlbum(album);
+  });
   now.appendChild(thumb);
   const titles = el('button', 'alb-player-titles');
   titles.type = 'button';

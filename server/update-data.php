@@ -561,6 +561,7 @@ $ALBUMS_ACTIONS = [
   'albums_rename_file'         => 'boss',   // {fileId, name} — the track title; the extension stays
   'albums_delete_file'         => 'boss',
   'albums_reorder'             => 'boss',   // {folderId, fileIds} — every track of the album, in the new order
+  'albums_set_imported_plays'  => 'boss',   // {fileId, plays} — plays from Spotify/SoundCloud, shown added to the ones counted here
   'albums_upload_start'        => 'boss',   // {folderId, name, size, durationSec?}
   'albums_upload_chunk'        => 'boss',
   'albums_upload_finish'       => 'boss',   // appends the track last in its album
@@ -576,6 +577,7 @@ if (isset($ALBUMS_ACTIONS[$action])) {
   if ($action === 'albums_delete') handle_teknik('teknik_delete_folder', $body);
   if ($action === 'albums_reorder') albums_reorder($body);
   if ($action === 'albums_count_play') albums_count_play($body);
+  if ($action === 'albums_set_imported_plays') albums_set_imported_plays($body);
   if ($action === 'albums_stream_urls') albums_stream_urls($body);
   if ($action === 'albums_download_url') $body['inline'] = false;
   handle_teknik('teknik_' . substr($action, strlen('albums_')), $body);
@@ -7417,7 +7419,8 @@ function teknik_move_folder($body) {
 // An album is a top-level teknik folder plus `archiveFolder` (the Arkiv
 // year it belongs to, at most one album each); its name is copied from
 // archive.json so the zip is named after the revy. A track is a teknik
-// file plus `order`, `durationSec` and `plays`.
+// file plus `order`, `durationSec`, `plays` (counted here) and
+// `playsImported` (from Spotify/SoundCloud, set by boss).
 
 // {archiveFolder}. The folder must be a `folder` in data/archive.json —
 // that lookup is the guard, the regex only rejects junk early.
@@ -7504,6 +7507,30 @@ function albums_count_play($body) {
     return $doc;
   });
   respond(200, ['ok' => true, 'plays' => $plays]);
+}
+
+// {fileId, plays}: boss sets the plays a track had on Spotify/SoundCloud
+// (`playsImported`, 0 clears it). Kept apart from `plays` (counted here),
+// so a corrected import never wipes the real count; the page shows the sum.
+function albums_set_imported_plays($body) {
+  $fileId = $body['fileId'] ?? '';
+  $plays = $body['plays'] ?? null;
+  if (!teknik_valid_id($fileId) || !is_int($plays) || $plays < 0 || $plays > 999999999) {
+    respond(400, ['error' => 'invalid_shape']);
+  }
+  $found = false;
+  teknik_mutate(function ($doc) use ($fileId, $plays, &$found) {
+    foreach ($doc['files'] as &$file) {
+      if ($file['id'] !== $fileId) continue;
+      if ($plays > 0) $file['playsImported'] = $plays;
+      else unset($file['playsImported']);
+      $found = true;
+    }
+    unset($file);
+    if (!$found) respond(404, ['error' => 'not_found']);
+    return $doc;
+  });
+  respond(200, ['ok' => true, 'playsImported' => $plays]);
 }
 
 // Signed inline URLs for every track (folderId null = every album), so the
