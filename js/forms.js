@@ -779,7 +779,7 @@ async function renderFormsList(root) {
     const arrow = el('span', 'forms-open-arrow', '→');
     arrow.setAttribute('aria-hidden', 'true');
     row.appendChild(arrow);
-    row.addEventListener('click', () => renderFormFillIn(root, f.id));
+    row.addEventListener('click', () => formsGo({ name: 'fillin', formId: f.id }));
     listWrap.appendChild(row);
   }
 }
@@ -825,10 +825,10 @@ async function renderFormFillIn(root, formId) {
   backBtn.type = 'button';
   backBtn.title = 'Tilbage til formularer';
   backBtn.setAttribute('aria-label', 'Tilbage til formularer');
-  backBtn.addEventListener('click', () => {
-    if (formsFillInHasAnyAnswer(inputs)) formsOpenLeaveWarning(() => renderFormsList(root));
-    else renderFormsList(root);
-  });
+  // Same path as the browser's back, which also asks first while anything
+  // is typed (formsLeaveGuard, read by formsHasUnsaved).
+  backBtn.addEventListener('click', () => formsGuardedNavigate(() => formsGo({ name: 'list' })));
+  formsLeaveGuard = () => formsFillInHasAnyAnswer(inputs);
   card.appendChild(backBtn);
 
   const body = el('div', null, 'Henter formular …');
@@ -1048,8 +1048,125 @@ function formsBuilderIsDirty() {
 // click interceptor below. A plain pass-through once the builder isn't
 // dirty (or isn't even mounted, e.g. from the overview/responses screens).
 function formsGuardedNavigate(action) {
-  if (formsBuilderIsDirty()) formsOpenLeaveWarning(action);
+  if (formsHasUnsaved()) formsOpenLeaveWarning(action);
   else action();
+}
+
+// ── Screen history ─────
+// Every screen below the start screen (Oversigt / Åbne formularer) gets its
+// own history entry, so the browser's back (swipe, mouse button, ←) steps
+// back through Formularer's screens instead of leaving the page. Depth:
+// 0 = start screen, 1 = Statistik/Svar/builder/fill-in, 2 = one response
+// opened from Svar (the eye). All navigation goes through formsGo, which
+// pushes, replaces or steps back by depth; going back renders in the
+// popstate handler, so the in-page ← and the browser's back are one path.
+// history.state.forms holds the screen minus existingDefinition (a builder
+// restored by back/forward/reload re-fetches its form).
+let formsRoot = null;
+let formsIsAdmin = false;
+let formsCurrentScreen = null;
+let formsLeaveGuard = null;   // () => true while the fill-in view has typed answers
+let formsResponsesView = null; // {formId, open(responseId), close()} of the mounted Svar screen
+
+function formsScreenDepth(screen) {
+  if (screen.name === 'overview' || screen.name === 'list') return 0;
+  return screen.name === 'responses' && screen.responseId ? 2 : 1;
+}
+
+function formsStartScreen() {
+  return { name: formsIsAdmin ? 'overview' : 'list' };
+}
+
+function formsScreenFromState(state) {
+  const s = state && state.forms;
+  const adminNames = ['overview', 'builder', 'responses', 'stats'];
+  const revystNames = ['list', 'fillin'];
+  if (!s || !(formsIsAdmin ? adminNames : revystNames).includes(s.name)) return formsStartScreen();
+  return Object.assign({}, s);
+}
+
+function formsStateFor(screen) {
+  const s = Object.assign({}, screen);
+  delete s.existingDefinition;
+  return { forms: s };
+}
+
+function formsHasUnsaved() {
+  return formsBuilderIsDirty() || !!(formsLeaveGuard && formsLeaveGuard());
+}
+
+function formsDiscardUnsaved() {
+  formsBuilderDraft = null;
+  formsBuilderSnapshot = null;
+  formsLeaveGuard = null;
+}
+
+// Callers that can lose input check it first (formsGuardedNavigate).
+function formsGo(screen) {
+  const from = formsScreenDepth(formsCurrentScreen);
+  const to = formsScreenDepth(screen);
+  if (to < from) {
+    // Already confirmed by the caller; popstate renders the target.
+    formsDiscardUnsaved();
+    formsPendingScreen = screen;
+    history.go(to - from);
+    return;
+  }
+  if (to > from) history.pushState(formsStateFor(screen), '');
+  else if (to > 0) history.replaceState(formsStateFor(screen), '');
+  formsShow(screen);
+}
+
+// What formsGo stepped back to, carrying anything history.state drops
+// (existingDefinition); popstate uses it when the entry matches.
+let formsPendingScreen = null;
+
+function formsShow(screen) {
+  const prev = formsCurrentScreen;
+  formsCurrentScreen = screen;
+  // Opening/closing one response swaps it in place over the Svar table, so
+  // its conditions, pins and scroll survive.
+  if (prev && formsResponsesView && prev.name === 'responses' && screen.name === 'responses'
+      && prev.formId === screen.formId && formsResponsesView.formId === screen.formId
+      && (prev.responseId || null) !== (screen.responseId || null)) {
+    if (screen.responseId) formsResponsesView.open(screen.responseId);
+    else formsResponsesView.close();
+    return;
+  }
+  formsResponsesView = null;
+  formsLeaveGuard = null;
+  if (!prev || prev.name !== screen.name || prev.formId !== screen.formId) window.scrollTo(0, 0);
+  if (formsIsAdmin) renderAdminView(formsRoot, screen);
+  else if (screen.name === 'fillin') renderFormFillIn(formsRoot, screen.formId);
+  else renderFormsList(formsRoot);
+}
+
+function formsOnPopState(e) {
+  let target = formsScreenFromState(e.state);
+  const pending = formsPendingScreen;
+  formsPendingScreen = null;
+  if (pending && pending.name === target.name && pending.formId === target.formId
+      && (pending.responseId || null) === (target.responseId || null)) target = pending;
+  // A browser back from a screen with unsaved input: put the entry back
+  // and ask first (popstate itself can't be cancelled).
+  if (formsScreenDepth(target) < formsScreenDepth(formsCurrentScreen) && formsHasUnsaved()) {
+    const stay = formsCurrentScreen;
+    history.pushState(formsStateFor(stay), '');
+    formsOpenLeaveWarning(() => formsGo(target));
+    return;
+  }
+  formsShow(target);
+}
+
+function formsInitHistory(root, isAdmin) {
+  formsRoot = root;
+  formsIsAdmin = isAdmin;
+  // Screens render asynchronously, so the browser's own scroll restore
+  // would land before the content; formsShow scrolls itself.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.addEventListener('popstate', formsOnPopState);
+  // A reload keeps history.state, so it reopens the same screen.
+  formsShow(formsScreenFromState(history.state));
 }
 
 // ── Boss/admin: management view ──────────────────────────────
@@ -1081,16 +1198,18 @@ function renderAdminView(root, screen) {
   const overviewActive = screen.name === 'overview' || screen.name === 'responses' || screen.name === 'stats';
   const overviewTab = el('button', 'site-tab' + (overviewActive ? ' active' : ''), 'Oversigt');
   overviewTab.type = 'button';
-  overviewTab.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'overview' })));
+  overviewTab.addEventListener('click', () => formsGuardedNavigate(() => formsGo({ name: 'overview' })));
   const builderTab = el('button', 'site-tab' + (screen.name === 'builder' ? ' active' : ''),
-    screen.name === 'builder' && screen.existingDefinition ? 'Rediger formular' : 'Ny formular');
+    screen.name === 'builder' && (screen.existingDefinition || screen.formId) ? 'Rediger formular' : 'Ny formular');
   builderTab.type = 'button';
-  builderTab.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'builder' })));
+  builderTab.addEventListener('click', () => formsGuardedNavigate(() => formsGo({ name: 'builder' })));
   tabs.appendChild(overviewTab);
   tabs.appendChild(builderTab);
   root.appendChild(tabs);
 
-  if (screen.name === 'builder') {
+  if (screen.name === 'builder' && screen.formId && !screen.existingDefinition) {
+    formsLoadBuilderScreen(root, screen);
+  } else if (screen.name === 'builder') {
     formsRenderBuilderScreen(root, screen.existingDefinition || null);
   } else if (screen.name === 'responses') {
     formsRenderResponsesScreen(root, screen.formId);
@@ -1099,6 +1218,29 @@ function renderAdminView(root, screen) {
   } else {
     formsRenderOverviewScreen(root);
   }
+}
+
+// "Rediger formular" reached through history (back/forward/reload) has only
+// the formId, so it fetches the definition first. The lock on questions
+// needs the response count: the real one when the responses came back,
+// else the count Oversigt had when the entry was made.
+async function formsLoadBuilderScreen(root, screen) {
+  const card = el('section', 'card forms-builder-card');
+  card.appendChild(el('p', 'forms-intro', 'Henter formular …'));
+  root.appendChild(card);
+  const full = await formsApi('forms_admin_read', { formId: screen.formId });
+  if (formsCurrentScreen !== screen) return;
+  if (!full.ok) {
+    card.replaceChildren(el('p', 'forms-msg error', full.message || 'Kunne ikke hente formularen.'));
+    return;
+  }
+  const responses = full.data.responses;
+  screen.existingDefinition = Object.assign({}, full.data.definition, {
+    responseCount: Array.isArray(responses) && !full.data.responsesRestricted
+      ? responses.length : (screen.responseCount || 0),
+  });
+  card.remove();
+  formsRenderBuilderScreen(root, screen.existingDefinition);
 }
 
 // Icon-only row actions (Oversigt's "Rediger"/"Se svar") — same SVG pencil
@@ -1394,7 +1536,7 @@ async function formsRenderOverviewScreen(root) {
             fields: def.fields, sections: def.sections || [],
           });
         }
-        renderAdminView(root, { name: 'overview' });
+        formsGo({ name: 'overview' });
       });
       statusCell.appendChild(statusChip);
       row.appendChild(statusCell);
@@ -1420,14 +1562,14 @@ async function formsRenderOverviewScreen(root) {
       statsBtn.setAttribute('data-tooltip', restricted ? 'Kun koordinatorer' : 'Statistik');
       statsBtn.appendChild(formsChartIcon());
       if (restricted) statsBtn.disabled = true;
-      else statsBtn.addEventListener('click', () => renderAdminView(root, { name: 'stats', formId: f.id }));
+      else statsBtn.addEventListener('click', () => formsGo({ name: 'stats', formId: f.id }));
       const respBtn = el('button', 'site-icon-btn forms-row-icon-btn');
       respBtn.type = 'button';
       respBtn.setAttribute('aria-label', restricted ? 'Svar (kun koordinatorer)' : 'Svar');
       respBtn.setAttribute('data-tooltip', restricted ? 'Kun koordinatorer' : 'Svar');
       respBtn.appendChild(formsPaperIcon());
       if (restricted) respBtn.disabled = true;
-      else respBtn.addEventListener('click', () => renderAdminView(root, { name: 'responses', formId: f.id }));
+      else respBtn.addEventListener('click', () => formsGo({ name: 'responses', formId: f.id }));
       const editBtn = el('button', 'site-icon-btn forms-row-icon-btn');
       editBtn.type = 'button';
       editBtn.setAttribute('aria-label', 'Rediger');
@@ -1439,8 +1581,8 @@ async function formsRenderOverviewScreen(root) {
           // responseCount isn't part of a definition — fold in the summary
           // row's own count so the edit view's delete confirm can still
           // warn how many responses would be lost.
-          renderAdminView(root, {
-            name: 'builder',
+          formsGo({
+            name: 'builder', formId: f.id, responseCount: f.responseCount,
             existingDefinition: Object.assign({}, full.data.definition, { responseCount: f.responseCount }),
           });
         }
@@ -1488,7 +1630,7 @@ function formsOpenDeleteConfirm(root, f) {
     const result = await formsApi('forms_delete', { formId: f.id });
     if (result.ok) {
       close();
-      renderAdminView(root, { name: 'overview' });
+      formsGo({ name: 'overview' });
     } else {
       confirmBtn.disabled = false;
       if (result.message) error.textContent = result.message;
@@ -2243,7 +2385,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
 
   const cancelBtn = el('button', 'site-btn-warm forms-builder-cancel', 'Annuller');
   cancelBtn.type = 'button';
-  cancelBtn.addEventListener('click', () => formsGuardedNavigate(() => renderAdminView(root, { name: 'overview' })));
+  cancelBtn.addEventListener('click', () => formsGuardedNavigate(() => formsGo({ name: 'overview' })));
 
   const saveBtn = el('button', 'site-btn-success', 'Gem');
   saveBtn.type = 'button';
@@ -2265,7 +2407,7 @@ function formsRenderBuilderScreen(root, existingDefinition) {
     const result = await formsApi('forms_save', payload);
     saveBtn.disabled = false;
     if (result.ok) {
-      renderAdminView(root, { name: 'overview' });
+      formsGo({ name: 'overview' });
     } else if (result.message) {
       error.textContent = result.message;
     }
@@ -2824,18 +2966,38 @@ async function formsRenderResponsesScreen(root, formId) {
   header.appendChild(exportBtn);
   body.appendChild(header);
 
-  const showDetail = (r) => {
-    const scrollY = window.scrollY;
+  // The eye and the detail's ← only navigate (formsGo, so each response is
+  // its own history entry); formsShow then calls open/close below in place.
+  let detailEl = null;
+  let listScrollY = 0;
+  const openDetail = (r) => {
+    if (detailEl) detailEl.remove();
+    else listScrollY = window.scrollY;
     formsHideResponseTooltip();
     listView.hidden = true;
-    const detail = formsRenderResponseDetail(definition, r, () => {
-      detail.remove();
-      listView.hidden = false;
-      window.scrollTo(0, scrollY);
-    });
-    root.appendChild(detail);
+    detailEl = formsRenderResponseDetail(definition, r, () => formsGo({ name: 'responses', formId }));
+    root.appendChild(detailEl);
     window.scrollTo(0, 0);
   };
+  const closeDetail = () => {
+    if (!detailEl) return;
+    detailEl.remove();
+    detailEl = null;
+    listView.hidden = false;
+    window.scrollTo(0, listScrollY);
+  };
+  const showDetail = (r) => formsGo({ name: 'responses', formId, responseId: r.id });
+  if (listView.isConnected) {
+    formsResponsesView = {
+      formId,
+      open(responseId) {
+        const r = responses.find((x) => x.id === responseId);
+        if (r) openDetail(r);
+        else closeDetail();
+      },
+      close: closeDetail,
+    };
+  }
 
   const columns = formsAnswerColumns(definition);
   const wrap = el('div', 'forms-responses-wrap');
@@ -2901,7 +3063,7 @@ async function formsRenderResponsesScreen(root, formId) {
     deleteBtn.addEventListener('click', () => {
       formsOpenDeleteResponseConfirm(formsFormatSubmittedAt(r.submittedAt), async () => {
         const del = await formsApi('forms_delete_response', { formId, responseId: r.id });
-        if (del.ok) renderAdminView(root, { name: 'responses', formId });
+        if (del.ok) formsGo({ name: 'responses', formId });
       });
     });
     deleteCell.appendChild(deleteBtn);
@@ -2926,6 +3088,12 @@ async function formsRenderResponsesScreen(root, formId) {
     if (!listView.hidden) formsApplyStickyColumns(table, pinnedKeys);
   };
   window.addEventListener('resize', onResize);
+
+  // Reached straight onto one response (forward/reload): open it now.
+  const cur = formsCurrentScreen;
+  if (listView.isConnected && cur && cur.name === 'responses' && cur.formId === formId && cur.responseId) {
+    formsResponsesView.open(cur.responseId);
+  }
 }
 
 // ── Svar: Betingelser card ─────
@@ -3885,9 +4053,9 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('scroll', formsHideResponseTooltip, { passive: true });
   // The page gate (site.js) already hides <main> for public visitors.
   if (typeof siteHasLevel === 'function' && siteHasLevel('boss')) {
-    renderAdminView(root);
+    formsInitHistory(root, true);
   } else if (typeof siteHasLevel === 'function' && siteHasLevel('revyst')) {
-    renderFormsList(root);
+    formsInitHistory(root, false);
   }
 
   // Native beforeunload dialog — the one case a page can't restyle, but the
