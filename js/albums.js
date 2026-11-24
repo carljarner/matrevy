@@ -1924,13 +1924,18 @@ function albUpdatePositionState() {
   } catch (e) { /* ignore */ }
 }
 
-// No seekbackward/seekforward handlers: iOS would then show ±10 s buttons
-// instead of previous/next.
+// No seekbackward/seekforward: iOS shows ±10 s buttons instead of
+// previous/next while those are offered, and Safari offers them by default.
+// Clearing one only drops it once the page has set it, hence set, then clear.
 function albInitMediaSession() {
   if (!('mediaSession' in navigator)) return;
   const set = (action, handler) => {
     try { navigator.mediaSession.setActionHandler(action, handler); } catch (e) { /* unsupported */ }
   };
+  for (const action of ['seekbackward', 'seekforward']) {
+    set(action, () => {});
+    set(action, null);
+  }
   set('play', () => albTogglePlayTo(true));
   set('pause', () => albTogglePlayTo(false));
   set('previoustrack', () => albPrev());

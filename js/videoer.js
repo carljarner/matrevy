@@ -1106,8 +1106,12 @@ function vidInitMediaSession() {
   set('pause', () => v.pause());
   set('previoustrack', () => vidPrevScene());
   set('nexttrack', () => vidNextScene());
-  set('seekbackward', null);
-  set('seekforward', null);
+  // iOS shows ±10 s instead of previous/next while these are offered, and
+  // Safari offers them by default; clearing only drops one the page set.
+  for (const action of ['seekbackward', 'seekforward']) {
+    set(action, () => {});
+    set(action, null);
+  }
   set('seekto', (details) => { if (Number.isFinite(details.seekTime)) v.currentTime = details.seekTime; });
   vidLastCurrent = null;
   vidPaintNow();
