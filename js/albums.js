@@ -2303,7 +2303,7 @@ function albBuildPlayer() {
   inner.appendChild(seek);
 
   bar.appendChild(inner);
-  // ✕ in the top-right corner (not on phones): stops the music and empties
+  // ✕ in the top-right corner (a tab above it on phones): stops the music and empties
   // the player and the queue, which hides the bar.
   const closeBtn = el('button', 'site-icon-btn alb-player-close', '✕');
   closeBtn.type = 'button';

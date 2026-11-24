@@ -626,7 +626,7 @@ body.alb-has-player {
   padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* ✕ in the top-right corner of the bar (not on phones). */
+/* ✕ in the top-right corner of the bar (on phones a tab above it). */
 .alb-player .site-icon-btn.alb-player-close {
   position: absolute;
   top: 0.3rem;
@@ -1087,17 +1087,36 @@ body.alb-has-player .site-toast {
     display: none;
   }
 
-  /* No ✕ on phones. */
+  /* The ✕ sits in a small dark tab sticking up from the bar's top-right
+     corner, so it takes no room in the bar itself. */
+  body {
+    --alb-close-tab-h: 1.75rem;
+  }
+
   .alb-player .site-icon-btn.alb-player-close {
-    display: none;
+    top: auto;
+    bottom: 100%;
+    right: 0;
+    width: 2.5rem;
+    height: var(--alb-close-tab-h);
+    border-radius: var(--radius-card) 0 0 0;
+    background: var(--header);
+    color: rgba(255, 255, 255, 0.75);
+    box-shadow: -3px -3px 8px rgba(0, 0, 0, 0.12);
+  }
+
+  @media (hover: hover) {
+    .alb-player .site-icon-btn.alb-player-close:hover {
+      background: var(--header);
+    }
   }
 
   body.alb-has-player {
-    padding-bottom: calc(8rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(8rem + var(--alb-close-tab-h) + env(safe-area-inset-bottom, 0px));
   }
 
   body.alb-has-player .site-toast {
-    bottom: calc(8.5rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(8.5rem + var(--alb-close-tab-h) + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -1270,7 +1289,9 @@ body.alb-has-player .site-toast {
     left: 0.5rem;
     right: 0.5rem;
     width: auto;
-    height: calc(100vh - var(--alb-player-h, 6rem) - 56px - 1rem);
+    /* Above the ✕ tab on the bar's corner. */
+    bottom: calc(var(--alb-player-h, 6rem) + var(--alb-close-tab-h, 0px) + 0.5rem);
+    height: calc(100vh - var(--alb-player-h, 6rem) - var(--alb-close-tab-h, 0px) - 56px - 1rem);
   }
 }
 
