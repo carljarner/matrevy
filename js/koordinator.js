@@ -1779,11 +1779,11 @@ async function koordBudgetApi(action, body) {
   try { data = await res.json(); } catch (e) { data = null; }
   if (!res.ok) {
     const detail = data && typeof data.error === 'string' ? data.error : '';
-    return { ok: false, message: detail ? `Der opstod en serverfejl. (${detail})` : 'Der opstod en serverfejl. Prøv igen senere.' };
+    return { ok: false, error: detail, message: detail ? `Der opstod en serverfejl. (${detail})` : 'Der opstod en serverfejl. Prøv igen senere.' };
   }
   if (!data || data.ok !== true) {
     const detail = data && typeof data.error === 'string' ? data.error : '';
-    return { ok: false, message: detail ? `Serverfejl: ${detail}` : 'Uventet svar fra serveren. Prøv igen senere.' };
+    return { ok: false, error: detail, message: detail ? `Serverfejl: ${detail}` : 'Uventet svar fra serveren. Prøv igen senere.' };
   }
   return { ok: true, data };
 }
@@ -3801,6 +3801,10 @@ function renderArkiveringCard(container) {
   loginsCard.id = 'koord-logins-card';
   rightCol.appendChild(loginsCard);
 
+  const passwordsCard = el('section', 'card');
+  passwordsCard.id = 'koord-passwords-card';
+  rightCol.appendChild(passwordsCard);
+
   layout.appendChild(rightCol);
 
   container.appendChild(layout);
@@ -3809,6 +3813,7 @@ function renderArkiveringCard(container) {
   renderKoordManusSection();
   koordLoadBudgetYears();
   koordLoadLogins();
+  koordLoadPasswords();
 }
 
 // ── Google, YouTube & Spotify logins ─────────────────────────
@@ -4043,6 +4048,224 @@ async function koordSaveLogins() {
     siteShowToast(result.message);
   }
   renderKoordLoginsCard();
+}
+
+// ── Adgangskoder (satyr/revyst/boss) ─────────────────────────
+// The site's shared passwords below admin, from the private admin-only
+// koord_passwords_read/_save actions (KOORD_DATA_DIR/passwords.json; the
+// admin password itself only ever lives in Coolify). One collapsible
+// subsection per level, all collapsed on every load (in memory only), so
+// the passwords aren't on screen when Koordinator is shown to a room.
+// The pencil opens all three as fields; the check mark asks for the admin
+// password again in a modal before saving. An empty field = the server
+// falls back to the Coolify env var (for satyr: off if that's unset too).
+const KOORD_PASSWORD_LEVELS = [
+  { key: 'boss', label: 'Boss' },
+  { key: 'revyst', label: 'Revyst' },
+  { key: 'satyr', label: 'Satyr' },
+];
+const KOORD_PASSWORD_MIN = 6;
+const KOORD_PASSWORD_MAX = 100;
+let koordPasswords = null;          // the server's reply: {boss, revyst, satyr, source, updatedAt}
+let koordPasswordsDraft = null;     // {boss, revyst, satyr} while in edit mode
+let koordPasswordsState = 'loading'; // 'loading' | 'ready' | 'failed'
+let koordPasswordsSaving = false;
+let koordPasswordsError = '';       // the draft's validation message, shown under the fields
+const koordPasswordsOpen = new Set(); // expanded levels (in memory only)
+
+async function koordLoadPasswords() {
+  koordPasswordsState = 'loading';
+  renderKoordPasswordsCard();
+  const result = await koordBudgetApi('koord_passwords_read', {});
+  if (result.ok) {
+    koordPasswords = result.data;
+    koordPasswordsState = 'ready';
+  } else {
+    koordPasswordsState = 'failed';
+  }
+  renderKoordPasswordsCard();
+}
+
+// What the saved value turns into: '' = whatever Coolify has.
+function koordPasswordStoredValue(level) {
+  return koordPasswords.source[level] === 'site' ? koordPasswords[level] : '';
+}
+
+function koordPasswordStatusText(level) {
+  const source = koordPasswords.source[level];
+  if (source === 'off') return 'Slået fra (ingen satyr-login)';
+  if (source === 'coolify') return 'Fra Coolify';
+  const at = koordPasswords.updatedAt && koordPasswords.updatedAt[level];
+  return at ? `Ændret ${formatDaDate(at.slice(0, 10))}` : 'Sat her';
+}
+
+// Same rules as koord_passwords_save, so most mistakes show before the modal.
+// Only compares the values typed here (the admin password isn't known).
+function koordValidatePasswordDraft(draft) {
+  for (const { key, label } of KOORD_PASSWORD_LEVELS) {
+    const value = draft[key].trim();
+    if (value === '') continue;
+    if (value.length < KOORD_PASSWORD_MIN) return `${label}: mindst ${KOORD_PASSWORD_MIN} tegn.`;
+    if (value.length > KOORD_PASSWORD_MAX) return `${label}: højst ${KOORD_PASSWORD_MAX} tegn.`;
+  }
+  const effective = KOORD_PASSWORD_LEVELS.map(({ key, label }) => ({
+    label,
+    value: draft[key].trim() || (koordPasswords.source[key] === 'site' ? '' : koordPasswords[key]),
+  }));
+  for (let i = 0; i < effective.length; i++) {
+    for (let j = i + 1; j < effective.length; j++) {
+      if (effective[i].value && effective[i].value === effective[j].value) {
+        return `${effective[i].label} og ${effective[j].label} må ikke have samme adgangskode.`;
+      }
+    }
+  }
+  return '';
+}
+
+function renderKoordPasswordsCard() {
+  const card = document.getElementById('koord-passwords-card');
+  if (!card) return;
+  card.textContent = '';
+  const editing = koordPasswordsDraft !== null;
+
+  const head = el('div', 'card-head');
+  head.appendChild(el('h2', null, 'Adgangskoder'));
+  const toggle = siteEditToggle(editing, () => {
+    if (editing) { koordFinishPasswordEdit(); return; }
+    koordPasswordsDraft = {};
+    KOORD_PASSWORD_LEVELS.forEach(({ key }) => { koordPasswordsDraft[key] = koordPasswordStoredValue(key); });
+    koordPasswordsError = '';
+    renderKoordPasswordsCard();
+  }, { editLabel: 'Rediger', doneLabel: 'Gem og afslut redigering' });
+  toggle.disabled = koordPasswordsState !== 'ready' || koordPasswordsSaving;
+  head.appendChild(toggle);
+  card.appendChild(head);
+
+  if (koordPasswordsState !== 'ready') {
+    card.appendChild(el('p', 'koord-status-value', koordPasswordsState === 'loading'
+      ? 'Indlæser…'
+      : 'Kunne ikke hente adgangskoderne.'));
+    return;
+  }
+
+  KOORD_PASSWORD_LEVELS.forEach(({ key, label }) => {
+    const isOpen = editing || koordPasswordsOpen.has(key);
+    const section = el('div', 'koord-login-section');
+    const sectionHead = el('div', 'koord-login-head');
+    if (editing) {
+      // Every level is open while editing, so no toggle, just its name.
+      sectionHead.appendChild(el('span', 'koord-login-title koord-password-level', label));
+    } else {
+      const chevron = el('button', 'site-collapse koord-login-toggle');
+      chevron.type = 'button';
+      chevron.setAttribute('aria-expanded', String(isOpen));
+      chevron.setAttribute('aria-label', isOpen ? 'Fold sammen' : 'Fold ud');
+      chevron.appendChild(el('span', 'site-chevron', '▾'));
+      chevron.appendChild(el('span', 'koord-login-title', label));
+      chevron.addEventListener('click', () => {
+        if (isOpen) koordPasswordsOpen.delete(key); else koordPasswordsOpen.add(key);
+        renderKoordPasswordsCard();
+      });
+      sectionHead.appendChild(chevron);
+    }
+    section.appendChild(sectionHead);
+
+    if (isOpen) {
+      const list = el('div', 'koord-login-fields');
+      const row = el('label', 'koord-login-row');
+      row.appendChild(el('span', 'koord-login-label', 'Adgangskode'));
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'site-inline-field site-field-labeled koord-login-input';
+      input.value = editing ? koordPasswordsDraft[key] : koordPasswords[key];
+      input.readOnly = !editing || koordPasswordsSaving;
+      input.maxLength = KOORD_PASSWORD_MAX;
+      input.autocomplete = 'off';
+      input.spellcheck = false;
+      // Empty = the Coolify value, or (satyr without one) no satyr login.
+      input.placeholder = !editing ? '-' : (koordPasswords.fallback[key] ? 'Fra Coolify' : 'Slået fra');
+      input.addEventListener('input', () => { koordPasswordsDraft[key] = input.value; });
+      row.appendChild(input);
+      list.appendChild(row);
+      if (!editing) {
+        const statusRow = el('div', 'koord-login-row');
+        statusRow.appendChild(el('span', 'koord-login-label', 'Status'));
+        statusRow.appendChild(el('span', 'koord-password-status', koordPasswordStatusText(key)));
+        list.appendChild(statusRow);
+      }
+      section.appendChild(list);
+    }
+    card.appendChild(section);
+  });
+
+  if (editing) {
+    card.appendChild(el('p', 'site-hint koord-password-hint',
+      'Et tomt felt bruger adgangskoden fra Coolify. '
+      + 'Brug ikke en adgangskode, du bruger andre steder.'));
+    if (koordPasswordsError) card.appendChild(el('p', 'koord-password-error', koordPasswordsError));
+  }
+}
+
+function koordFinishPasswordEdit() {
+  const draft = {};
+  KOORD_PASSWORD_LEVELS.forEach(({ key }) => { draft[key] = koordPasswordsDraft[key].trim(); });
+  const changed = KOORD_PASSWORD_LEVELS.some(({ key }) => draft[key] !== koordPasswordStoredValue(key));
+  if (!changed) {
+    koordPasswordsDraft = null;
+    koordPasswordsError = '';
+    renderKoordPasswordsCard();
+    return;
+  }
+  koordPasswordsError = koordValidatePasswordDraft(draft);
+  if (koordPasswordsError) { renderKoordPasswordsCard(); return; }
+  koordPasswordsError = '';
+  renderKoordPasswordsCard();
+  openPasswordsConfirm(draft);
+}
+
+function openPasswordsConfirm(draft) {
+  const { modal, form, error, actions, close } = siteOpenModalWithClose('Skift adgangskoder?');
+  modal.classList.add('site-confirm-modal');
+  form.appendChild(el('p', 'site-confirm-sub', 'Alle, der er logget ind med en ændret adgangskode, skal logge ind igen.'));
+  const input = document.createElement('input');
+  input.type = 'password';
+  input.autocomplete = 'current-password';
+  form.appendChild(siteEditField('Din admin-adgangskode', input));
+  const confirmBtn = koordPillBtn('Skift', 'site-btn-success');
+  actions.appendChild(confirmBtn);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmBtn.click(); });
+
+  confirmBtn.addEventListener('click', async () => {
+    const adminPassword = input.value.trim();
+    if (!adminPassword) { error.textContent = 'Skriv din admin-adgangskode.'; return; }
+    confirmBtn.disabled = true;
+    error.textContent = '';
+    koordPasswordsSaving = true;
+    renderKoordPasswordsCard();
+    const result = await koordBudgetApi('koord_passwords_save', Object.assign({ adminPassword }, draft));
+    koordPasswordsSaving = false;
+    confirmBtn.disabled = false;
+    if (result.ok) {
+      koordPasswords = result.data;
+      koordPasswordsDraft = null;
+      close();
+      siteShowToast('Adgangskoderne er skiftet');
+    } else if (result.error === 'wrong_admin_password') {
+      error.textContent = 'Forkert admin-adgangskode.';
+      input.select();
+    } else if (result.error === 'password_collision') {
+      // Typically the admin password, which the client doesn't know.
+      koordPasswordsError = 'En af adgangskoderne er den samme som en anden adgangskode (måske admin). Vælg en anden.';
+      close();
+    } else if (result.error === 'invalid_password_format') {
+      koordPasswordsError = `Adgangskoder skal være ${KOORD_PASSWORD_MIN} til ${KOORD_PASSWORD_MAX} tegn.`;
+      close();
+    } else {
+      error.textContent = result.message || 'Kunne ikke gemme. Prøv igen.';
+    }
+    renderKoordPasswordsCard();
+  });
+  input.focus();
 }
 
 // Right-column "Manus" card: just the active-production-folder status, no

@@ -74,7 +74,7 @@ Data lives on the server's disk under `/srv/matrevy/data`:
 
 Arkiv's revy videos (Videoer) live on their own Hetzner Volume instead, mounted at `/mnt/videoer` (see "Videoer volume" under Drift). Never web-served; they only stream through signed links.
 
-The passwords are environment variables in Coolify. They're never in the repo.
+The admin password is an environment variable in Coolify. The satyr, revyst and boss passwords are set by an admin on Koordinator → Arkivering ("Adgangskoder", stored privately in `/srv/matrevy/data/koordinator/passwords.json`); their Coolify environment variables are only the fallback, used when that card has no value. No password is ever in the repo.
 
 ### DNS (Simply.com)
 
@@ -93,7 +93,7 @@ TLS certificates come from Let's Encrypt automatically, through Coolify's Traefi
 
 Push to `main`. Coolify rebuilds and redeploys both containers within a few minutes. Saving data on the site doesn't involve git at all.
 
-To change a password, edit the environment variable in Coolify, then redeploy.
+To change the satyr, revyst or boss password, use the "Adgangskoder" card on Koordinator → Arkivering (no redeploy). An empty field there, or a deleted `passwords.json`, falls back to the Coolify value. To change the admin password, edit `ADMIN_PASSWORD` in Coolify, then redeploy.
 
 ## Local development
 
@@ -125,7 +125,7 @@ Most upkeep is automatic: Ubuntu installs security updates, Coolify updates itse
 | Monthly | Check that backups ran | `ssh web-1 tail -20 /var/log/backup-srv.log` |
 | Monthly | Reboot if updates need it | `ssh web-1 cat /var/run/reboot-required`, then `reboot` at a quiet hour |
 | Quarterly | Practise a restore | See below |
-| Each new revy season | Change the three passwords | Coolify environment variables, then Redeploy |
+| Each new revy season | Change the passwords | Satyr/revyst/boss: Koordinator → Arkivering → Adgangskoder. Admin: Coolify environment variable, then Redeploy |
 
 ### Videoer volume
 

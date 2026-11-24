@@ -14,13 +14,16 @@ define('GITHUB_REPO', 'matrevy');
 // - REVYST_PASSWORD unlocks the revyst-level pages and (later) revyst-level writes.
 // - BOSS_PASSWORD additionally unlocks Øveplan/Koordinator and editing Manus/Kalender.
 // - ADMIN_PASSWORD unlocks everything, including all saves.
+// Admins can override REVYST_/BOSS_/SATYR_PASSWORD from Koordinator → Arkivering
+// ("Adgangskoder", stored in KOORD_DATA_DIR/passwords.json); these values are
+// then only the fallback. ADMIN_PASSWORD can only be set here.
 define('REVYST_PASSWORD', 'skift-mig-revyst');
 define('BOSS_PASSWORD', 'skift-mig-boss');
 define('ADMIN_PASSWORD', 'skift-mig-admin');
 
 // Optional fourth password, below revyst: SATYR_PASSWORD only unlocks Budget's
 // submit form and Fællesspisning's summary without names. Leave it out to
-// disable the satyr login.
+// disable the satyr login (unless Koordinator sets one).
 // define('SATYR_PASSWORD', 'skift-mig-satyr');
 
 // Absolute path on the server for the PRIVATE budget datastore

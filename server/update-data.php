@@ -8,8 +8,10 @@
 //     "payload": { ... resource-specific ... } }
 //     -> { "ok": true }
 //
-// Passwords are the shared site passwords (REVYST_PASSWORD /
-// BOSS_PASSWORD / ADMIN_PASSWORD in config.php). Saves write JSON files in
+// Passwords are the shared site passwords: ADMIN_PASSWORD only from
+// config.php (Coolify env), satyr/revyst/boss from Koordinator's
+// KOORD_DATA_DIR/passwords.json with SATYR_/REVYST_/BOSS_PASSWORD in
+// config.php as the fallback (site_password()). Saves write JSON files in
 // data/ to the server's disk under SITE_DATA_DIR through github_api() (a
 // local stand-in for the GitHub Contents API, kept so every caller and the
 // stale-sha 409 work unchanged); the worker container then regenerates the
@@ -88,14 +90,64 @@ if (isset($body['pin']) && !isset($body['action'])) {
 }
 
 // ── Authentication: shared password -> level ────────────────
+// Satyr/revyst/boss are set by an admin on Koordinator → Arkivering
+// ("Adgangskoder", KOORD_DATA_DIR/passwords.json); a missing file or an
+// empty value falls back to the config.php constant (Coolify env). Admin is
+// only ever the constant. Also called before the POST check (Teknikken's
+// signed GET), so this reads the file itself and never respond()s: any
+// problem with the file silently means "use the constants".
+
+function site_passwords_path() {
+  if (!defined('KOORD_DATA_DIR') || !is_string(KOORD_DATA_DIR) || KOORD_DATA_DIR === '') return null;
+  return rtrim(KOORD_DATA_DIR, '/') . '/passwords.json';
+}
+
+// The changeable levels, highest first (also the card's order).
+function site_password_levels() {
+  return ['boss', 'revyst', 'satyr'];
+}
+
+function site_password_constant($level) {
+  $name = strtoupper($level) . '_PASSWORD';
+  return defined($name) && is_string(constant($name)) ? (string) constant($name) : '';
+}
+
+// The stored doc ({satyr?, revyst?, boss?, updatedAt?}), [] if none.
+// $fresh skips the per-request cache (the save re-reads under its lock).
+function site_passwords_doc($fresh = false) {
+  static $cache = null;
+  if ($cache !== null && !$fresh) return $cache;
+  $doc = [];
+  $path = site_passwords_path();
+  if ($path !== null && is_file($path)) {
+    $decoded = json_decode((string) @file_get_contents($path), true);
+    if (is_array($decoded)) $doc = $decoded;
+  }
+  $cache = $doc;
+  return $doc;
+}
+
+// Effective password for a level; '' only for satyr = satyr login off.
+function site_password($level) {
+  if ($level === 'admin') return site_password_constant('admin');
+  $doc = site_passwords_doc();
+  $value = $doc[$level] ?? null;
+  if (is_string($value) && $value !== '') return $value;
+  return site_password_constant($level);
+}
+
 function password_level($pw) {
   if (!is_string($pw) || $pw === '') return null;
-  if (defined('ADMIN_PASSWORD') && hash_equals(ADMIN_PASSWORD, $pw)) return 'admin';
-  if (defined('BOSS_PASSWORD') && hash_equals(BOSS_PASSWORD, $pw)) return 'boss';
-  if (defined('REVYST_PASSWORD') && hash_equals(REVYST_PASSWORD, $pw)) return 'revyst';
+  $admin = site_password('admin');
+  if ($admin !== '' && hash_equals($admin, $pw)) return 'admin';
+  $boss = site_password('boss');
+  if ($boss !== '' && hash_equals($boss, $pw)) return 'boss';
+  $revyst = site_password('revyst');
+  if ($revyst !== '' && hash_equals($revyst, $pw)) return 'revyst';
   // Satyr: the lowest login (Budget's submit form + Fællesspisning's
-  // anonymous summary). Optional, off while SATYR_PASSWORD is unset.
-  if (defined('SATYR_PASSWORD') && SATYR_PASSWORD !== '' && hash_equals(SATYR_PASSWORD, $pw)) return 'satyr';
+  // anonymous summary). Optional, off while it has no password.
+  $satyr = site_password('satyr');
+  if ($satyr !== '' && hash_equals($satyr, $pw)) return 'satyr';
   return null;
 }
 
@@ -453,6 +505,9 @@ $KOORD_ACTIONS = [
   'koord_notes_delete' => 'admin',  // {id}, idempotent
   'koord_notes_move' => 'admin',    // {id, column, beforeId|null}
   'koord_notes_archive' => 'admin', // {folder, name}: Afslut revyen files the current notes under that revy
+  // Adgangskoder: the satyr/revyst/boss passwords (admin stays Coolify-only).
+  'koord_passwords_read' => 'admin', // {satyr, revyst, boss, source, updatedAt}
+  'koord_passwords_save' => 'admin', // {adminPassword, satyr, revyst, boss}; '' = Coolify's value
 ];
 if (isset($KOORD_ACTIONS[$action])) {
   if ($LEVEL_RANK[$level] < $LEVEL_RANK[$KOORD_ACTIONS[$action]]) {
@@ -464,6 +519,8 @@ if (isset($KOORD_ACTIONS[$action])) {
   if ($action === 'koord_notes_upsert') koord_notes_upsert($body);
   if ($action === 'koord_notes_delete') koord_notes_delete($body);
   if ($action === 'koord_notes_archive') koord_notes_archive($body);
+  if ($action === 'koord_passwords_read') koord_passwords_read();
+  if ($action === 'koord_passwords_save') koord_passwords_save($body);
   koord_notes_move($body);
 }
 
@@ -6711,6 +6768,101 @@ function koord_logins_save($body) {
   respond(200, ['ok' => true, 'title' => $title, 'accounts' => $clean, 'updatedAt' => $doc['updatedAt']]);
 }
 
+// ── Koordinator passwords (KOORD_DATA_DIR/passwords.json) ──
+// {satyr?, revyst?, boss?, updatedAt: {<level>: iso}}: what an admin typed
+// on Arkivering's "Adgangskoder" card; a missing or '' value = the Coolify
+// env var (site_password(), top of the file). Stored readable on purpose:
+// the admins hand them out, and they are shared passwords anyway.
+
+// What the card shows: effective values plus where each comes from.
+function koord_passwords_reply($doc) {
+  // fallback: whether Coolify has a value to fall back to (never the value).
+  $out = ['ok' => true, 'source' => [], 'fallback' => [], 'updatedAt' => []];
+  $updated = is_array($doc['updatedAt'] ?? null) ? $doc['updatedAt'] : [];
+  foreach (site_password_levels() as $level) {
+    $stored = $doc[$level] ?? null;
+    if (is_string($stored) && $stored !== '') {
+      $out[$level] = $stored;
+      $out['source'][$level] = 'site';
+    } else {
+      $out[$level] = site_password_constant($level);
+      $out['source'][$level] = $out[$level] === '' ? 'off' : 'coolify';
+    }
+    $out['fallback'][$level] = site_password_constant($level) !== '';
+    $out['updatedAt'][$level] = is_string($updated[$level] ?? null) ? $updated[$level] : null;
+  }
+  return $out;
+}
+
+function koord_passwords_read() {
+  respond(200, koord_passwords_reply(site_passwords_doc(true)));
+}
+
+function koord_passwords_save($body) {
+  $adminPw = $body['adminPassword'] ?? '';
+  $admin = site_password('admin');
+  if (!is_string($adminPw) || $admin === '' || !hash_equals($admin, $adminPw)) {
+    respond(403, ['error' => 'wrong_admin_password']);
+  }
+  $new = [];
+  foreach (site_password_levels() as $level) {
+    $value = $body[$level] ?? null;
+    if (!is_string($value)) respond(400, ['error' => 'invalid_shape']);
+    // The login modal trims what's typed, so outer spaces could never match.
+    $value = trim($value);
+    if ($value !== '' && (mb_strlen($value) < 6 || mb_strlen($value) > 100 || preg_match('/[\x00-\x1f\x7f]/', $value))) {
+      respond(400, ['error' => 'invalid_password_format', 'level' => $level]);
+    }
+    $new[$level] = $value;
+  }
+
+  $path = site_passwords_path();
+  if ($path === null) respond(500, ['error' => 'koord_not_configured']);
+  $dir = dirname($path);
+  if (!is_dir($dir) && !@mkdir($dir, 0770, true) && !is_dir($dir)) {
+    respond(500, ['error' => 'koord_storage_unavailable']);
+  }
+  $lock = @fopen($dir . '/.passwords.lock', 'c');
+  if ($lock === false || !flock($lock, LOCK_EX)) respond(500, ['error' => 'koord_storage_unavailable']);
+
+  $old = site_passwords_doc(true);
+  // Every effective password (admin, boss, revyst, satyr if on) must be
+  // unique: password_level() checks admin → satyr in order, so a shared value
+  // would log the lower level in as the higher one (and boss = admin would
+  // hand the admin password to every boss).
+  $effective = ['admin' => $admin];
+  foreach (site_password_levels() as $level) {
+    $effective[$level] = $new[$level] !== '' ? $new[$level] : site_password_constant($level);
+  }
+  $levels = array_keys($effective);
+  foreach ($levels as $i => $a) {
+    foreach (array_slice($levels, $i + 1) as $b) {
+      if ($effective[$a] !== '' && $effective[$b] !== '' && hash_equals($effective[$a], $effective[$b])) {
+        flock($lock, LOCK_UN);
+        // Never name admin: the caller only learns "collides with something".
+        respond(409, ['error' => 'password_collision', 'level' => $a === 'admin' ? $b : $a]);
+      }
+    }
+  }
+
+  $updated = is_array($old['updatedAt'] ?? null) ? $old['updatedAt'] : [];
+  $doc = [];
+  foreach (site_password_levels() as $level) {
+    $before = is_string($old[$level] ?? null) ? $old[$level] : '';
+    if ($new[$level] !== '') $doc[$level] = $new[$level];
+    if ($new[$level] !== $before) $updated[$level] = date('c');
+  }
+  $doc['updatedAt'] = array_intersect_key($updated, array_flip(site_password_levels()));
+  $tmp = $path . '.tmp';
+  $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+  if (@file_put_contents($tmp, $json) === false || !@chmod($tmp, 0660) || !@rename($tmp, $path)) {
+    flock($lock, LOCK_UN);
+    respond(500, ['error' => 'koord_storage_unavailable']);
+  }
+  flock($lock, LOCK_UN);
+  respond(200, koord_passwords_reply($doc));
+}
+
 // ── Koordinator notes (KOORD_DATA_DIR/notes.json) ──
 // Tjeklister & Fællesbeskeder's Keep-style notes: {notes: [{id, column,
 // kind, title, text, items: [{id, text, done, indent: 0-3}], color,
@@ -8272,12 +8424,13 @@ function teknik_upload_abort($body) {
 // The page asks for a short-lived URL and navigates to it, so the browser
 // downloads natively (progress, no memory limit, works on phones) instead
 // of holding a multi-GB blob. The token is an HMAC over {f, e, i}, keyed on
-// the three passwords, so a new season's passwords void old links.
+// the effective revyst/boss/admin passwords (site_password()), so a new
+// season's passwords void old links.
 
 function teknik_download_secret() {
   $parts = [];
-  foreach (['REVYST_PASSWORD', 'BOSS_PASSWORD', 'ADMIN_PASSWORD'] as $name) {
-    $parts[] = defined($name) ? (string) constant($name) : '';
+  foreach (['revyst', 'boss', 'admin'] as $level) {
+    $parts[] = site_password($level);
   }
   return hash('sha256', 'teknik-download|' . implode('|', $parts));
 }

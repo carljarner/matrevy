@@ -16,12 +16,15 @@ function matrevy_env($name, $default = null) {
   return $value;
 }
 
+// Revyst/boss/satyr: the fallback when Koordinator's "Adgangskoder" card
+// (KOORD_DATA_DIR/passwords.json) has no value. Admin is only ever this.
 define('REVYST_PASSWORD', matrevy_env('REVYST_PASSWORD'));
 define('BOSS_PASSWORD', matrevy_env('BOSS_PASSWORD'));
 define('ADMIN_PASSWORD', matrevy_env('ADMIN_PASSWORD'));
 
 // Satyr (below revyst: Budget's submit form + Fællesspisning's summary).
-// Leave the env var unset to disable the satyr login.
+// Leave the env var unset to disable the satyr login (unless Koordinator
+// sets one).
 if (getenv('SATYR_PASSWORD') !== false && getenv('SATYR_PASSWORD') !== '') {
   define('SATYR_PASSWORD', getenv('SATYR_PASSWORD'));
 }

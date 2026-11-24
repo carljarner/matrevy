@@ -1086,6 +1086,32 @@
   cursor: text;
 }
 
+/* --- Arkivering's "Adgangskoder" card: the logins card's subsections
+   (one per level), plus a status line, and in edit mode a hint and the
+   draft's validation error under the fields. */
+.koord-password-status {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  padding: 0.2rem 0.4rem;
+}
+
+/* A level's name in edit mode (no chevron), sized like the toggle's. */
+.koord-password-level {
+  padding: 0.2rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.koord-password-hint,
+.koord-password-error {
+  margin: 0.6rem 0 0;
+  font-size: var(--fs-sm);
+}
+
+.koord-password-error {
+  color: var(--danger);
+}
+
 /* Arkivering guide's one-line intro under the card title, above the first
    step's divider. */
 .koord-guide-intro {

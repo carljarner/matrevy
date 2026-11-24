@@ -298,7 +298,7 @@ function buildAuthButton() {
     btn.addEventListener('click', siteLogout);
   } else {
     btn.textContent = 'Log ind';
-    btn.addEventListener('click', openLoginModal);
+    btn.addEventListener('click', () => openLoginModal());
   }
   return btn;
 }
@@ -480,7 +480,9 @@ function openSiteMenu(menuBtn) {
 }
 
 // ── Login modal ──────────────────────────────────────────────
-function openLoginModal() {
+// `message` (optional) is shown as the error line when the modal opens,
+// e.g. after siteRecheckLogin() found the stored password no longer works.
+function openLoginModal(message) {
   if (document.getElementById('login-overlay')) return;
 
   const overlay = document.createElement('div');
@@ -514,6 +516,7 @@ function openLoginModal() {
 
   const error = document.createElement('div');
   error.className = 'login-error';
+  if (typeof message === 'string') error.textContent = message;
   modal.appendChild(error);
 
   const actions = document.createElement('div');
@@ -561,6 +564,7 @@ function openLoginModal() {
       }
       try {
         localStorage.setItem(SITE_AUTH_KEY, JSON.stringify({ level: data.level, password }));
+        sessionStorage.setItem(SITE_AUTH_CHECKED_KEY, data.level); // just checked
       } catch (e) { /* ignore */ }
       location.reload();
     } catch (e) {
@@ -672,7 +676,7 @@ function applyPageGate() {
   const btn = document.createElement('button');
   btn.className = 'site-login-btn site-gate-login';
   btn.textContent = 'Log ind';
-  btn.addEventListener('click', openLoginModal);
+  btn.addEventListener('click', () => openLoginModal());
   actions.appendChild(btn);
   card.appendChild(h);
   card.appendChild(actions);
@@ -857,10 +861,70 @@ function setupSiteStaleCheck() {
   });
 }
 
+// ── Login re-check ───────────────────────────────────────────
+// A stored login is otherwise never re-validated, so after an admin changes
+// a password on Koordinator ("Adgangskoder") the old one would keep showing
+// its pages while every write fails. Once per browser session the stored
+// password is sent to `login` again: a definite 401 logs out and asks to
+// log in again; a different level (the password now belongs to another
+// level) is stored and reloaded. Network errors, 5xx and non-JSON replies
+// change nothing and are retried on the next load.
+const SITE_AUTH_CHECKED_KEY = 'matrevy-auth-checked';
+const SITE_AUTH_CHANGED_KEY = 'matrevy-auth-changed';
+
+async function siteRecheckLogin() {
+  if (siteIsFileProtocol()) return;
+  const auth = getSiteAuth();
+  if (!auth || !auth.password) return;
+  try {
+    if (sessionStorage.getItem(SITE_AUTH_CHECKED_KEY) === auth.realLevel) return;
+  } catch (e) { return; }
+  let res;
+  let data = null;
+  try {
+    res = await fetch(SITE_API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', password: auth.password }),
+    });
+    data = await res.json();
+  } catch (e) { return; }
+  if (res.status === 401 && data && data.error === 'invalid_password') {
+    try {
+      localStorage.removeItem(SITE_AUTH_KEY);
+      sessionStorage.removeItem('matrevy-manus-pin');
+      sessionStorage.setItem(SITE_AUTH_CHANGED_KEY, '1');
+    } catch (e) { return; }
+    location.reload();
+    return;
+  }
+  if (!res.ok || !data || data.ok !== true || !SITE_LEVEL_RANK[data.level]) return;
+  if (data.level !== auth.realLevel) {
+    try {
+      localStorage.setItem(SITE_AUTH_KEY, JSON.stringify({ level: data.level, password: auth.password }));
+    } catch (e) { return; }
+    location.reload();
+    return;
+  }
+  try { sessionStorage.setItem(SITE_AUTH_CHECKED_KEY, auth.realLevel); } catch (e) { /* ignore */ }
+}
+
+// After the re-check logged someone out: say why, with the login open.
+function siteShowLoginChangedNotice() {
+  let changed = false;
+  try {
+    changed = sessionStorage.getItem(SITE_AUTH_CHANGED_KEY) === '1';
+    if (changed) sessionStorage.removeItem(SITE_AUTH_CHANGED_KEY);
+  } catch (e) { /* ignore */ }
+  if (changed) openLoginModal('Adgangskoden er blevet ændret. Log ind igen.');
+}
+
 // ── Init ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   renderSiteHeader();
   applyPageGate();
+  siteShowLoginChangedNotice();
+  siteRecheckLogin();
   injectSitePrefetchLinks();
   setupSiteNavPreload();
   setupSiteStaleCheck();
