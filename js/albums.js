@@ -1419,26 +1419,99 @@ const albPlayer = {
   resumeAt: 0, // a restored position, used by the next play
   retriedId: null, // a track already retried once after an error
   seeking: false, // the seek bar is being dragged
+  spare: null, // a second <audio> holding the preloaded next song (Android)
+  spareId: null, // the song in `spare`
 };
 let albPlayerEls = null;
 
+// Only the element in albPlayer.audio reports to the player; the spare's
+// events (loading the next song) are ignored until it's swapped in.
+function albCreateAudioEl() {
+  const audio = document.createElement('audio');
+  audio.preload = 'metadata';
+  const on = (type, handler) => audio.addEventListener(type, (e) => {
+    if (audio === albPlayer.audio) handler(e);
+  });
+  on('play', albOnPlayState);
+  on('pause', albOnPlayState);
+  on('playing', albOnPlayState);
+  on('waiting', albOnPlayState);
+  on('timeupdate', albOnTimeUpdate);
+  on('loadedmetadata', albOnMetadata);
+  on('ended', () => albNext(true));
+  on('error', albOnAudioError);
+  document.body.appendChild(audio);
+  return audio;
+}
+
 function albAudio() {
   if (!albPlayer.audio) {
-    const audio = document.createElement('audio');
-    audio.preload = 'metadata';
-    audio.addEventListener('play', albOnPlayState);
-    audio.addEventListener('pause', albOnPlayState);
-    audio.addEventListener('playing', albOnPlayState);
-    audio.addEventListener('waiting', albOnPlayState);
-    audio.addEventListener('timeupdate', albOnTimeUpdate);
-    audio.addEventListener('loadedmetadata', albOnMetadata);
-    audio.addEventListener('ended', () => albNext(true));
-    audio.addEventListener('error', albOnAudioError);
-    document.body.appendChild(audio);
-    albPlayer.audio = audio;
+    albPlayer.audio = albCreateAudioEl();
     albApplyVolume();
   }
   return albPlayer.audio;
+}
+
+// ── Preloading the next song (Android) ───────────────────────
+// With the screen off, Chrome on Android doesn't reliably start the next
+// song: between `ended` and the new FLAC's first bytes the hidden tab plays
+// nothing, and Android may throttle it, cut its network or refuse the
+// play(). So the next song is loaded into a second <audio> the last
+// ALB_PRELOAD_SEC of a song, and `ended` swaps it in and plays it at once.
+// Not on iOS (an element only plays locked once a tap started it, and the
+// single element already works there) or desktop.
+const ALB_PRELOAD = /Android/i.test(navigator.userAgent);
+const ALB_PRELOAD_SEC = 30;
+
+// The song albNext() would play, without changing anything. Null for repeat
+// one (the same element replays) and for a shuffled repeat-all wrap (the new
+// order isn't drawn yet).
+function albPeekNextId() {
+  if (albPlayer.repeat === 'one') return null;
+  if (albPlayer.upNext.length) return albPlayer.upNext[0];
+  const next = albPlayer.ctxPos + 1;
+  if (next < albPlayer.ctxOrder.length) return albPlayer.ctxOrder[next];
+  if (albPlayer.repeat === 'all' && !albPlayer.shuffle) return albPlayer.ctxOrder[0] || null;
+  return null;
+}
+
+// Runs on every timeupdate; a changed queue preloads the new next song.
+function albMaybePreload() {
+  if (!ALB_PRELOAD) return;
+  const audio = albPlayer.audio;
+  if (!audio || audio.paused || !albPlayer.loadedId || !Number.isFinite(audio.duration)) return;
+  if (audio.duration - audio.currentTime > ALB_PRELOAD_SEC) return;
+  const id = albPeekNextId();
+  if (!id || id === albPlayer.loadedId || id === albPlayer.spareId) return;
+  const url = albStreamUrl(albTrackById(id));
+  if (!url) return;
+  if (!albPlayer.spare) albPlayer.spare = albCreateAudioEl();
+  const spare = albPlayer.spare;
+  spare.preload = 'auto';
+  spare.volume = albVolume.level;
+  spare.muted = albVolume.muted;
+  spare.src = url;
+  albPlayer.spareId = id;
+}
+
+function albClearSpare() {
+  const spare = albPlayer.spare;
+  albPlayer.spareId = null;
+  if (!spare || !spare.getAttribute('src')) return;
+  spare.pause();
+  spare.removeAttribute('src');
+  spare.load();
+}
+
+// The preloaded element, if it holds this song from its start: it becomes
+// the player's element and the old one the (emptied) spare.
+function albTakeSpare(id, startAt) {
+  const spare = albPlayer.spare;
+  if (!spare || albPlayer.spareId !== id || startAt || spare.error) return null;
+  albPlayer.spare = albPlayer.audio;
+  albPlayer.audio = spare;
+  albClearSpare();
+  return spare;
 }
 
 function albCurrentTrack() {
@@ -1502,15 +1575,22 @@ function albLoadTrack(id, startAt) {
     });
     return;
   }
-  const audio = albAudio();
   // A new listen, unless this resumes the same song (a renewed link).
   if (albListen.id !== file.id || !startAt) albResetListen(file.id);
   albPlayer.loadedId = file.id;
   albPlayer.pendingSeek = startAt || 0;
   albPlayer.resumeAt = 0;
   if (albPlayer.retriedId !== file.id) albPlayer.retriedId = null;
-  audio.src = url;
-  albTryPlay();
+  const preloaded = albTakeSpare(file.id, startAt);
+  if (preloaded) {
+    albTryPlay();
+    // Its metadata arrived while it was the spare (ignored then).
+    if (preloaded.readyState >= 1) albOnMetadata();
+  } else {
+    albClearSpare(); // a different song: stop fetching the preloaded one
+    albAudio().src = url;
+    albTryPlay();
+  }
   albUpdateMediaSession();
   albPaintPlayer();
   albMarkPlaying();
@@ -1758,6 +1838,7 @@ function albStopPlayer() {
     albPlayer.audio.removeAttribute('src');
     albPlayer.audio.load();
   }
+  albClearSpare();
   Object.assign(albPlayer, {
     ctxIds: [], ctxOrder: [], ctxPos: -1, ctxFolder: null, upNext: [],
     nowId: null, nowQueued: false, loadedId: null, resumeAt: 0,
@@ -1794,6 +1875,7 @@ let albLastSave = 0;
 function albOnTimeUpdate() {
   albPaintProgress();
   albTrackListening();
+  albMaybePreload();
   if (Date.now() - albLastSave > 5000) albSaveState();
 }
 
@@ -2370,9 +2452,10 @@ function albToggleMute() {
 
 // Sets the audio element and paints the slider and the speaker icon.
 function albApplyVolume() {
-  if (albPlayer.audio) {
-    albPlayer.audio.volume = albVolume.level;
-    albPlayer.audio.muted = albVolume.muted;
+  for (const audio of [albPlayer.audio, albPlayer.spare]) {
+    if (!audio) continue;
+    audio.volume = albVolume.level;
+    audio.muted = albVolume.muted;
   }
   if (!albPlayerEls) return;
   const { muteBtn, volumeRange } = albPlayerEls;
